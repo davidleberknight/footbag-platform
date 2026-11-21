@@ -148,7 +148,7 @@ test('a competition record with no old account is claimed through its confirmati
 
   await wizard.recordClaimLink(wizard.card(persona.personName)).click();
   await expect(page).toHaveURL(new RegExp(`/history/${persona.personId}/claim$`));
-  await page.getByRole('button', { name: /Yes, This Is Me: Link the Record/i }).click();
+  await page.locator('form[action$="/claim/confirm"] button[type="submit"]').click();
   await expect(page).toHaveURL(CLUB_STEP);
 
   withDb((db) => expectRecordClaimHeld(db, persona.memberId, persona.personId));
@@ -318,7 +318,7 @@ test('a double-submitted record confirmation lands on the first outcome, never a
   const second = await ctx.newPage();
   for (const p of [first, second]) await p.goto(`/history/${persona.personId}/claim`);
 
-  const confirm = (p: Page) => p.getByRole('button', { name: /Yes, This Is Me: Link the Record/i });
+  const confirm = (p: Page) => p.locator('form[action$="/claim/confirm"] button[type="submit"]');
   await confirm(first).click();
   await expect(first).toHaveURL(CLUB_STEP);
   await confirm(second).click();

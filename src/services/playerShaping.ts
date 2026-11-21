@@ -5,6 +5,7 @@
  */
 
 import { personHref } from './personLink';
+import { personLocation } from './countryUtils';
 import type { PlayerEventGroup } from '../types/playerProfile';
 
 /** Row fields required to shape a two-sided partnership / team pair. */
@@ -87,6 +88,8 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
         city:         row.city,
         eventRegion:  row.event_region,
         eventCountry: row.event_country,
+        locationText: personLocation(row.city, row.event_region, row.event_country)?.text ?? null,
+        galleryHref:  null,
         results:      [],
       });
     }
@@ -104,6 +107,7 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
         disciplineCategory: row.discipline_category,
         teamType:           row.team_type,
         placement:          row.placement,
+        medalClass:         medalClass(row.placement),
         scoreText:          row.score_text,
         teammates:          [],
         isTie:              row.team_type === 'singles',
@@ -150,6 +154,25 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
     }
   }
   return groups;
+}
+
+/**
+ * The medal colour of a placing: first, second and third read gold, silver and
+ * bronze in every results table, and any other placing takes none.
+ */
+export function medalClass(placement: number): string {
+  return placement === 1 ? 'gold' : placement === 2 ? 'silver' : placement === 3 ? 'bronze' : '';
+}
+
+/**
+ * Gives each event its media gallery link, from the gallery lookup the event
+ * page uses, so a player's results reach the same gallery as the event page.
+ */
+export function withEventGalleries(
+  groups: PlayerEventGroup[],
+  galleryHrefForTag: (tagNormalized: string) => string | null,
+): PlayerEventGroup[] {
+  return groups.map(g => ({ ...g, galleryHref: galleryHrefForTag(`#${g.eventKey}`) }));
 }
 
 /**

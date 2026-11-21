@@ -12,8 +12,10 @@
  *   - Storage key construction matching the curator-seed layout
  *   - Auto-application of the `#curated` uploader marker
  *   - Player credits on edit: a person picked from the edit pages' player
- *     search, which reuses member search (`memberService.searchMembers`)
- *     rather than a search of its own
+ *     picker (the member-picker partial), which reuses member search
+ *     (`memberService.searchMembers`) rather than a search of its own. Its
+ *     Search posts the edit form back and saves nothing, so it takes no
+ *     media-edit rate-limit slot; its Credit as Player saves the edit
  *   - Admin and member named-gallery editing (FH-owned and member-owned
  *     `member_galleries` rows)
  *   - The page contracts for the admin curator surface and for the member's own
@@ -299,7 +301,8 @@ import { buildTierBenefitNotice } from './tierBenefitNotice';
 // already imports this one, and a value import would close the loop.
 import type { GalleryItem, ShareNotices } from './mediaService';
 import type { ShareOutcome } from '../lib/flashCookie';
-import { memberService, type SearchBlockView } from './memberService';
+import { memberService } from './memberService';
+import { PICKER_LIMIT, buildRecordPicker, playerSearchOutcome, type MemberPickerView, type PickIntent } from './memberPicker';
 import { foldTypedHashtags, hasUnconvertibleLetters, slugifyForTag, typedTag, typedTagForDisplay } from './slugify';
 import { assertTypedTags, tagRuleRefusal } from './typedTokenRules';
 import type { PageViewModel, TierBenefitNotice } from '../types/page';
@@ -5702,10 +5705,10 @@ export interface CuratorMediaEditContent {
   // True only where the authoring tree is writable, the one place a
   // URL-reference edit writes through to its sidecar.
   sidecarWritesEnabled: boolean;
-  // The player-search block and the edit form id its picks submit; null on
-  // the not-found and refused-edit renders, which offer no search.
+  // The player picker and the edit form id its credits submit; null on the
+  // not-found and refused-edit renders, which offer no search.
   editFormId: string;
-  playerSearch: SearchBlockView | null;
+  playerPicker: MemberPickerView | null;
 }
 
 export interface CuratorGalleryListRow extends CuratorGallerySummary {
@@ -5936,7 +5939,7 @@ export function getCuratorMediaNotFoundPage(
     formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
     sidecarWritesEnabled: writesAuthoringFiles(),
     editFormId: CURATOR_EDIT_FORM_ID,
-    playerSearch: null,
+    playerPicker: null,
   });
 }
 
@@ -5968,8 +5971,8 @@ function curatorMediaEditFields(item: CuratorMediaListItem): CuratorMediaEditFie
 export async function getCuratorMediaEditPage(
   svc: CuratorMediaService,
   mediaId: string,
-  playerSearch?: { query?: string; actorMemberId: string; ip: string },
-  // What the curator had typed when the player search reloaded the page, laid
+  playerSearch?: PlayerPickRequest,
+  // What the curator had typed when the player picker posted the page back, laid
   // over the stored fields so a search never erases an unsaved edit.
   typed: Partial<Pick<CuratorMediaEditFields,
     'caption' | 'tagsString' | 'sourceId' | 'startSeconds' | 'endSeconds' | 'externalUrl'>> = {},
@@ -5987,7 +5990,7 @@ export async function getCuratorMediaEditPage(
     formAction,
     sidecarWritesEnabled: writesAuthoringFiles(),
     editFormId: CURATOR_EDIT_FORM_ID,
-    playerSearch: buildPlayerSearchBlock(formAction, playerSearch),
+    playerPicker: buildPlayerPicker(CURATOR_EDIT_FORM_ID, formAction, playerSearch),
   });
 }
 
@@ -6020,7 +6023,7 @@ export async function getCuratorMediaEditErrorPage(
     formAction: `/admin/curator/media/${encodeURIComponent(mediaId)}/edit`,
     sidecarWritesEnabled: writesAuthoringFiles(),
     editFormId: CURATOR_EDIT_FORM_ID,
-    playerSearch: null,
+    playerPicker: null,
   });
 }
 
@@ -6468,38 +6471,51 @@ export interface MemberMediaEditContent {
   formAction: string;
   intro: string;
   galleryChips: ShareGalleryChip[];
-  /** The edit form's id, so the player-search picks (rendered outside the
-   *  form, after the search form) submit it with their credit. */
+  /** The edit form's id, so the player picker (rendered after the form)
+   *  submits it with its credit. */
   editFormId: string;
   deleteConfirmHref: string;
   cancelHref: string;
   errorMessage: string | null;
   formValues: MemberMediaEditFormValues;
   tagSuggestions: MemberTagSuggestions | null;
-  playerSearch: SearchBlockView;
+  playerPicker: MemberPickerView;
+}
+
+/** A press of the player picker's controls: its intent and search text, and who searched. */
+export interface PlayerPickRequest {
+  intent?: PickIntent | null;
+  query?: string;
+  actorMemberId: string;
+  ip: string;
 }
 
 /**
- * The player-search block on a media edit page: the one member search, run
- * against this page's own address, so finding a player reloads the edit form.
+ * The player picker on a media edit page: the one member search, members and
+ * historical records alike, run only when its Search was pressed. Each row's
+ * Credit as Player submits the edit form with that player's hashtag, so
+ * choosing completes the edit; a search writes nothing and takes no edit slot.
  */
-export function buildPlayerSearchBlock(
+export function buildPlayerPicker(
+  formId: string,
   formAction: string,
-  search: { query?: string; actorMemberId: string; ip: string } | undefined,
-): SearchBlockView {
-  const query = search?.query?.trim() ?? '';
-  const result = search && query !== ''
-    ? memberService.searchMembers(query, { actorMemberId: search.actorMemberId, ip: search.ip })
+  search: PlayerPickRequest | undefined,
+): MemberPickerView {
+  const intent = search?.intent ?? null;
+  const query = search?.query ?? '';
+  const result = search && intent?.kind === 'search' && intent.key === 'player'
+    ? memberService.searchMembers(query, { actorMemberId: search.actorMemberId, ip: search.ip }, { limit: PICKER_LIMIT })
     : null;
-  return {
-    formAction,
-    query: result?.query ?? '',
-    results: result?.results ?? [],
-    hasMore: result?.hasMore ?? false,
-    tooShort: result?.tooShort ?? false,
-    rateLimited: result?.rateLimited ?? false,
-    hasQuery: query !== '',
-  };
+  return buildRecordPicker({
+    formId, formAction,
+    fieldName: 'addPlayer', fieldKey: 'player',
+    label: 'Player', openLabel: 'Find a Player',
+    searchLabel: "Player's name",
+    rowAction: { label: 'Credit as Player', completes: true, ariaLabel: (name) => `Credit as Player: ${name}` },
+    chosen: null, intent, openOnLoad: true, query, notFoundHint: null,
+    search: result ? playerSearchOutcome(result) : null,
+    notFoundNoun: 'member',
+  });
 }
 
 export const SHARE_CONFIRM_NOTICE_WITH_FILES =
@@ -6727,6 +6743,8 @@ export function getCuratorSharePage(
   };
 }
 
+const MEMBER_EDIT_FORM_ID = 'member-media-edit-form';
+
 export function getMemberMediaEditPage(
   memberKey: string,
   mediaId: string,
@@ -6734,7 +6752,7 @@ export function getMemberMediaEditPage(
   opts: {
     errorMessage?: string;
     tagSuggestions?: MemberTagSuggestions;
-    playerSearch?: { query?: string; actorMemberId: string; ip: string };
+    playerSearch?: PlayerPickRequest;
     galleryChips?: ShareGalleryChip[];
     memberSlug?: string;
   } = {},
@@ -6747,8 +6765,8 @@ export function getMemberMediaEditPage(
     content: {
       formAction,
       intro: `Change this item's caption, hashtags or external URL. Its hashtags decide where it shows: add a gallery's hashtags to show it in that gallery, remove one to stop. ${automaticTag} stays on it always.`,
-      editFormId: 'member-media-edit-form',
-      playerSearch: buildPlayerSearchBlock(formAction, opts.playerSearch),
+      editFormId: MEMBER_EDIT_FORM_ID,
+      playerPicker: buildPlayerPicker(MEMBER_EDIT_FORM_ID, formAction, opts.playerSearch),
       deleteConfirmHref: `/members/${memberKey}/media/${mediaId}/delete`,
       cancelHref: `/media/item/${mediaId}`,
       errorMessage: opts.errorMessage ?? null,

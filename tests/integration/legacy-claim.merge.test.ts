@@ -502,7 +502,7 @@ describe('claimLegacyAccount — deceased historical record is not claimable', (
     db.close();
 
     expect(() => svc.claimLegacyAccount(memberId, legacyId))
-      .toThrow(/no longer available for claim/i);
+      .toThrow(/can no longer be claimed/i);
 
     const m = memberRow(memberId);
     expect(m.historical_person_id).toBeNull();

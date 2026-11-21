@@ -44,6 +44,7 @@ import {
   type PublicEventResultRow,
 } from '../db/db';
 import { PUBLIC_EVENT_DETAIL_VISIBLE_STATUSES } from './eventVisibility';
+import { ALL_SPORTS, sportOptions } from './sportCategories';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { cleanUserText } from '../lib/textSanitizer';
@@ -65,14 +66,7 @@ const DISCIPLINE_CORRECTED = 'event.discipline_corrected';
  * takes, plus sideline, which historical rows carry for their X-Square and
  * consecutives results.
  */
-const SPORT_FAMILIES: Array<{ value: string; label: string }> = [
-  { value: 'net',          label: 'Net' },
-  { value: 'freestyle',    label: 'Freestyle' },
-  { value: 'golf',         label: 'Golf' },
-  { value: 'consecutives', label: 'Consecutives' },
-  { value: 'x_square',     label: 'X-Square' },
-  { value: 'sideline',     label: 'Sideline' },
-];
+const SPORT_FAMILIES: Array<{ value: string; label: string }> = sportOptions(ALL_SPORTS);
 const NO_FAMILY_LABEL = 'None (a standing across several sports)';
 
 export interface SelectOptionView { value: string; label: string; selected: boolean }
@@ -221,7 +215,7 @@ function readDiscipline(eventId: string, disciplineId: string): {
   const event = readCorrectableEvent(eventId);
   const discipline = eventResultCorrection.findDiscipline.get(disciplineId, eventId) as
     | EventResultDisciplineRow | undefined;
-  if (!discipline) throw new NotFoundError('That event has no division with that id.');
+  if (!discipline) throw new NotFoundError('That event has no competition with that id.');
   return { event, discipline };
 }
 
@@ -271,7 +265,7 @@ function validateEntry(
   const wanted = input.disciplineId.trim();
   if (entry.discipline_id !== null && wanted !== '' && wanted !== entry.discipline_id) {
     if (!divisionsFor(eventId, entry).some((d) => d.discipline_id === wanted)) {
-      throw new ValidationError('Choose a division of this event with the same team format.');
+      throw new ValidationError('Choose a competition of this event that is also singles or also doubles.');
     }
     disciplineId = wanted;
   }
@@ -323,7 +317,7 @@ function diffEntry(
   if (facts.placement !== entry.placement) add('placement', 'Placement', entry.placement, facts.placement);
   if (facts.scoreText !== entry.score_text) add('score_text', 'Score', entry.score_text, facts.scoreText);
   if (facts.disciplineId !== entry.discipline_id) {
-    add('discipline_id', 'Division', entry.discipline_id, facts.disciplineId,
+    add('discipline_id', 'Competition', entry.discipline_id, facts.disciplineId,
       shown(entry.discipline_name), shown(disciplineName(eventId, facts.disciplineId)));
   }
   for (const p of participants) {
@@ -357,14 +351,14 @@ function validateDiscipline(input: DisciplineCorrectionInput): DisciplineFacts {
   const category = family === '' ? null : family;
   if (category === null && aggregate === 0) {
     throw new ValidationError(
-      'Only a standing across several sports may have no sport family. Choose a sport family, or mark it as an aggregate standing.',
+      'Only a standing across several sports may have no sport family. Choose a sport family, or mark it as an overall or club ranking.',
     );
   }
   return { category, aggregate };
 }
 
 function aggregateLabel(value: number): string {
-  return value === 1 ? 'Aggregate standing' : 'Single contest';
+  return value === 1 ? 'Overall or club ranking' : 'Single contest';
 }
 
 function shapeSections(eventId: string, rows: PublicEventResultRow[]): SectionView[] {
@@ -470,11 +464,11 @@ export const adminEventResultService = {
         sectionKey: '', pageKey: 'admin_event_results_event', title,
         instructions: {
           what: 'Shows this event\'s published results as the public sees them.',
-          why: 'To find the result or division that needs correcting.',
-          how: 'Choose Correct beside a result to fix its placement, score, division or a competitor\'s name, or beside a division to fix its sport family or aggregate-standing mark.',
+          why: 'To find the result or competition that needs correcting.',
+          how: 'Choose Correct beside a result to fix its placement, score, competition or a competitor\'s name, or beside a competition to fix its sport family or whether it is an overall or club ranking.',
           headsUp: [
             'A competitor\'s name is corrected on this result only. To correct a person\'s name everywhere, use Historical Records or their member record.',
-            'A division\'s sport family and aggregate-standing mark decide whether its results count toward players\' career statistics.',
+            'A competition\'s sport family, and whether it is an overall or club ranking, decide whether its results count toward players\' career statistics.',
           ],
         },
       },
@@ -505,12 +499,12 @@ export const adminEventResultService = {
       page: {
         sectionKey: '', pageKey: 'admin_event_result_entry', title,
         instructions: {
-          what: 'Corrects one result: its placement, its score, the division it is filed under, and each competitor\'s name as shown.',
-          why: 'To put right a wrong placement, a misspelled name, or results filed under the wrong division.',
+          what: 'Corrects one result: its placement, its score, the competition it is filed under, and each competitor\'s name as shown.',
+          why: 'To put right a wrong placement, a misspelled name, or results filed under the wrong competition.',
           how: 'Change what is wrong, give a reason, and review the correction before it is written.',
           headsUp: [
             'Tied competitors share a placement, so two results may hold the same place.',
-            'A result moves only to another division of this event with the same team format.',
+            'A result moves only to another competition of this event that is also singles or also doubles.',
           ],
         },
       },
@@ -630,15 +624,15 @@ export const adminEventResultService = {
     const { event, discipline } = readDiscipline(eventId, disciplineId);
     const family = opts.input ? opts.input.sportFamily : (discipline.discipline_category ?? '');
     const aggregate = opts.input ? opts.input.aggregateStanding === '1' : discipline.is_aggregate_standing === 1;
-    const title = 'Correct a Division';
+    const title = 'Correct a Competition';
     return {
       seo:  { title, noindex: true },
       page: {
         sectionKey: '', pageKey: 'admin_event_result_discipline', title,
         instructions: {
-          what: 'Corrects a division\'s sport family and whether it is an aggregate standing.',
-          why: 'An aggregate standing (an overall or club ranking across several of the event\'s contests) does not count toward players\' career statistics and partnerships, and a single contest does. A division filed the wrong way miscounts them.',
-          how: 'Choose the sport family and the kind of division, give a reason, and review the correction before it is written.',
+          what: 'Corrects a competition\'s sport family and whether it is an overall or club ranking.',
+          why: 'An overall or club ranking across several of the event\'s contests does not count toward players\' career statistics and partnerships, and a single contest does. A competition filed the wrong way miscounts them.',
+          how: 'Choose the sport family and the kind of competition, give a reason, and review the correction before it is written.',
           headsUp: ['Only a standing across several sports may have no sport family.'],
         },
       },
@@ -674,28 +668,28 @@ export const adminEventResultService = {
     if (facts.aggregate !== discipline.is_aggregate_standing) {
       changes.push({ label: 'Kind', before: aggregateLabel(discipline.is_aggregate_standing), after: aggregateLabel(facts.aggregate) });
     }
-    const title = 'Confirm: Correct the Division';
+    const title = 'Confirm: Correct the Competition';
     return {
       seo:  { title, noindex: true },
       page: {
         sectionKey: '', pageKey: 'admin_event_result_confirm', title,
-        instructions: { what: 'Review the correction to this division before it is written.', headsUp: [CONFIRM_INSTRUCTIONS_HEADS_UP] },
+        instructions: { what: 'Review the correction to this competition before it is written.', headsUp: [CONFIRM_INSTRUCTIONS_HEADS_UP] },
       },
       content: {
         eventTitle: event.title,
         subject: discipline.name,
         changes,
         hasChanges: changes.length > 0,
-        noChangeMessage: changes.length > 0 ? null : 'Those are the values the division already holds. Nothing would change.',
+        noChangeMessage: changes.length > 0 ? null : 'Those are the values the competition already holds. Nothing would change.',
         reason,
-        summary: 'Players\' career statistics and partnerships count the division by its new kind from now on. Nobody is emailed.',
+        summary: 'Players\' career statistics and partnerships count the competition by its new kind from now on. Nobody is emailed.',
         hiddenFields: [
           { name: 'sport_family', value: input.sportFamily },
           { name: 'aggregate_standing', value: input.aggregateStanding },
           { name: 'reason', value: reason },
         ],
         confirmAction: `${disciplineHref(eventId, disciplineId)}/confirm`,
-        confirmLabel: 'Yes, Correct the Division',
+        confirmLabel: 'Yes, Correct the Competition',
         cancelHref: disciplineHref(eventId, disciplineId),
       },
     };
@@ -745,11 +739,11 @@ export const adminEventResultService = {
       changed = true;
     });
 
-    const changedText = 'The division has been corrected, and the change is in the audit log.';
+    const changedText = 'The competition has been corrected, and the change is in the audit log.';
     if (changed) return { ending: 'advance', text: changedText };
     if (findStandingOwnAct(actorId, DISCIPLINE_CORRECTED, DISCIPLINE_CORRECTED, 'event_discipline', disciplineId)) {
       return { ending: 'own_repeat', text: changedText };
     }
-    return { ending: 'already_held', text: 'Those are the values the division already holds, so nothing changed.' };
+    return { ending: 'already_held', text: 'Those are the values the competition already holds, so nothing changed.' };
   },
 };

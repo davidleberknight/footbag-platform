@@ -142,6 +142,9 @@ export interface PersonaProfileSpec {
   showCompetitiveResults?: boolean;
   showFirstCompetitionYear?: boolean;
   emailStatus?: 'ok' | 'bounced' | 'complained' | 'suppressed';
+  /** Home town, where two personas must be told apart by where they live. */
+  city?: string;
+  region?: string;
 }
 
 /**
@@ -510,7 +513,7 @@ export interface PersonaSpec {
    * organizes. Its id and tag are fixed per persona (`personaEventId`), so a
    * refresh removes it and another persona's spec can name it.
    */
-  organizesEvent?: { title: string };
+  organizesEvent?: PersonaEventSpec;
   /** Legacy-club-candidate cards (pending / declined / resolved / junk). */
   legacyClubCandidates?: PersonaLegacyClubCandidateSpec[];
   activePlayer?: PersonaActivePlayerSpec;
@@ -568,12 +571,22 @@ export interface PersonaSpec {
    * through the real entries after the seed commits (see personaJourneys):
    * the erasure of a deleted account's personal data or a deceased member's
    * contact details; open contact requests the member filed; a registration
-   * for another persona's event.
+   * for another persona's event, in a named competition and with a partner
+   * persona for a doubles one; and, on an organizer, a walk-up added at the
+   * event and then corrected.
    */
   postSeed?: {
     erase?: 'account' | 'deceased_contact';
     openContactRequests?: number;
-    registersFor?: { eventOfPersona: string };
+    registersFor?: { eventOfPersona: string; competition?: string; partner?: string };
+    addsWalkUp?: {
+      persona: string;
+      /** The competition the walk-up first enters, then the doubles one the organizer moves them to. */
+      firstCompetition: string;
+      correctedCompetition: string;
+      partner: string;
+      paidAtEvent: boolean;
+    };
   };
   /** Testing dimensions this persona exercises. Must be non-empty. */
   coverageNotes: string[];
@@ -616,6 +629,40 @@ export function personaClubId(slug: string): string {
   return `club-test-persona-${slug}`;
 }
 
+/**
+ * The event a persona organizes, shaped like a real tournament: where it is
+ * held, what it is, how many days it runs and when online registration
+ * closes. Its competitions are the ones a tournament of its kind runs.
+ */
+export interface PersonaEventSpec {
+  title: string;
+  city: string;
+  region: string | null;
+  country: string;
+  description: string;
+  /** Days from today to the first day; negative for an event under way. */
+  startInDays: number;
+  /** How many days it runs. */
+  days: number;
+  /** Days before the first day that online registration closes. */
+  deadlineDaysBefore: number;
+  /**
+   * How registration stands: open (the default), paused by the organizer, or
+   * closed for good by the organizer.
+   */
+  registration?: 'open' | 'paused' | 'closed';
+  /**
+   * An event the administrator persona named here sanctioned, with the entry
+   * fees it charges online; an organizer may also take the fee at the table.
+   */
+  sanctionedWithFees?: { byPersona: string; competitorCents: number; spectatorCents: number };
+  competitions: Array<{
+    name: string; category: 'net' | 'freestyle'; gameId: string;
+    teamType: 'singles' | 'doubles'; gender: 'open' | 'women' | 'mixed';
+    skill: 'open' | 'intermediate' | 'novice';
+  }>;
+}
+
 /** The id of the event a persona's `organizesEvent` spec seeds, and of its tag. */
 export const PERSONA_EVENT_ID_PREFIX = 'event-test-persona-';
 export const PERSONA_EVENT_TAG_ID_PREFIX = 'tag-test-persona-event-';
@@ -655,6 +702,8 @@ function profileColumns(p: PersonaProfileSpec | undefined) {
     show_competitive_results: flag(p.showCompetitiveResults),
     show_first_competition_year: flag(p.showFirstCompetitionYear),
     email_status: p.emailStatus,
+    city: p.city,
+    region: p.region,
   };
   return Object.fromEntries(Object.entries(cols).filter(([, v]) => v !== undefined));
 }
@@ -1081,8 +1130,9 @@ export function seedPersona(
   }
 
   if (spec.organizesEvent) {
+    const ev = spec.organizesEvent;
     const eventId = personaEventId(spec.slug);
-    const startDate = isoDateDaysFromNow(60);
+    const startDate = isoDateDaysFromNow(ev.startInDays);
     const tagId = insertTag(db, {
       id: personaEventTagId(spec.slug),
       tag_normalized: `#event_${startDate.slice(0, 4)}_persona_${spec.slug}`,
@@ -1091,21 +1141,38 @@ export function seedPersona(
     insertEvent(db, {
       id: eventId,
       hashtag_tag_id: tagId,
-      title: spec.organizesEvent.title,
+      title: ev.title,
+      description: ev.description,
+      city: ev.city,
+      region: ev.region,
+      country: ev.country,
       start_date: startDate,
-      end_date: startDate,
-      status: 'reg_open',
+      end_date: isoDateDaysFromNow(ev.startInDays + ev.days - 1),
+      registration_deadline: isoDateDaysFromNow(ev.startInDays - ev.deadlineDaysBefore),
+      status: ev.registration === 'closed' ? 'closed' : 'reg_open',
+      registration_status: ev.registration === 'paused' ? 'closed' : 'open',
+      ...(ev.sanctionedWithFees ? {
+        sanction_status: 'approved',
+        sanction_requested_by_member_id: memberId,
+        sanction_decided_at: new Date().toISOString(),
+        sanction_decided_by_member_id: `${SEEDED_PERSONA_MEMBER_ID_PREFIX}${ev.sanctionedWithFees.byPersona}`,
+        sanction_decision_reason: 'Meets the sanctioning guidelines.',
+        payment_enabled: 1 as const,
+        currency: 'USD',
+        competitor_fee_cents: ev.sanctionedWithFees.competitorCents,
+        attendee_fee_cents: ev.sanctionedWithFees.spectatorCents,
+        is_attendee_registration_open: 1 as const,
+      } : {}),
     });
     insertEventOrganizer(db, eventId, memberId);
-    // A singles and a mixed doubles division, so another persona can register
-    // and try the partner and gender rules.
-    insertDiscipline(db, eventId, {
-      name: 'Open Singles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
-      team_type: 'singles', gender_eligibility: 'open', division_class: 'open',
-    });
-    insertDiscipline(db, eventId, {
-      name: 'Open Mixed Doubles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
-      team_type: 'doubles', gender_eligibility: 'mixed', division_class: 'open', sort_order: 2,
+    // The competitions a tournament of this kind runs; the open singles and
+    // the mixed doubles let another persona register and try the partner and
+    // gender rules.
+    ev.competitions.forEach((c, i) => {
+      insertDiscipline(db, eventId, {
+        name: c.name, discipline_category: c.category, game_id: c.gameId,
+        team_type: c.teamType, gender_eligibility: c.gender, division_class: c.skill, sort_order: i + 1,
+      });
     });
   }
 

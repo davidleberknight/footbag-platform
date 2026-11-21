@@ -15,6 +15,7 @@ import { parseFormBody, formText, formOptionalText, formCheckbox } from '../lib/
 import { broadcastService, type AnnouncementDecisionResult } from '../services/broadcastService';
 import { eventService, type SanctionDecisionResult } from '../services/eventService';
 import { WORK_QUEUE_TOPICS, WORK_QUEUE_TOPIC_KEYS, type WorkQueueTopic } from '../services/workQueueTaskTypes';
+import { parsePickIntent } from '../services/memberPicker';
 
 // Every queue form carries the list state the administrator is working in (the
 // kind, the area, the unclaimed filter and the page) and which page it was
@@ -42,11 +43,33 @@ const askForm = z.object({
   ...listFields,
 });
 const linkTargetForm = z.object({
-  target_legacy_member_id: formText('Legacy member id'),
-  target_historical_person_id: formText('Historical person id'),
+  target_legacy_member_id: formText('Old footbag.org account'),
+  target_historical_person_id: formText('Past results'),
   reason: formText('Reason'),
   ...listFields,
 });
+// The approve form's pickers post it back under `pick`, with the search text in
+// `pick_q`; its Approve button posts the chosen record for the preview.
+const linkApproveForm = linkTargetForm.extend({
+  pick: formOptionalText('The record picker'),
+  pick_q: formText('Search'),
+});
+// A dispute revert names one of the records the dispute recorded, as
+// `account:<id>` or `record:<id>`.
+const disputeChoiceForm = z.object({
+  disputed_record: formText('Disputed record'),
+  reason: formText('Reason'),
+  ...listFields,
+});
+
+function disputeTarget(choice: string): { legacyMemberId: string; historicalPersonId: string } {
+  const [kind, ...rest] = choice.split(':');
+  const id = rest.join(':');
+  return {
+    legacyMemberId:     kind === 'account' ? id : '',
+    historicalPersonId: kind === 'record' ? id : '',
+  };
+}
 const rejectForm = z.object({ reason: formText('Reason'), ...listFields });
 const approveAnnouncementForm = z.object({
   allow_extra: formCheckbox('Allow an extra announcement today', '0'),
@@ -488,13 +511,28 @@ export const adminWorkQueueController = {
   /** POST /admin/work-queue/:id/link-help/approve
    *
    * Shows whose record is about to be bound to whose account. Writes nothing:
-   * an opaque id typed by hand is exactly the case where a mistyped character
-   * links the wrong person, and every other consequential write on a person is
-   * previewed the same way. */
+   * a record chosen from a search can still be the wrong same-named person, and
+   * every other consequential write on a person is previewed the same way. The
+   * form's record pickers post here too, and draw the item again. */
   linkHelpApprovePreview(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     try {
-      const form = read(linkTargetForm, req);
+      const form = read(linkApproveForm, req);
+      if (form.pick !== undefined) {
+        // A picker control: the item again, holding what was chosen. Writes nothing.
+        const vm = adminWorkQueueService.getWorkQueueItemPage(queueItemId, req.user!.userId, {
+          state: listState(form),
+          linkPick: {
+            legacyMemberId:     form.target_legacy_member_id,
+            historicalPersonId: form.target_historical_person_id,
+            intent:             parsePickIntent(form.pick),
+            query:              form.pick_q,
+          },
+        });
+        if (!vm) throw new NotFoundError('That queue item is no longer open.');
+        res.render('admin/work-queue/item', vm);
+        return;
+      }
       res.render('admin/work-queue/link-help-confirm', adminWorkQueueService.getLinkHelpApprovalConfirmPage({
         adminMemberId:      req.user!.userId,
         queueItemId,
@@ -551,12 +589,11 @@ export const adminWorkQueueController = {
   linkHelpDisputeRevertPreview(req: Request, res: Response, next: NextFunction): void {
     const queueItemId = req.params['id'] ?? '';
     try {
-      const form = read(linkTargetForm, req);
+      const form = read(disputeChoiceForm, req);
       const vm = adminWorkQueueService.getDisputeRevertConfirmPage({
         adminMemberId:      req.user!.userId,
         queueItemId,
-        legacyMemberId:     form.target_legacy_member_id,
-        historicalPersonId: form.target_historical_person_id,
+        ...disputeTarget(form.disputed_record),
         reason:             form.reason,
         state:              listState(form),
       });

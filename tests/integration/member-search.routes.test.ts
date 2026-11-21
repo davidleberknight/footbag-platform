@@ -226,7 +226,7 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane+or`).set('Cookie', searcherCookie());
     const results = resultsBlock(res.text);
     expect(results).toContain('Jane Organizer');
-    expect(results).toMatch(/badge badge-tier">Tier 2</);
+    expect(results).toMatch(/badge badge-tier">Tier 2 IFPA Organizer Member</);
   });
 
   it('shows the Active Player badge on a Tier 0 Active Player row, with no tier badge', async () => {

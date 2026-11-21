@@ -36,17 +36,15 @@
 
   <section>
     <div class="section-heading"><h2>Grant the Admin Role</h2></div>
-    <form method="POST" action="/admin/admin-roles/grant" class="form-block">
-      <div class="form-field">
-        <label for="grant_member">Member id or slug</label>
-        <input type="text" id="grant_member" name="member_key" required maxlength="200" />
-      </div>
+    <form method="POST" action="{{content.grantHref}}" id="{{content.grantFormId}}" class="form-block">
+      {{> member-picker content.memberPicker}}
       <div class="form-field">
         <label for="grant_reason">Reason (required)</label>
-        <input type="text" id="grant_reason" name="reason" required maxlength="500" />
+        <input type="text" id="grant_reason" name="reason" value="{{content.reasonValue}}" required maxlength="500" />
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Grant Admin Role</button>
+      <button type="submit" class="btn btn-primary">Grant Admin Role</button>
     </form>
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
   </section>
 
   <p class="mt-4"><a href="/admin">Back to the admin dashboard</a></p>

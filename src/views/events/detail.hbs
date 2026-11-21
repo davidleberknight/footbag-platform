@@ -10,16 +10,19 @@
   {{#if content.notice}}
     {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
   {{/if}}
+  {{#if content.coverPhoto}}
+    <img id="event-cover-photo" class="cover-photo" src="{{content.coverPhoto.url}}" alt="{{content.coverPhoto.alt}}"{{#if content.coverPhoto.widthPx}} width="{{content.coverPhoto.widthPx}}" height="{{content.coverPhoto.heightPx}}"{{/if}}>
+  {{/if}}
   <section>
     <div class="event-detail">
 
       {{! ── Event header ──────────────────────────────────────── }}
       <div class="event-header">
         <div class="event-meta-row">
-          <span>&#128197; {{formatDate content.event.startDate}}{{#unless (eq content.event.startDate content.event.endDate)}} – {{formatDate content.event.endDate}}{{/unless}}</span>
-          <span>&#128205; {{formatLocation content.event.city content.event.region content.event.country}}</span>
+          <span><span aria-hidden="true">&#128197;</span><span class="visually-hidden">Date:</span> {{content.dateRange}}</span>
+          <span><span aria-hidden="true">&#128205;</span><span class="visually-hidden">Location:</span> {{formatLocation content.event.city content.event.region content.event.country}}</span>
           {{#if content.event.hostClub}}
-            <span>&#127968; {{content.event.hostClub}}</span>
+            <span><span aria-hidden="true">&#127968;</span><span class="visually-hidden">Host club:</span> {{content.event.hostClub}}</span>
           {{/if}}
           <span class="badge {{content.event.statusCssClass}}">{{content.event.statusLabel}}</span>
           {{#if content.event.isSanctioned}}<span class="badge">IFPA-sanctioned</span>{{/if}}
@@ -40,7 +43,7 @@
       {{! ── Organizers ────────────────────────────────────────── }}
       {{#if content.organizers.length}}
         <div>
-          <h2>Organizers</h2>
+          <div class="section-heading"><h2>Organizers</h2></div>
           <ul>
             {{#each content.organizers}}
               <li>{{this.name}}{{#if this.contactEmail}}, <a href="mailto:{{this.contactEmail}}">{{this.contactEmail}}</a>{{/if}}</li>
@@ -51,13 +54,16 @@
 
       {{! ── Competition categories ────────────────────────────── }}
       {{#if content.disciplines.length}}
-        <div>
-          <h2>Competition Categories</h2>
-          <ul class="disciplines-list">
-            {{#each content.disciplines}}
-              <li class="discipline-tag">{{name}}{{#if teamTypeLabel}} ({{teamTypeLabel}}){{/if}}{{#if registeredLabel}} <span class="text-muted">{{registeredLabel}}</span>{{/if}}</li>
-            {{/each}}
-          </ul>
+        <div id="competition-categories">
+          <div class="section-heading"><h2>Competitions</h2></div>
+          {{#each content.disciplineGroups}}
+            {{#if label}}<h3>{{label}}</h3>{{/if}}
+            <ul class="disciplines-list">
+              {{#each disciplines}}
+                <li class="discipline-tag">{{name}}{{#if teamTypeLabel}} ({{teamTypeLabel}}){{/if}}{{#if registeredLabel}} <span class="text-muted">{{registeredLabel}}</span>{{/if}}</li>
+              {{/each}}
+            </ul>
+          {{/each}}
         </div>
       {{/if}}
 
@@ -65,8 +71,8 @@
       {{#if content.registration}}
         {{#with content.registration}}
           {{#if mine}}
-            <div>
-              <h2>Your Registration</h2>
+            <div id="your-registration">
+              <div class="section-heading"><h2>Your Registration</h2></div>
               <p>{{mine.typeLabel}}{{#if mine.statusLabel}} <span class="badge">{{mine.statusLabel}}</span>{{/if}}</p>
               {{#if mine.entries.length}}
                 <ul>
@@ -94,7 +100,7 @@
           {{#if closedNote}}<p>{{closedNote}}</p>{{/if}}
           {{#if registrants.length}}
             <div>
-              <h2>{{registrantsHeading}}</h2>
+              <div class="section-heading"><h2>{{registrantsHeading}}</h2></div>
               <ul>
                 {{#each registrants}}
                   <li>
@@ -109,13 +115,14 @@
         {{/with}}
       {{/if}}
 
-      {{! ── Results ───────────────────────────────────────────── }}
-      <div>
-        <h2>Results</h2>
+      {{! ── Results, once the event has taken place ────────────── }}
+      {{#if content.showResults}}
+      <div id="results">
+        <div class="section-heading"><h2>Results</h2></div>
         {{#if content.hasResults}}
           {{#if content.isSparse}}
             <div class="no-results-notice">
-              We know the data from this event is incomplete but we're showing what we have anyway.
+              Historical results are incomplete, so some results from this event may be missing.
             </div>
           {{/if}}
           <div>
@@ -129,6 +136,7 @@
           </div>
         {{/if}}
       </div>
+      {{/if}}
 
     </div>
   </section>

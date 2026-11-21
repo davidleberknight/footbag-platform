@@ -82,7 +82,7 @@ describe('legacy-account claim race loser', () => {
     expect(() => svc.claimLegacyAccount('race-legacy-loser', 'LM-race-1'))
       .toThrow(ConflictError);
     expect(() => svc.claimLegacyAccount('race-legacy-loser', 'LM-race-1'))
-      .toThrow(/already been claimed by another account/);
+      .toThrow(/already been claimed by another member/);
 
     // Full rollback: no partial link on the loser, the target row's claim
     // state is untouched, no tier grant, no claim audit row.

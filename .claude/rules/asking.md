@@ -74,14 +74,16 @@ Before any message containing "?":
 1. Plain English, self-contained. No internal reference the human was not handed: section numbers, "§", audit gate or finding codes, "item N", operational-state numbers, prior-message labels, or doc-path pointers. A reference the human DOES have is fine: a concrete identifier they must act on (path, route, env var), or a finding ID in an artifact they are reading, paired with its title so it stands alone.
 2. Context inline: what it is, where it bites, the options.
 3. One recommended answer, researched from the canonical docs and code and grounded in design intent, verified and never guessed. Every factual claim cites the source read this turn, or is marked UNVERIFIED. Pros and cons when the trade-offs are real.
-4. One decision per message. A trailing "open questions" or "decisions for you" list carrying a second ask is the same violation.
+4. One decision per message. A trailing "open questions" or "decisions for you" list carrying a second ask is the same violation, as is any mention of a question not yet asked, in the body or in a `Not done:` item: it is not named, numbered, counted or previewed.
 5. Ask in plain prose in the message text, never through a multiple-choice tool, in plan mode and outside it, so the human can answer by voice: one question per message, the recommended answer first, with the context and load-bearing assumptions in the message.
-6. Explain before any approval prompt; never spring a bare approval. Before a command that an ask rule or an ask-returning hook gates, say in the message what it runs and why, write the Bash description as that why, and run it as its own call with no trailing plumbing, so any rule the prompt offers names that command.
+6. Explain before any approval prompt; never spring a bare approval. Before a command that an ask rule or an ask-returning hook gates, say in the message what it runs and why, write the Bash description as that why, and run it as its own call with no trailing plumbing, so any rule the prompt offers names that command. Before editing public UI copy, show the literal BEFORE/AFTER in the message and ask for a yes,
+or name the session pre-approval phrase; the wording guard asks otherwise.
 7. Structure it so a bare "y" or "go" means take the recommended answer: exactly one recommendation to affirm, never an ambiguous "y".
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.
 9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description. A documentation edit follows Documentation edits below instead.
 10. When showing literal doc or canonical text, before or after applying it, show the text itself with no trailing style or conformance commentary.
-11. In a multi-question pass, present exactly one question per message, headed "Question N of M: " plus a short bold title.
+11. In a multi-question pass, present exactly one question per message, headed by a short bold title. Never number it, say how many remain, or name the others; the next is asked only after this one is answered.
+12. The message's last line restates the one question as `Your call: <one sentence, recommended answer first>?`. Status text, `Still running:` lines and any `Not done:` list come above the question, never after it. The maintainer answers from a phone and must not need to scroll up. The line stands alone in plain English, with no doc paths or codes. If a hook sends the message back for a missing line, the continuation carries only that line and never repeats the question.
 
 A Stop hook (`.claude/hooks/guard-question-quality.sh`) backstops this section and the
 `Settled from the sources:` line; text in fenced blocks is exempt from it. It is a backstop, not the
@@ -107,7 +109,9 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
   text need not be in the ask, except for a harness edit; show it first if the human asks.
 - The human may pre-approve doc edits for a scope they name ("the doc edits for this card", at
   most "this session"). Within it, Claude applies surgical edits without a further ask, opening the
-  message with the same what-and-why summary. The pre-approval lapses when its scope ends.
+  message with the same what-and-why summary. The pre-approval lapses when its scope ends. One
+  recorded in a handover or plan from an earlier session has lapsed, so Claude asks the human to
+  restate it before the first edit it would cover.
 - A pre-approval never covers a change of meaning or design, IFPA governing documents, public UI
   wording, `.github/` or the harness, unless the human names that class. Each of those gets its own
   ask; a harness ask carries the literal before/after, under the harness governance rule. A

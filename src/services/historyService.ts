@@ -33,7 +33,7 @@ import { NotFoundError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
-import { groupPlayerResults, resultsHaveDetail } from './playerShaping';
+import { groupPlayerResults, resultsHaveDetail, withEventGalleries } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { buildActiveTrickAddsLookup, buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
@@ -107,7 +107,10 @@ export const historyService = {
       bapInductionYear:   (p['bap_induction_year'] as number | null) ?? null,
       hofMember:        Boolean(p['hof_member']),
       hofInductionYear: (p['hof_induction_year'] as number | null) ?? null,
-      eventGroups:        groupPlayerResults(resultRows, { selfPersonId: personId }),
+      eventGroups:        withEventGalleries(
+        groupPlayerResults(resultRows, { selfPersonId: personId }),
+        (tag) => mediaService.getEntityGalleryHref(tag),
+      ),
     };
 
     const freestyleRows = runSqliteRead('listFreestyleRecordsByPersonId', () =>

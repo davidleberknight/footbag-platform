@@ -15,6 +15,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { auth } from '../db/db';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
+import { TIER_NAMES } from '../services/membershipTieringService';
 import { CANONICAL_PERSONAS, PERSONA_GROUP_ORDER } from './canonicalPersonas';
 import type { PersonaSpec } from './personaFactory';
 /** A pre-shaped state chip the card renders; muted ones read as inactive. */
@@ -75,12 +76,7 @@ interface PersonaGroup {
 
 const UNGROUPED = 'Other';
 
-const TIER_LABELS: Record<string, string> = {
-  tier0: 'Tier 0',
-  tier1: 'Tier 1',
-  tier2: 'Tier 2',
-  tier3: 'Tier 3',
-};
+const TIER_LABELS: Record<string, string> = TIER_NAMES;
 
 /**
  * State chips a card shows beyond its roles: the deny half of an authorization

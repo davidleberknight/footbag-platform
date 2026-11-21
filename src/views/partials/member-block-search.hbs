@@ -3,20 +3,6 @@
 <div id="find-members">
   {{#if intro}}<p>{{intro}}</p>{{/if}}
   <div class="search-box-section">
-    {{#if searchFormId}}
-      {{!-- On an edit page the search belongs to the edit form and submits it by
-            GET, so what was typed into the form arrives with the search and is
-            shown again on the reloaded page instead of being lost. --}}
-      <label for="find-members-q">Search members by name</label>
-      <div class="search-box-form" role="search">
-        <input type="text" id="find-members-q" name="q" form="{{searchFormId}}" minlength="2" maxlength="100"
-               placeholder="Search by name..."
-               value="{{query}}"
-               class="search-box-input" />
-        <button type="submit" form="{{searchFormId}}" formmethod="get" formaction="{{formAction}}#find-members" formnovalidate class="btn btn-primary" data-member-search-submit>Search</button>
-      </div>
-      <script src="{{{asset 'js/member-search-enter.js'}}}" defer></script>
-    {{else}}
       <form method="GET" action="{{formAction}}#find-members" class="search-box-form" role="search">
         <input type="text" name="q" minlength="2" maxlength="100"
                placeholder="Search by name..."
@@ -25,7 +11,6 @@
                class="search-box-input" />
         <button type="submit" class="btn btn-primary">Search</button>
       </form>
-    {{/if}}
     </div>
 
     {{#if hasQuery}}
@@ -53,7 +38,6 @@
               {{#if isHof}}<span class="badge badge-honor">HoF</span>{{/if}}
               {{#if isBap}}<span class="badge badge-honor">BAP</span>{{/if}}
               {{#if isBoard}}<span class="badge badge-honor">Board</span>{{/if}}
-              {{#if ../creditFormId}}<button type="submit" form="{{../creditFormId}}" name="addPlayer" value="{{playerTag}}" class="btn btn-outline btn-sm">Credit as Player</button>{{/if}}
             </div>
           {{/each}}
         </div>

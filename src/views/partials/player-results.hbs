@@ -16,7 +16,7 @@
     <tr>
       <th>Event</th>
       <th>Year</th>
-      <th>Category</th>
+      <th>Competition</th>
       <th class="col-num">Place</th>
       {{#if hasDetailColumn}}<th>Details</th>{{/if}}
     </tr>
@@ -26,11 +26,11 @@
       {{#each results}}
         <tr>
           {{#if @first}}
-          <td rowspan="{{../results.length}}"><a href="{{../eventHref}}">{{../eventTitle}}</a></td>
+          <td rowspan="{{../results.length}}"><a href="{{../eventHref}}">{{../eventTitle}}</a>{{#if ../locationText}}<br><span class="text-muted fs-sm">{{../locationText}}</span>{{/if}}{{#if ../galleryHref}}<br><a href="{{siteHref ../galleryHref}}" class="fs-sm">Gallery</a>{{/if}}</td>
           <td rowspan="{{../results.length}}">{{yearFromDate ../startDate}}</td>
           {{/if}}
           <td>{{#if disciplineName}}{{disciplineName}}{{else}}&mdash;{{/if}}</td>
-          <td class="col-num placement-num {{#if (eq placement 1)}}gold{{else if (eq placement 2)}}silver{{else if (eq placement 3)}}bronze{{/if}}">{{placement}}</td>
+          <td class="col-num placement-num {{medalClass}}">{{placement}}</td>
           {{#if ../../hasDetailColumn}}
           <td>{{detailPrefix}}{{#each teammates}}{{#unless @first}}, {{/unless}}{{#if playerHref}}<a href="{{playerHref}}">{{name}}</a>{{else}}{{name}}{{/if}}{{/each}}{{#if scoreText}}{{#if teammates.length}} &middot; {{/if}}{{scoreText}}{{/if}}</td>
           {{/if}}

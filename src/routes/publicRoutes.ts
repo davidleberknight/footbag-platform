@@ -69,6 +69,8 @@ publicRouter.post('/clubs/:key/step-down',      requireMember, clubController.po
 publicRouter.post('/clubs/:key/mark-inactive',  requireMember, clubController.postMarkInactive);
 publicRouter.post('/clubs/:key/reactivate',     requireMember, clubController.postReactivate);
 publicRouter.post('/clubs/:key/content/edit',    requireMember, clubController.postContentEdit);
+publicRouter.post('/clubs/:key/cover-photo',        requireMember, requireTier1Benefits('media'), clubController.postCoverPhoto);
+publicRouter.post('/clubs/:key/cover-photo/remove', requireMember, requireTier1Benefits('media'), clubController.postRemoveCoverPhoto);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered
@@ -185,6 +187,8 @@ publicRouter.get('/events/:eventKey',    eventController.event);
 // service's check, answered as not-found for anyone who does not.
 publicRouter.get('/events/:eventKey/manage',                         requireMember, eventController.getManage);
 publicRouter.post('/events/:eventKey/edit',                          requireMember, eventController.postEdit);
+publicRouter.post('/events/:eventKey/cover-photo',                   requireMember, requireTier1Benefits('media'), eventController.postCoverPhoto);
+publicRouter.post('/events/:eventKey/cover-photo/remove',            requireMember, requireTier1Benefits('media'), eventController.postRemoveCoverPhoto);
 publicRouter.post('/events/:eventKey/divisions',                     requireMember, eventController.postDivision);
 publicRouter.post('/events/:eventKey/divisions/:divisionId/remove',  requireMember, eventController.postRemoveDivision);
 publicRouter.post('/events/:eventKey/organizers',                    requireMember, eventController.postAddOrganizer);
@@ -195,6 +199,10 @@ publicRouter.post('/events/:eventKey/close-registration',            requireMemb
 publicRouter.post('/events/:eventKey/cancel',                        requireMember, eventController.postCancelEvent);
 publicRouter.post('/events/:eventKey/delete',                        requireMember, eventController.postDeleteEvent);
 publicRouter.get('/events/:eventKey/participants',                   requireMember, eventController.getParticipants);
+publicRouter.get('/events/:eventKey/participants/add',               requireMember, eventController.getAddEntrant);
+publicRouter.post('/events/:eventKey/participants/add',              requireMember, eventController.postAddEntrant);
+publicRouter.get('/events/:eventKey/participants/:registrationId/edit',  requireMember, eventController.getEditEntry);
+publicRouter.post('/events/:eventKey/participants/:registrationId/edit', requireMember, eventController.postEditEntry);
 publicRouter.get('/events/:eventKey/participants.csv',               requireMember, eventController.getParticipantsCsv);
 publicRouter.post('/events/:eventKey/registrations/:registrationId/cancel', requireMember, eventController.postCancelRegistration);
 publicRouter.get('/events/:eventKey/summary',                        requireMember, eventController.getSummary);

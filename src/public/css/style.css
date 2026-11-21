@@ -91,6 +91,9 @@
   --radius-pill: 20px;
   --radius-full: 999px;
 
+  /* The side of a dated item's cover thumbnail. */
+  --card-thumb-size: 80px;
+
   /* Spacing rhythm: six roles, each one job. Shared components apply them;
      pages do not. On a phone the two widest step down one, below. */
   --space-xs:    4px;   /* inside a line or control: label to control, list items */
@@ -775,7 +778,9 @@ section { margin-top: var(--space-2xl); }
   gap: var(--space-md);
   margin: var(--space-md) 0 var(--space-sm);
 }
-.search-box-results {
+/* The profile's Find Members list scrolls in its own box; a form's member
+   picker shows its few rows in full, never in a scroll box. */
+.profile-section .search-box-results {
   max-height: 320px;
   overflow-y: auto;
 }
@@ -841,6 +846,10 @@ section { margin-top: var(--space-2xl); }
    so each picture stays a preview. The doubled class outranks the narrow-screen
    one-column rule, since these cards already fit a phone at their minimum. */
 .card-grid.card-grid-compact { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+/* A stacked list of dated items (a year's events, a member's upcoming events),
+   one card per line so a long list stays scannable in date order. */
+.dated-list { display: flex; flex-direction: column; gap: var(--space-md); }
+.dated-list > .card { padding: var(--space-lg); }
 
 .card {
   background: var(--bg);
@@ -912,6 +921,37 @@ section { margin-top: var(--space-2xl); }
   object-fit: cover;
   border-radius: var(--radius-sm);
   margin-bottom: var(--space-md);
+}
+/* A dated item's cover thumbnail: a small square at the card's top right, sized
+   before the picture arrives so nothing jumps, with the card's text kept clear
+   of it at every width. Decorative; the title stays the card's one link. */
+.card:has(> .card-thumb) {
+  position: relative;
+  padding-right: calc(var(--space-xl) + var(--space-lg) + var(--card-thumb-size));
+}
+.card-thumb {
+  position: absolute;
+  top: var(--space-xl);
+  right: var(--space-xl);
+  width: var(--card-thumb-size);
+  height: var(--card-thumb-size);
+}
+.card-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+}
+/* An event's or club's cover photo at full content width, directly under the
+   page's hero and any notice band, before its facts. */
+.cover-photo {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: var(--radius);
+  margin-bottom: var(--space-xl);
 }
 /* The cover in My Galleries' name cell: a small square ahead of the name. */
 .gallery-list-cover {
@@ -1784,69 +1824,27 @@ p.badge { display: block; width: fit-content; }
   text-underline-offset: 2px;
 }
 
-/* ── Archive year nav ───────────────────────────────────────── */
-.year-grid {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-  margin-top: var(--space-sm);
-}
-.year-pill {
-  display: inline-block;
-  padding: var(--space-sm) var(--space-lg);
-  border-radius: var(--radius-pill);
-  background: var(--bg-light);
-  border: 1px solid var(--border);
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--text);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.year-pill:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  color: var(--white);
-  text-decoration: none;
-}
-
-
-/* ── Year archive event list ─────────────────────────────────── */
-.event-list { border-top: 1px solid var(--border); }
-.event-list-row {
+/* ── Side list ──────────────────────────────────────────────── */
+/* A short index of links (the events landing page's archive years) beside the
+   main content from 1024px up, stacked after it below that. */
+/* The layout owns the gap above it, as a section does: a grid item's margin
+   does not collapse into the hero's, so the first section inside each column
+   gives up its own and the hero-to-content gap stays one gap. */
+.side-list-layout { display: grid; gap: var(--space-2xl); margin-top: var(--space-2xl); }
+.side-list-layout > * { min-width: 0; }
+.side-list-layout > * > section:first-child { margin-top: 0; }
+.side-list > ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 var(--space-md);
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: var(--space-lg);
-  align-items: center;
-  padding: var(--space-md) 0;
-  border-bottom: 1px solid var(--border);
-  color: var(--text);
-  text-decoration: none;
-  transition: color 0.12s;
+  grid-template-columns: repeat(auto-fill, minmax(4rem, 1fr));
+  gap: var(--space-xs) var(--space-md);
 }
-.event-list-row:hover { text-decoration: none; }
-.event-list-main { min-width: 0; }
-.event-list-title {
-  display: block;
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--primary-ink);
+.side-list > ul a { font-weight: 600; }
+@media (min-width: 1024px) {
+  .side-list-layout { grid-template-columns: minmax(0, 1fr) 18rem; align-items: start; }
 }
-.event-list-row:hover .event-list-title { color: var(--primary-ink-dk); }
-.event-list-host {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin-top: var(--space-xs);
-}
-.event-list-meta {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: var(--space-xs);
-  text-align: right;
-}
-.event-list-date { font-size: 0.9rem; color: var(--text-muted); white-space: nowrap; }
-.event-list-location { font-size: 0.9rem; color: var(--text-muted); white-space: nowrap; }
 
 /* ── Event detail layout ─────────────────────────────────────── */
 .event-detail { max-width: 860px; }
@@ -1886,6 +1884,9 @@ p.badge { display: block; width: fit-content; }
 }
 
 /* ── Competition categories list ────────────────────────────── */
+/* Grouped by sport on the event page, each sport's sub-heading sits one block
+   gap below the list before it. */
+.disciplines-list + h3 { margin-top: var(--space-xl); }
 .disciplines-list {
   display: flex;
   flex-wrap: wrap;
@@ -3387,10 +3388,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   .identity-row dt { min-width: 0; }
   .avatar-edit-row { flex-direction: column; align-items: flex-start; gap: var(--space-md); }
 
-  /* Event list: stack title above meta on mobile */
-  .event-list-row { grid-template-columns: 1fr; gap: var(--space-xs); }
-  .event-list-meta { flex-direction: row; align-items: center; gap: var(--space-sm); flex-wrap: wrap; text-align: left; }
-
   /* Hashtag search: one field per row once a row cannot hold two. In the
      column the row's flex-basis would set each field's height, so it is
      dropped here. */
@@ -3580,9 +3577,10 @@ a.hashtag--media:hover {
   gap: var(--space-sm) var(--space-md);
   margin: var(--space-md) 0;
 }
-/* Standing alone, a long hashtag (one underscore-joined word) breaks rather
-   than pushing a phone-width page sideways. */
-.media-line .hashtag {
+/* Standing alone or in a card's meta line, a long hashtag (one underscore-
+   joined word) breaks rather than pushing a phone-width page sideways. */
+.media-line .hashtag,
+.card-meta .hashtag {
   white-space: normal;
   overflow-wrap: anywhere;
   flex-shrink: 1;

@@ -20,7 +20,7 @@ const NAME_FIELD = /^name_(.+)$/;
 const entryForm = z.object({
   placement: formText('Placement'),
   score_text: formText('Score'),
-  discipline_id: formText('Division'),
+  discipline_id: formText('Competition'),
   reason: formText('Reason'),
 }).catchall(formText('Player name'));
 

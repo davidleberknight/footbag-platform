@@ -74,12 +74,19 @@ function openQueueItems(eventId: string): { status: string }[] {
   ).all(eventId) as { status: string }[]);
 }
 
-async function assign(eventId: string, memberKey: string, reason: string) {
+/** Post the assign form with the member id exactly as given. */
+async function assignById(eventId: string, memberId: string, reason: string) {
   return request(createApp())
     .post(`/admin/events/${eventId}/organizers/assign`)
     .set('Cookie', adminCookie())
     .type('form')
-    .send({ member_key: memberKey, reason });
+    .send({ member_id: memberId, reason });
+}
+
+/** Assign the member with this slug, posting their id as the member search's choice does. */
+async function assign(eventId: string, slug: string, reason: string) {
+  const row = withDb((db) => db.prepare('SELECT id FROM members WHERE slug = ?').get(slug) as { id: string } | undefined);
+  return assignById(eventId, row?.id ?? slug, reason);
 }
 
 /** Follow a post-redirect-get the way a browser does, carrying the flash back. */
@@ -345,6 +352,73 @@ describe('assigning an organizer', () => {
     expect(organizersOf(eventId)).toHaveLength(0);
   });
 
+  // Defect caught: the administrator's picker misses a member who opted out
+  // of member search, offers someone who cannot organize or already does,
+  // assigns anyone before the form is submitted, or loses the typed reason.
+  it('finds a member hidden from member search by name or login email, and assigns the one chosen', async () => {
+    const eventId = withDb((db) => insertEvent(db, { title: 'Hidden Helper Open', start_date: '2099-10-12' }));
+    const hidden = withDb((db) => {
+      const id = insertMember(db, {
+        slug: 'org_hidden_pick', display_name: 'Quiet Helper', login_email: 'quiet.helper@example.com', searchable: 0,
+      });
+      completeOnboarding(db, id);
+      return id;
+    });
+    const gone = makeMember('org_quiet_gone', { deletedAt: new Date().toISOString() });
+    const pick = (fields: Record<string, string>) => request(createApp())
+      .post(`/admin/events/${eventId}/organizers/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_id: '', reason: 'Knows the venue.', pick_q: '', ...fields });
+
+    const byName = await pick({ pick: 'search:organizer', pick_q: 'quiet' });
+    expect(byName.status).toBe(200);
+    expect(byName.text).toContain(`value="choose:organizer:${hidden}"`);
+    expect(byName.text).not.toContain(`:${gone}"`);
+    expect(byName.text).toContain('value="Knows the venue."');
+    const byEmail = await pick({ pick: 'search:organizer', pick_q: 'Quiet.Helper@example.com' });
+    expect(byEmail.text).toContain(`value="choose:organizer:${hidden}"`);
+
+    const chosen = await pick({ pick: `choose:organizer:${hidden}` });
+    expect(chosen.status).toBe(200);
+    expect(chosen.text).toContain(`name="member_id" value="${hidden}"`);
+    expect(organizersOf(eventId)).toHaveLength(0);
+    expect(auditCount(eventId, 'event.organizer_assigned')).toBe(0);
+
+    const res = await assignById(eventId, hidden, 'Knows the venue.');
+    expect(res.status).toBe(303);
+    expect(organizersOf(eventId)).toEqual([{ member_id: hidden, role: 'organizer' }]);
+
+    // Someone who already organizes is not offered again.
+    const again = await pick({ pick: 'search:organizer', pick_q: 'quiet' });
+    expect(again.text).not.toContain(`value="choose:organizer:${hidden}"`);
+  });
+
+  // Defect caught: an administrator assigns by a typed slug, or an account
+  // that is deleted, deceased or still onboarding, so the event goes to
+  // somebody who cannot run it.
+  it('takes only the id of a live onboarded member', async () => {
+    const eventId = withDb((db) => insertEvent(db, { title: 'Vetted Assignment', start_date: '2099-10-11' }));
+    makeMember('org_by_slug');
+    const deleted = makeMember('org_deleted_pick', { deletedAt: new Date().toISOString() });
+    const deceased = makeMember('org_deceased_pick', { isDeceased: true });
+    const onboarding = withDb((db) => insertMember(db, {
+      slug: 'org_onboarding_pick', display_name: 'org_onboarding_pick', login_email: 'org_onboarding_pick@example.com',
+      onboarding: 'none',
+    }));
+    for (const [label, memberId] of [
+      ['a slug', 'org_by_slug'],
+      ['a deleted account', deleted],
+      ['a deceased member', deceased],
+      ['an account still onboarding', onboarding],
+    ] as Array<[string, string]>) {
+      const res = await assignById(eventId, memberId, 'Trying someone who cannot organize.');
+      expect(res.status, label).toBe(404);
+      expect(organizersOf(eventId), label).toHaveLength(0);
+    }
+    expect(auditCount(eventId, 'event.organizer_assigned')).toBe(0);
+  });
+
   it('an assignment says the organizer was added, and the same admin submitting it again gets the same answer with nothing written', async () => {
     // Defect caught: the page gives no word that the assign happened, or a
     // double submit is drawn as a red refusal of the admin's own act.
@@ -480,7 +554,7 @@ describe('cross-origin protection', () => {
     const eventId = withDb((db) => insertEvent(db, { title: 'Csrf Assign', start_date: '2100-03-03' }));
     await expectCsrfReject(createApp(), 'post', `/admin/events/${eventId}/organizers/assign`, {
       cookie: adminCookie(),
-      body:   { member_key: 'org_live', reason: 'Should never land.' },
+      body:   { member_id: 'org_live', reason: 'Should never land.' },
     });
     expect(organizersOf(eventId)).toHaveLength(0);
   });

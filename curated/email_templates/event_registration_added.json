@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_registration_added",
+  "subjectTemplate": "You are registered for {eventTitle}",
+  "bodyTemplate": "Hi {memberName},\n\nYou were registered for {eventTitle} ({eventDates}) by {changedBy}.\n\n{reasonNote}{registrationSummary}\n\nIf you think this is a mistake, contact the event's organizers from the event page on footbag.org.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

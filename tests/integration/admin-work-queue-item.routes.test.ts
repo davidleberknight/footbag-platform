@@ -330,7 +330,7 @@ describe('the confirm pages cancel back to the item', () => {
       }),
     }));
     const res = await post(`/admin/work-queue/${id}/link-help/dispute-revert`, {
-      target_legacy_member_id: accountId, target_historical_person_id: '', reason: 'Upheld after review.',
+      disputed_record: `account:${accountId}`, reason: 'Upheld after review.',
       kind: 'waiting', topic: '', unclaimed: '1', page: '', from: 'item',
     });
     expect(res.status).toBe(200);

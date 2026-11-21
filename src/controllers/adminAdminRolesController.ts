@@ -6,9 +6,15 @@ import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
 import { z } from 'zod';
-import { parseFormBody, formText } from '../lib/parseFormBody';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+import { parsePickIntent } from '../services/memberPicker';
 
-const grantForm = z.object({ member_key: formText('Member'), reason: formText('Reason') });
+const grantForm = z.object({
+  member_id: formText('Member'),
+  reason: formText('Reason'),
+  pick: formOptionalText('The member picker'),
+  pick_q: formText('Name or login email'),
+});
 const revokeForm = z.object({ reason: formText('Reason') });
 
 // A shape the form never sends is refused like any other fixable submission.
@@ -21,16 +27,21 @@ function read<S extends z.ZodType>(schema: S, req: Request): z.output<S> {
 // Re-render the page with an inline error; the status follows the error class.
 // NotFoundError -> 404 (a revoke addressed to an unknown member id).
 // ValidationError / ConflictError -> 422 for a fixable submission: an unknown
-// grant key, wrong tier, self-revoke, already/not an admin, or a missing reason.
+// grant with no member chosen, self-revoke, already/not an admin, or a missing
+// reason. A refused grant keeps what was typed and chosen.
 function renderError(
   res: Response,
   viewerId: string,
   err: NotFoundError | ValidationError | ConflictError,
+  typed?: { memberId: string; reason: string; query: string },
 ): void {
   const status = err instanceof NotFoundError ? 404 : 422;
   res.status(status).render(
     'admin/admin-roles/index',
-    adminRoleService.getAdminRolesPage(viewerId, { errorMessage: err.message }),
+    adminRoleService.getAdminRolesPage(viewerId, {
+      errorMessage: err.message,
+      ...(typed ? { form: { ...typed, intent: null } } : {}),
+    }),
   );
 }
 
@@ -67,17 +78,27 @@ export const adminAdminRolesController = {
 
   /** POST /admin/admin-roles/grant — validate, then show the confirmation page. */
   grant(req: Request, res: Response, next: NextFunction): void {
+    let typed: { memberId: string; reason: string; query: string } | undefined;
     try {
       const form = read(grantForm, req);
+      typed = { memberId: form.member_id, reason: form.reason, query: form.pick_q };
+      // A member picker control draws the page again with what was typed, and
+      // grants nothing.
+      if (form.pick !== undefined) {
+        res.render('admin/admin-roles/index', adminRoleService.getAdminRolesPage(req.user!.userId, {
+          form: { ...typed, intent: parsePickIntent(form.pick) },
+        }));
+        return;
+      }
       const vm = adminRoleService.previewGrant(
         req.user!.userId,
-        form.member_key,
+        form.member_id,
         form.reason,
       );
       res.render('admin/admin-roles/grant-confirm', vm);
     } catch (err) {
       if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {
-        renderError(res, req.user!.userId, err);
+        renderError(res, req.user!.userId, err, typed);
         return;
       }
       handleControllerError(err, res, next, 'admin roles controller');
@@ -88,9 +109,9 @@ export const adminAdminRolesController = {
   grantConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
       const form = read(grantForm, req);
-      const outcome = adminRoleService.grantByKey(
+      const outcome = adminRoleService.grant(
         req.user!.userId,
-        form.member_key,
+        form.member_id,
         form.reason,
       );
       redirectAfterChange(req, res, outcome);

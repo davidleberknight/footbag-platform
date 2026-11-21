@@ -17,7 +17,7 @@
     {{/if}}
     {{> outcome-notice lines=content.errorList tone='no'}}
 
-    <form method="POST" action="{{content.formAction}}" class="form-block">
+    <form method="POST" action="{{content.formAction}}" id="{{content.formId}}" class="form-block">
       <fieldset class="form-fieldset">
         <div class="form-field">
           <label for="record-recordType">Record type</label>
@@ -26,11 +26,8 @@
           </select>
           {{#if content.fieldErrors.recordType}}<p class="form-field-error" role="alert">{{content.fieldErrors.recordType}}</p>{{/if}}
         </div>
-        <div class="form-field">
-          <label for="record-personId">Linked historical-person id (optional)</label>
-          <input type="text" id="record-personId" name="personId" value="{{content.fields.personId}}" />
-          {{#if content.fieldErrors.personId}}<p class="form-field-error" role="alert">{{content.fieldErrors.personId}}</p>{{/if}}
-        </div>
+        {{> member-picker content.personPicker}}
+        {{#if content.fieldErrors.personId}}<p class="form-field-error" role="alert">{{content.fieldErrors.personId}}</p>{{/if}}
         <div class="form-field">
           <label for="record-displayName">Display name (used when no person is linked)</label>
           <input type="text" id="record-displayName" name="displayName" value="{{content.fields.displayName}}" />
@@ -116,6 +113,8 @@
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
       </div>
     </form>
+
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
 
     <p><a href="{{content.backHref}}" class="btn btn-outline btn-sm">Back to Records</a></p>
   </section>

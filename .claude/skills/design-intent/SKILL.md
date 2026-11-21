@@ -39,8 +39,8 @@ files, tracker status and any summary show what exists, never what is intended.
 
 1. The site runs a sport, within a fixed scope: IFPA footbag's members, events, results, clubs,
    rules, records, honors, governance and community, as the user stories describe. Out of scope:
-   real-time features, native mobile apps, single sign-on, forums, AI moderation, advanced
-   analytics. The interface is English only; members may write club and event details in any
+   real-time features, native mobile apps, single sign-on, hosting a forum, AI moderation,
+   advanced analytics. The interface is English only; members may write club and event details in any
    language.
 2. The design decisions are sound by default, and their rationale is the intent; doubt one only
    by the step 4 test.

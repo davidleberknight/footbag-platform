@@ -451,7 +451,7 @@ describe('two members claiming one account', () => {
 
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('already been claimed by another account');
+    expect(res.text).toContain('already been claimed by another member');
     expect(links(m).legacy_member_id).toBeNull();
     expect(count(`SELECT COUNT(*) AS n FROM member_tier_grants
                   WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'`, m)).toBe(0);

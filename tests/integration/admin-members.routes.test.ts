@@ -194,7 +194,7 @@ describe('the member lookup', () => {
   it('asks for more to go on rather than searching a single character', async () => {
     const res = await request(createApp()).get('/admin/members?q=a').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('at least 2 characters');
+    expect(res.text).toContain('at least 2 letters');
   });
 
   it('says the set is truncated rather than reporting a capped count as the whole match', async () => {

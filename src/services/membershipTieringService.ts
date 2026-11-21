@@ -174,16 +174,22 @@ const ADMIN_ROLE_REASON_MAX = 500;
 export type MemberTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
 export type UnderlyingTier = 'tier1' | 'tier2';
 
-// Concise tier badge for a row-level chip: a club roster entry, a member search
+// Each tier's number with its IFPA name, the one wording every page uses, so a
+// reader never meets a bare tier number they have to look up.
+export const TIER_NAMES: Record<MemberTier, string> = {
+  tier0: 'Tier 0 Registered Member',
+  tier1: 'Tier 1 IFPA Member',
+  tier2: 'Tier 2 IFPA Organizer Member',
+  tier3: 'Tier 3 IFPA Director',
+};
+
+// The tier badge for a row-level chip: a club roster entry, a member search
 // result, a media uploader credit. Tier 0 carries no badge, so a row shows a
-// badge only when the member holds a purchased or governance tier. The fuller
-// label ("Tier 1 IFPA Member") belongs to the profile's own membership block,
-// where there is room for it; this is the one home for the short form so the
-// three row surfaces cannot drift apart.
+// badge only when the member holds a purchased or governance tier.
 export const TIER_BADGE_SHORT: Partial<Record<MemberTier, string>> = {
-  tier1: 'Tier 1',
-  tier2: 'Tier 2',
-  tier3: 'Tier 3 Director',
+  tier1: TIER_NAMES.tier1,
+  tier2: TIER_NAMES.tier2,
+  tier3: TIER_NAMES.tier3,
 };
 
 /** The row-level tier badge, or null for Tier 0 and for an unknown value. */

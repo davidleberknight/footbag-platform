@@ -43,7 +43,7 @@ export class WizardPage {
   }
 
   recordClaimLink(card: Locator): Locator {
-    return card.getByRole('link', { name: /Claim This Record/i });
+    return card.locator('.candidate-card-action a.btn');
   }
 
   surnameClaimButton(card: Locator): Locator {

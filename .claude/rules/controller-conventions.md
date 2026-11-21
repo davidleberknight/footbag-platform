@@ -57,7 +57,7 @@ For anti-enumeration endpoints (login, register, password reset, email verify, c
 
 ## Request parsing
 
-`req.query` and `req.params` values are typed `string | string[] | undefined`. Controllers narrow with `typeof X === 'string'` before passing to services. A submitted body is read only through `parseFormBody(<schema>, req.body)` from `src/lib/parseFormBody.ts`, with the form's schema beside its handler, or through `rawBody(req)` on a raw-body route. A refusal re-renders the form at 422 with the message naming the field and the values the visitor typed. The schema decides shape; services validate the content. The conventions gate refuses any other read of `req.body`.
+`req.query` and `req.params` values are typed `string | string[] | undefined`. Controllers narrow with `typeof X === 'string'` before passing to services. A submitted body is read only through `parseFormBody(<schema>, req.body)` from `src/lib/parseFormBody.ts`, with the form's schema beside its handler, or through `rawBody(req)` on a raw-body route. A refusal re-renders the form at 422 with the message naming the field and the values the visitor typed. The schema decides shape; services validate the content. The conventions gate refuses any other read of `req.body`. A field naming another member carries the choice from the member picker, never a typed id, slug or profile URL (`.claude/rules/view-layer.md`, Reusable primitives).
 
 ## Pre-shaped middleware locals
 

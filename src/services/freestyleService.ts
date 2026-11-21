@@ -3828,7 +3828,7 @@ interface TrickIndexShapingContext {
 }
 
 const EXTERNAL_PLACEHOLDER_NOTE =
-  'This trick appears in external freestyle sources but has not yet been fully adjudicated for the canonical dictionary.';
+  'This trick appears in other freestyle sources but is not yet confirmed in the trick dictionary.';
 
 // Returns the numeric ADD bucket for a row, or null when the value isn't a
 // finite non-negative integer (empty string, null, 'modifier', non-numeric
@@ -6501,7 +6501,7 @@ export const freestyleService = {
         description: addTier != null
           ? `${addTier}-ADD tricks in the freestyle footbag trick dictionary: ` +
             `${tierCardCount} documented at this difficulty tier.`
-          : `The freestyle footbag trick dictionary: ${canonicalCount} named canonical tricks, ` +
+          : `The freestyle footbag trick dictionary: ${canonicalCount} named tricks, ` +
             'browsable by difficulty, family, set, and modifier.',
       },
       page: {

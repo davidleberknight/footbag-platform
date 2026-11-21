@@ -109,7 +109,11 @@
  *   member_announcements (read only: a held announcement's words and author on
  *   its item page; the decisions on it belong to BroadcastService). A sanction
  *   request's answers and its submitter are read through EventService, which
- *   owns the decisions on it.
+ *   owns the decisions on it. A link-help item's approve form searches the
+ *   unclaimed legacy_members and the historical_persons (read only, through
+ *   AdminLegacyAccountService and AdminHistoricalRecordService) so the
+ *   administrator chooses the record to link rather than typing its id; the
+ *   link itself is IdentityAccessService's.
  *
  * Side effects:
  *   - audit_entries append (the event the acting action names on resolution:
@@ -155,6 +159,9 @@ import { runSqliteRead } from './sqliteRetry';
 import { readIntConfig } from './configReader';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
+import { PICKER_LIMIT, buildRecordPicker, type MemberPickerView, type PickIntent } from './memberPicker';
+import { adminLegacyAccountService } from './adminLegacyAccountService';
+import { adminHistoricalRecordService } from './adminHistoricalRecordService';
 import { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 
@@ -171,8 +178,8 @@ export type ContactCategory = (typeof CONTACT_CATEGORIES)[number];
 export const CONTACT_CATEGORY_LABELS: Record<ContactCategory, string> = {
   display_name_correction: 'Display name correction',
   profile_url_correction:  'Profile URL correction',
-  tier_status_question:    'Tier-status question',
-  identity_link_issue:     'Old account or competition-record link',
+  tier_status_question:    'Question about my membership',
+  identity_link_issue:     'Linking my old footbag.org account or past results',
   community_standards:     'Content that breaks the community standards',
   other:                   'Other',
 };
@@ -345,6 +352,26 @@ export interface WorkQueueActionView {
   /** What this action does or does not do, where that is not obvious from its
    *  label and getting it wrong is expensive. */
   hint: string | null;
+  /** The form's own id, which the pickers' controls name. */
+  formId: string;
+  /** A link-help approval's two record pickers, one per kind of record it can
+   *  link. Null on every other action. */
+  targetPickers: { accountPicker: MemberPickerView; recordPicker: MemberPickerView } | null;
+  /** A dispute revert's choice among the records the dispute named. Null on
+   *  every other action. */
+  disputeChoices: Array<{ value: string; label: string; inputId: string }> | null;
+}
+
+/**
+ * What the link-help approve form was holding when one of its picker controls
+ * posted it back: the record each picker had chosen, the intent and the search
+ * text.
+ */
+export interface LinkTargetPickForm {
+  legacyMemberId: string;
+  historicalPersonId: string;
+  intent: PickIntent | null;
+  query: string;
 }
 
 /**
@@ -369,10 +396,10 @@ export interface WorkQueueEvidenceView {
   linkHelp: {
     statement: string;
     isDispute: boolean;
-    /** The records this dispute named when it was filed, detected server-side.
-     *  The revert accepts only one of these, so the card must show them: without
-     *  them an administrator has no way to learn an id the action will take. */
-    disputedRecords: Array<{ kindLabel: string; recordId: string }>;
+    /** The records this dispute named when it was filed, detected server-side,
+     *  each with who held it then. The revert accepts only one of these, so the
+     *  card shows them and the revert offers a choice among them. */
+    disputedRecords: Array<{ kind: 'account' | 'record'; kindLabel: string; recordId: string; label: string }>;
     hasDisputedRecords: boolean;
   } | null;
   /**
@@ -410,8 +437,6 @@ export interface LinkCandidatesView {
   ambiguousNotes: string[];
   hasAmbiguousNotes: boolean;
   hasAny: boolean;
-  /** Where an administrator goes when none of this is enough. */
-  lookupHref: string;
 }
 
 /** What an upheld dispute's revert removes, shown before it applies. */
@@ -744,11 +769,29 @@ function parseLinkHelpPayload(reasonText: string | null): WorkQueueEvidenceView[
     const p = JSON.parse(reasonText) as Record<string, unknown>;
     const idList = (v: unknown): string[] =>
       Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : [];
+    // Who held each record when the dispute was filed: the one member the
+    // revert may take it from.
+    const holders = p.disputed_record_holders !== null && typeof p.disputed_record_holders === 'object'
+      ? p.disputed_record_holders as Record<string, unknown>
+      : {};
+    const heldBy = (recordId: string): string => {
+      const holderId = holders[recordId];
+      const holder = typeof holderId === 'string'
+        ? account.findActiveMemberById.get(holderId) as { display_name: string } | undefined
+        : undefined;
+      return holder ? `, held by ${holder.display_name}` : ', held by nobody when the dispute was filed';
+    };
+    const labelled = (kind: 'account' | 'record', kindLabel: string, recordId: string, name: string | undefined) => ({
+      kind, kindLabel, recordId,
+      label: `${kindLabel}: ${name ? `${name} (${recordId})` : recordId}${heldBy(recordId)}`,
+    });
     const disputedRecords = [
-      ...idList(p.disputed_legacy_member_ids)
-        .map((recordId) => ({ kindLabel: 'Legacy account', recordId })),
-      ...idList(p.disputed_historical_person_ids)
-        .map((recordId) => ({ kindLabel: 'Competition record', recordId })),
+      ...idList(p.disputed_legacy_member_ids).map((recordId) => labelled(
+        'account', 'Old footbag.org account', recordId, adminLegacyAccountService.findAccountForPicker(recordId)?.displayName,
+      )),
+      ...idList(p.disputed_historical_person_ids).map((recordId) => labelled(
+        'record', 'Past results', recordId, adminHistoricalRecordService.findRecordForPicker(recordId)?.displayName,
+      )),
     ];
     return {
       statement:             typeof p.statement === 'string' ? p.statement : '',
@@ -789,10 +832,64 @@ function shapeActionField(
  * first is decided once, per type, rather than by where a branch happened to sit
  * in the template.
  */
+/**
+ * A link-help approval's two pickers, sharing its form: one over the old
+ * accounts nobody has claimed, one over the historical records. Choosing in one
+ * clears the other, because an approval links exactly one record; Remove clears
+ * a choice. Only the picker whose own search was asked for runs it.
+ */
+function linkTargetPickers(
+  formId: string,
+  formAction: string,
+  form: LinkTargetPickForm | undefined,
+): { accountPicker: MemberPickerView; recordPicker: MemberPickerView } {
+  const intent = form?.intent ?? null;
+  let legacyMemberId = form?.legacyMemberId ?? '';
+  let historicalPersonId = form?.historicalPersonId ?? '';
+  if (intent?.kind === 'choose' && intent.key === 'account') {
+    legacyMemberId = intent.memberId;
+    historicalPersonId = '';
+  } else if (intent?.kind === 'choose' && intent.key === 'record') {
+    historicalPersonId = intent.memberId;
+    legacyMemberId = '';
+  } else if (intent?.kind === 'remove' && intent.key === 'account') {
+    legacyMemberId = '';
+  } else if (intent?.kind === 'remove' && intent.key === 'record') {
+    historicalPersonId = '';
+  }
+  const query = form?.query ?? '';
+  const searched = (key: string) => intent?.kind === 'search' && intent.key === key;
+  const shared = {
+    formId, formAction, intent, query, openOnLoad: false, canRemove: true, notFoundHint: null,
+    rowAction: { label: 'Choose', completes: false, ariaLabel: (name: string) => `Choose ${name}` },
+  };
+  return {
+    accountPicker: buildRecordPicker({
+      ...shared,
+      fieldName: 'target_legacy_member_id', fieldKey: 'account',
+      label: 'Old footbag.org account', openLabel: 'Choose Old Account',
+      searchLabel: 'Name, account id, username, or an exact email address',
+      chosen: adminLegacyAccountService.findAccountForPicker(legacyMemberId),
+      search: searched('account') ? adminLegacyAccountService.lookupAccountsForPicker(query, PICKER_LIMIT) : null,
+      notFoundNoun: 'account',
+    }),
+    recordPicker: buildRecordPicker({
+      ...shared,
+      fieldName: 'target_historical_person_id', fieldKey: 'record',
+      label: 'Historical record', openLabel: 'Choose Historical Record',
+      searchLabel: 'Name, or an old account id',
+      chosen: adminHistoricalRecordService.findRecordForPicker(historicalPersonId),
+      search: searched('record') ? adminHistoricalRecordService.lookupRecordsForPicker(query, PICKER_LIMIT) : null,
+      notFoundNoun: 'record',
+    }),
+  };
+}
+
 function shapeActions(
   itemId: string,
   taskType: string,
   linkHelp: WorkQueueEvidenceView['linkHelp'],
+  linkPick?: LinkTargetPickForm,
 ): WorkQueueActionView[] {
   const descriptor = workQueueDescriptorFor(taskType);
   if (!descriptor) return [];
@@ -804,6 +901,7 @@ function shapeActions(
         isLink: true, href: action.href, actionPath: null,
         decisions: [], hasDecisions: false, decisionInputId: '',
         fields: [], hasFields: false, note: null, hint: null,
+        formId: '', targetPickers: null, disputeChoices: null,
       });
       continue;
     }
@@ -821,15 +919,27 @@ function shapeActions(
         placeholder: action.note.placeholder,
       }
       : null;
+    const actionPath = `/admin/work-queue/${itemId}/${action.key}`;
+    const formId = inputIdFor(itemId, action.key, 'form');
+    const targetChoice = action.kind === 'act' ? action.targetChoice : undefined;
     out.push({
       key:             action.key,
       label:           action.label,
+      formId,
+      targetPickers:   targetChoice === 'link_target' ? linkTargetPickers(formId, actionPath, linkPick) : null,
+      disputeChoices:  targetChoice === 'disputed_record'
+        ? (linkHelp?.disputedRecords ?? []).map((r) => ({
+          value:   `${r.kind}:${r.recordId}`,
+          label:   r.label,
+          inputId: inputIdFor(itemId, action.key, `${r.kind}_${r.recordId}`),
+        }))
+        : null,
       // Each action stands alone in its own form on the item's page, so it takes
       // the full-size button rather than the compact row size.
       buttonClass:     action.style === 'primary' ? 'btn btn-primary' : 'btn btn-outline',
       isLink:          false,
       href:            null,
-      actionPath:      `/admin/work-queue/${itemId}/${action.key}`,
+      actionPath,
       decisions,
       hasDecisions:    decisions.length > 0,
       decisionInputId: inputIdFor(itemId, action.key, 'decision'),
@@ -875,7 +985,6 @@ function shapeLinkCandidates(memberId: string): LinkCandidatesView {
     ambiguousNotes,
     hasAmbiguousNotes: ambiguousNotes.length > 0,
     hasAny: legacyAccounts.length > 0 || historicalPersons.length > 0,
-    lookupHref: '/admin/legacy-accounts',
   };
 }
 
@@ -1216,6 +1325,7 @@ function shapeWorkQueueItem(
   viewingAdminId: string,
   askRequested: boolean,
   owners: AreaOwners,
+  linkPick?: LinkTargetPickForm,
 ): WorkQueueViewItem {
   // A claim expires, so an item whose holder never came back is offered to
   // everyone again rather than sitting silently under a name.
@@ -1266,7 +1376,7 @@ function shapeWorkQueueItem(
     memberRecordHref: raw.subjectMemberId && raw.subjectIsNameable ? `/admin/members/${raw.subjectMemberId}` : null,
     entityReference,
     evidence,
-    actions: shapeActions(raw.id, raw.taskType, evidence.linkHelp),
+    actions: shapeActions(raw.id, raw.taskType, evidence.linkHelp, linkPick),
     isClaimed,
     claimedByMe: isClaimed && raw.claimedByMemberId === viewingAdminId,
     claimedByName: raw.claimedByName,
@@ -1988,12 +2098,13 @@ export const adminWorkQueueService = {
    * One open item's page, parked or not: what the task is, why it matters and
    * what to do, who or what it concerns, the evidence, who is holding it, then
    * the actions. Null for an unknown or closed id, which the controller answers
-   * with not-found. `ask` opens the question composer already drafted.
+   * with not-found. `ask` opens the question composer already drafted;
+   * `linkPick` is the link-help approve form posted back by one of its pickers.
    */
   getWorkQueueItemPage(
     queueItemId: string,
     adminMemberId: string,
-    opts: { state?: WorkQueueListQuery; ask?: boolean; nowMs?: number } & WorkQueueOutcomeOptions = {},
+    opts: { state?: WorkQueueListQuery; ask?: boolean; nowMs?: number; linkPick?: LinkTargetPickForm } & WorkQueueOutcomeOptions = {},
   ): PageViewModel<WorkQueueItemContent> | null {
     return runSqliteRead('admin work queue item page', () => this.readWorkQueueItemPage(queueItemId, adminMemberId, opts));
   },
@@ -2001,7 +2112,7 @@ export const adminWorkQueueService = {
   readWorkQueueItemPage(
     queueItemId: string,
     adminMemberId: string,
-    opts: { state?: WorkQueueListQuery; ask?: boolean; nowMs?: number } & WorkQueueOutcomeOptions = {},
+    opts: { state?: WorkQueueListQuery; ask?: boolean; nowMs?: number; linkPick?: LinkTargetPickForm } & WorkQueueOutcomeOptions = {},
   ): PageViewModel<WorkQueueItemContent> | null {
     const found = workQueue.findOpenForAdminById.get(queueItemId) as
       | (OpenItemRow & { parked_at: string | null; park_reason: string | null; parked_by_name: string | null })
@@ -2011,7 +2122,7 @@ export const adminWorkQueueService = {
     const state = parseListState(opts.state ?? {});
     const owners = readAreaOwners();
     const raw = toAdminRow(found);
-    const item = shapeWorkQueueItem(raw, adminMemberId, opts.ask ?? false, owners);
+    const item = shapeWorkQueueItem(raw, adminMemberId, opts.ask ?? false, owners, opts.linkPick);
     const descriptor = workQueueDescriptorFor(raw.taskType);
     const isParked = found.parked_at !== null;
     const heldBy = isParked

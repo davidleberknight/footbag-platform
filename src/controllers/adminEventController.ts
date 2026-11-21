@@ -8,6 +8,8 @@ import { redirectWithOutcome, type ActionEnding } from '../lib/actionOutcome';
 import { outcomeNotice } from '../lib/outcomeNotice';
 import { handleControllerError, renderInvalidRequest } from '../lib/controllerErrors';
 import { parseFormBody, formText, formCheckbox, formOptionalText } from '../lib/parseFormBody';
+import { parsePickIntent } from '../services/memberPicker';
+import { entryForm, toEntryInput } from './eventController';
 
 /**
  * Thin controller for the administrator's event record: the lookup, the
@@ -28,17 +30,17 @@ const detailsForm = z.object({
   country: formText('Country'),
   registration_deadline: formText('Registration deadline'),
   tshirt_size_collected: formCheckbox('Collect t-shirt sizes', '0'),
-  attendee_registration_open: formCheckbox('Accept Attendee/Supporter registrations', '0'),
+  attendee_registration_open: formCheckbox('Let spectators register too', '0'),
   competitor_fee: formText('Competitor fee'),
-  spectator_fee: formText('Attendee or Supporter fee'),
+  spectator_fee: formText('Spectator fee'),
   sanction_state: formText('IFPA sanction'),
   reason: formText('Reason'),
 });
 
 const divisionForm = z.object({
-  team_type: formText('Entry size'),
+  team_type: formText('Singles or doubles'),
   gender: formText('Who may enter'),
-  division_class: formText('Class'),
+  division_class: formText('Skill level'),
   offers_prize_money: formCheckbox('Offers prize money', '0'),
   reason: formText('Reason'),
 });
@@ -105,7 +107,36 @@ function renderRefused(req: Request, res: Response, next: NextFunction, eventId:
   handleControllerError(err, res, next, CONTEXT);
 }
 
-const CORRECTED_TEXT = 'The event is corrected. Every changed value is in its audit history, and its organizers have been emailed.';
+// The entry form's fields as the confirm page re-posts them, so the write
+// confirms exactly what was previewed.
+function entryHiddenFields(form: z.output<typeof entryForm>, withMember: boolean): Array<{ name: string; value: string }> {
+  return [
+    ...(withMember ? [{ name: 'member_id', value: form.member_id }] : []),
+    ...form.division.map((value) => ({ name: 'division', value })),
+    ...form.partner_division.flatMap((divisionId, i) => [
+      { name: 'partner_division', value: divisionId },
+      { name: 'partner', value: form.partner[i] ?? '' },
+    ]),
+    { name: 'paid_at_event', value: form.paid_at_event },
+    { name: 'reason', value: form.reason },
+  ];
+}
+
+// The administrator's entry form drawn again: after a picker step (200) or a
+// refusal (422), carrying everything typed.
+function renderEntryForm(
+  req: Request, res: Response, eventId: string, registrationId: string | null,
+  form: z.output<typeof entryForm>, status: number, message: string | null, link: { label: string; href: string } | null = null,
+): void {
+  const picker = status === 200 && form.pick !== undefined
+    ? { intent: parsePickIntent(form.pick), query: form.pick_q, ip: req.ip ?? 'unknown' }
+    : undefined;
+  res.status(status).render('admin/events/entry', adminEventService.getEntryPage(
+    req.user!.userId, eventId, registrationId, { input: toEntryInput(form), message, link, reason: form.reason }, picker,
+  ));
+}
+
+const CORRECTED_TEXT ='The event is corrected. Every changed value is in its audit history, and its organizers have been emailed.';
 const UNCHANGED_TEXT = 'That is what the event already held, so nothing changed.';
 
 export const adminEventController = {
@@ -261,10 +292,10 @@ export const adminEventController = {
         if (!confirm) {
           res.render('admin/events/confirm', adminEventService.correctionConfirmPage({
             eventId,
-            title: 'Confirm: Correct the Division',
+            title: 'Confirm: Correct the Competition',
             correction,
             reason: form.reason,
-            summary: 'Every entry in the division stays in it. The event\'s organizers are emailed what changed and your reason.',
+            summary: 'Every entry in the competition stays in it. The event\'s organizers are emailed what changed and your reason.',
             hiddenFields: [
               { name: 'team_type', value: form.team_type },
               { name: 'gender', value: form.gender },
@@ -273,7 +304,7 @@ export const adminEventController = {
               { name: 'reason', value: form.reason },
             ],
             confirmAction: `${recordHref(eventId)}/divisions/${encodeURIComponent(divisionId)}/confirm`,
-            confirmLabel: 'Yes, Correct the Division',
+            confirmLabel: 'Yes, Correct the Competition',
           }));
           return;
         }
@@ -296,20 +327,20 @@ export const adminEventController = {
         if (!confirm) {
           res.render('admin/events/confirm', adminEventService.correctionConfirmPage({
             eventId,
-            title: 'Confirm: Remove the Division',
+            title: 'Confirm: Remove the Competition',
             correction,
             reason: form.reason,
-            summary: 'The division and every entry in it are removed. A registration keeps its other entries. The event\'s organizers are emailed with your reason.',
+            summary: 'The competition and every entry in it are removed. A registration keeps its other entries. The event\'s organizers are emailed with your reason.',
             hiddenFields: [{ name: 'reason', value: form.reason }],
             confirmAction: `${recordHref(eventId)}/divisions/${encodeURIComponent(divisionId)}/remove/confirm`,
-            confirmLabel: 'Yes, Remove the Division',
+            confirmLabel: 'Yes, Remove the Competition',
           }));
           return;
         }
         flashTo(req, res, eventId, correction.outcome === 'corrected' ? 'advance' : 'already_held',
           correction.outcome === 'corrected'
-            ? 'The division is removed, and the event\'s organizers have been emailed.'
-            : 'That division is no longer on this event.');
+            ? 'The competition is removed, and the event\'s organizers have been emailed.'
+            : 'That competition is no longer on this event.');
       } catch (err) {
         renderRefused(req, res, next, eventId, err);
       }
@@ -347,6 +378,116 @@ export const adminEventController = {
     } catch (err) {
       renderRefused(req, res, next, eventId, err);
     }
+  },
+
+  /** GET /admin/events/:eventId/summary */
+  summary(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/events/summary', adminEventService.getRegistrationSummaryPage(param(req, 'eventId')));
+    } catch (err) {
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** GET /admin/events/:eventId/registrations/add, and /:registrationId/edit */
+  entryPage(kind: 'add' | 'edit') {
+    return (req: Request, res: Response, next: NextFunction): void => {
+      const eventId = param(req, 'eventId');
+      try {
+        res.render('admin/events/entry', adminEventService.getEntryPage(
+          req.user!.userId, eventId, kind === 'add' ? null : param(req, 'registrationId'),
+        ));
+      } catch (err) {
+        renderRefused(req, res, next, eventId, err);
+      }
+    };
+  },
+
+  /** POST /admin/events/:eventId/registrations/add, and /confirm */
+  addEntrant(confirm: boolean) {
+    return (req: Request, res: Response, next: NextFunction): void => {
+      const eventId = param(req, 'eventId');
+      try {
+        const form = readForm(entryForm, req);
+        if (!confirm && form.pick !== undefined) { renderEntryForm(req, res, eventId, null, form, 200, null); return; }
+        let result;
+        try {
+          result = eventService.adminAddEntrant(req.user!.userId, eventId, toEntryInput(form), form.reason, confirm);
+        } catch (err) {
+          if (!(err instanceof ValidationError)) throw err;
+          renderEntryForm(req, res, eventId, null, form, 422, err.message);
+          return;
+        }
+        if (result.branch === 'already_registered') {
+          renderEntryForm(req, res, eventId, null, form, 422,
+            `${result.memberName} is already registered for this event. Edit their entry instead.`,
+            { label: 'Edit Entry', href: result.editHref });
+          return;
+        }
+        if (result.branch === 'needs_confirmation') {
+          res.render('admin/events/confirm', adminEventService.entryConfirmPage({
+            eventId,
+            title: `Confirm: Add ${result.memberName} to ${result.eventTitle}`,
+            caution: `Add ${result.memberName} to ${result.eventTitle}? They are emailed.`,
+            changes: result.changes,
+            reason: form.reason,
+            hiddenFields: entryHiddenFields(form, true),
+            confirmAction: `${recordHref(eventId)}/registrations/add/confirm`,
+            confirmLabel: 'Add Entrant',
+          }));
+          return;
+        }
+        if (result.branch === 'already_held') {
+          flashTo(req, res, eventId, 'already_held', `${result.memberName} is already registered for this event. Edit their entry instead.`);
+          return;
+        }
+        flashTo(req, res, eventId, result.branch === 'added' ? 'advance' : 'own_repeat',
+          `${result.memberName} added to ${result.divisionNames.join(', ')}.`);
+      } catch (err) {
+        renderRefused(req, res, next, eventId, err);
+      }
+    };
+  },
+
+  /** POST /admin/events/:eventId/registrations/:registrationId/edit, and /confirm */
+  correctEntry(confirm: boolean) {
+    return (req: Request, res: Response, next: NextFunction): void => {
+      const eventId = param(req, 'eventId');
+      const registrationId = param(req, 'registrationId');
+      try {
+        const form = readForm(entryForm, req);
+        if (!confirm && form.pick !== undefined) { renderEntryForm(req, res, eventId, registrationId, form, 200, null); return; }
+        let result;
+        try {
+          result = eventService.adminCorrectEntry(req.user!.userId, eventId, registrationId, toEntryInput(form), form.reason, confirm);
+        } catch (err) {
+          if (!(err instanceof ValidationError)) throw err;
+          renderEntryForm(req, res, eventId, registrationId, form, 422, err.message);
+          return;
+        }
+        if (result.branch === 'needs_confirmation') {
+          res.render('admin/events/confirm', adminEventService.entryConfirmPage({
+            eventId,
+            title: `Confirm: Change ${result.memberName}'s Entry`,
+            caution: `Change ${result.memberName}'s entry for ${result.eventTitle}? They are emailed with your reason.`,
+            changes: result.changes,
+            reason: form.reason,
+            hiddenFields: entryHiddenFields(form, false),
+            confirmAction: `${recordHref(eventId)}/registrations/${encodeURIComponent(registrationId)}/edit/confirm`,
+            confirmLabel: 'Save Entry',
+          }));
+          return;
+        }
+        if (result.branch === 'already_held') {
+          flashTo(req, res, eventId, 'already_held', `${result.memberName}'s entry already reads that way, so nothing changed.`);
+          return;
+        }
+        flashTo(req, res, eventId, result.branch === 'corrected' ? 'advance' : 'own_repeat',
+          `${result.memberName}'s entry updated: ${result.whatChanged}.`);
+      } catch (err) {
+        renderRefused(req, res, next, eventId, err);
+      }
+    };
   },
 
   /** POST /admin/events/:eventId/registrations/:registrationId/cancel */

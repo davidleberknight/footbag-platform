@@ -167,6 +167,7 @@ export const MEMBER_REFERENCE_TEARDOWN: Readonly<Record<string, string>> = {
   'member_tier_grants.member_id': 'deleted',
   'members.restricted_by': 'reference cleared',
   'membership_discipline_decisions.member_id': 'deleted',
+  'news_items.author_member_id': 'deleted',
   'outbox_emails.recipient_member_id': 'deleted',
   'outbox_emails.reviewed_by_member_id': 'reference cleared',
   'outbox_emails.sender_member_id': 'deleted',
@@ -177,6 +178,7 @@ export const MEMBER_REFERENCE_TEARDOWN: Readonly<Record<string, string>> = {
   'registration_discipline_selections.partner_member_id': 'deleted',
   'registrations.attended_marked_by_member_id': 'reference cleared',
   'registrations.member_id': 'deleted',
+  'registrations.paid_at_event_marked_by_member_id': 'reference cleared',
   'system_alarm_events.acknowledged_by_member_id': 'reference cleared',
   'system_config.changed_by_member_id': 'deleted, counted',
   'tags.retired_by_member_id': 'reference cleared',
@@ -536,6 +538,10 @@ export function refreshAllPersonas(
           WHERE decided_by_member_id IN (${placeholders(memberIds.length)})`,
       ).run(...memberIds);
     }
+    // A persona's news items (a Community post, or a News item a persona
+    // administrator wrote) go with it; the schema clears the announcement's
+    // link to a deleted post.
+    delIn('news_items', 'author_member_id', memberIds);
     delIn('member_announcements', 'member_id', memberIds);
     delIn('email_archives', 'sender_member_id', memberIds);
     // An event a persona asked to have sanctioned, decided, or canceled through
@@ -566,6 +572,7 @@ export function refreshAllPersonas(
         ['outbox_emails', 'reviewed_by_member_id'],
         ['media_flags', 'resolved_by_admin_member_id'],
         ['registrations', 'attended_marked_by_member_id'],
+        ['registrations', 'paid_at_event_marked_by_member_id'],
         ['club_cleanup_resolutions', 'parked_by_member_id'],
         // A real member a persona administrator restricted keeps the restriction
         // and loses only the reference to who applied it.

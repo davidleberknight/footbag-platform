@@ -1681,3 +1681,106 @@ describe('the convention gate: unescaped template output stays on the allow-list
     expect(res.stderr).toContain('no registered helper names could be read');
   });
 });
+
+describe('the convention gate: another member is chosen with the member picker, never by a typed id', () => {
+  const RULE = 'a member is chosen with the member picker, never by a typed id';
+  const FAIL = 'choose a member with the member picker';
+  // The check reads all three folders, so every fixture carries one plain file in
+  // each, and a scripts/ folder brings the shell-script checks in, so one script.
+  const BASE = {
+    'src/views/plain.hbs': '<p>{{name}}</p>\n',
+    'src/controllers/plainController.ts': 'export const plain = 1;\n',
+    'src/services/plainService.ts': 'export const plainService = 1;\n',
+    'scripts/thing.sh': '#!/usr/bin/env bash\n',
+  };
+
+  // Defect caught: an admin form asks for a member's id or slug, which nobody
+  // knows, so the form cannot be filled in without looking the answer up elsewhere.
+  it('refuses a visible member key field and the label asking for an id or slug', () => {
+    const res = inFixtureRepo({
+      ...BASE,
+      'src/views/admin/grant.hbs': [
+        '<form method="POST" action="/admin/grant">',
+        '  <label for="grant_member">Member id or slug</label>',
+        '  <input id="grant_member" name="member_key" required />',
+        '</form>',
+        '',
+      ].join('\n'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain(FAIL);
+    expect(res.stderr).toContain('src/views/admin/grant.hbs:2:');
+    expect(res.stderr).toContain('src/views/admin/grant.hbs:3:');
+  });
+
+  // Defect caught: a typed id field whose attributes run over several lines slips
+  // past a line-by-line scan and reaches the page.
+  it('refuses a typed member id field written across lines', () => {
+    const res = inFixtureRepo({
+      ...BASE,
+      'src/views/admin/adjust.hbs': '<form method="POST">\n  <input type="text"\n         name="memberId"\n         maxlength="64" />\n</form>\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/views/admin/adjust.hbs:2:');
+  });
+
+  // Defect caught: a service still resolves a typed key and tells the admin to
+  // enter an id, so the form behind it keeps asking for one.
+  it('refuses a typed-key resolver message in a service and a field label in a controller', () => {
+    const res = inFixtureRepo({
+      ...BASE,
+      'src/services/grantService.ts': [
+        'export function resolve(found: boolean): void {',
+        '  if (!found) throw new ValidationError(',
+        "    'No active member with that id or slug.',",
+        '  );',
+        '}',
+        '',
+      ].join('\n'),
+      'src/controllers/grantController.ts': "const form = z.object({ person: formText('Linked historical-person id') });\n",
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/services/grantService.ts:3:');
+    expect(res.stderr).toContain('src/controllers/grantController.ts:1:');
+  });
+
+  // Defect caught: the check refuses what the rule allows, so a correct page fails
+  // the build: a confirm page carrying the chosen member forward, a member's own
+  // Profile URL, a checkbox list of shown members, an id displayed on a record,
+  // and a search by the old footbag.org account id an administrator may hold.
+  it('accepts a carried hidden choice, a member\'s own Profile URL, a listed checkbox, a displayed id and a legacy member id', () => {
+    const res = inFixtureRepo({
+      ...BASE,
+      'src/views/admin/confirm.hbs': [
+        '<form method="POST">',
+        '  <input type="hidden"',
+        '         name="member_id" value="{{content.memberId}}" />',
+        '  <input type="hidden" name="member_key" value="{{content.memberKey}}" />',
+        '  <input type="checkbox" name="member_id" value="{{id}}" />',
+        '  <label for="slug">Profile URL</label>',
+        '  <input id="slug" name="slug" />',
+        '  <label for="legacy">Legacy member id</label>',
+        '  <input id="legacy" name="legacy_query" />',
+        '</form>',
+        '',
+      ].join('\n'),
+      'src/services/recordService.ts': "export const facts = [{ label: 'Member id', value: 'm1' }];\n",
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, RULE);
+  });
+
+  // Defect caught: a page goes back to asking for a typed id and a list of
+  // exceptions lets it through, though every page now uses the picker.
+  it('excuses no file, whatever list sits beside the check', () => {
+    const asking = '<label>Member id <input type="text" name="member" /></label>\n';
+    const res = inFixtureRepo({
+      ...BASE,
+      'scripts/ci/member-pick-allowlist.txt': '# header\nsrc/views/admin/audit.hbs\n',
+      'src/views/admin/audit.hbs': asking,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/views/admin/audit.hbs:1:');
+    expect(res.stderr).toContain(FAIL);
+  });
+});

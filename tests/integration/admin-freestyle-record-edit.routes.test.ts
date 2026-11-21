@@ -342,15 +342,18 @@ describe('POST /admin/freestyle/records/:id/edit — validation', () => {
     const res = await post('/admin/freestyle/records/rec_guard/edit', admin(),
       validBody({ personId: 'hp-does-not-exist', trickName: 'Kept Trick' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('No historical person');
+    expect(res.text).toContain('Search for the historical record by name');
     expect(res.text).toContain('Kept Trick'); // submitted value survives
+    // The forged id is not carried back as a choice; the picker offers the way forward.
+    expect(res.text).toMatch(/name="personId" value=""/);
+    expect(res.text).toContain('name="pick" value="open:person"');
   });
 
   it('rejects when neither a person id nor a display name is given', async () => {
     const res = await post('/admin/freestyle/records/rec_guard/edit', admin(),
       validBody({ personId: '', displayName: '' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('linked person id or a display name');
+    expect(res.text).toContain('linked historical record or a display name');
   });
 
   it('rejects a superseded-by that points at the row itself', async () => {
@@ -583,5 +586,48 @@ describe('POST /admin/freestyle/records/:id/edit — write gate', () => {
     expect(res.status).toBe(403);
     expect(recordRow('rec_guard').trick_name).toBe('Guard Trick');
     expect(auditRows('rec_guard')).toHaveLength(0);
+  });
+});
+
+describe('freestyle records — the holder is chosen from a search, never typed', () => {
+  const chooses = (id: string) => `name="pick" value="choose:person:${id}"`;
+
+  // Defect caught: the holder search finds nothing an admin can choose, loses
+  // what they had typed in the rest of the form, or saves the record while
+  // they were only searching.
+  it('searches historical records by name, keeps the typed fields and saves nothing', async () => {
+    const before = recordRow('rec_guard');
+    const res = await post('/admin/freestyle/records/rec_guard/edit', admin(),
+      validBody({ trickName: 'Typed While Searching', pick: 'search:person', pick_q: 'real historical' }));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(chooses(PERSON_ID));
+    expect(res.text).toContain('value="Typed While Searching"');
+    expect(recordRow('rec_guard')).toEqual(before);
+    expect(auditRows('rec_guard')).toHaveLength(0);
+  });
+
+  // Defect caught: a chosen record is not carried into the form, so Save
+  // stores no holder; or Remove leaves the old holder in place.
+  it('carries a chosen record into the form, and Remove clears it', async () => {
+    const chosen = await post('/admin/freestyle/records/rec_guard/edit', admin(),
+      validBody({ pick: `choose:person:${PERSON_ID}` }));
+    expect(chosen.status).toBe(200);
+    expect(chosen.text).toMatch(new RegExp(`name="personId" value="${PERSON_ID}"`));
+    expect(chosen.text).toContain('Real Historical Holder');
+
+    const removed = await post('/admin/freestyle/records/rec_guard/edit', admin(),
+      validBody({ personId: PERSON_ID, pick: 'remove:person' }));
+    expect(removed.text).toMatch(/name="personId" value=""/);
+  });
+
+  // Defect caught: searching on the new-record form creates a record.
+  it('searches from the new-record form without creating one', async () => {
+    const count = () => (db.prepare('SELECT COUNT(*) AS n FROM freestyle_records').get() as { n: number }).n;
+    const before = count();
+    const res = await post('/admin/freestyle/records', admin(),
+      validBody({ pick: 'search:person', pick_q: 'real historical' }));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(chooses(PERSON_ID));
+    expect(count()).toBe(before);
   });
 });

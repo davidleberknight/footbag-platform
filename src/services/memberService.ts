@@ -136,7 +136,10 @@
  *   outbox (recipient address, subject and rendered body scrubbed on PII purge and deceased scrub),
  *   email_archives (the sender's member id cleared on PII purge only; the subject, the body and the identity it was sent under are the record of what went out in IFPA's name and are never touched, and a deceased member's account still exists so the deceased scrub leaves the link alone),
  *   historical_persons (read-only; surfaced in member search via the public-player
- *   name index, so search spans both live members and imported historical identities).
+ *   name index, so search spans both live members and imported historical identities),
+ *   registrations, events, event_organizers_current (read-only; the owner's
+ *   upcoming events they hold a confirmed registration for, drawn as every
+ *   listed event is, and the events they organize).
  *
  * Side effects:
  *   - audit_entries append (profile/PII mutations)
@@ -156,7 +159,9 @@
 import { randomUUID } from 'crypto';
 import { logger } from '../config/logger';
 import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberAnnouncements, memberPurge, memberMessages, mediaFlags, memberOnboarding, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
-import { eventOrganizers } from '../db/db';
+import { eventOrganizers, eventRegistrations } from '../db/db';
+import { toEventDatedItem, type EventListingRow } from './eventListing';
+import type { DatedItemView } from '../types/datedItem';
 import { formatDateRange } from '../lib/handlebarsHelpers';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { cleanUserText, sanitizeUserText, type TextShape } from '../lib/textSanitizer';
@@ -176,9 +181,9 @@ import { playerTagForMemberSlug, playerTagForName } from './slugify';
 import { buildAvatarUrl } from './avatarService';
 import { emailService } from './emailService';
 import { PageViewModel, TierBenefitNotice } from '../types/page';
-import { groupPlayerResults, resultsHaveDetail } from './playerShaping';
+import { groupPlayerResults, resultsHaveDetail, withEventGalleries } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
-import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } from './membershipTieringService';
+import { getTierStatus, tierBadgeShort, TIER_NAMES, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus, applyVouch } from './activePlayerService';
 import { memberActionService, type MemberActions } from './memberActionService';
 import { mayCreateClub, isTier2Plus, hasTier1Benefits } from './tierPredicates';
@@ -248,6 +253,9 @@ export interface MemberSearchEntry {
   /** The hashtag that credits this person as the player in a media item: a
    *  member's (or claimed record's) own slug, else the record's folded name. */
   playerTag: string;
+  /** The member account behind a member row, which a form choosing a member
+   *  (a doubles partner, an organizer) posts; null on a historical row. */
+  memberId: string | null;
 }
 
 export interface MemberSearchResult {
@@ -347,8 +355,14 @@ export interface MyEventView {
   stepDownAction: string;
 }
 
-/** The owner's My Events block: the events they organize and the way to create one. */
+/**
+ * The owner's events: the upcoming events they are registered for, each drawn
+ * as the site draws any listed event, then the events they organize and the
+ * way to create one. Their past events with results are the Competitive
+ * Results section.
+ */
 export interface MyEventsView {
+  upcoming: DatedItemView[];
   events: MyEventView[];
   createEventHref: string | null;
   createTierNotice: TierBenefitNotice | null;
@@ -626,14 +640,14 @@ function holdsVouchingTier(memberId: string): boolean {
 // can correct a standing that should not have been given, so the promise here
 // is that the voucher has no undo of their own, which is the part that is true.
 const VOUCH_EXPLANATION =
-  'You hold Tier 2 or Tier 3 membership, so you can vouch for this member to give them Active ' +
-  'Player status. Active Player status carries Tier 1 benefits and a place on the Official IFPA ' +
+  'You are a Tier 2 IFPA Organizer Member or Tier 3 IFPA Director, so you can vouch for this member to give them Active ' +
+  'Player status. Active Player status carries Tier 1 IFPA Member benefits and a place on the Official IFPA ' +
   'Roster while it is current. It never changes their membership tier. Vouching takes effect at ' +
   'once and notifies them by email. You cannot undo it yourself once it is given.';
 
 // The wording the user story fixes for a target the status does not apply to.
 const VOUCH_NOT_TIER0_NOTICE =
-  'No change needed - Active Player status applies only to Tier 0 members.';
+  'No change needed - Active Player status applies only to Tier 0 Registered Members.';
 
 const VOUCH_RATE_LIMITED_NOTICE =
   'You have reached the limit for vouches in a short period. Please try again later.';
@@ -1060,7 +1074,10 @@ function fetchEventGroups(row: MemberProfileRow): PlayerEventGroup[] {
     seen.add(key);
     merged.push(r);
   }
-  return groupPlayerResults(merged, { selfMemberId: row.id, selfPersonId: selfPersonId ?? row.historical_person_id ?? null });
+  return withEventGalleries(
+    groupPlayerResults(merged, { selfMemberId: row.id, selfPersonId: selfPersonId ?? row.historical_person_id ?? null }),
+    (tag) => mediaService.getEntityGalleryHref(tag),
+  );
 }
 
 function fetchMemberBySlug(slug: string): MemberProfileRow {
@@ -2214,7 +2231,21 @@ export const memberService = {
     ]);
   },
 
-  searchMembers(query: string, ctx: { actorMemberId: string; ip: string }): MemberSearchResult {
+  /**
+   * The member search. `opts` narrows it for a form that picks one member:
+   * `limit` caps the rows (default 20), `includeHistorical: false` leaves out
+   * historical records, which no form can choose, `excludeMemberIds` drops
+   * members the form cannot take (the registrant, current organizers), and
+   * `fullLocation` shows city and region beside the country, so two members
+   * of one name can be told apart.
+   */
+  searchMembers(
+    query: string,
+    ctx: { actorMemberId: string; ip: string },
+    opts: { limit?: number; includeHistorical?: boolean; excludeMemberIds?: readonly string[]; fullLocation?: boolean } = {},
+  ): MemberSearchResult {
+    const limit = opts.limit ?? SEARCH_LIMIT;
+    const excluded = new Set(opts.excludeMemberIds ?? []);
     const trimmed = query.trim();
     if (trimmed.length < 2) {
       return { query: trimmed, results: [], hasMore: false, tooShort: trimmed.length > 0, rateLimited: false };
@@ -2248,25 +2279,29 @@ export const memberService = {
       .replace(/_/g, '\\_');
 
     // Search current members
-    const memberRows = runSqliteRead('searchMembers', () =>
-      account.searchMembers.all(escaped, SEARCH_LIMIT + 1),
-    ) as MemberSearchRow[];
+    // Excluded members are read and dropped, so the cap still counts only
+    // members the caller can take.
+    const memberRows = (runSqliteRead('searchMembers', () =>
+      account.searchMembers.all(escaped, limit + 1 + excluded.size),
+    ) as MemberSearchRow[]).filter((r) => !excluded.has(r.id));
 
     // Search historical persons
-    const historicalRows = runSqliteRead('searchHistoricalPersons', () =>
-      publicPlayers.searchByName.all(escaped, SEARCH_LIMIT + 1),
-    ) as HistoricalPersonSearchRow[];
+    const historicalRows = opts.includeHistorical === false
+      ? []
+      : runSqliteRead('searchHistoricalPersons', () =>
+        publicPlayers.searchByName.all(escaped, limit + 1),
+      ) as HistoricalPersonSearchRow[];
 
     // Merge: members first, then historical persons (deduped by linked slug)
     const seen = new Set<string>();
     const merged: MemberSearchEntry[] = [];
 
     for (const r of memberRows) {
-      if (merged.length >= SEARCH_LIMIT + 1) break;
+      if (merged.length >= limit + 1) break;
       seen.add(r.slug);
       merged.push({
         displayName: r.display_name,
-        location: personLocation(null, null, r.country)?.text ?? null,
+        location: personLocation(opts.fullLocation ? r.city : null, opts.fullLocation ? r.region : null, r.country)?.text ?? null,
         href: `/members/${r.slug}`,
         tierBadge: tierBadgeShort(r.tier_status),
         isActivePlayer: r.is_active_player === 1,
@@ -2277,11 +2312,12 @@ export const memberService = {
         // Member search is authenticated-only, so the opted-in label is visible here.
         genderLabel: genderPublicLabel(r.gender, r.show_gender, true),
         playerTag: playerTagForMemberSlug(r.slug),
+        memberId: r.id,
       });
     }
 
     for (const r of historicalRows) {
-      if (merged.length >= SEARCH_LIMIT + 1) break;
+      if (merged.length >= limit + 1) break;
       if (r.linked_member_slug && seen.has(r.linked_member_slug)) continue;
       if (r.linked_member_slug) seen.add(r.linked_member_slug);
       const isClaimed = Boolean(r.linked_member_slug);
@@ -2302,11 +2338,12 @@ export const memberService = {
         playerTag: r.linked_member_slug
           ? playerTagForMemberSlug(r.linked_member_slug)
           : playerTagForName(r.person_name),
+        memberId: null,
       });
     }
 
-    const hasMore = merged.length > SEARCH_LIMIT;
-    const results = hasMore ? merged.slice(0, SEARCH_LIMIT) : merged;
+    const hasMore = merged.length > limit;
+    const results = hasMore ? merged.slice(0, limit) : merged;
     return { query: trimmed, results, hasMore, tooShort: false, rateLimited: false };
   },
 
@@ -2322,12 +2359,7 @@ export const memberService = {
 // Implements `M_View_Tier_Status` shaping for the member dashboard. Pure
 // composition over `getTierStatus` + `getActivePlayerStatus`; no new SQL.
 
-const TIER_BADGE_TEXT: Record<MemberTier, string> = {
-  tier0: 'Tier 0 Registered Member',
-  tier1: 'Tier 1 IFPA Member',
-  tier2: 'Tier 2 IFPA Organizer Member',
-  tier3: 'Tier 3 IFPA Director',
-};
+const TIER_BADGE_TEXT = TIER_NAMES;
 
 function welcomeTierContent(): MemberWelcomeTier[] {
   return [
@@ -2337,7 +2369,7 @@ function welcomeTierContent(): MemberWelcomeTier[] {
       benefits: [
         'Browse the platform and search the membership',
         'Earn Active Player status (730 days) through qualifying event attendance or a vouch, or once by joining your first club that has a co-leader, if you have never held it',
-        'Active Player status unlocks Tier 1 benefits while current, including Official IFPA Roster inclusion',
+        'Active Player status unlocks Tier 1 IFPA Member benefits while current, including Official IFPA Roster inclusion',
       ],
     },
     {
@@ -2356,10 +2388,10 @@ function welcomeTierContent(): MemberWelcomeTier[] {
       label: TIER_BADGE_TEXT.tier2,
       price: paymentService.getTierPriceDisplay('tier2'),
       benefits: [
-        'Includes all Tier 1 benefits',
+        'Includes all Tier 1 IFPA Member benefits',
         'Create sanctioned events and enable paid event registration',
         'Request IFPA sponsorship and send community announcements via announce@footbag.org',
-        'Vouch for Tier 0 members to earn or extend Active Player status',
+        'Vouch for Tier 0 Registered Members to earn or extend Active Player status',
         'Access the Official IFPA Roster for organizer purposes',
         'Granted automatically by Hall of Fame or Big Add Posse induction (if you hold one and it is not shown, contact the IFPA admin to have it reviewed)',
       ],
@@ -2381,7 +2413,7 @@ function welcomeTierContent(): MemberWelcomeTier[] {
 // a Tier 0 Active Player reads both: the status is temporary and the tier is
 // not, which is exactly the member for whom the two must not be conflated.
 const ACTIVE_PLAYER_CURRENT_EXPLANATION =
-  'You enjoy Tier 1 benefits while Active Player status is current, including Official IFPA Roster inclusion.';
+  'You enjoy Tier 1 IFPA Member benefits while Active Player status is current, including Official IFPA Roster inclusion.';
 
 // The Tier 0 text states the routes this member actually has, rather than
 // setting a condition for them to resolve: the record already says whether they
@@ -2396,15 +2428,15 @@ const ACTIVE_PLAYER_CURRENT_EXPLANATION =
 // to use it. The search block it points at sits directly below the membership
 // block on the same page.
 const VOUCH_ROUTE_SENTENCE =
-  'You can also vouch for a Tier 0 member to give them Active Player status: find them with ' +
+  'You can also vouch for a Tier 0 Registered Member to give them Active Player status: find them with ' +
   'the member search below, then use the vouch control on their profile.';
 
 function tierBenefitsBlurb(tier: MemberTier, hasEverHeldActivePlayer: boolean): string {
   switch (tier) {
     case 'tier0':
       return hasEverHeldActivePlayer
-        ? 'You can browse the platform and search the membership. Active Player status gives you Tier 1 benefits while it is current: you earn it by attending a qualifying event, and a Tier 2 or Tier 3 member can also vouch for you.'
-        : 'You can browse the platform and search the membership. Active Player status gives you Tier 1 benefits while it is current: you earn it by attending a qualifying event, or once by joining your first club that has a co-leader, and a Tier 2 or Tier 3 member can also vouch for you.';
+        ? 'You can browse the platform and search the membership. Active Player status gives you Tier 1 IFPA Member benefits while it is current: you earn it by attending a qualifying event, and a Tier 2 IFPA Organizer Member or Tier 3 IFPA Director can also vouch for you.'
+        : 'You can browse the platform and search the membership. Active Player status gives you Tier 1 IFPA Member benefits while it is current: you earn it by attending a qualifying event, or once by joining your first club that has a co-leader, and a Tier 2 IFPA Organizer Member or Tier 3 IFPA Director can also vouch for you.';
     case 'tier1':
       return 'You support the IFPA, are listed on the Official IFPA Roster, vote in IFPA elections, and can create clubs and basic events.';
     case 'tier2':
@@ -2443,7 +2475,7 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
       hasLapsed,
       currentExplanation: isAp ? ACTIVE_PLAYER_CURRENT_EXPLANATION : null,
       lapsedExplanation: hasLapsed
-        ? 'Your Active Player status has ended, so your Tier 1 benefits and your Official IFPA Roster listing have ended. Earn Active Player status again through qualifying event attendance, or a vouch from a Tier 2 or Tier 3 member.'
+        ? 'Your Active Player status has ended, so your Tier 1 IFPA Member benefits and your Official IFPA Roster listing have ended. Earn Active Player status again through qualifying event attendance, or a vouch from a Tier 2 IFPA Organizer Member or Tier 3 IFPA Director.'
         : null,
     };
   }
@@ -2463,7 +2495,7 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
   // Said only where no other sentence in this block already says it, because
   // the block renders these paragraphs consecutively and a reader who meets the
   // same fact twice running reads the second as a different fact and looks for
-  // the difference. The Tier 1 benefits sentence states the listing; both
+  // the difference. The Tier 1 IFPA Member benefits sentence states the listing; both
   // Active Player sentences state what the status carries and what lapsing
   // takes away. What is left unanswered is the Tier 0 member who has never held
   // the status, and Tier 2 and Tier 3, whose benefits mention reading the
@@ -2472,7 +2504,7 @@ function buildTierStatusView(memberId: string, slug: string): TierStatusView {
   if (tier.tier_status === 'tier0') {
     if (!isAp && !activePlayer?.hasLapsed) {
       rosterStatusText =
-        'You are not on the Official IFPA Roster. Tier 1 membership or current Active Player status puts you on it.';
+        'You are not on the Official IFPA Roster. Becoming a Tier 1 IFPA Member, or holding current Active Player status, puts you on it.';
     }
   } else if (tier.tier_status !== 'tier1') {
     rosterStatusText = 'You are on the Official IFPA Roster.';
@@ -2583,14 +2615,20 @@ const MY_EVENT_STATUS_LABELS: Record<string, string> = {
 
 // The events the member organizes, each with its manage page and the step-down
 // control the organizer story places on the member's own dashboard, and the way
-// to create one. A member without Tier 1 benefits reads what the benefit is and
+// to create one. A member without Tier 1 IFPA Member benefits reads what the benefit is and
 // how to earn it instead.
 function buildMyEventsView(memberId: string, slug: string): MyEventsView {
   const rows = eventOrganizers.listOpenEventsForMember.all(memberId) as Array<{
     id: string; title: string; start_date: string; end_date: string; status: string; tag_normalized: string;
   }>;
   const canCreate = hasTier1Benefits(memberId);
+  const todayIso = new Date().toISOString();
+  const registered = eventRegistrations.listUpcomingConfirmedForMember.all(memberId, todayIso) as EventListingRow[];
   return {
+    upcoming: registered.map((r) => toEventDatedItem(r, {
+      todayIso,
+      galleryHref: mediaService.getEntityGalleryHref(r.tag_normalized),
+    })),
     events: rows.map((r) => {
       const base = `/events/${encodeURIComponent(r.tag_normalized.slice(1))}`;
       return {
@@ -2613,7 +2651,7 @@ function buildMyClubsView(memberId: string, slug: string): MyClubsView {
   // Volunteering to co-lead follows the Tier-1-benefits rule (Tier 1+ OR an
   // active Active-Player period).
   const volunteerBenefits = holdsPaidTier || getActivePlayerStatus(memberId).is_active_player === 1;
-  // Creating a club uses the bootstrap eligibility: Tier 1 benefits, or a Tier 0
+  // Creating a club uses the bootstrap eligibility: Tier 1 IFPA Member benefits, or a Tier 0
   // member who has never held Active Player (create grants the one-time period).
   const canCreateClubBenefits = mayCreateClub(memberId);
   const atColeadCap = memberAtColeadCap(memberId);

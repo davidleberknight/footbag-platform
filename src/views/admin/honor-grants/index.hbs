@@ -10,84 +10,6 @@
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
 
   <section>
-    <div class="section-heading"><h2>Grant a Hall of Fame or Big Add Posse Tier</h2></div>
-    <p class="fs-sm">Grants Tier 2 from the honor and records the honor provenance. Hall of Fame and Big Add Posse are independent, so a member may hold one of each; the same honor is granted only once.</p>
-    <form method="POST" action="/admin/honor-grants/grant" class="form-block">
-      <div class="form-field">
-        <label for="grant_member">Member id or slug</label>
-        <input type="text" id="grant_member" name="member_key" required maxlength="200" />
-      </div>
-      <div class="form-field">
-        <label for="grant_honor">Honor</label>
-        <select id="grant_honor" name="honor" required>
-          <option value="hof">Hall of Fame</option>
-          <option value="bap">Big Add Posse</option>
-        </select>
-      </div>
-      <div class="form-field">
-        <label for="grant_year">Induction year</label>
-        <input type="text" id="grant_year" name="induction_year" maxlength="4" inputmode="numeric" />
-      </div>
-      <button type="submit" class="btn btn-primary btn-sm">Review Honor Grant</button>
-    </form>
-  </section>
-
-  <section>
-    <div class="section-heading"><h2>Take Back a Grant Made in Error</h2></div>
-    <p class="fs-sm">This corrects the platform's record of a grant that should not have been made. It clears the badge and its induction year and leaves the membership tier alone. It does not revoke the honour itself, which is not the platform's to revoke.</p>
-    <form method="POST" action="/admin/honor-grants/remove" class="form-block">
-      <div class="form-field">
-        <label for="remove_member">Member id or slug</label>
-        <input type="text" id="remove_member" name="member_key" required maxlength="200" />
-      </div>
-      <div class="form-field">
-        <label for="remove_honor">Honor</label>
-        <select id="remove_honor" name="honor" required>
-          <option value="hof">Hall of Fame</option>
-          <option value="bap">Big Add Posse</option>
-        </select>
-      </div>
-      <div class="form-field">
-        <label for="remove_reason">Reason (required)</label>
-        <input type="text" id="remove_reason" name="reason" required maxlength="500" />
-      </div>
-      <button type="submit" class="btn btn-outline btn-sm">Review Taking Back the Grant</button>
-    </form>
-  </section>
-
-  <section>
-    <div class="section-heading"><h2>Put a Director on the Board</h2></div>
-    <p class="fs-sm">Board standing is Tier 3 and is set one director at a time, as each sitting director claims their account. It is temporary: on leaving the board the member returns to the tier recorded when they joined it.</p>
-    <form method="POST" action="/admin/honor-grants/board/set" class="form-block">
-      <div class="form-field">
-        <label for="board_set_member">Member id or slug</label>
-        <input type="text" id="board_set_member" name="member_key" required maxlength="200" />
-      </div>
-      <div class="form-field">
-        <label for="board_set_reason">Reason (required)</label>
-        <input type="text" id="board_set_reason" name="reason" required maxlength="500" />
-      </div>
-      <button type="submit" class="btn btn-primary btn-sm">Review Putting Them on the Board</button>
-    </form>
-  </section>
-
-  <section>
-    <div class="section-heading"><h2>Take a Director Off the Board</h2></div>
-    <p class="fs-sm">The board badge goes and the member returns to the tier recorded when they joined the board.</p>
-    <form method="POST" action="/admin/honor-grants/board/remove" class="form-block">
-      <div class="form-field">
-        <label for="board_remove_member">Member id or slug</label>
-        <input type="text" id="board_remove_member" name="member_key" required maxlength="200" />
-      </div>
-      <div class="form-field">
-        <label for="board_remove_reason">Reason (required)</label>
-        <input type="text" id="board_remove_reason" name="reason" required maxlength="500" />
-      </div>
-      <button type="submit" class="btn btn-outline btn-sm">Review Taking Them Off the Board</button>
-    </form>
-  </section>
-
-  <section>
     <div class="section-heading"><h2>Current Hall of Fame ({{content.hofHolders.length}})</h2></div>
     {{#unless content.hofHolders.length}}
       <p>No member holds the Hall of Fame honor yet.</p>
@@ -95,7 +17,16 @@
     {{#each content.hofHolders}}
       <div class="card">
         <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{memberId}}</span></div>
-        <p class="m-0 text-muted fs-sm">{{#if yearLabel}}{{yearLabel}} &middot; {{/if}}{{slug}}</p>
+        <p class="text-muted fs-sm">{{#if yearLabel}}{{yearLabel}} &middot; {{/if}}{{slug}}</p>
+        <form method="POST" action="/admin/honor-grants/remove" class="form-block">
+          <input type="hidden" name="member_id" value="{{memberId}}" />
+          <input type="hidden" name="honor" value="hof" />
+          <div class="form-field">
+            <label for="take_back_hof_{{memberId}}">Reason (required)</label>
+            <input type="text" id="take_back_hof_{{memberId}}" name="reason" required maxlength="500" />
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">Review Taking Back the Grant</button>
+        </form>
       </div>
     {{/each}}
   </section>
@@ -108,9 +39,40 @@
     {{#each content.bapHolders}}
       <div class="card">
         <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{memberId}}</span></div>
-        <p class="m-0 text-muted fs-sm">{{#if yearLabel}}{{yearLabel}} &middot; {{/if}}{{slug}}</p>
+        <p class="text-muted fs-sm">{{#if yearLabel}}{{yearLabel}} &middot; {{/if}}{{slug}}</p>
+        <form method="POST" action="/admin/honor-grants/remove" class="form-block">
+          <input type="hidden" name="member_id" value="{{memberId}}" />
+          <input type="hidden" name="honor" value="bap" />
+          <div class="form-field">
+            <label for="take_back_bap_{{memberId}}">Reason (required)</label>
+            <input type="text" id="take_back_bap_{{memberId}}" name="reason" required maxlength="500" />
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">Review Taking Back the Grant</button>
+        </form>
       </div>
     {{/each}}
+    <p class="mt-4 fs-sm">This corrects the platform's record of a grant that should not have been made. It clears the badge and its induction year and leaves the membership tier alone. It does not revoke the honour itself, which is not the platform's to revoke.</p>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Grant a Hall of Fame or Big Add Posse Tier</h2></div>
+    <p class="fs-sm">Grants Tier 2 IFPA Organizer Member from the honor and records the honor provenance. Hall of Fame and Big Add Posse are independent, so a member may hold one of each; the same honor is granted only once.</p>
+    <form method="POST" action="{{content.grantHref}}" id="{{content.grantFormId}}" class="form-block">
+      {{> member-picker content.grantPicker}}
+      <div class="form-field">
+        <label for="grant_honor">Honor</label>
+        <select id="grant_honor" name="honor" required>
+          {{#each content.honorOptions}}
+            <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="grant_year">Induction year</label>
+        <input type="text" id="grant_year" name="induction_year" value="{{content.inductionYearValue}}" maxlength="4" inputmode="numeric" />
+      </div>
+      <button type="submit" class="btn btn-primary">Review Honor Grant</button>
+    </form>
   </section>
 
   <section>
@@ -121,9 +83,32 @@
     {{#each content.boardMembers}}
       <div class="card">
         <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{memberId}}</span></div>
-        <p class="m-0 text-muted fs-sm">{{slug}}</p>
+        <p class="text-muted fs-sm">{{slug}}</p>
+        <form method="POST" action="/admin/honor-grants/board/remove" class="form-block">
+          <input type="hidden" name="member_id" value="{{memberId}}" />
+          <div class="form-field">
+            <label for="board_remove_{{memberId}}">Reason (required)</label>
+            <input type="text" id="board_remove_{{memberId}}" name="reason" required maxlength="500" />
+          </div>
+          <button type="submit" class="btn btn-outline btn-sm">Review Taking Them Off the Board</button>
+        </form>
       </div>
     {{/each}}
+    <p class="mt-4 fs-sm">The board badge goes and the member returns to the tier recorded when they joined the board.</p>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Put a Director on the Board</h2></div>
+    <p class="fs-sm">Board standing is Tier 3 IFPA Director and is set one director at a time, as each sitting director claims their account. It is temporary: on leaving the board the member returns to the tier recorded when they joined it.</p>
+    <form method="POST" action="{{content.boardHref}}" id="{{content.boardFormId}}" class="form-block">
+      {{> member-picker content.boardPicker}}
+      <div class="form-field">
+        <label for="board_set_reason">Reason (required)</label>
+        <input type="text" id="board_set_reason" name="reason" value="{{content.boardReasonValue}}" required maxlength="500" />
+      </div>
+      <button type="submit" class="btn btn-primary">Review Putting Them on the Board</button>
+    </form>
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
   </section>
 
   <section>

@@ -29,6 +29,7 @@
     <section>
       <div class="section-heading"><h2>Sanction</h2></div>
       <p>{{content.sanction.statusLine}}</p>
+      <p>A sanctioned event is one officially recognized by IFPA.</p>
       {{#if content.sanction.requestHref}}
         <p><a href="{{siteHref content.sanction.requestHref}}" class="btn btn-primary">Request Sanction</a></p>
       {{/if}}
@@ -107,12 +108,16 @@
     </form>
   </section>
 
+  <section id="cover-photo">
+    {{> cover-photo-section section=content.coverPhoto fieldId="event_cover_photo"}}
+  </section>
+
   <section id="division-form">
-    <div class="section-heading"><h2>Divisions</h2></div>
+    <div class="section-heading"><h2>Competitions</h2></div>
     {{#if content.divisions.length}}
-      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Divisions">
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Competitions">
       <table class="data-table">
-        <thead><tr><th scope="col">Division</th><th scope="col">Actions</th></tr></thead>
+        <thead><tr><th scope="col">Competition</th><th scope="col">Actions</th></tr></thead>
         <tbody>
           {{#each content.divisions}}
             <tr>
@@ -121,9 +126,9 @@
                 {{#if this.isLocked}}
                   <span class="text-muted">Has confirmed registrations</span>
                 {{else}}
-                  <a href="{{siteHref this.editHref}}" class="btn btn-outline btn-sm">Change Division</a>
+                  <a href="{{siteHref this.editHref}}" class="btn btn-outline btn-sm">Change Competition</a>
                   <form method="POST" action="{{this.removeAction}}" class="inline-form">
-                    <button type="submit" class="btn btn-outline btn-sm">Remove Division</button>
+                    <button type="submit" class="btn btn-outline btn-sm">Remove Competition</button>
                   </form>
                 {{/if}}
               </td>
@@ -133,7 +138,7 @@
       </table>
       </div>
     {{else}}
-      <p>This event has no divisions yet. Add each competition the event runs.</p>
+      <p>This event has no competitions yet. Add each competition the event runs.</p>
     {{/if}}
 
     {{#if content.partsStep}}
@@ -144,7 +149,7 @@
         <input type="hidden" name="custom_name" value="{{content.partsStep.customName}}" />
         <input type="hidden" name="custom_discipline" value="{{content.partsStep.customDiscipline}}" />
         <fieldset class="form-fieldset">
-          <legend>Class</legend>
+          <legend>Skill Level</legend>
           {{#each content.partsStep.classes}}
             <div class="form-field"><label><input type="radio" name="division_class" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
           {{/each}}
@@ -156,7 +161,7 @@
           {{/each}}
         </fieldset>
         <fieldset class="form-fieldset">
-          <legend>Entry Size</legend>
+          <legend>Singles or Doubles</legend>
           {{#each content.partsStep.teamTypes}}
             <div class="form-field"><label><input type="radio" name="team_type" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
           {{/each}}
@@ -165,9 +170,9 @@
           <label>
             <input type="hidden" name="offers_prize_money" value="0" />
             <input type="checkbox" name="offers_prize_money" value="1"{{#if content.partsStep.offersPrizeMoney}} checked{{/if}} />
-            This division offers prize money
+            This competition offers prize money
           </label>
-          <small class="form-hint">Entrants in a prize-money division can choose to enter as an Amateur, taking no prize money.</small>
+          <small class="form-hint">Entrants in a prize-money competition can choose to enter as an Amateur, taking no prize money.</small>
         </div>
         <div class="form-actions">
           <button type="submit" class="btn btn-primary">{{content.partsStep.submitLabel}}</button>
@@ -176,9 +181,9 @@
       </form>
     {{else}}
       <form method="GET" action="{{content.chooseGameAction}}#division-form" class="form-block">
-        <h3>Add a Division</h3>
+        <h3>Add a Competition</h3>
         <div class="form-field">
-          <label for="game">Game</label>
+          <label for="game">What is played</label>
           <select id="game" name="game">
             {{#each content.gameGroups}}
               <optgroup label="{{this.label}}">
@@ -191,11 +196,11 @@
           </select>
         </div>
         <div class="form-field">
-          <label for="custom_name">Game name, for a game not on the list</label>
+          <label for="custom_name">What is played, if it is not on the list</label>
           <input type="text" id="custom_name" name="custom_name" value="{{content.customGameName}}" maxlength="60" />
         </div>
         <div class="form-field">
-          <label for="custom_discipline">Discipline, for a game not on the list</label>
+          <label for="custom_discipline">Sport, for a game not on the list</label>
           <select id="custom_discipline" name="custom_discipline">
             {{#each content.disciplineOptions}}
               <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
@@ -213,12 +218,11 @@
     <div class="section-heading"><h2>Organizers</h2></div>
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="Organizers">
     <table class="data-table">
-      <thead><tr><th scope="col">Name</th><th scope="col">Member ID</th><th scope="col">Added</th><th scope="col">Actions</th></tr></thead>
+      <thead><tr><th scope="col">Name</th><th scope="col">Added</th><th scope="col">Actions</th></tr></thead>
       <tbody>
         {{#each content.organizers}}
           <tr>
             <td><a href="{{this.profileHref}}">{{this.name}}</a>{{#if this.isSelf}} <span class="badge">You</span>{{/if}}</td>
-            <td>{{this.memberId}}</td>
             <td>{{formatDate this.addedOn}}</td>
             <td>
               {{#if this.canRemove}}
@@ -234,17 +238,14 @@
     </table>
     </div>
 
-    {{#if content.canAddOrganizer}}
-      <form method="POST" action="{{content.addOrganizerAction}}" class="form-block">
+    {{#if content.organizerPicker}}
+      <form method="POST" action="{{content.addOrganizerAction}}" id="{{content.addOrganizerFormId}}" class="form-block">
+        {{> member-picker content.organizerPicker}}
         <div class="form-field">
-          <label for="member_key">Member ID or profile URL</label>
-          <input type="text" id="member_key" name="member_key" required />
           <small class="form-hint">An event has at most {{content.organizerCap}} organizers, all with the same powers. The member you add is emailed.</small>
         </div>
-        <div class="form-actions">
-          <button type="submit" class="btn btn-outline">Add Organizer</button>
-        </div>
       </form>
+      <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
     {{else}}
       <p>This event has {{content.organizerCap}} organizers, the most an event can have.</p>
     {{/if}}

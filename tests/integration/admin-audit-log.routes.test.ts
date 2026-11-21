@@ -119,6 +119,22 @@ describe('GET /admin/audit-log', () => {
     expect(res.text).not.toContain('auth.login');        // OTHER excluded
   });
 
+  // Defect caught: the member filter takes only an id nobody knows, so an
+  // administrator cannot pull up a member's history by the name or login
+  // email they have.
+  it('member filter finds a member\'s rows by part of the name or by login email', async () => {
+    withDb((db) => {
+      insertAuditEntry(db, { actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.honor_grant_named', entity_type: 'member', entity_id: MEMBER_ID });
+      insertAuditEntry(db, { actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.other_member_row', entity_type: 'member', entity_id: OTHER_ID });
+    });
+    for (const text of ['AL Mem', 'al-member@example.com']) {
+      const res = await request(createApp()).get(`/admin/audit-log?member=${encodeURIComponent(text)}`).set('Cookie', adminCookie());
+      expect(res.status, text).toBe(200);
+      expect(res.text, text).toContain('tier.honor_grant_named');
+      expect(res.text, text).not.toContain('tier.other_member_row');
+    }
+  });
+
   it('viewing the log writes nothing to it', async () => {
     const app = createApp();
     const res = await request(app).get(`/admin/audit-log?member=${MEMBER_ID}`).set('Cookie', adminCookie());

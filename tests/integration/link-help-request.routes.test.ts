@@ -574,7 +574,8 @@ describe('admin review', () => {
       .type('form')
       .send({});
     expect(neither.status).toBe(422);
-    expect(neither.text).toContain('exactly one link target');
+    // The refusal draws the item again with the approve form's pickers, the way forward.
+    expect(neither.text).toContain('name="pick" value="open:account"');
 
     const both = await request(createApp())
       .post(`/admin/work-queue/${item.id}/link-help/approve`)
@@ -582,7 +583,7 @@ describe('admin review', () => {
       .type('form')
       .send({ target_legacy_member_id: 'LM-x', target_historical_person_id: 'hp-x' });
     expect(both.status).toBe(422);
-    expect(both.text).toContain('exactly one link target');
+    expect(both.text).toContain('name="pick" value="open:record"');
 
     expect(openItems(memberId)[0].status).toBe('open');
   });
@@ -684,8 +685,10 @@ describe('admin review', () => {
     expect(res.text).toContain('Found through their sign-in address');
     expect(res.text).toContain('1988-02-29');
     expect(res.text).toContain(`hp-cand-${memberId}`);
-    // And where none of it is enough, the lookup that can produce an id.
-    expect(res.text).toContain('/admin/legacy-accounts');
+    // And where none of it is enough, the approve form's own search over the
+    // unclaimed accounts and the historical records.
+    expect(res.text).toContain('name="pick" value="open:account"');
+    expect(res.text).toContain('name="pick" value="open:record"');
   });
 
   // Defect caught: an old account another member already holds vanishes from
@@ -1057,6 +1060,10 @@ describe('admin review: separation of duties', () => {
     const res = await itemPageOf(requesterId).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(personId);
+    // Defect caught: the card names the disputed record but not who holds it,
+    // or the revert offers no way to choose it.
+    expect(res.text).toContain('held by Listed Record');
+    expect(res.text).toContain(`name="disputed_record" value="record:${personId}"`);
   });
 
   // A re-filed request collapses onto the row the member already has, so that
@@ -1159,13 +1166,15 @@ describe('admin review: separation of duties', () => {
       .type('form')
       .send({ category: 'identity_link_issue', message: 'That record is mine.' });
     const item = openItems(requesterId)[0];
+    // The item's revert form names the record by the choice it offers; the
+    // confirm page carries it forward as the record's own id.
     const form = { target_historical_person_id: personId, reason: 'Upheld after review.' };
 
     const preview = await request(createApp())
       .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send(form);
+      .send({ disputed_record: `record:${personId}`, reason: form.reason });
     expect(preview.status).toBe(200);
     expect(preview.text).toContain('Their Hall of Fame membership and induction year, which came from this claim');
     expect(preview.text).not.toContain('Big Add Posse membership');
@@ -1214,8 +1223,119 @@ describe('admin review: separation of duties', () => {
       .post(`/admin/work-queue/${itemId}/link-help/dispute-revert`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ target_legacy_member_id: accountId, reason: 'Upheld after review.' });
+      .send({ disputed_record: `account:${accountId}`, reason: 'Upheld after review.' });
     expect(preview.status).toBe(200);
     expect(preview.text).toMatch(/<p class="m-0 fw-600">Named Old Account<\/p>\s*<p[^>]*>LM-named-dispute<\/p>/);
+  });
+});
+
+describe('approving by choosing the record from a search', () => {
+  /** A fresh link-help item. */
+  async function linkHelpItem(): Promise<{ memberId: string; itemId: string }> {
+    const memberId = seedRequester();
+    await askAdminToLink(memberId, 'Please link my old records.');
+    return { memberId, itemId: String(openItems(memberId)[0].id) };
+  }
+  /** The approve form posted, as its pickers or its Approve button post it. */
+  function pick(itemId: string, body: Record<string, string>) {
+    return request(createApp())
+      .post(`/admin/work-queue/${itemId}/link-help/approve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_legacy_member_id: '', target_historical_person_id: '', ...body });
+  }
+  const chooses = (key: string, id: string) => `name="pick" value="choose:${key}:${id}"`;
+
+  beforeAll(() => {
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-pick-1', legacy_user_id: 'pickshred92', legacy_email: 'pick.one@old.example.com',
+      real_name: 'Wilhelmina Pickwell', display_name: 'Willa Pickwell', city: 'Portland', country: 'USA',
+    });
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-pick-2', real_name: 'Wilhelmina Pickother', display_name: 'Wilhelmina Pickother',
+    });
+    const holderId = insertMember(db, { real_name: 'Pick Holder', display_name: 'Pick Holder' });
+    insertLegacyMember(db, {
+      legacy_member_id: 'LM-pick-claimed', real_name: 'Wilhelmina Pickclaimed', display_name: 'Wilhelmina Pickclaimed',
+      claimed_by_member_id: holderId, claimed_at: '2026-01-01T00:00:00.000Z',
+    });
+    // A real record id carries colons; the choice must reach the form whole.
+    insertHistoricalPerson(db, { person_id: 'master_person::pick0001', person_name: 'Pickford Oldtimer' });
+  });
+
+  // Defect caught: the account search offers nothing an administrator can
+  // choose, offers an account another member already holds, or writes
+  // something while only searching.
+  it('finds unclaimed accounts by part of a name, never a claimed one, and writes nothing', async () => {
+    const { memberId, itemId } = await linkHelpItem();
+    const res = await pick(itemId, { pick: 'search:account', pick_q: 'wilhelmina pick' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(chooses('account', 'LM-pick-1'));
+    expect(res.text).toContain(chooses('account', 'LM-pick-2'));
+    expect(res.text).not.toContain(chooses('account', 'LM-pick-claimed'));
+    expect(openItems(memberId)[0].status).toBe('open');
+    expect(audits(memberId, 'support.help_request_approved')).toHaveLength(0);
+  });
+
+  // Defect caught: an administrator holding the account's old id, username or
+  // address cannot find it by that, or a fragment of an address lists accounts.
+  it('finds one account by its exact id, username or email, and an email only whole', async () => {
+    const { itemId } = await linkHelpItem();
+    for (const q of ['LM-pick-1', 'pickshred92', 'pick.one@old.example.com']) {
+      const res = await pick(itemId, { pick: 'search:account', pick_q: q });
+      expect(res.text, `searching ${q}`).toContain(chooses('account', 'LM-pick-1'));
+      expect(res.text, `searching ${q}`).not.toContain(chooses('account', 'LM-pick-2'));
+    }
+    const fragment = await pick(itemId, { pick: 'search:account', pick_q: 'old.example.com' });
+    expect(fragment.text).not.toContain('choose:account:');
+    const short = await pick(itemId, { pick: 'search:account', pick_q: 'w' });
+    expect(short.text).not.toContain('choose:account:');
+  });
+
+  // Defect caught: a chosen account is not carried in the form, so Approve
+  // posts nothing and the administrator is told to choose again; or choosing a
+  // historical record keeps the account too, so the approval is refused.
+  it('carries the chosen record into the form, one record at a time, and previews it', async () => {
+    const { itemId } = await linkHelpItem();
+    const chosen = await pick(itemId, { pick: 'choose:account:LM-pick-1' });
+    expect(chosen.status).toBe(200);
+    expect(chosen.text).toMatch(/name="target_legacy_member_id" value="LM-pick-1"/);
+
+    const record = await pick(itemId, {
+      pick: 'search:record', pick_q: 'pickford', target_legacy_member_id: 'LM-pick-1',
+    });
+    expect(record.text).toContain(chooses('record', 'master_person::pick0001'));
+    const switched = await pick(itemId, {
+      pick: 'choose:record:master_person::pick0001', target_legacy_member_id: 'LM-pick-1',
+    });
+    expect(switched.text).toMatch(/name="target_historical_person_id" value="master_person::pick0001"/);
+    expect(switched.text).toMatch(/name="target_legacy_member_id" value=""/);
+
+    const removed = await pick(itemId, { pick: 'remove:record', target_historical_person_id: 'master_person::pick0001' });
+    expect(removed.text).toMatch(/name="target_historical_person_id" value=""/);
+
+    // The form as the pickers left it previews the chosen account.
+    const preview = await pick(itemId, { target_legacy_member_id: 'LM-pick-1' });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('Willa Pickwell');
+    expect(preview.text).toContain('/link-help/approve/confirm');
+  });
+
+  // Defect caught: an id the pickers never offered is accepted, or is shown
+  // back on the form as though it had been chosen.
+  it('refuses an account id the search never offered, keeping the item open', async () => {
+    const { memberId, itemId } = await linkHelpItem();
+    const res = await pick(itemId, { target_legacy_member_id: 'LM-pick-forged' });
+    expect(res.status).toBe(422);
+    expect(openItems(memberId)[0].status).toBe('open');
+    const redrawn = await pick(itemId, { pick: 'open:account', target_legacy_member_id: 'LM-pick-forged' });
+    expect(redrawn.text).toMatch(/name="target_legacy_member_id" value=""/);
+  });
+
+  // Defect caught: the retired lookup page still answers, a second home for
+  // the account search that the approve form now owns.
+  it('no longer serves the standalone legacy-accounts page', async () => {
+    const res = await request(createApp()).get('/admin/legacy-accounts').set('Cookie', adminCookie());
+    expect(res.status).toBe(404);
   });
 });

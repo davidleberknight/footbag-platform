@@ -19,6 +19,11 @@
  *   break the writer meant is kept while a stack of empty lines is not.
  * - notation: freestyle notation, where `<`, `>` and `[ ]` are syntax. Treated
  *   as multi_line but with no HTML step, since its brackets are not markup.
+ * - markdown: a pasted Markdown body, such as a news item's. Treated as
+ *   multi_line, except that each line keeps its leading spaces and tabs, which
+ *   are Markdown syntax (a nested list, an indented code block), and there is
+ *   no HTML step: the news renderer shows raw HTML as the text typed, so
+ *   stripping it here would only delete what the writer wrote.
  *
  * HTML removal is shape-based, not a parser: only a sequence that looks like a
  * tag (a `<` directly followed by a letter, `/`, `!` or `?`, through the next
@@ -29,7 +34,7 @@
 
 import { ValidationError } from '../services/serviceErrors';
 
-export type TextShape = 'single_line' | 'multi_line' | 'notation';
+export type TextShape = 'single_line' | 'multi_line' | 'notation' | 'markdown';
 
 export type SanitizeResult =
   | { status: 'ok'; text: string }
@@ -79,6 +84,21 @@ function tidyMultiLine(text: string): string {
     .trim();
 }
 
+function tidyMarkdown(text: string): string {
+  return text
+    .replace(CONTROL_EXCEPT_TAB_NEWLINE, '')
+    .split('\n')
+    .map((line) => {
+      const indent = /^[ \t]*/.exec(line)?.[0] ?? '';
+      const rest = line.slice(indent.length).replace(/[^\S\n]+/g, ' ').trimEnd();
+      return rest === '' ? '' : indent + rest;
+    })
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(/^\n+/, '')
+    .trimEnd();
+}
+
 export function sanitizeUserText(raw: string, shape: TextShape): SanitizeResult {
   if (LONE_SURROGATE.test(raw) || REPLACEMENT_CHARACTER.test(raw)) {
     return { status: 'invalid_encoding' };
@@ -87,10 +107,12 @@ export function sanitizeUserText(raw: string, shape: TextShape): SanitizeResult 
   if (shape !== 'single_line') {
     text = text.replace(/\r\n?/g, '\n');
   }
-  if (shape !== 'notation') {
+  if (shape !== 'notation' && shape !== 'markdown') {
     text = stripHtml(text);
   }
-  text = shape === 'single_line' ? tidySingleLine(text) : tidyMultiLine(text);
+  text = shape === 'single_line' ? tidySingleLine(text)
+    : shape === 'markdown' ? tidyMarkdown(text)
+    : tidyMultiLine(text);
   return { status: 'ok', text };
 }
 

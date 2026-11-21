@@ -122,7 +122,7 @@ describe('GET /members/<slug> — Membership block rendering on personal home', 
     expect(res.text).toContain('Tier 0 Registered Member');
     expect(res.text).toContain('Active Player');
     expect(res.text).toMatch(/Sep.*2099/);
-    expect(res.text).toContain('Tier 1 benefits while Active Player');
+    expect(res.text).toContain('Tier 1 IFPA Member benefits while Active Player');
   });
 
   it('tier1: only Tier 2 upgrade CTA renders', async () => {

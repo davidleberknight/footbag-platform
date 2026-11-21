@@ -18,6 +18,7 @@ import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
@@ -44,6 +45,12 @@ function drive(remote: string, checksExit: number) {
   const log = join(world, 'calls.log');
   mkdirSync(bin, { recursive: true });
   mkdirSync(join(world, 'scripts', 'lib'), { recursive: true });
+  // The stretch seals the database for upload after the checks, which opens it,
+  // so the world carries a real one.
+  mkdirSync(join(world, 'database'), { recursive: true });
+  const db = new Database(join(world, 'database', 'footbag.db'));
+  db.exec('CREATE TABLE sealed (id INTEGER PRIMARY KEY)');
+  db.close();
   writeFileSync(join(bin, 'ssh'), [
     '#!/usr/bin/env bash',
     `echo "ssh $*" >> ${JSON.stringify(log)}`,

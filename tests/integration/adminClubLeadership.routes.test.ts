@@ -69,7 +69,7 @@ describe('reporting the outcome', () => {
     const first = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie()).type('form')
-      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+      .send({ member_id: m, reason: 'Leadership gap remediation.' });
     expect(first.status).toBe(303);
     const shown = await landedOn(first, adminCookie());
     expect(shown.status).toBe(200);
@@ -78,7 +78,7 @@ describe('reporting the outcome', () => {
     const again = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie()).type('form')
-      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+      .send({ member_id: m, reason: 'Leadership gap remediation.' });
     expect(again.status).toBe(303);
     const shownAgain = await landedOn(again, adminCookie());
     expect(shownAgain.text).toContain('<div class="form-success-banner" role="status">Co-leader added.</div>');
@@ -94,11 +94,11 @@ describe('reporting the outcome', () => {
     await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie()).type('form')
-      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+      .send({ member_id: m, reason: 'Leadership gap remediation.' });
     const res = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', admin2Cookie()).type('form')
-      .send({ member_key: m, reason: 'Also noticed the gap.' });
+      .send({ member_id: m, reason: 'Also noticed the gap.' });
     expect(res.status).toBe(303);
     const shown = await landedOn(res, admin2Cookie());
     expect(shown.text).toContain('<p class="form-notice" role="status">That member already co-leads this club.</p>');
@@ -118,7 +118,7 @@ describe('reporting the outcome', () => {
       await request(createApp())
         .post(`/admin/clubs/${clubId}/leadership/assign`)
         .set('Cookie', adminCookie()).type('form')
-        .send({ member_key: m, reason: 'setup' });
+        .send({ member_id: m, reason: 'setup' });
       const res = await request(createApp())
         .post(`/admin/clubs/${clubId}/leadership/demote/confirm`)
         .set('Cookie', adminCookie()).type('form')
@@ -213,8 +213,65 @@ describe('assign', () => {
       .post('/admin/clubs/club-that-does-not-exist/leadership/assign')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: memberId, reason: 'Leadership gap remediation.' });
+      .send({ member_id: memberId, reason: 'Leadership gap remediation.' });
     expect(res.status).toBe(404);
+  });
+
+  // Defect caught: the form still accepts a typed profile handle, so the admin
+  // is asked for something nobody knows instead of choosing the member by name.
+  it('refuses a profile handle posted in place of the chosen member, assigning nobody', async () => {
+    const clubId = seedClub();
+    const memberId = seedMember();
+    const slug = (db.prepare('SELECT slug FROM members WHERE id = ?').get(memberId) as { slug: string }).slug;
+    const res = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_id: slug, reason: 'Leadership gap remediation.' });
+    expect(res.status).toBe(422);
+    expect(leaders(clubId)).toHaveLength(0);
+  });
+
+  // Defect caught: the club's own members cannot be chosen without a search,
+  // or choosing one does not carry them into the assign form.
+  it('offers the club\'s members who are not co-leaders as ready choices that fill the form', async () => {
+    const clubId = seedClub();
+    const member = seedMember();
+    insertMemberClubAffiliation(db, member, clubId, { is_primary: 1 });
+    const page = await request(createApp()).get(`/admin/clubs/${clubId}/leadership`).set('Cookie', adminCookie());
+    expect(page.status).toBe(200);
+    expect(page.text).toContain(`name="pick" value="choose:leader:${member}"`);
+
+    const chose = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ pick: `choose:leader:${member}`, pick_q: '', reason: 'Steps up.' });
+    expect(chose.status).toBe(200);
+    expect(chose.text).toContain(`<input type="hidden" name="member_id" value="${member}" form="assign-coleader-form" />`);
+    expect(chose.text).toMatch(/id="assign_reason" name="reason" value="Steps up\."/);
+    expect(leaders(clubId)).toHaveLength(0);
+  });
+
+  // Defect caught: the search offers a member who already co-leads the club or
+  // one recorded as deceased, either of whom the assignment then refuses.
+  it('searches by name, leaving out current co-leaders and deceased members', async () => {
+    const clubId = seedClub();
+    const named = (id: string, name: string, extra: { is_deceased?: 0 | 1 } = {}) =>
+      insertMember(db, { id, slug: id.replace(/-/g, '_'), login_email: `${id}@example.com`, display_name: name, ...extra });
+    named('acl-sitta-sitting', 'Sitta Sitting');
+    insertClubLeader(db, { club_id: clubId, member_id: 'acl-sitta-sitting' });
+    named('acl-sitta-free', 'Sitta Free');
+    named('acl-sitta-gone', 'Sitta Gone', { is_deceased: 1 });
+    const res = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ pick: 'search:leader', pick_q: 'Sitta', reason: '' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('value="choose:leader:acl-sitta-free"');
+    expect(res.text).not.toContain('value="choose:leader:acl-sitta-sitting"');
+    expect(res.text).not.toContain('value="choose:leader:acl-sitta-gone"');
   });
 
   it('assigns from the member base, creates the affiliation, supersedes bootstrap rows, audits with reason', async () => {
@@ -234,7 +291,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: memberId, reason: 'Leadership gap remediation.' });
+      .send({ member_id: memberId, reason: 'Leadership gap remediation.' });
     expect(res.status).toBe(303);
 
     const rows = leaders(clubId);
@@ -265,7 +322,7 @@ describe('assign', () => {
         .post(`/admin/clubs/${clubId}/leadership/assign`)
         .set('Cookie', adminCookie())
         .type('form')
-        .send({ member_key: m, reason: 'setup' });
+        .send({ member_id: m, reason: 'setup' });
     }
 
     const rows = leaders(clubId);
@@ -284,7 +341,7 @@ describe('assign', () => {
         .post(`/admin/clubs/${clubId}/leadership/assign`)
         .set('Cookie', adminCookie())
         .type('form')
-        .send({ member_key: m, reason: 'setup' });
+        .send({ member_id: m, reason: 'setup' });
       expect(res.status).toBe(303);
       expect(leaders(clubId).map((r) => r.member_id)).toEqual([m]);
     }
@@ -293,7 +350,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubD}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: m, reason: 'fourth club' });
+      .send({ member_id: m, reason: 'fourth club' });
     expect(res.status).toBe(422);
     expect(leaders(clubD)).toHaveLength(0);
     expect(currentClubs(m).map((r) => r.club_id).sort()).toEqual([clubA, clubB, clubC].sort());
@@ -310,7 +367,7 @@ describe('assign', () => {
         .post(`/admin/clubs/${clubId}/leadership/assign`)
         .set('Cookie', adminCookie())
         .type('form')
-        .send({ member_key: m, reason: 'setup' });
+        .send({ member_id: m, reason: 'setup' });
       expect(res.status).toBe(303);
     }
     // The fifth lands: the limit is five, not four.
@@ -318,7 +375,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: seedMember(), reason: 'setup' });
+      .send({ member_id: seedMember(), reason: 'setup' });
     expect(fifth.status).toBe(303);
     expect(leaders(clubId)).toHaveLength(5);
 
@@ -326,7 +383,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: seedMember(), reason: 'growth', cap_override_reason: 'Large active club; board approved.' });
+      .send({ member_id: seedMember(), reason: 'growth', cap_override_reason: 'Large active club; board approved.' });
     expect(refused.status).toBe(422);
     expect(refused.text).toContain('This club already has 5 co-leaders, the most a club can have.');
     expect(refused.text).not.toContain('cap_override_reason');
@@ -347,7 +404,7 @@ describe('assign', () => {
         .post(`/admin/clubs/${clubId}/leadership/assign`)
         .set('Cookie', adminCookie())
         .type('form')
-        .send({ member_key: seedMember(), reason: 'setup' });
+        .send({ member_id: seedMember(), reason: 'setup' });
       expect(res.status).toBe(303);
     }
     expect(leaders(clubId)).toHaveLength(6);
@@ -362,7 +419,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: seedMember(), reason: 'setup' });
+      .send({ member_id: seedMember(), reason: 'setup' });
     expect(refused.status).toBe(422);
     expect(leaders(clubId)).toHaveLength(6);
   });
@@ -381,7 +438,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: full, reason: 'Leadership gap remediation.' });
+      .send({ member_id: full, reason: 'Leadership gap remediation.' });
     expect(refused.status).toBe(422);
     expect(leaders(clubId)).toHaveLength(0);
     expect(currentClubs(full)).toHaveLength(3);
@@ -393,7 +450,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: two, reason: 'Leadership gap remediation.' });
+      .send({ member_id: two, reason: 'Leadership gap remediation.' });
     expect(accepted.status).toBe(303);
     expect(currentClubs(two)).toHaveLength(3);
   });
@@ -410,7 +467,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+      .send({ member_id: m, reason: 'Leadership gap remediation.' });
     expect(res.status).toBe(303);
     expect(leaders(clubId)).toHaveLength(1);
   });
@@ -423,7 +480,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${archived}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: seedMember(), reason: 'Someone asked for it back.' });
+      .send({ member_id: seedMember(), reason: 'Someone asked for it back.' });
     expect(refused.status).toBe(422);
     expect(refused.text).toContain('This club is archived, which is final');
     expect(clubStatus(archived)).toBe('archived');
@@ -434,7 +491,7 @@ describe('assign', () => {
       .post(`/admin/clubs/${inactive}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: seedMember(), reason: 'Back in action.' });
+      .send({ member_id: seedMember(), reason: 'Back in action.' });
     expect(revived.status).toBe(303);
     expect(clubStatus(inactive)).toBe('active');
   });
@@ -456,11 +513,11 @@ describe('the reasons are cleaned before they are checked', () => {
     const clubId = seedClub();
     const memberId = seedMember();
 
-    const refused = await assign(clubId, { member_key: memberId, reason: '<b></b>' });
+    const refused = await assign(clubId, { member_id: memberId, reason: '<b></b>' });
     expect(refused.status).toBe(422);
     expect(leaders(clubId)).toHaveLength(0);
 
-    const done = await assign(clubId, { member_key: memberId, reason: 'Gap <b>remediation</b>\u0085 now' });
+    const done = await assign(clubId, { member_id: memberId, reason: 'Gap <b>remediation</b>\u0085 now' });
     expect(done.status).toBe(303);
     const audit = db.prepare(
       `SELECT reason_text FROM audit_entries WHERE action_type = 'club.admin_leader_assigned' AND entity_id = ?`,
@@ -477,7 +534,7 @@ describe('demote', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: m, reason: 'setup' });
+      .send({ member_id: m, reason: 'setup' });
 
     const noReason = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/demote`)
@@ -522,7 +579,7 @@ describe('demote', () => {
     await request(createApp())
       .post(`/admin/clubs/${loneLed}/leadership/assign`)
       .set('Cookie', adminCookie()).type('form')
-      .send({ member_key: lone, reason: 'setup' });
+      .send({ member_id: lone, reason: 'setup' });
     const loneRes = await request(createApp())
       .post(`/admin/clubs/${loneLed}/leadership/demote/confirm`)
       .set('Cookie', adminCookie()).type('form')
@@ -542,7 +599,7 @@ describe('demote', () => {
     await request(createApp())
       .post(`/admin/clubs/${led}/leadership/assign`)
       .set('Cookie', adminCookie()).type('form')
-      .send({ member_key: many, reason: 'setup' });
+      .send({ member_id: many, reason: 'setup' });
     expect(leaders(led)).toHaveLength(1);
     const res = await request(createApp())
       .post(`/admin/clubs/${led}/leadership/demote/confirm`)
@@ -560,7 +617,7 @@ describe('demote', () => {
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: m, reason: 'setup' });
+      .send({ member_id: m, reason: 'setup' });
 
     const res = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/demote`)
@@ -588,7 +645,7 @@ describe('a failed page reload keeps its own answer', () => {
         .post(`/admin/clubs/${clubId}/leadership/assign`)
         .set('Cookie', adminCookie())
         .type('form')
-        .send({ member_key: '', reason: '' });
+        .send({ member_id: '', reason: '' });
       expect(res.status).toBe(503);
     } finally {
       spy.mockRestore();

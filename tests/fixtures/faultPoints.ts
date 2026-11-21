@@ -163,6 +163,7 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeVideo', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapePhotoUrl', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'loadSiteVideoMedia', status: { noWriteAfter: ADDRESS_ONLY } },
+  { file: 'src/services/entityCoverPhoto.ts', getter: 'getMediaStorageAdapter', operation: 'toView', status: { noWriteAfter: ADDRESS_ONLY } },
 
   // ── Curated authoring save files ──────────────────────────────────────────
   // Each writes a curated save file and then commits the database row through

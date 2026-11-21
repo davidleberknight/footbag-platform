@@ -9,13 +9,13 @@
 <div class="wrapper">
 
   <section>
-    <p>A historical player record is a read-only entry from the competitive footbag archive. Claiming it links your current account to this competitor identity so Hall of Fame status, country, and career results appear on your profile.</p>
+    <p>These are a past player's competition results from the footbag archive. Claiming them links them to your account, so your Hall of Fame status, country, and career results appear on your profile.</p>
 
     {{#if content.error}}
       {{> outcome-notice text=content.error tone='no'}}
     {{else}}
       <div class="card mb-6">
-        <p class="m-0 fw-500">Historical record: {{content.personName}}</p>
+        <p class="m-0 fw-500">Results under the name: {{content.personName}}</p>
         {{#if content.country}}
           <p class="m-0 mt-1 text-muted">Country: {{content.country}}</p>
         {{/if}}
@@ -23,7 +23,7 @@
           <p class="m-0 mt-1 fw-500 text-secondary">Hall of Fame member</p>
         {{/if}}
         {{#if content.isBap}}
-          <p class="m-0 mt-1 fw-500 text-secondary">BAP member</p>
+          <p class="m-0 mt-1 fw-500 text-secondary">Big Add Posse member</p>
         {{/if}}
         {{#if content.bioExcerpt}}
           <p class="m-0 mt-2 text-muted fs-sm">{{content.bioExcerpt}}</p>
@@ -41,14 +41,14 @@
 
       {{#if content.firstNameWarning}}
         <div class="notice-card notice-card--warn-strong my-4">
-          <p class="m-0">First-name difference: the historical record's first name does not exactly match the first name on your account. This is allowed if you use a common variant (e.g. Dave vs David). Proceed only if this record is you.</p>
+          <p class="m-0">First-name difference: the first name on these results does not exactly match the first name on your account. This is allowed if you use a common variant (e.g. Dave vs David). Go ahead only if these results are yours.</p>
         </div>
       {{/if}}
 
-      <p>This will link your current account to the historical record and carry forward country, Hall of Fame status, and induction year where applicable. Your display name and login credentials will not be changed.</p>
+      <p>This will link these results to your account and carry forward country, Hall of Fame status, and induction year where applicable. Your display name and login credentials will not be changed.</p>
 
       <form method="POST" action="/history/{{content.personId}}/claim/confirm">
-        <button type="submit" class="btn btn-primary">Yes, This Is Me: Link the Record</button>
+        <button type="submit" class="btn btn-primary">Yes, This Is Me: Link These Results</button>
       </form>
 
       <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>

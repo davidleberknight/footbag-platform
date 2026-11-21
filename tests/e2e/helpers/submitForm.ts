@@ -6,6 +6,9 @@
  * it posts fails here rather than letting the check measure some other page. A
  * closed disclosure around the form is opened by its summary, as a visitor
  * would, and only the named fields are filled: hidden inputs post as rendered.
+ * A member picker on the form is used first, as a visitor uses it: searched by
+ * name and a result chosen, so the member arrives through the picker's own
+ * hidden field.
  * The browser sends the session cookie and a same-origin Origin header itself,
  * which a hand-built request would have to forge.
  */
@@ -21,6 +24,23 @@ export async function submitForm(page: Page, submit: FormSubmit): Promise<Respon
   const closed = form.locator('xpath=ancestor::details[not(@open)]');
   for (let i = 0; i < await closed.count(); i++) await closed.nth(i).locator(':scope > summary').click();
 
+  // A member picker is used the way a person uses it: opened if it is closed,
+  // searched, and a result chosen; each step draws the page again.
+  if (submit.choose) {
+    const { key, query, memberId } = submit.choose;
+    const step = async (selector: string): Promise<void> => {
+      const loaded = page.waitForEvent('load');
+      await page.locator(selector).click();
+      await loaded;
+    };
+    if (await page.locator(`[name="pick"][value="search:${key}"]`).count() === 0) {
+      await step(`[name="pick"][value="open:${key}"]`);
+    }
+    await page.locator(`[name="pick"][value="search:${key}"]`).locator('xpath=preceding-sibling::input[@name="pick_q"]').fill(query);
+    await step(`[name="pick"][value="search:${key}"]`);
+    await step(`[name="pick"][value="choose:${key}:${memberId}"]`);
+  }
+
   for (const [name, value] of Object.entries(submit.fields ?? {})) {
     const field = form.locator(`[name="${name}"]`);
     if (await field.count() === 0) throw new Error(`form posting to ${submit.action} has no field named ${name}`);
@@ -30,7 +50,9 @@ export async function submitForm(page: Page, submit: FormSubmit): Promise<Respon
     else await field.fill(value);
   }
 
-  const button = form.locator('[type="submit"]');
+  // A picker's own controls are submit buttons of the form too; the form's
+  // submit is the one that is not.
+  const button = form.locator('[type="submit"]:not([name="pick"])');
   const buttons = await button.count();
   if (buttons !== 1) throw new Error(`form posting to ${submit.action} has ${buttons} submit buttons, expected one`);
 

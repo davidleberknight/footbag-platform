@@ -21,9 +21,12 @@
  *     first; self-volunteer adds more; step-down and leave
  *     remove one's own)
  *   - Roster management (self-service join, leave, make primary)
+ *   - The club's cover photo pointer (`clubs.cover_media_id`): who may set or
+ *     clear it, and where it shows
  *
  * Does not own:
- *   - Media (MediaGalleryService)
+ *   - Media (MediaGalleryService). A cover photo is an ordinary member photo,
+ *     uploaded through entityCoverPhoto and CuratorMediaService.
  *   - Payments (PaymentService)
  *
  * Required patterns:
@@ -141,6 +144,19 @@
  *     roster reflects the member's own action rather than the import alone. The
  *     country page counts live co-leaders as leaders for the same reason: a
  *     club created here has no bootstrap row and is not leaderless.
+ *   - Cover photo: the creator, and later any current co-leader from the club
+ *     page, may upload a cover photo; a member who does not co-lead the club is
+ *     refused as not-found. It goes through the Share Media photo path and its
+ *     Tier 1 benefits gate, owned by the uploader and tagged with the club's
+ *     hashtag, so it is also in the club's gallery. The club is created in its
+ *     own transaction first and the photo uploaded after, outside any
+ *     transaction; a refused photo leaves the club created. Setting the cover
+ *     only moves the pointer, so a replaced photo stays in the gallery;
+ *     removing it clears the pointer and deletes nothing. Both are audited, and
+ *     a repeat is recognised before acting. The cover is honoured on read only
+ *     while it is an active, non-avatar photo still carrying the club's
+ *     hashtag, with no other photo standing in; it shows at the top of the
+ *     club page as its share image.
  *
  * Persistence:
  *   clubs, clubs_open, clubs_active, clubs_all, club_leaders, club_bootstrap_leaders,
@@ -148,17 +164,23 @@
  *   member_club_affiliations, club_viability_signals (promotion stamps the
  *   new club id onto the candidate's wizard flags), members, tags,
  *   media_tags, member_gallery_tags, member_gallery_exclude_tags and tag_stats
- *   (a hashtag move carries them to the new tag), audit_entries, outbox_emails.
+ *   (a hashtag move carries them to the new tag), audit_entries, outbox_emails,
+ *   media_items (read for the cover; a cover upload writes it and its tags
+ *   through CuratorMediaService).
  *
  * Side effects:
- *   - audit_entries append
+ *   - audit_entries append (including club.cover_photo_set and
+ *     club.cover_photo_removed; media.member_uploaded through CuratorMediaService)
+ *   - object storage put of a cover photo's renditions, through
+ *     CuratorMediaService's storage adapter
  *   - outbox_emails enqueue (join/leave notifications to the member and
  *     current club leaders; co-leader-volunteered notifications to existing leaders; an
  *     administrator's correction of a club's content or hashtag to every
  *     current co-leader, since they are a flat equal set with no first among
  *     them, queued best-effort inside the correction's transaction)
  *
- * Service shape: singleton object (no external adapters).
+ * Service shape: singleton object (no external adapters of its own; media
+ * storage is reached only through entityCoverPhoto).
  */
 import {
   PublicClubRow,
@@ -187,7 +209,11 @@ import { whatsappDigits } from './memberService';
 import { mediaService, type EntityHashtag, type EntityMediaBlock } from './mediaService';
 import { personHref } from './personLink';
 import { logger } from '../config/logger';
-import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { ConflictError, ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
+import {
+  clubCoverPhotos, coverPhotoImage, isCoverCandidate, refusedCoverChange, uploadCoverPhoto as uploadEntityCoverPhoto,
+  type CoverPhotoChange, type CoverPhotoFile, type CoverPhotoImage, type CoverPhotoSection, type CoverPhotoUploader,
+} from './entityCoverPhoto';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { sanitizeUserText, INVALID_TEXT_ENCODING_MESSAGE } from '../lib/textSanitizer';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
@@ -469,7 +495,7 @@ type JoinWriteResult = {
  */
 export const NO_LEADER_JOIN_REFUSAL =
   'This club has no co-leader right now, so you cannot join it yet. See below for ways to get '
-  + 'Tier 1 benefits, or to get the club a co-leader.';
+  + 'Tier 1 IFPA Member benefits, or to get the club a co-leader.';
 
 /**
  * After a member's current club ends, keep them holding exactly one primary:
@@ -507,12 +533,12 @@ function noLeaderJoinNote(viewerSlug: string | null, atClubCap: boolean): ClubNo
     ? { text: 'upgrading your membership', href: `/members/${viewerSlug}#membership` }
     : { text: 'upgrading your membership' };
   return [
-    { text: 'This club has no co-leader right now, so joining it takes Tier 1 benefits. You can get them by ' },
+    { text: 'This club has no co-leader right now, so joining it takes Tier 1 IFPA Member benefits. You can get them by ' },
     upgrade,
     { text: ', by attending an ' },
     { text: 'event', href: '/events' },
-    { text: ' listed on this site, or by asking a Tier 2 or Tier 3 member to vouch for you. '
-      + "Or ask a member with Tier 1 benefits to volunteer as this club's co-leader; once it has one, "
+    { text: ' listed on this site, or by asking a Tier 2 IFPA Organizer Member or Tier 3 IFPA Director to vouch for you. '
+      + "Or ask a member with Tier 1 IFPA Member benefits to volunteer as this club's co-leader; once it has one, "
       + 'you can join.'
       + (atClubCap ? '' : ' You can also join any club that has a co-leader.') },
   ];
@@ -671,7 +697,7 @@ export interface ClubMemberSummary {
   /** 'Male' / 'Female' when the claimed member opted gender into public
    *  visibility, else null. The club detail roster is member-visible. */
   genderLabel: string | null;
-  /** Membership-tier badge ('Tier 1' / 'Tier 2' / 'Tier 3 Director') for a
+  /** Membership-tier badge (the tier with its IFPA name) for a
    *  claimed member; null for Tier 0 and for unclaimed historical rows. */
   tierBadge: string | null;
   /** True when the claimed member currently holds Active Player status. */
@@ -828,6 +854,10 @@ export interface PublicClubDetail extends PublicClubSummary {
   // An inactive club is hidden from the directory but still reachable by direct
   // link; the detail page shows a warning so it does not look like an active one.
   isInactive: boolean;
+  // The club's cover photo at the top of the page; null when it has none.
+  coverPhoto: CoverPhotoImage | null;
+  // The co-leaders' Cover Photo section; shaped only for a co-leader of this club.
+  coverPhotoSection: CoverPhotoSection | null;
 }
 
 // Single shaping site for the vitality signals. Pure function over the
@@ -1087,6 +1117,8 @@ function toPublicClubDetail(
     hashtag: { display: row.tag_display, galleryHref: null },
     media: null,
     isInactive: row.status === 'inactive',
+    coverPhoto: null,
+    coverPhotoSection: null,
   };
   return detail;
 }
@@ -1779,6 +1811,11 @@ export class ClubService {
         club.hashtag = { display: club.hashtag.display, galleryHref };
       }
 
+      // The cover is the page's share image too, absolute because a social
+      // preview is fetched from outside the site.
+      const cover = clubCoverPhotos([row.club_id]).get(row.club_id) ?? null;
+      club.coverPhoto = cover ? coverPhotoImage(cover, club.name) : null;
+
       if (viewerMemberId) {
         const viewerAff = memberClubAffiliations.findCurrentByMemberAndClub.get(viewerMemberId, row.club_id) as
           | { id: string; is_primary: number } | undefined;
@@ -1804,6 +1841,15 @@ export class ClubService {
         if (club.viewerIsLeader) {
           club.contentEditHref = `/clubs/${encodeURIComponent(clubKey)}/content/edit`;
           club.editForm = buildClubEditForm(row.club_id, opts);
+          // The controls follow the Share Media gate, Tier 1 benefits.
+          const mayChange = actorHasTier1Benefits(viewerMemberId);
+          const base = `/clubs/${encodeURIComponent(clubKey)}`;
+          club.coverPhotoSection = {
+            thumbUrl: cover?.thumbUrl ?? null,
+            thumbAlt: club.coverPhoto?.alt ?? '',
+            uploadAction: mayChange ? `${base}/cover-photo` : null,
+            removeAction: mayChange && cover ? `${base}/cover-photo/remove` : null,
+          };
         }
 
         // Standing volunteer affordance: shown only to a viewer who passes the
@@ -1834,7 +1880,7 @@ export class ClubService {
       }
 
       return {
-        seo: { title: club.standardTagDisplay },
+        seo: { title: club.standardTagDisplay, ...(cover ? { imageUrl: cover.absoluteDisplayUrl } : {}) },
         page: {
           sectionKey: 'clubs',
           pageKey: 'clubs_detail',
@@ -3374,6 +3420,87 @@ export class ClubService {
         memberId: leader.member_id,
         actId:    correctionAuditId,
       });
+    });
+  }
+
+  // ── Cover photo ─────────────────────────────────────────────────────────────
+
+  // The club a co-leader acts on by its key, or not-found: a member who does
+  // not co-lead the club is told nothing about it.
+  requireLedClub(clubKey: string, actorMemberId: string): PublicClubRow {
+    const row = clubs.getByTagNormalized.get(normalizePublicClubKeyToStoredTag(clubKey)) as PublicClubRow | undefined;
+    if (!row || !clubLeaders.memberInClubLeadership.get(row.club_id, actorMemberId)) {
+      throw new NotFoundError('Club not found.');
+    }
+    return row;
+  }
+
+  /**
+   * Upload a photo and make it the club's cover. Any current co-leader may.
+   * The photo is the co-leader's own, tagged with the club's hashtag, through
+   * the Share Media photo path; the upload runs before, and outside, the
+   * transaction that moves the pointer. The earlier cover, if any, stays in
+   * the gallery. The same file submitted again is the first submit's success.
+   */
+  async uploadCoverPhoto(uploader: CoverPhotoUploader, clubKey: string, file: CoverPhotoFile): Promise<CoverPhotoChange> {
+    const club = this.requireLedClub(clubKey, uploader.memberId);
+    const upload = await uploadEntityCoverPhoto(uploader, club.tag_normalized, file);
+    if (upload.status === 'refused') return refusedCoverChange(upload);
+    const mediaId = upload.mediaId;
+    return transaction((): CoverPhotoChange => {
+      const row = this.requireLedClub(clubKey, uploader.memberId);
+      const current = (clubContent.findCoverMediaId.get(row.club_id) as { cover_media_id: string | null }).cover_media_id;
+      if (current === mediaId) {
+        const own = findStandingOwnAct(
+          uploader.memberId, 'club.cover_photo_set', 'club.cover_photo_removed', 'club', row.club_id,
+          { metadataKey: 'media_id', id: mediaId },
+        );
+        return { branch: own ? 'own_repeat' : 'already_held' };
+      }
+      if (!isCoverCandidate(mediaId, row.tag_normalized)) {
+        return { branch: 'refused', message: 'That photo does not carry the club\'s hashtag.', httpStatus: 422 };
+      }
+      const now = new Date().toISOString();
+      clubContent.setCoverMedia.run(mediaId, now, uploader.memberId, row.club_id);
+      appendAuditEntry({
+        actionType: 'club.cover_photo_set',
+        actorType: 'member',
+        actorMemberId: uploader.memberId,
+        entityType: 'club',
+        entityId: row.club_id,
+        metadata: { media_id: mediaId, previous_media_id: current },
+      });
+      return { branch: 'changed' };
+    });
+  }
+
+  /**
+   * Clear the club's cover pointer. The photo itself is not deleted; it stays
+   * in the gallery. Removing a cover already gone repeats cleanly.
+   */
+  removeCoverPhoto(actorMemberId: string, clubKey: string): CoverPhotoChange {
+    this.requireLedClub(clubKey, actorMemberId);
+    if (!actorHasTier1Benefits(actorMemberId)) {
+      throw new ForbiddenError('Tier 1 benefits required to manage member-owned media.');
+    }
+    return transaction((): CoverPhotoChange => {
+      const row = this.requireLedClub(clubKey, actorMemberId);
+      const current = (clubContent.findCoverMediaId.get(row.club_id) as { cover_media_id: string | null }).cover_media_id;
+      if (current === null) {
+        const own = findStandingOwnAct(actorMemberId, 'club.cover_photo_removed', 'club.cover_photo_set', 'club', row.club_id);
+        return { branch: own ? 'own_repeat' : 'already_held' };
+      }
+      const now = new Date().toISOString();
+      clubContent.setCoverMedia.run(null, now, actorMemberId, row.club_id);
+      appendAuditEntry({
+        actionType: 'club.cover_photo_removed',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'club',
+        entityId: row.club_id,
+        metadata: { previous_media_id: current },
+      });
+      return { branch: 'changed' };
     });
   }
 

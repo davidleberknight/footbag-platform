@@ -44,6 +44,9 @@ export const REACH_ROWS = {
   sanctionDraftId: 'event-rs-sanction-draft',
   resultDisciplineId: 'disc-rs-open-singles',
   resultEntryId: 'entry-rs-open-1',
+  correctionsEventKey: 'event_2026_rendered_style_corrections',
+  correctionsEventId: 'event-rs-corrections',
+  correctionsRegistrationId: 'reg-rs-corrections',
   memberGalleryId: 'gallery_rs_member',
   memberMediaId: 'media_rs_member',
   recurringSubscriptionId: 'sub_rs_member',
@@ -82,8 +85,14 @@ export const REACH_ROWS = {
  * A form on the listed page, submitted to reach the view it answers with:
  * `action` is the form's exact action attribute and `fields` the visible
  * fields to fill, by name. Hidden inputs post as the page rendered them.
+ * `choose` picks a member in the form's member picker first, as a person
+ * does: search by `query`, then choose `memberId` from the results.
  */
-export interface FormSubmit { action: string; fields?: Readonly<Record<string, string>> }
+export interface FormSubmit {
+  action: string;
+  fields?: Readonly<Record<string, string>>;
+  choose?: { key: string; query: string; memberId: string };
+}
 
 /**
  * A view the walk cannot reach, with the viewer and URL that render it, and the
@@ -115,6 +124,9 @@ export const REACH: readonly Reach[] = [
   { template: 'events/manage', viewer: 'member', url: `/events/${R.eventKey}/manage`, why: 'the organizers\' page, open only to the event\'s organizers' },
   { template: 'events/confirm', viewer: 'member', url: `/events/${R.eventKey}/manage`, why: 'answers the remove-division form', submit: { action: `/events/${R.eventKey}/divisions/${R.resultDisciplineId}/remove` } },
   { template: 'events/results', viewer: 'member', url: `/events/${R.eventKey}/results`, why: 'the results upload, open only to the event\'s organizers' },
+  { template: 'events/participant-add', viewer: 'member', url: `/events/${R.correctionsEventKey}/participants/add`, why: 'Add Entrant, open only to the event\'s organizers before results are uploaded' },
+  { template: 'events/participant-edit', viewer: 'member', url: `/events/${R.correctionsEventKey}/participants/${R.correctionsRegistrationId}/edit`, why: 'Edit Entry, open only to the event\'s organizers before results are uploaded' },
+  { template: 'admin/events/entry', viewer: 'admin', url: `/admin/events/${R.correctionsEventId}/registrations/${R.correctionsRegistrationId}/edit`, why: 'linked only from an event record' },
   { template: 'events/attendance', viewer: 'member', url: `/events/${R.eventKey}/attendance`, why: 'the attendance screen, open only to the event\'s organizers' },
   { template: 'events/sanction', viewer: 'admin', url: `/events/${R.sanctionDraftKey}/sanction`, why: 'the sanction request, open only to a Tier 2 or Tier 3 organizer of a sanctioned-path draft' },
   { template: 'events/year', viewer: 'anonymous', url: '/events/year/2026', why: 'year archives are linked only once results exist' },
@@ -139,6 +151,7 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/event-organizers/detail', viewer: 'admin', url: `/admin/events/${R.eventId}/organizers`, why: 'linked from the organizer queue' },
   { template: 'admin/events/record', viewer: 'admin', url: `/admin/events/${R.eventId}`, why: 'linked only from a search result on the event lookup' },
   { template: 'admin/events/division', viewer: 'admin', url: `/admin/events/${R.eventId}/divisions/${R.resultDisciplineId}`, why: 'linked only from an event record' },
+  { template: 'admin/events/summary', viewer: 'admin', url: `/admin/events/${R.eventId}/summary`, why: 'linked only from an event record' },
   { template: 'admin/event-results/event', viewer: 'admin', url: `/admin/events/${R.eventId}/results`, why: 'linked only from a search result on the event-results finder' },
   { template: 'admin/event-results/entry', viewer: 'admin', url: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, why: 'linked only from an event\'s results page' },
   { template: 'admin/event-results/discipline', viewer: 'admin', url: `/admin/events/${R.eventId}/results/disciplines/${R.resultDisciplineId}`, why: 'linked only from an event\'s results page' },
@@ -157,10 +170,10 @@ export const REACH: readonly Reach[] = [
   // writes nothing and commits only from its confirm page, and the member
   // leave and step-down posts ask for confirmation before acting, so these
   // submits change no state.
-  { template: 'admin/admin-roles/grant-confirm', viewer: 'admin', url: '/admin/admin-roles', why: 'answers the grant form', submit: { action: '/admin/admin-roles/grant', fields: { member_key: 't1_paid', reason: 'Rendered style check grant preview.' } } },
+  { template: 'admin/admin-roles/grant-confirm', viewer: 'admin', url: '/admin/admin-roles', why: 'answers the grant form', submit: { action: '/admin/admin-roles/grant', choose: { key: 'admin', query: 'Won Paid', memberId: 'member_persona_t1_paid' }, fields: { reason: 'Rendered style check grant preview.' } } },
   { template: 'admin/admin-roles/revoke-confirm', viewer: 'admin', url: '/admin/admin-roles', why: 'answers a revoke form', submit: { action: '/admin/admin-roles/member_persona_admin_b/revoke', fields: { reason: 'Rendered style check revoke preview.' } } },
-  { template: 'admin/honor-grants/grant-confirm', viewer: 'admin', url: '/admin/honor-grants', why: 'answers the honor grant form', submit: { action: '/admin/honor-grants/grant', fields: { member_key: 't1_paid', honor: 'hof' } } },
-  { template: 'admin/honor-grants/action-confirm', viewer: 'admin', url: '/admin/honor-grants', why: 'answers the board seat form', submit: { action: '/admin/honor-grants/board/set', fields: { member_key: 't1_paid', reason: 'Rendered style check board preview.' } } },
+  { template: 'admin/honor-grants/grant-confirm', viewer: 'admin', url: '/admin/honor-grants', why: 'answers the honor grant form', submit: { action: '/admin/honor-grants/grant', choose: { key: 'grant', query: 'Won Paid', memberId: 'member_persona_t1_paid' }, fields: { honor: 'hof' } } },
+  { template: 'admin/honor-grants/action-confirm', viewer: 'admin', url: '/admin/honor-grants', why: 'answers the board seat form', submit: { action: '/admin/honor-grants/board/set', choose: { key: 'board', query: 'Won Paid', memberId: 'member_persona_t1_paid' }, fields: { reason: 'Rendered style check board preview.' } } },
   { template: 'admin/members/confirm', viewer: 'admin', url: '/admin/members/member_persona_t1_paid', why: 'answers the tier correction form', submit: { action: '/admin/members/member_persona_t1_paid/tier', fields: { tier: 'tier2', reason: 'Rendered style check tier preview.' } } },
   { template: 'admin/clubs/confirm', viewer: 'admin', url: '/admin/clubs/club-crawlville-real', why: 'answers the hashtag correction form', submit: { action: '/admin/clubs/club-crawlville-real/hashtag', fields: { hashtag_slug: 'club_crawlville_renamed', reason: 'Rendered style check hashtag preview.' } } },
   { template: 'admin/club-leadership/demote-confirm', viewer: 'admin', url: `/admin/clubs/${R.leaderClubId}/leadership`, why: 'answers the demote form', submit: { action: `/admin/clubs/${R.leaderClubId}/leadership/demote`, fields: { reason: 'Rendered style check demote preview.' } } },
@@ -169,8 +182,8 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/event-results/confirm', viewer: 'admin', url: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, why: 'answers the result correction form', submit: { action: `/admin/events/${R.eventId}/results/entries/${R.resultEntryId}`, fields: { placement: '2', reason: 'Rendered style check correction preview.' } } },
   { template: 'admin/freestyle-modifier-add-confirm', viewer: 'admin', url: `/admin/freestyle/modifiers/${R.modifierSlug}/edit`, why: 'answers an ADD change on the modifier form', submit: { action: `/admin/freestyle/modifiers/${R.modifierSlug}/edit`, fields: { modifierName: 'Rendered Style Modifier', addBonus: '2', modifierType: 'body', notes: '' } } },
   { template: 'admin/tags/confirm', viewer: 'admin', url: `/admin/tags?q=${R.retirableTag}`, why: 'answers the retire form', submit: { action: '/admin/tags/retire', fields: { reason: 'Rendered style check retire preview.' } } },
-  { template: 'admin/work-queue/link-help-confirm', viewer: 'admin', url: `/admin/work-queue/${R.linkHelpItemId}`, why: 'answers the link-help approve form', submit: { action: `/admin/work-queue/${R.linkHelpItemId}/link-help/approve`, fields: { target_legacy_member_id: R.linkHelpLegacyId } } },
-  { template: 'admin/work-queue/dispute-revert-confirm', viewer: 'admin', url: `/admin/work-queue/${R.disputeItemId}`, why: 'answers the dispute revert form', submit: { action: `/admin/work-queue/${R.disputeItemId}/link-help/dispute-revert`, fields: { target_legacy_member_id: R.disputedLegacyId, reason: 'Rendered style check revert preview.' } } },
+  { template: 'admin/work-queue/link-help-confirm', viewer: 'admin', url: `/admin/work-queue/${R.linkHelpItemId}`, why: 'answers the link-help approve form', submit: { action: `/admin/work-queue/${R.linkHelpItemId}/link-help/approve`, choose: { key: 'account', query: R.linkHelpLegacyId, memberId: R.linkHelpLegacyId } } },
+  { template: 'admin/work-queue/dispute-revert-confirm', viewer: 'admin', url: `/admin/work-queue/${R.disputeItemId}`, why: 'answers the dispute revert form', submit: { action: `/admin/work-queue/${R.disputeItemId}/link-help/dispute-revert`, fields: { disputed_record: `account:${R.disputedLegacyId}`, reason: 'Rendered style check revert preview.' } } },
   { template: 'clubs/leave-confirm', viewer: 'club-leader', url: `/members/${R.leaderSlug}`, why: 'answers the leave form', submit: { action: `/clubs/${R.leaderClubKey}/leave` }, signInPerWidth: [R.leaderSlug, R.leaderSlug] },
   { template: 'clubs/step-down-confirm', viewer: 'club-leader', url: `/members/${R.leaderSlug}`, why: 'answers the step-down form', submit: { action: `/clubs/${R.leaderClubKey}/step-down` }, signInPerWidth: [R.leaderSlug, R.leaderSlug] },
   // An unknown address writes nothing and gets the same page a known one does.

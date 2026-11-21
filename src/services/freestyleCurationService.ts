@@ -1828,9 +1828,9 @@ export const freestyleCurationService = {
     if (fieldErrors.canonicalName) {
       // Already refused as unreadable.
     } else if (!canonicalName) {
-      fieldErrors.canonicalName = 'Canonical name is required.';
+      fieldErrors.canonicalName = 'Official name is required.';
     } else if (canonicalName.length > CANONICAL_NAME_MAX) {
-      fieldErrors.canonicalName = `Canonical name must be ${CANONICAL_NAME_MAX} characters or fewer.`;
+      fieldErrors.canonicalName = `Official name must be ${CANONICAL_NAME_MAX} characters or fewer.`;
     } else {
       const naming = displayNameViolation(trickNameToSlug(canonicalName), canonicalName);
       if (naming) fieldErrors.canonicalName = naming;
@@ -2362,9 +2362,9 @@ export const freestyleCurationService = {
     if (fieldErrors.canonicalName) {
       // Already refused as unreadable.
     } else if (!canonicalName) {
-      fieldErrors.canonicalName = 'Canonical name is required.';
+      fieldErrors.canonicalName = 'Official name is required.';
     } else if (canonicalName.length > CANONICAL_NAME_MAX) {
-      fieldErrors.canonicalName = `Canonical name must be ${CANONICAL_NAME_MAX} characters or fewer.`;
+      fieldErrors.canonicalName = `Official name must be ${CANONICAL_NAME_MAX} characters or fewer.`;
     }
 
     const addsRaw = (input.adds ?? '').trim();

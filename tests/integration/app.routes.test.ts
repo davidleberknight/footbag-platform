@@ -504,7 +504,7 @@ describe('GET /events/:eventKey', () => {
     // Beaver Open has 2 competition categories and 3 placements — qualifies as sparse.
     const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain("We know the data from this event is incomplete but we're showing what we have anyway.");
+    expect(res.text).toContain("Historical results are incomplete, so some results from this event may be missing.");
   });
 
   it('does not show the sparse-data notice when the event has no results', async () => {
@@ -519,9 +519,11 @@ describe('GET /events/:eventKey', () => {
     expect(res.text).toContain('2026 Spring Classic');
   });
 
-  it('upcoming event shows no-results message', async () => {
+  // Defect caught: an event still to come shows a results section that can
+  // only ever say there are none.
+  it('upcoming event shows no results section', async () => {
     const res = await page(`/events/${SPRING_CLASSIC_KEY}`);
-    expect(res.text).toContain('Results are not yet available');
+    expect(res.text).not.toContain('id="results"');
   });
 
   it('returns 404 for a draft event', async () => {

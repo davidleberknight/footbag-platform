@@ -6,9 +6,15 @@ import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
 import { z } from 'zod';
-import { parseFormBody, formText } from '../lib/parseFormBody';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+import { parsePickIntent } from '../services/memberPicker';
 
-const assignForm = z.object({ member_key: formText('Member'), reason: formText('Reason') });
+const assignForm = z.object({
+  member_id: formText('Member'),
+  reason: formText('Reason'),
+  pick: formOptionalText('The member picker'),
+  pick_q: formText('Name or login email'),
+});
 const removeForm = z.object({ member_id: formText('Organizer'), reason: formText('Reason') });
 
 // A shape the form never sends is refused like any other fixable submission.
@@ -28,11 +34,15 @@ function renderDetailError(
   next: NextFunction,
   eventId: string,
   err: ValidationError | NotFoundError,
+  form?: { memberId: string; reason: string; query: string },
 ): void {
   const status = err instanceof NotFoundError ? 404 : 422;
   let page;
   try {
-    page = adminEventOrganizerService.getEventOrganizersPage(eventId, { errorMessage: err.message });
+    page = adminEventOrganizerService.getEventOrganizersPage(eventId, {
+      errorMessage: err.message,
+      ...(form ? { form: { ...form, intent: null } } : {}),
+    });
   } catch (reloadErr) {
     if (reloadErr instanceof NotFoundError) { renderNotFound(res); return; }
     handleControllerError(reloadErr, res, next, 'admin event organizer controller');
@@ -72,12 +82,22 @@ export const adminEventOrganizerController = {
   /** POST /admin/events/:eventId/organizers/assign */
   assign(req: Request, res: Response, next: NextFunction): void {
     const eventId = req.params.eventId ?? '';
+    let typed: { memberId: string; reason: string; query: string } | undefined;
     try {
       const form = read(assignForm, req);
+      typed = { memberId: form.member_id, reason: form.reason, query: form.pick_q };
+      // A member picker control draws the page again with what was typed, and
+      // assigns nothing.
+      if (form.pick !== undefined) {
+        res.render('admin/event-organizers/detail', adminEventOrganizerService.getEventOrganizersPage(eventId, {
+          form: { ...typed, intent: parsePickIntent(form.pick) },
+        }));
+        return;
+      }
       const outcome = adminEventOrganizerService.assignOrganizer(
         req.user!.userId,
         eventId,
-        form.member_key,
+        form.member_id,
         form.reason,
       );
       redirectWithOutcome(req, res, {
@@ -88,7 +108,7 @@ export const adminEventOrganizerController = {
       });
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
-        renderDetailError(res, next, eventId, err);
+        renderDetailError(res, next, eventId, err, typed);
         return;
       }
       handleControllerError(err, res, next, 'admin event organizer controller');

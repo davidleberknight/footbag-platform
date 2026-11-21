@@ -282,6 +282,13 @@ expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Becom
 expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "" ask
 expect_wording "$(jq -cn --arg p "$uw_dir/src/views/new.hbs" '{file_path:$p,content:"<h2>Fresh words here</h2>"}')" "" ask
 expect_wording "$(uw_edit "$V" 'is not accepting' 'is accepting')" "" ask
+# A sentence an inline expression splits is still shown whole, before and after, so the
+# prompt reads as the line a visitor sees rather than its fragments.
+uw_out="$(jq -cn --argjson i "$(uw_edit "$V" 'meets weekly.' 'meets {{freq}} each week.')" '{tool_input:$i,transcript_path:"",session_id:"s1"}' | ".claude/hooks/$H")"
+case "$(printf '%s' "$uw_out" | jq -r '.hookSpecificOutput.permissionDecisionReason')" in
+  *'Line before: "<p>{{club.name}} meets weekly.</p>"'*'Line after: "<p>{{club.name}} meets {{freq}} each week.</p>"'*) : ;;
+  *) echo "[hooks] FAIL ($H): the reason does not show the whole changed line before and after" >&2; fail=1 ;;
+esac
 # Approval: the human dictates the text, or says yes to Claude text that showed it, at
 # the prompt or while Claude was working; a long text needs no shortened copy.
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'change the heading to "About this club"')" defer
@@ -304,6 +311,8 @@ expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'u
 expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "$(uw_human 'approve all technical UI wording')" defer
 expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'$uw_long $uw_long'")" "$(uw_human 'approve all technical UI wording')" defer
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve all technical UI wording')"$'\n'"$(uw_human 'stop approving UI wording')" ask
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve ui edits')" defer
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve ui edits')"$'\n'"$(uw_human 'stop approving UI edits')" ask
 # A pre-approval sent mid-turn counts from the moment it is queued, before the turn ends
 # writes it as a user line; a system notice carrying the same words never counts, and a
 # withdrawal sent mid-turn still ends it.
@@ -1711,6 +1720,18 @@ fi
 rm -f "$tr"
 # Not a question at all: never enforced.
 expect_q 'State 4 is where the cutover lands.' defer
+# A hook-forced continuation is not blocked again, however the flag is spaced.
+q_cont() {
+  # $1 = raw Stop event JSON, $2 = label
+  local out
+  out="$(printf '%s' "$1" | ".claude/hooks/$Q")"
+  if grep -q '"block"' <<< "$out"; then
+    echo "[hooks] FAIL ($Q): continuation was blocked: $2" >&2
+    fail=1
+  fi
+}
+q_cont '{"stop_hook_active":true,"last_assistant_message":"Should the S3 bucket stay private?"}' 'compact flag'
+q_cont '{"stop_hook_active" : true, "last_assistant_message":"Should the S3 bucket stay private?"}' 'spaced flag'
 
 # Cross-guard precedence: a leading-cd command that the read-only approver would
 # otherwise auto-allow must still be denied once the full Bash chain runs.
@@ -2062,10 +2083,11 @@ case "$bt_reason" in
 esac
 # The closing status: a "Session done" last line or a "Not done:" list, else feedback.
 expect_cl() {
-  # $1 = event JSON, $2 = want (nudge|quiet), $3 = label
+  # $1 = event JSON, $2 = want (nudge|quiet|block), $3 = label
   local out got
   out="$(printf '%s' "$1" | ".claude/hooks/$B")"
-  if grep -q '"additionalContext"' <<< "$out"; then got=nudge; else got=quiet; fi
+  if grep -q '"decision"' <<< "$out"; then got=block
+  elif grep -q '"additionalContext"' <<< "$out"; then got=nudge; else got=quiet; fi
   if [ "$got" != "$2" ]; then echo "[hooks] FAIL ($B): want $2, got $got: $3" >&2; fail=1; fi
 }
 cl_event() {
@@ -2079,10 +2101,34 @@ expect_cl "$(cl_event $'Fixed it.\n**Session done.**')" quiet 'bold done line'
 expect_cl "$(cl_event $'Session done.\nOne more thing.')" nudge 'done line not last'
 expect_cl "$(cl_event $'Fixed it.\nNot done:\n- The full gate (waits on you).')" quiet 'not-done list'
 expect_cl "$(cl_event 'Should the index be reused?')" quiet 'ends on a question'
+expect_cl "$(cl_event $'Should the index be reused?\nNot done:\n- Waits on you: the index.')" block 'question buried above Not done'
+expect_cl "$(cl_event $'Should the index be reused?\nNot done:\n- The index (waits on you).\nYour call: Reuse the index, as recommended?')" quiet 'Your call last line'
+expect_cl "$(cl_event $'Should the index be reused?\nSession done.')" block 'question above Session done'
+expect_cl "$(jq -cn '{session_id:"s1",stop_hook_active:true,last_assistant_message:"Why?\nNot done:\n- x (waits on you)."}')" quiet 'second pass is not blocked again'
+expect_cl "$(cl_event $'Done.\n```\nWhy?\n```\nSession done.')" quiet 'question only inside a fence'
 expect_cl "$(cl_event 'Plan drafted.' plan)" quiet 'plan mode'
 expect_cl "$(cl_event $'Done.\n```\nSession done.\n```')" nudge 'done line only inside a fence'
 expect_cl "$(jq -cn '{session_id:"s1",last_assistant_message:"Fixed."}')" nudge 'no registry still checks the status'
 expect_bt "$(bt_event "$bt_shell" $'Not done:\n- Still running: the unit tests.\nSession done.')" block 'session done while a task runs'
+# Status sits above the question: a Still running line after it blocks, above it passes,
+# and a hook-forced continuation carrying only the Still running line passes.
+expect_bt "$(bt_event "$bt_shell" $'Reuse the index?\nStill running: the unit tests.\nYour call: Reuse the index?')" block 'status after the question'
+expect_bt "$(bt_event "$bt_shell" $'Still running: the unit tests.\nReuse the index?\nYour call: Reuse the index?')" defer 'status above the question'
+expect_bt "$(jq -cn --argjson t "$bt_shell" '{session_id:"s1",stop_hook_active:true,last_assistant_message:"Still running: the unit tests, which I report on when they finish.",background_tasks:$t}')" defer 'continuation carries only the Still running line'
+bt_reason="$(bt_event "$bt_shell" 'Done.' | ".claude/hooks/$B" | jq -r '.reason // ""')"
+case "$bt_reason" in *"above any question"*) : ;; *) echo "[hooks] FAIL ($B): reason does not place the line above the question" >&2; fail=1 ;; esac
+case "$bt_reason" in *"inside a"*) echo "[hooks] FAIL ($B): reason still sends the line into a Not done list" >&2; fail=1 ;; esac
+# One question per message: a count, or a Not done item naming a question, ruling or
+# decision, blocks on a first pass (plan mode too); an ordinary item and a Still running
+# line that mentions a question pass, and a continuation is not blocked again.
+expect_cl "$(cl_event $'Question 1 of 4: the index.\nShould the index be reused?\nYour call: Reuse the index?')" block 'question count'
+expect_cl "$(cl_event $'Should the index be reused?\nQuestions 2 to 4 follow your answer.\nYour call: Reuse the index?')" block 'later questions previewed'
+expect_cl "$(cl_event $'Fixed it.\nNot done:\n- The headline-image rulings wait on your answers (waits on Dave).')" block 'ruling carried as a Not done item'
+expect_cl "$(cl_event $'Fixed it.\nNot done:\n- The next question, asked once the research is in (waits on Dave).')" block 'question carried as a Not done item'
+expect_cl "$(cl_event $'Question 1 of 2: the index.\nShould it be reused?\nYour call: Reuse it?' plan)" block 'question count in plan mode'
+expect_cl "$(cl_event $'Fixed it.\nNot done:\n- The full gate (waits on Dave).')" quiet 'ordinary Not done item'
+expect_cl "$(cl_event $'Fixed it.\nNot done:\n- Still running: the agent whose result bears on the question.')" quiet 'Still running line naming a question'
+expect_cl "$(jq -cn '{session_id:"s1",stop_hook_active:true,last_assistant_message:"Question 1 of 4: the index.\nNot done:\n- x (waits on you)."}')" quiet 'count on a continuation is not blocked again'
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

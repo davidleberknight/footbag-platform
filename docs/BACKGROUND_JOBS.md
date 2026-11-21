@@ -13,6 +13,7 @@ The shared technical approach (the job registry, the scheduler, run records and 
 - [Scheduled Jobs](#scheduled-jobs)
     - [SYS_Check_Active_Player_Expiry](#sys_check_active_player_expiry)
     - [SYS_Send_Event_Registration_Reminders](#sys_send_event_registration_reminders)
+    - [SYS_Close_Event_Registration](#sys_close_event_registration)
     - [SYS_Detect_Admin_Loss](#sys_detect_admin_loss)
     - [SYS_Cleanup_Soft_Deleted_Records](#sys_cleanup_soft_deleted_records)
     - [SYS_Cleanup_Expired_Tokens](#sys_cleanup_expired_tokens)
@@ -51,6 +52,7 @@ Every background job the platform runs. A scheduled job runs from the job regist
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | SYS_Check_Active_Player_Expiry | Sends Active Player reminders and ends lapsed Active Player status | Daily | 2 hours | Error alarm | Heartbeat alarm | `active_player_expiry_reminder_days_1`, `active_player_expiry_reminder_days_2` | Job-run row |
 | SYS_Send_Event_Registration_Reminders | Reminds each confirmed registrant of an upcoming event | Daily | 2 hours | Error alarm | Heartbeat alarm | `event_registration_reminder_days` | Job-run row |
+| SYS_Close_Event_Registration | Closes registration on each event whose registration deadline has passed | Hourly | 15 minutes | Error alarm | Heartbeat alarm | None | Job-run row |
 | SYS_Detect_Admin_Loss | Raises the recruit-a-replacement alert for a lost administrator | Daily | 2 hours | Error alarm | Heartbeat alarm | `admin_inactivity_alert_days` | Job-run row |
 | SYS_Cleanup_Soft_Deleted_Records | Purges personal data past its grace period and retention windows | Daily | 2 hours | Error alarm | Heartbeat alarm | `member_cleanup_grace_days`, `deceased_cleanup_grace_days`, `payment_retention_days`, `outbox_retention_days` | Job-run row |
 | SYS_Cleanup_Expired_Tokens | Deletes spent and expired account tokens | Daily | 2 hours | Error alarm | Heartbeat alarm | `token_cleanup_threshold_days` | Job-run row |
@@ -141,6 +143,30 @@ Operation:
 - Failure alarm: the error alarm.
 - Missed-run alarm: the heartbeat alarm.
 - Audit trail: none; the job changes no record other than its sent ledger, and its trail is its run record.
+- Retention: 400 days.
+
+### SYS_Close_Event_Registration
+
+Access: This scheduled process runs under the system role.
+
+Story: The system closes registration on an event once its registration deadline has passed, so that the event's status is `closed` as the Event Status Lifecycle defines it and the event pages say registration is closed without an organizer acting.
+
+Success Criteria:
+
+- The job checks every event with status `reg_open` whose registration cutoff has passed: the registration deadline, or the start date when none is set, as the day after which online registration is refused (`M_Register_For_Event`).
+- For each such event, the job sets the status to `closed`, the same transition an organizer's `EO_Close_Registration` makes.
+- No member or organizer notification is sent; the event pages show the closed status.
+- A repeat run changes nothing: an event already `closed`, `completed` or `canceled` is not touched.
+
+Operation:
+
+- Cadence: hourly.
+- Configuration: none.
+- Catch-up: the pass reads current state, so the first pass after a missed hour closes every event that came due.
+- Run record: its job-run row, with the events closed.
+- Failure alarm: the error alarm.
+- Missed-run alarm: the heartbeat alarm.
+- Audit trail: each transition is audit-logged with the event ID, old status (`reg_open`), new status (`closed`), and the cutoff date.
 - Retention: 400 days.
 
 ### SYS_Detect_Admin_Loss

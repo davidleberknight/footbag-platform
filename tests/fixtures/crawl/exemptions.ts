@@ -206,6 +206,8 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/events/:eventId/divisions/:divisionId/confirm',
       'POST /admin/events/:eventId/divisions/:divisionId/remove/confirm',
       'POST /admin/events/:eventId/registrations/:registrationId/attendance/confirm',
+      'POST /admin/events/:eventId/registrations/add/confirm',
+      'POST /admin/events/:eventId/registrations/:registrationId/edit/confirm',
       'POST /events/:eventKey/results',
       'POST /admin/clubs/:clubId/leadership/demote/confirm', 'POST /admin/tags/retire/confirm',
       'POST /history/:personId/claim/confirm', 'GET /register/check-email',
@@ -227,7 +229,8 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     + 'media, notation candidate, net team, past event, recurring donation, '
     + 'organizer task, archive configuration, claimable record, second club for the persona, '
     + 'club the cleanup rules would demote, club quiet for two years, admin club or event search '
-    + 'result, or bounced address).', [
+    + 'result, bounced address, or event or club cover photo).', [
+      'POST /events/:eventKey/cover-photo/remove', 'POST /clubs/:key/cover-photo/remove',
       'GET /admin/clubs/:clubId',
       'POST /members/:memberKey/email-preferences/recover',
       'POST /admin/club-cleanup/apply-rules',
@@ -251,6 +254,10 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/events/:eventId/divisions/:divisionId/remove', 'POST /admin/events/:eventId/cancel',
       'POST /admin/events/:eventId/registrations/:registrationId/cancel',
       'POST /admin/events/:eventId/registrations/:registrationId/attendance',
+      'GET /admin/events/:eventId/summary',
+      'GET /admin/events/:eventId/registrations/add', 'POST /admin/events/:eventId/registrations/add',
+      'GET /admin/events/:eventId/registrations/:registrationId/edit',
+      'POST /admin/events/:eventId/registrations/:registrationId/edit',
       'POST /admin/clubs/:clubId/content', 'POST /admin/clubs/:clubId/hashtag',
       'POST /admin/clubs/:clubId/leadership/demote', 'POST /admin/tags/retire',
       'GET /admin/freestyle/notation-backlog/:candidateId/author',

@@ -37,6 +37,13 @@
  *     demote each return their ending and the sentence that reports it.
  *   - The reason is cleaned with the shared sanitizer before validation, so
  *     markup alone is no reason.
+ *   - The member assigned is chosen in the page's member picker, which
+ *     searches the administrator's member lookup (AdminMemberService), so it
+ *     reaches members who opted out of member search, and offers only
+ *     onboarded, living members who do not already co-lead the club; the
+ *     club's own members who are not co-leaders are offered as ready choices
+ *     before any search. The choice is posted by member id, and a slug or
+ *     profile address is never accepted in its place.
  *
  * Transaction discipline: every multi-row mutation (assign + affiliation +
  * supersede) is one transaction(() => ...).
@@ -56,8 +63,34 @@ import { promotePrimarySuccessorInTx } from './clubService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
 import { PageViewModel } from '../types/page';
+import { adminMemberService } from './adminMemberService';
+import { personLocation } from './countryUtils';
+import { PICKER_LIMIT, buildMemberPicker, type MemberPickerView, type PickIntent } from './memberPicker';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
+
+// The assign form, and the one picker on it.
+const ASSIGN_FORM_ID = 'assign-coleader-form';
+const PICKER_KEY = 'leader';
+
+interface AppointableRow {
+  id: string; display_name: string; slug: string;
+  city: string | null; region: string | null; country: string | null;
+}
+
+function findAppointable(memberId: string): AppointableRow | undefined {
+  const id = memberId.trim();
+  return id === '' ? undefined : clubLeaders.findAppointableMemberById.get(id) as AppointableRow | undefined;
+}
+
+/** What the assign form submitted: the chosen member, the reason, and a picker
+ *  control's request, which draws the page again with nothing written. */
+export interface ClubLeadershipAssignForm {
+  memberId: string;
+  reason: string;
+  intent: PickIntent | null;
+  query: string;
+}
 
 export interface ClubLeadershipContent {
   clubId: string;
@@ -65,11 +98,18 @@ export interface ClubLeadershipContent {
   name: string;
   needsLeader: boolean;
   leaders: Array<{ memberId: string; displayName: string; slug: string; role: string; roleLabel: string }>;
-  /** Members of this club who are not co-leaders, each with the id the assign
-   *  form takes and the way through to their record. */
+  /** Members of this club who are not co-leaders, each a ready choice for the
+   *  assign form's picker, with the way through to their record. */
   affiliatedMembers: Array<{
     memberId: string; displayName: string; slug: string; recordHref: string;
+    chooseValue: string; chooseAriaLabel: string;
   }>;
+  assignHref: string;
+  assignFormId: string;
+  /** The picker choosing the member to assign. */
+  leaderPicker: MemberPickerView;
+  /** The reason as typed, kept while the picker draws the page again. */
+  reasonValue: string;
   leadershipCount: number;
   /** The result of the last assign or demote, carried across its redirect. */
   notice: OutcomeNoticeView | null;
@@ -97,9 +137,10 @@ function loadClub(clubId: string): { id: string; name: string; status: string } 
 
 function getClubLeadershipPage(
   clubId: string,
-  opts: { notice?: OutcomeNoticeView | null; errorMessage?: string } = {},
+  opts: { notice?: OutcomeNoticeView | null; errorMessage?: string; form?: ClubLeadershipAssignForm } = {},
 ): PageViewModel<{ club: ClubLeadershipContent }> {
   const club = loadClub(clubId);
+  const assignHref = `/admin/clubs/${club.id}/leadership/assign`;
   const leaders = (clubLeaders.listLeadersWithNames.all(clubId) as Array<{
     member_id: string; role: string; display_name: string; slug: string;
   }>).map((l) => ({
@@ -118,7 +159,39 @@ function getClubLeadershipPage(
       displayName: m.display_name,
       slug:        m.slug,
       recordHref:  `/admin/members/${m.member_id}`,
+      chooseValue: `choose:${PICKER_KEY}:${m.member_id}`,
+      chooseAriaLabel: `Choose ${m.display_name} as co-leader`,
     }));
+  const leaderIds = new Set(leaders.map((l) => l.memberId));
+  const intent = opts.form?.intent ?? null;
+  const chosenId = intent?.kind === 'choose' && intent.key === PICKER_KEY ? intent.memberId : opts.form?.memberId ?? '';
+  const chosen = findAppointable(chosenId);
+  // The administrator's lookup population, which member search hides some
+  // of, narrowed to living members who do not already co-lead the club.
+  const search = intent?.kind === 'search' && intent.key === PICKER_KEY
+    ? adminMemberService.lookupMembersForPicker(opts.form?.query ?? '', {
+      limit: PICKER_LIMIT,
+      accept: (id) => !leaderIds.has(id) && findAppointable(id) !== undefined,
+    })
+    : null;
+  const leaderPicker = buildMemberPicker({
+    formId: ASSIGN_FORM_ID,
+    formAction: assignHref,
+    fieldName: 'member_id',
+    fieldKey: PICKER_KEY,
+    label: 'Member',
+    searchLabel: 'Name or login email',
+    openLabel: 'Choose Member',
+    rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name} as co-leader` },
+    chosen: chosen
+      ? { memberId: chosen.id, displayName: chosen.display_name, location: personLocation(chosen.city, chosen.region, chosen.country)?.text ?? null }
+      : null,
+    intent,
+    openOnLoad: true,
+    query: opts.form?.query ?? '',
+    search: search && { ...search, rateLimited: false },
+    notFoundHint: null,
+  });
   // The list keeps every leadership row so an admin can remove one, but the
   // count is the one the five-leader limit reads: a leader who has died or
   // deleted their account no longer counts.
@@ -129,7 +202,7 @@ function getClubLeadershipPage(
       sectionKey: '', pageKey: 'admin_club_leadership', title: `Leadership: ${club.name}`,
       instructions: {
         what: 'Shows a club\'s co-leaders, and assigns or removes one.',
-        how: 'Enter any member\'s id or profile address and a reason to assign them, or remove a co-leader with a reason.',
+        how: 'Search for a member or choose one of the club\'s members, give a reason to assign them, or remove a co-leader with a reason.',
         headsUp: [
           'A club has at most five co-leaders, and a member co-leads at most three clubs.',
           'Assigning a co-leader to an inactive club makes it active again. An archived club accepts no assignment, and a member who already holds three clubs cannot be assigned.',
@@ -146,6 +219,10 @@ function getClubLeadershipPage(
         needsLeader: currentLeaderCount === 0,
         leaders,
         affiliatedMembers: affiliated,
+        assignHref,
+        assignFormId: ASSIGN_FORM_ID,
+        leaderPicker,
+        reasonValue: opts.form?.reason ?? '',
         leadershipCount: currentLeaderCount,
         notice: opts.notice ?? null,
         errorMessage: opts.errorMessage ?? null,
@@ -197,7 +274,7 @@ function audit(
 function assignLeader(
   adminMemberId: string,
   clubId: string,
-  memberKey: string,
+  memberId: string,
   reason: string,
 ): LeadershipChangeOutcome {
   const trimmedReason = requireReason(reason);
@@ -206,10 +283,10 @@ function assignLeader(
   if (club.status === 'archived') {
     throw new ValidationError('This club is archived, which is final, so it takes no new co-leader.');
   }
-  const member = clubLeaders.findMemberByKeyForAdmin.get(memberKey.trim(), memberKey.trim()) as
-    | { id: string; display_name: string; slug: string }
-    | undefined;
-  if (!member) throw new NotFoundError('No active member with that id or slug.');
+  // The member chosen in the picker, by id: only a living, onboarded member can
+  // co-lead. An id that names nobody is a fixable input error.
+  const member = findAppointable(memberId);
+  if (!member) throw new ValidationError('Search for the member by name and choose them.');
 
   const existingRow = clubLeaders.findLeaderRow.get(clubId, member.id) as
     | { id: string; role: string }

@@ -10,7 +10,9 @@
  * the operations platform service, deletes rows past the seven-year window).
  *
  * A browse with no dates shows the last 90 days ending today; a member's or an
- * entity's history keeps its whole span. The export takes a required window of
+ * entity's history keeps its whole span. The member filter takes part of a
+ * name or a login email, resolved through the administrator's member lookup,
+ * and still takes the exact member id the member record's link carries. The export takes a required window of
  * at most 90 days and streams every row in it. The summary counts live rows.
  *
  * Audience: admin only (Sensitivity 4). The page is read-only; it never edits
@@ -23,6 +25,7 @@
  * records nothing, because a GET changes no stored state.
  */
 import {
+  account,
   queryAuditLog,
   iterateAuditLog,
   countAuditLog,
@@ -135,12 +138,34 @@ function expandToDate(d: string | null | undefined): string | null {
   return /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T23:59:59.999Z` : d;
 }
 
+// A broad name fragment is cut off here; beyond it the administrator narrows
+// the search.
+const MEMBER_RESOLVE_LIMIT = 500;
+
+/**
+ * The members the filter's text names: part of a display name or a login
+ * email, through the administrator's member lookup, which also takes a pasted
+ * profile address. The text itself is kept as an exact id too, so the member
+ * record's link to its history (which carries the id) still finds every row,
+ * including a member the lookup no longer reaches.
+ */
+function resolveMemberIds(raw: string | null | undefined): string[] | null {
+  const input = (raw ?? '').trim();
+  if (input === '') return null;
+  const normalized = input.toLowerCase();
+  const escaped = normalized.replace(/[\\%_]/g, (ch) => `\\${ch}`);
+  const found = (account.findMemberIdsForAdminSearch.all(
+    input, normalized, normalized, escaped, MEMBER_RESOLVE_LIMIT,
+  ) as Array<{ id: string }>).map((r) => r.id);
+  return [...new Set([input, ...found])];
+}
+
 function normalize(q: AuditLogQuery): { filters: AuditLogFilters; page: number } {
   const page = q.page && q.page > 0 ? Math.floor(q.page) : 1;
   return {
     page,
     filters: {
-      memberId: q.memberId || null,
+      memberIds: resolveMemberIds(q.memberId),
       entityType: q.entityType || null,
       entityId: q.entityId || null,
       actionType: q.actionType || null,

@@ -48,6 +48,8 @@ import { freestyleRecords, historicalPersonLookup, transaction } from '../db/db'
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import { PICKER_LIMIT, buildRecordPicker, type MemberPickerView, type PickIntent } from './memberPicker';
+import { adminHistoricalRecordService } from './adminHistoricalRecordService';
 import { getCuratedAuthoringAdapter, type CuratedSaveReceipt } from '../adapters/curatedAuthoringAdapter';
 import { writeFileThenCommit } from './curatedSaveFlow';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
@@ -122,6 +124,10 @@ export interface FreestyleRecordEditContent {
   datePrecisionOptions: FilterOption[];
   confidenceOptions: FilterOption[];
   holderName: string;
+  /** The form's own id, which the holder picker's controls name. */
+  formId: string;
+  /** The linked historical record, chosen by name rather than typed by id. */
+  personPicker: MemberPickerView;
   backHref: string;
   saved: boolean;
   fieldErrors: Record<string, string>;
@@ -150,11 +156,49 @@ export interface FreestyleRecordScalarInput {
   supersededBy?: string;
 }
 
-/** Options for re-rendering the edit page after a save or a validation failure. */
+/** Options for re-rendering the edit page after a save, a validation failure,
+ *  or a press of one of the holder picker's controls (its intent and search text). */
 export interface RecordEditPageOptions {
   saved?: boolean;
   submitted?: FreestyleRecordScalarInput;
   fieldErrors?: Record<string, string>;
+  intent?: PickIntent | null;
+  query?: string;
+}
+
+const RECORD_FORM_ID = 'record-form';
+
+/**
+ * The holder field: a linked historical record, chosen by name or old account
+ * id from a search on the form, or none (the record is then held by its
+ * free-text display name). Returns the id the choice leaves and the picker.
+ */
+function holderPicker(
+  formAction: string,
+  submittedPersonId: string,
+  opts: RecordEditPageOptions,
+): { personId: string; picker: MemberPickerView } {
+  const intent = opts.intent ?? null;
+  let personId = submittedPersonId;
+  if (intent?.kind === 'choose' && intent.key === 'person') personId = intent.memberId;
+  if (intent?.kind === 'remove' && intent.key === 'person') personId = '';
+  const query = opts.query ?? '';
+  return {
+    personId,
+    picker: buildRecordPicker({
+      formId: RECORD_FORM_ID, formAction,
+      fieldName: 'personId', fieldKey: 'person',
+      label: 'Historical record', openLabel: 'Choose Historical Record',
+      searchLabel: 'Name, or an old account id',
+      rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name}` },
+      chosen: adminHistoricalRecordService.findRecordForPicker(personId),
+      intent, openOnLoad: false, query, canRemove: true, notFoundHint: null,
+      search: intent?.kind === 'search' && intent.key === 'person'
+        ? adminHistoricalRecordService.lookupRecordsForPicker(query, PICKER_LIMIT)
+        : null,
+      notFoundNoun: 'record',
+    }),
+  };
 }
 
 interface RecordCurationDbRow {
@@ -375,6 +419,9 @@ export const freestyleRecordCurationService = {
 
     const fieldErrors = opts.fieldErrors ?? {};
     const errorList = Object.values(fieldErrors);
+    const formAction = `/admin/freestyle/records/${row.id}/edit`;
+    const holder = holderPicker(formAction, fields.personId, opts);
+    fields.personId = holder.personId;
 
     return {
       seo:  { title: 'Freestyle Records' },
@@ -382,12 +429,14 @@ export const freestyleRecordCurationService = {
       content: {
         id: row.id,
         isNew: false,
-        formAction: `/admin/freestyle/records/${row.id}/edit`,
+        formAction,
         fields,
         recordTypeOptions:    options(allowedRecordTypes(), fields.recordType),
         datePrecisionOptions: options(DATE_PRECISION_VALUES, fields.datePrecision),
         confidenceOptions:    options(CONFIDENCE_VALUES, fields.confidence),
         holderName,
+        formId: RECORD_FORM_ID,
+        personPicker: holder.picker,
         backHref:  '/admin/freestyle/records',
         saved:     opts.saved === true,
         fieldErrors,
@@ -425,6 +474,9 @@ export const freestyleRecordCurationService = {
 
     const fieldErrors = opts.fieldErrors ?? {};
     const errorList = Object.values(fieldErrors);
+    const formAction = '/admin/freestyle/records';
+    const holder = holderPicker(formAction, fields.personId, opts);
+    fields.personId = holder.personId;
 
     return {
       seo:  { title: 'Freestyle Records' },
@@ -432,12 +484,14 @@ export const freestyleRecordCurationService = {
       content: {
         id: '',
         isNew: true,
-        formAction: '/admin/freestyle/records',
+        formAction,
         fields,
         recordTypeOptions:    options(recordTypes, fields.recordType),
         datePrecisionOptions: options(DATE_PRECISION_VALUES, fields.datePrecision),
         confidenceOptions:    options(CONFIDENCE_VALUES, fields.confidence),
         holderName: '',
+        formId: RECORD_FORM_ID,
+        personPicker: holder.picker,
         backHref:  '/admin/freestyle/records',
         saved:     false,
         fieldErrors,
@@ -609,10 +663,10 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
 
   const personId = emptyToNull(input.personId);
   if (personId === null && displayName === null && !fieldErrors.displayName) {
-    fieldErrors.displayName = 'A record needs a linked person id or a display name.';
+    fieldErrors.displayName = 'A record needs a linked historical record or a display name.';
   }
   if (personId !== null && !historicalPersonLookup.personNameById.get(personId)) {
-    fieldErrors.personId = 'No historical person has that id.';
+    fieldErrors.personId = 'Search for the historical record by name and choose it.';
   }
 
   const datePrecision = (input.datePrecision ?? '').trim();

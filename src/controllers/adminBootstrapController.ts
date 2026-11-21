@@ -37,7 +37,7 @@ function render(
         how: 'Enter the token and choose Claim Administrator Access.',
         headsUp: [
           'It works only while the platform has no administrator, and only once.',
-          'Claiming also gives you Tier 2.',
+          'Claiming also makes you a Tier 2 IFPA Organizer Member.',
           'Repeated attempts are blocked for a while.',
         ],
       },

@@ -299,8 +299,8 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     expect(res.status).toBe(200);
     const credit = uploaderCredit(res.text);
     expect(credit).toContain('Item Regular');
-    expect(credit).toContain('badge badge-tier">Tier 2<');
-    expect(credit).toContain('>HoF<');
+    expect(credit).toContain('badge badge-tier">Tier 2 IFPA Organizer Member<');
+    expect(credit).toContain('>Hall of Fame<');
   });
 
   it('keeps the uploader membership tier from an anonymous viewer, and keeps the honour', async () => {
@@ -311,7 +311,7 @@ describe('GET /media/item/:mediaId — tag-query context', () => {
     // Membership standing is member-visible; the honour is public wherever the
     // member appears.
     expect(credit).not.toContain('badge badge-tier');
-    expect(credit).toContain('>HoF<');
+    expect(credit).toContain('>Hall of Fame<');
   });
 });
 

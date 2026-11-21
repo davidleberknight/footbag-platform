@@ -136,7 +136,7 @@ describe('who reaches the organizer surfaces', () => {
       for (const [path, body] of [
         [`${base}/edit`, editForm({ title: 'Hijacked' })],
         [`${base}/divisions`, { game_id: 'game_footbag_net', custom_name: '', custom_discipline: '', team_type: 'singles', gender: 'open', division_class: 'open', offers_prize_money: '0' }],
-        [`${base}/organizers`, { member_key: member }],
+        [`${base}/organizers`, { member_id: member }],
       ] as Array<[string, Record<string, string>]>) {
         expect((await post(member, path, body)).status, `${member} ${path}`).toBe(404);
       }
@@ -326,11 +326,11 @@ describe('divisions', () => {
 
 describe('organizers', () => {
   // Defect caught: an added organizer gets no row, no audit trail or no
-  // email, or an organizer cannot be added by the profile URL members see.
-  it('adds a member by id or profile URL, records it and emails them', async () => {
+  // email.
+  it('adds the member chosen by id, records it and emails them', async () => {
     const event = seedEvent('Team Open', [olive]);
     const base = `/events/${event.key}`;
-    const res = await post(olive, `${base}/organizers`, { member_key: `https://footbag.org/members/eo_added` });
+    const res = await post(olive, `${base}/organizers`, { member_id: added });
     expect(res.status).toBe(303);
     expect(organizersOf(event.id)).toEqual([added, olive].sort());
     expect(JSON.parse(auditRows(event.id, 'event.organizer_assigned')[0].metadata_json)).toEqual({ organizer_member_id: added });
@@ -338,10 +338,74 @@ describe('organizers', () => {
     expect(mails).toEqual({ c: 1 });
 
     // Adding the same member again changes nothing and mails nobody.
-    const again = await post(olive, `${base}/organizers`, { member_key: added });
+    const again = await post(olive, `${base}/organizers`, { member_id: added });
     expect(again.status).toBe(303);
     expect(auditRows(event.id, 'event.organizer_assigned')).toHaveLength(1);
     expect(withDb((db) => db.prepare("SELECT COUNT(*) c FROM outbox_emails WHERE template_key = 'event_organizer_added' AND recipient_member_id = ?").get(added))).toEqual({ c: 1 });
+  });
+
+  // Defect caught: an event is given an organizer the member search could not
+  // offer, by a typed profile URL or slug, an account still onboarding, a
+  // member who opted out of search or one marked deceased, so the picker's
+  // promise that only a findable member is added is broken.
+  it('refuses an organizer the member search would not offer', async () => {
+    const event = seedEvent('Vetted Open', [olive]);
+    const base = `/events/${event.key}`;
+    const onboarding = withDb((db) => createMemberAtTier(db, {
+      id: 'eo-pending', slug: 'eo_pending', tier: 'tier1',
+      memberOverrides: { display_name: 'Member eo-pending', login_email: 'eo-pending@example.com', onboarding: 'none' },
+    }));
+    const unlisted = (id: string, overrides: { searchable?: 0; is_deceased?: 1 }) => withDb((db) => {
+      createMemberAtTier(db, {
+        id, slug: id.replace(/-/g, '_'), tier: 'tier1',
+        memberOverrides: { display_name: `Member ${id}`, login_email: `${id}@example.com`, ...overrides },
+      });
+      completeOnboarding(db, id);
+      return id;
+    });
+    const optedOut = unlisted('eo-opted-out', { searchable: 0 });
+    const deceased = unlisted('eo-deceased', { is_deceased: 1 });
+    for (const [label, memberId] of [
+      ['nothing chosen', ''],
+      ['a profile URL', 'https://footbag.org/members/eo_added'],
+      ['a slug', 'eo_added'],
+      ['an account still onboarding', onboarding],
+      ['a member opted out of search', optedOut],
+      ['a deceased member', deceased],
+    ] as Array<[string, string]>) {
+      const res = await post(olive, `${base}/organizers`, { member_id: memberId });
+      expect(res.status, label).toBe(303);
+      expect((await landedOn(olive, res)).text, label).toContain('form-error-banner');
+      expect(organizersOf(event.id), label).toEqual([olive]);
+    }
+    expect(auditRows(event.id, 'event.organizer_assigned')).toHaveLength(0);
+  });
+
+  // Defect caught: the manage page offers no way to find a co-organizer by
+  // name, its search offers someone who already organizes the event, a
+  // picker control adds anyone, or the row button does not add the member.
+  it('adds a co-organizer found by name through the picker row button', async () => {
+    const event = seedEvent('Picker Open', [olive, otto]);
+    const base = `/events/${event.key}`;
+    const page = await get(olive, `${base}/manage`);
+    expect(page.text).toContain('value="search:organizer"');
+
+    // A search result is a button carrying the member; the organizer list's
+    // own Remove forms carry the same field as a hidden input.
+    const offers = (html: string, id: string) => new RegExp(`<button[^>]*name="member_id" value="${id}"`).test(html);
+    const searched = await post(olive, `${base}/organizers`, { member_id: '', pick: 'search:organizer', pick_q: 'eo-added' });
+    expect(searched.status).toBe(200);
+    expect(offers(searched.text, added)).toBe(true);
+    const self = await post(olive, `${base}/organizers`, { member_id: '', pick: 'search:organizer', pick_q: 'eo-olive' });
+    expect(offers(self.text, olive)).toBe(false);
+    const coOrganizer = await post(olive, `${base}/organizers`, { member_id: '', pick: 'search:organizer', pick_q: 'eo-otto' });
+    expect(offers(coOrganizer.text, otto)).toBe(false);
+    expect(organizersOf(event.id)).toEqual([olive, otto].sort());
+    expect(auditRows(event.id, 'event.organizer_assigned')).toHaveLength(0);
+
+    const res = await post(olive, `${base}/organizers`, { member_id: added, pick_q: 'eo-added' });
+    expect(res.status).toBe(303);
+    expect(organizersOf(event.id)).toEqual([added, olive, otto].sort());
   });
 
   // Defect caught: an event takes a sixth organizer, past the cap the story sets.
@@ -350,7 +414,7 @@ describe('organizers', () => {
     const event = seedEvent('Capped Open', [olive, ...extras.slice(0, 4)]);
     const page = await get(olive, `/events/${event.key}/manage`);
     expect(page.text).not.toContain(`action="/events/${event.key}/organizers"`);
-    await post(olive, `/events/${event.key}/organizers`, { member_key: extras[4] });
+    await post(olive, `/events/${event.key}/organizers`, { member_id: extras[4] });
     expect(organizersOf(event.id)).toHaveLength(5);
   });
 

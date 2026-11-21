@@ -48,6 +48,7 @@ import {
   type FoldedTag, type ShareOutcome,
 } from '../lib/flashCookie';
 import { hashtagDiscoveryService } from '../services/hashtagDiscoveryService';
+import { parsePickIntent } from '../services/memberPicker';
 import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 
 // The media edit form. The URL-reference fields appear only on a reference
@@ -60,6 +61,10 @@ const curatorMediaEditForm = z.object({
   caption: formText('Caption'),
   tags: formText('Hashtags'),
   addPlayer: formOptionalText('The player to credit'),
+  // The player picker's Search posts the form back under `pick`, with the
+  // search text in `pick_q`; it saves nothing.
+  pick: formOptionalText('The player picker'),
+  pick_q: formOptionalText("Player's name"),
   sourceId: formOptionalText('Source id'),
   thumbnailUrl: formOptionalText('Thumbnail URL'),
   startSeconds: formOptionalText('Start (seconds)'),
@@ -387,20 +392,9 @@ export const adminCuratorController = {
         res.render('admin/curator/moderate-item', moderation);
         return;
       }
-      // The player search submits the edit form by GET, so the fields the curator
-      // had typed arrive in the query and are shown again rather than lost.
-      const typedField = (name: string) => (typeof req.query[name] === 'string' ? String(req.query[name]) : undefined);
       const vm = await getCuratorMediaEditPage(buildSvc(), mediaId, {
-        query: typeof req.query.q === 'string' ? req.query.q : undefined,
         actorMemberId: req.user!.userId,
         ip: req.ip ?? 'unknown',
-      }, {
-        caption: typedField('caption'),
-        tagsString: typedField('tags'),
-        sourceId: typedField('sourceId'),
-        startSeconds: typedField('startSeconds'),
-        endSeconds: typedField('endSeconds'),
-        externalUrl: typedField('externalUrl'),
       });
       if (!vm) {
         res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
@@ -473,6 +467,29 @@ export const adminCuratorController = {
         return;
       }
       const form = parsed.data;
+      if (form.pick !== undefined) {
+        // The player picker's Search: the form again, holding what was typed.
+        // Saves nothing.
+        const vm = await getCuratorMediaEditPage(svc, mediaId, {
+          intent: parsePickIntent(form.pick),
+          query: form.pick_q ?? '',
+          actorMemberId: adminMemberId,
+          ip: req.ip ?? 'unknown',
+        }, {
+          caption: form.caption,
+          tagsString: form.tags,
+          sourceId: form.sourceId,
+          startSeconds: form.startSeconds,
+          endSeconds: form.endSeconds,
+          externalUrl: form.externalUrl,
+        });
+        if (!vm) {
+          res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
+          return;
+        }
+        res.render('admin/curator/edit', vm);
+        return;
+      }
       const captionRaw = form.caption.trim();
       const caption = captionRaw.length === 0 ? null : captionRaw;
       const tags = withPlayerCredits(parseTagList(form.tags), form.addPlayer);

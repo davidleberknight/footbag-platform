@@ -9,7 +9,7 @@
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
   <form method="GET" action="/admin/audit-log" class="mb-6">
     <p>
-      <label>Member id <input type="text" name="member" value="{{content.filters.member}}"></label>
+      <label>Member name or login email <input type="text" name="member" value="{{content.filters.member}}"></label>
       <label>Entity type <input type="text" name="entityType" value="{{content.filters.entityType}}"></label>
       <label>Entity id <input type="text" name="entityId" value="{{content.filters.entityId}}"></label>
       <label>Action type <input type="text" name="actionType" value="{{content.filters.actionType}}"></label>

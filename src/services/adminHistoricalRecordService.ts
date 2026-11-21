@@ -2,7 +2,8 @@
  * AdminHistoricalRecordService -- the administrator's surface for a historical
  * competition record nobody holds.
  *
- * Owns the lookup and the confirmation view-models for the two things an
+ * Owns the lookup (also shaped for the record picker other admin forms use to
+ * choose a record) and the confirmation view-models for the two things an
  * administrator does to such a record directly:
  *   - recording that the person it names is recognized as deceased, or taking
  *     that back. DeceasedMarkingService owns the flag and writes it.
@@ -52,6 +53,7 @@ import { locationPickers, type SelectOption } from './memberService';
 import { playerTagForName as playerTag } from './slugify';
 import { cleanUserText } from '../lib/textSanitizer';
 import type { PageViewModel } from '../types/page';
+import type { PickerRecord, RecordSearchOutcome } from './memberPicker';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
 
@@ -302,8 +304,52 @@ function readRecord(personId: string): { person_id: string; person_name: string;
   return row;
 }
 
+/** The years a record competed, as one short span. */
+function yearSpan(first: number | null, last: number | null): string | null {
+  if (first === null && last === null) return null;
+  if (first === null || last === null || first === last) return String(first ?? last);
+  return `${first}-${last}`;
+}
+
 export const adminHistoricalRecordService = {
-  /** The lookup, by exact record id or part of the name. */
+  /**
+   * The same lookup shaped for a record picker on another admin form (a
+   * link-help approval, a freestyle record's holder): by part of the name or the
+   * exact old footbag.org account id, every match listed, held or not, so the
+   * form that takes the record makes its own refusals rather than hiding them.
+   */
+  lookupRecordsForPicker(rawQuery: string, limit: number): RecordSearchOutcome {
+    const query = rawQuery.trim();
+    if (query.length < MIN_LOOKUP_QUERY) {
+      return { results: [], hasMore: false, tooShort: true, rateLimited: false };
+    }
+    const escaped = query.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    const rows = deceasedMarking.searchHistoricalPersons.all(
+      query, query, escaped, limit + 1,
+    ) as HistoricalRecordRow[];
+    return {
+      results: rows.slice(0, limit).map((r) => {
+        const place = [r.country, yearSpan(r.first_year, r.last_year)].filter(Boolean).join(', ');
+        return { id: r.person_id, displayName: r.person_name, location: place === '' ? null : place };
+      }),
+      hasMore: rows.length > limit,
+      tooShort: false,
+      rateLimited: false,
+    };
+  },
+
+  /** A record as a picker shows it once chosen, or null for an id no record has. */
+  findRecordForPicker(personId: string): PickerRecord | null {
+    if (personId === '') return null;
+    const row = deceasedMarking.findHistoricalPerson.get(personId) as
+      | { person_id: string; person_name: string }
+      | undefined;
+    return row ? { id: row.person_id, displayName: row.person_name, location: null } : null;
+  },
+
+  /** The lookup, by part of the name or by the exact old footbag.org account id
+   *  linked to the record. An exact record id also matches, unadvertised, so the
+   *  page's own links back to one record still land on it. */
   getHistoricalRecordsPage(
     rawQuery: string,
     opts: { notice?: OutcomeNoticeView | null; errorMessage?: string } = {},
@@ -315,18 +361,18 @@ export const adminHistoricalRecordService = {
     let errorMessage = opts.errorMessage;
 
     if (query !== '' && query.length < MIN_LOOKUP_QUERY) {
-      errorMessage = `Enter at least ${MIN_LOOKUP_QUERY} characters, or an exact record id.`;
+      errorMessage = `Enter at least ${MIN_LOOKUP_QUERY} letters of the name, or an old account id.`;
     } else if (query !== '') {
       const escaped = query.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
       const rows = deceasedMarking.searchHistoricalPersons.all(
-        query, escaped, LOOKUP_LIMIT + 1,
+        query, query, escaped, LOOKUP_LIMIT + 1,
       ) as HistoricalRecordRow[];
       hasMore = rows.length > LOOKUP_LIMIT;
       results = rows.slice(0, LOOKUP_LIMIT).map(shapeRow);
     }
 
     const resultSummary = query === ''
-      ? 'Search for a historical competition record by name, or by its exact record id.'
+      ? 'Search for a historical competition record by name, or by its old footbag.org account id.'
       : results.length === 0
         ? 'No historical record matches that search.'
         : hasMore

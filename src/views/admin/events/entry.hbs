@@ -1,0 +1,18 @@
+{{! An administrator adding a member to any event, or changing an entry, before the confirm step }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if page.eyebrow}}<p class="hero-eyebrow">{{page.eyebrow}}</p>{{/if}}
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    {{> event-entry-form content}}
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
+  </section>
+
+  {{> back-link}}
+</div>

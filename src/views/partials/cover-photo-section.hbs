@@ -1,0 +1,27 @@
+{{! The Cover Photo section of an event's manage page or a club's edit area:
+    the current cover's thumbnail, or a line saying there is none, then the
+    upload form and the remove button, each present only when the service
+    offers it. Two separate forms, never one nested in another. The page
+    supplies the section around it and a field id unique on the page. }}
+<div class="section-heading"><h2>Cover Photo</h2></div>
+{{#if section.thumbUrl}}
+  <img id="{{fieldId}}-current" class="gallery-list-cover" src="{{section.thumbUrl}}" alt="{{section.thumbAlt}}" width="64" height="64">
+{{else}}
+  <p>No cover photo yet.</p>
+{{/if}}
+{{#if section.uploadAction}}
+  <form method="POST" action="{{section.uploadAction}}" enctype="multipart/form-data" class="form-block">
+    <div class="form-field">
+      <label for="{{fieldId}}">New cover photo</label>
+      <input type="file" id="{{fieldId}}" name="cover_photo" accept="image/jpeg,image/png" required>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn btn-primary">Upload Cover Photo</button>
+    </div>
+  </form>
+{{/if}}
+{{#if section.removeAction}}
+  <form method="POST" action="{{section.removeAction}}" class="inline-form">
+    <button type="submit" class="btn btn-outline">Remove Cover Photo</button>
+  </form>
+{{/if}}

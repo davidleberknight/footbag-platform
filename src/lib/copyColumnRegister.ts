@@ -122,7 +122,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   clubs: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'name',
       'description', 'city', 'region', 'country', 'external_url', 'external_url_validated_at',
-      'external_url_quarantine_reason', 'status', 'hashtag_tag_id'],
+      'external_url_quarantine_reason', 'status', 'hashtag_tag_id', 'cover_media_id'],
   },
   consecutive_kicks_records: {
     keep: ['id', 'sort_order', 'section', 'subsection', 'discipline', 'year', 'rank', 'player_1',
@@ -185,7 +185,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
       'sanction_expected_spectators', 'sanction_permits', 'sanction_insurance', 'payment_enabled',
       'currency', 'competitor_fee_cents', 'attendee_fee_cents', 'prize_money_total_cents',
       'prize_money_currency', 'canceled_at', 'cancel_reason', 'canceled_by_member_id',
-      'hashtag_tag_id'],
+      'hashtag_tag_id', 'cover_media_id'],
   },
   freestyle_ev_adjudications: {
     keep: ['candidate_id', 'sequence_no', 'created_at', 'created_by', 'updated_at', 'updated_by',
@@ -350,7 +350,8 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   member_announcements: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',
       'submit_token', 'subject', 'body_text', 'status', 'admin_comment',
-      'decided_by_member_id', 'decided_at', 'email_archive_id', 'summary_event_id'],
+      'decided_by_member_id', 'decided_at', 'email_archive_id', 'summary_event_id',
+      'publish_to', 'news_item_id'],
   },
   member_club_affiliations: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',
@@ -421,7 +422,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   news_items: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'published_at',
-      'news_type', 'title', 'body', 'entity_type', 'entity_id', 'is_public'],
+      'news_type', 'title', 'body', 'entity_type', 'entity_id', 'is_public', 'author_member_id'],
   },
   outbox_emails: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version',
@@ -510,14 +511,14 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   registration_discipline_selections: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version',
-      'registration_id', 'discipline_id', 'partner_member_id', 'partner_display_name',
+      'registration_id', 'discipline_id', 'partner_member_id',
       'enters_as_amateur'],
   },
   registrations: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'event_id',
       'member_id', 'registered_at', 'registration_type', 'status', 'cancel_reason', 'canceled_at',
       'tshirt_size', 'donation_amount_cents', 'payment_id', 'attended_at',
-      'attended_marked_by_member_id'],
+      'attended_marked_by_member_id', 'paid_at_event_at', 'paid_at_event_marked_by_member_id'],
   },
   schema_migrations: {
     keep: ['filename', 'checksum', 'applied_at', 'applied_by'],

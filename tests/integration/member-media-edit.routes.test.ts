@@ -135,7 +135,7 @@ describe('member per-item media edit routes', () => {
       .get(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
       .set('Cookie', cookieFor(OWNER_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('data-member-search-submit');
+    expect(res.text).toContain('data-member-picker-search');
     const formId = /<form id="([^"]+)"[^>]*method="POST"/.exec(res.text)?.[1] ?? '';
     const button = defaultSubmitButton(res.text, formId);
     expect(button?.overridesForm).toBe(false);
@@ -427,6 +427,34 @@ describe('member per-item media edit routes', () => {
         .send({ caption: 'blocked', tags: '', externalUrl: '' });
       expect(blocked.status).toBe(429);
       expect(blocked.headers['retry-after']).toBeDefined();
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
+
+  // Defect caught: searching for a player to credit spends the member's media
+  // edits, so a few searches lock them out of saving the edit they came to make.
+  it('a player search takes no media-edit slot', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(tuneDb, {
+      config_key: 'media_edit_rate_limit_per_hour',
+      value_json: '2',
+    });
+    tuneDb.close();
+    try {
+      const mediaId = insertOwnerMedia('owner-rl-search.jpg');
+      const post = (body: Record<string, string>) => request(createApp())
+        .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+        .set('Cookie', cookieFor(OWNER_ID))
+        .type('form')
+        .send({ caption: 'kept', tags: '', externalUrl: '', ...body });
+      for (let i = 0; i < 3; i++) {
+        expect((await post({ pick: 'search:player', pick_q: `nobody${i}` })).status).toBe(200);
+      }
+      expect((await post({ caption: 'save-1' })).status).toBe(303);
+      expect((await post({ caption: 'save-2' })).status).toBe(303);
     } finally {
       rlMod.resetRateLimitForTests();
     }

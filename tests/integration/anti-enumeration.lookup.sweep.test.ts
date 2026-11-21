@@ -166,7 +166,7 @@ const CLASSIFIED: Record<string, Classification> = {
   // event, and a visitor, learn nothing about a draft or canceled event from
   // its key on any of them.
   ...Object.fromEntries([
-    'participants', 'participants.csv', 'summary', 'check-in-sheet', 'email',
+    'participants', 'participants.csv', 'participants/add', 'summary', 'check-in-sheet', 'email',
     'results', 'results/template.csv', 'attendance',
   ].map((page) => [
     `GET /events/:eventKey/${page}`,
@@ -179,6 +179,16 @@ const CLASSIFIED: Record<string, Classification> = {
         }))),
     },
   ])),
+  'GET /events/:eventKey/participants/:registrationId/edit': {
+    // An entry's edit page: the event's key answers as the participant list
+    // does, whatever registration id rides with it.
+    probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
+      [hidden.draftEvent, hidden.canceledEvent].map((key) => ({
+        viewer,
+        existing: () => ({ url: `/events/${key}/participants/reg-probe/edit`, key }),
+        unknown: { url: '/events/event_2026_no_such_event/participants/reg-probe/edit', key: 'event_2026_no_such_event' },
+      }))),
+  },
   'GET /events/:eventKey/register': {
     // The registration form: a draft or canceled event takes no registrations
     // and answers as an event that does not exist.

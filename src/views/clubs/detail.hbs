@@ -20,6 +20,10 @@
     <p class="notice-card notice-card--warn">This club is inactive. It stays reachable by direct link but does not appear in the club directory. A co-leader can reactivate it at any time.</p>
     {{/if}}
 
+    {{#if content.club.coverPhoto}}
+    <img id="club-cover-photo" class="cover-photo" src="{{content.club.coverPhoto.url}}" alt="{{content.club.coverPhoto.alt}}"{{#if content.club.coverPhoto.widthPx}} width="{{content.club.coverPhoto.widthPx}}" height="{{content.club.coverPhoto.heightPx}}"{{/if}}>
+    {{/if}}
+
     <dl class="club-detail-meta">
       <dt>Location</dt>
       <dd>
@@ -95,6 +99,12 @@
         {{/if}}
         <button type="submit" class="btn btn-primary btn-sm">Save Changes</button>
       </form>
+    </section>
+    {{/if}}
+
+    {{#if content.club.coverPhotoSection}}
+    <section class="mt-4" id="cover-photo">
+      {{> cover-photo-section section=content.club.coverPhotoSection fieldId="club_cover_photo"}}
     </section>
     {{/if}}
 

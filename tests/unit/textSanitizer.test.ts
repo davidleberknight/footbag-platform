@@ -104,11 +104,40 @@ describe('sanitizeUserText: control characters and whitespace', () => {
   });
 
   it('is stable when applied twice', () => {
-    const shapes: TextShape[] = ['single_line', 'multi_line', 'notation'];
+    const shapes: TextShape[] = ['single_line', 'multi_line', 'notation', 'markdown'];
     const input = ' <i>Mixed</i>\r\n\r\n\r\n  text &amp; more\u0085 ';
     for (const shape of shapes) {
       const once = clean(input, shape);
-      expect(clean(once, shape)).toBe(once);
+      expect(clean(once, shape), shape).toBe(once);
     }
+  });
+});
+
+describe('sanitizeUserText: pasted Markdown', () => {
+  // Defect: a pasted nested list or indented code block is flattened, so the
+  // news page shows a single-level list or loses the code block.
+  it('keeps each line\'s leading indentation', () => {
+    const pasted = '- Kicks\n  - Toe\n  - Inside\n\n    code line\n\tTabbed';
+    expect(clean(pasted, 'markdown')).toBe(pasted);
+  });
+
+  // Defect: tag-shaped text the writer typed (a code sample, a comparison)
+  // silently disappears from the stored post, which the renderer would have
+  // shown as typed.
+  it('keeps tag-shaped text and entities as typed', () => {
+    expect(clean('Use `<div>` &amp; <b>bold</b>', 'markdown')).toBe('Use `<div>` &amp; <b>bold</b>');
+  });
+
+  // Defect: control characters or stacks of blank lines survive into the
+  // stored body, or trailing space pads every line.
+  it('drops control characters, trims line ends and caps blank lines at one', () => {
+    expect(clean('a\u0007b  \n\n\n\n  c   d  \n', 'markdown')).toBe('ab\n\n  c d');
+    expect(clean('x\n   \ny', 'markdown')).toBe('x\n\ny');
+  });
+
+  // Defect: a body of only blank lines is stored as non-empty, so a required
+  // body check lets an empty post through.
+  it('reduces whitespace-only input to empty', () => {
+    expect(clean(' \n\t\n  ', 'markdown')).toBe('');
   });
 });

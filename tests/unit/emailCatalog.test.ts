@@ -193,6 +193,12 @@ const CATALOG: CatalogEntry[] = [
   { template: 'event_registration_withdrawn', services: ['eventService'], samples: [
     { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D' }, variant: 'event_registration_withdrawn' },
   ] },
+  { template: 'event_registration_added', services: ['eventService'], samples: [
+    { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D', registrationSummary: 'S', byAdministrator: true, reason: 'R' }, variant: 'event_registration_added' },
+  ] },
+  { template: 'event_registration_corrected', services: ['eventService'], samples: [
+    { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D', whatChanged: 'W', registrationSummary: 'S', byAdministrator: true, reason: 'R' }, variant: 'event_registration_corrected' },
+  ] },
   { template: 'event_canceled', services: ['eventService'], samples: [
     { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D', byAdministrator: false, reason: 'R', paid: true }, variant: 'event_canceled' },
   ] },
@@ -332,6 +338,20 @@ describe('email catalog', () => {
   // keep for their records. It reaches them from the note's own column, and only
   // on the gift acknowledgement: the descriptor is a neutral label on every
   // receipt, so no other variant carries member-authored text at all.
+  // Defect caught: a member an administrator registered or corrected is told
+  // their event's organizers did it, or is never given the administrator's
+  // reason; or an organizer's correction carries a stray reason paragraph.
+  it('names who corrected a registration, and carries the reason only for an administrator', () => {
+    const base = { memberName: 'M', eventTitle: 'E', eventDates: 'D', registrationSummary: 'S', whatChanged: 'W' };
+    for (const template of ['event_registration_added', 'event_registration_corrected'] as const) {
+      const byOrganizer = shapeEmail(template, { ...base, byAdministrator: false, reason: null }).merge;
+      const byAdmin = shapeEmail(template, { ...base, byAdministrator: true, reason: 'Organizer is away' }).merge;
+      expect(byAdmin.changedBy, template).not.toBe(byOrganizer.changedBy);
+      expect(byOrganizer.reasonNote, template).toBe('');
+      expect(byAdmin.reasonNote, template).toContain('Organizer is away');
+    }
+  });
+
   it('the gift acknowledgement carries the donor note, and no other receipt does', () => {
     const withNote = shapeEmail('payment_receipt', {
       descriptor: 'Donation', amountDisplay: '$50.00 USD', paymentDate: '1 January 2030',

@@ -8,10 +8,20 @@
  *   - Sanction requests
  *   - Cancellation, closing and deletion of events, and cancellation of registrations
  *   - The organizers' participant list, exports, check-in sheet and participant email
+ *   - Corrections at the event: Add Entrant and Edit Entry, by an organizer or
+ *     an administrator
  *   - The writes of an administrator's event corrections (AdminEventService shapes
  *     their pages)
  *   - Results upload
- *   - Public event browse and detail page reads
+ *   - Public event browse and detail page reads. Every list of events (the
+ *     landing page's upcoming and current-year events, a year page) draws each
+ *     event as the same dated item through eventListing, which also shapes the
+ *     status badge: an open event past its cutoff or paused reads as closed.
+ *   - The deadline job's pass (SYS_Close_Event_Registration): closing
+ *     registration on every open event whose cutoff has passed, as the system
+ *   - The event's cover photo pointer (`events.cover_media_id`): who may set or
+ *     clear it, and where it shows. The photo itself is an ordinary member
+ *     photo, uploaded through entityCoverPhoto and CuratorMediaService.
  *
  * Does not own:
  *   - Registration payments (PaymentService): the checkout, the payment row and
@@ -55,7 +65,8 @@
  *     not-found, a member who is not a current organizer of it.
  *   - Max 5 organizers per event, all equal with no primary, counted on the current
  *     view inside the write's transaction. The sole organizer cannot remove
- *     themselves or step down.
+ *     themselves or step down. A co-organizer is added by choosing a live,
+ *     onboarded member from the member search on the manage page.
  *   - Standard tag (`#event_{year}_{slug}`), lowercase and permanent (not HD). Event
  *     creation writes it in the creating transaction, the year from the start date
  *     and the slug folded by the one rule; a typed slug the rule changes is shown
@@ -88,9 +99,10 @@
  *     again returns to its open checkout; a changed one releases that checkout
  *     and opens another. A member who withdrew a registration they paid for, and
  *     was not refunded, registers again as the same type with no new charge.
- *     A competitor enters at least one division; a doubles entry names
- *     its partner, a member or a typed name. Gender eligibility is checked between
- *     member profiles; a typed partner's is the organizer's to check at check-in.
+ *     A competitor enters at least one division; a doubles entry names its
+ *     partner, a live onboarded member other than the registrant, chosen by
+ *     name from the member search and posted by member id. Gender eligibility
+ *     is checked between the two member profiles.
  *   - Withdrawal: the member cancels their own registration up to the same cutoff;
  *     the canceled row keeps its entries, and every current organizer is emailed.
  *     A registration waiting at checkout ends that checkout first.
@@ -108,6 +120,28 @@
  *     the Treasurer arranges any refund outside the platform.
  *   - Closing registration (`reg_open -> closed`) is irreversible; the
  *     online-registration switch is the reversible pause.
+ *   - Corrections at the event: an organizer adds any member the member search
+ *     offers as a competitor, or changes a confirmed competitor entry's
+ *     divisions, doubles partners and whether its fee was paid at the event.
+ *     They are open from the start of registration until any result is
+ *     recorded, whatever the deadline or the online-registration switch says.
+ *     Partners and gender eligibility are checked as the member's own
+ *     registration checks them; a doubles entry may be left with no partner,
+ *     and a partner an entry stops naming keeps their own entry naming nobody,
+ *     both flagged on the participant list. A registration made here is
+ *     confirmed at once and never opens checkout; a fee paid at the table is
+ *     recorded on the registration with no payment row and no amount. A
+ *     member already registered is edited, not added again. Removing an entry
+ *     is the registration's cancellation. Each save is audited with the
+ *     entry's ids before and after and emails the member, and any old partner
+ *     whose entry it left with no partner, naming who made the change. An
+ *     administrator does the same on any event through the same rules, giving
+ *     a reason, which the emails carry, and confirming a preview first.
+ *   - A confirmed registration whose type carries a fee reads to its
+ *     organizers as not paid until a payment succeeds or the fee is marked
+ *     paid at the event.
+ *   - The participant list groups the confirmed entries by division, each with
+ *     its count, above the full list of standing registrations.
  *   - The participant list, its CSV export, the registration summary, the
  *     check-in sheet and participant email are for the event's organizers only.
  *     The export, the sheet and the email reach confirmed registrations only. A
@@ -124,11 +158,13 @@
  *     onward, on an event that opened. The file is read into a preview that
  *     writes nothing; the preview's text travels in the form, so nothing is held
  *     between the steps, and the commit reads it again with the organizer's
- *     decisions (declared ties, unadvertised divisions confirmed as contested,
- *     unmatched names accepted). A malformed file, a cell a spreadsheet would run
- *     as a formula, an undeclared repeated place and a division that already has
- *     results are refused. Names are matched against confirmed registrations as
- *     a check, not a gate. The commit writes the upload, its entries and
+ *     decisions (declared ties, unadvertised divisions confirmed as contested).
+ *     A malformed file, a cell a spreadsheet would run as a formula, an
+ *     undeclared repeated place, a division that already has results and a
+ *     name that matches no single confirmed registration of the event are
+ *     refused, the last naming each such row, as is a doubles row placing an
+ *     entry whose registration names no partner; no result is ever saved as a
+ *     name without its member. The commit writes the upload, its entries and
  *     competitors, any unadvertised division, the event's completion and the
  *     attendance of every placing member with a confirmed registration, in one
  *     transaction. Published results are corrected by an administrator
@@ -144,28 +180,51 @@
  *     "Sanctioning requirements not met" on its manage page and its upload page,
  *     never on the public event page, and every current organizer has a
  *     dashboard item (eventActionSource) until what is owed is done.
+ *   - Cover photo: the organizer creating the event, and later any current
+ *     organizer from the manage page, may upload a cover photo. It goes through
+ *     the Share Media photo path and its Tier 1 benefits gate, owned by the
+ *     uploader and tagged with the event's hashtag, so it is also in the
+ *     event's gallery. The event is created in its own transaction first and the
+ *     photo uploaded after, outside any transaction; a refused photo leaves the
+ *     event created. Setting the cover only moves the pointer, so a replaced
+ *     photo stays in the gallery; removing it clears the pointer and deletes
+ *     nothing. Both are audited, and a repeat (the pointer already on the
+ *     photo, or already clear) is recognised before acting. A canceled event
+ *     takes no cover change. The cover is honoured on read only while it is an
+ *     active, non-avatar photo still carrying the event's hashtag, with no
+ *     other photo standing in; it shows at the top of the event page as its
+ *     share image, and as a thumbnail on the event's listed card, every list
+ *     resolving its covers in one statement.
  *
  * Persistence:
  *   events, event_disciplines, discipline_games (read), event_organizers, event_results_uploads,
  *   event_result_entries, event_result_entry_participants, tags, registrations,
  *   registration_discipline_selections, email_archives, audit_entries, outbox_emails,
  *   work_queue_items, active_player_grants (through ActivePlayerService),
- *   member_announcements (read: whether an after-event summary was sent).
+ *   member_announcements (read: whether an after-event summary was sent),
+ *   media_items and media_tags (read for the cover; a cover upload writes them
+ *   through CuratorMediaService).
  *
  * Side effects:
  *   - audit_entries append (event.created, event.details_edited,
  *     event.division_added / _changed / _removed, event.organizer_assigned,
  *     event.organizer_removed, event.organizer_stepped_down,
  *     event.registration_withdrawn, event.registration_status_changed,
- *     event.registration_closed, event.registration_canceled, event.canceled,
+ *     event.registration_closed (by an organizer, or by the deadline job as the
+ *     system with the cutoff it passed), event.registration_canceled,
+ *     event.registration_added, event.registration_corrected, event.canceled,
  *     event.deleted, event.participants_emailed, event.corrected,
  *     event.description_cleared, event.division_corrected,
  *     event.sanction_requested, event.sanction_approved, event.sanction_rejected,
  *     event.sanction_awarded, event.results_uploaded, event.attendance_marked,
- *     event.attendance_corrected; active_player.grant and _extend through
- *     ActivePlayerService)
+ *     event.attendance_corrected, event.cover_photo_set,
+ *     event.cover_photo_removed; active_player.grant and _extend through
+ *     ActivePlayerService; media.member_uploaded through CuratorMediaService)
+ *   - object storage put of a cover photo's renditions, through
+ *     CuratorMediaService's storage adapter
  *   - outbox_emails enqueue (organizer confirmations, participant notices, sanction
- *     request and decisions, cancellations, correction notices, participant
+ *     request and decisions, cancellations, correction notices, the member's
+ *     notice of an entry an organizer or administrator added or changed, participant
  *     email, the Active Player notice an attendance grant sends), inside the
  *     act's transaction
  *   - work_queue_items insert (`sanction_request`, routine: read on the queue and
@@ -173,8 +232,9 @@
  *     dismissed when the event is canceled
  *
  * Service shape: singleton object. It reaches the payment provider only through
- * PaymentService and the outbox only through EmailService and the
- * communication service's event audience, never an adapter of its own.
+ * PaymentService, the outbox only through EmailService and the
+ * communication service's event audience, and media storage only through
+ * entityCoverPhoto, never an adapter of its own.
  */
 import { createHash, randomUUID } from 'crypto';
 import {
@@ -195,7 +255,7 @@ import {
   workQueue,
 } from '../db/db';
 import { getCommunicationService } from './communicationService';
-import { tierBadgeShort } from './membershipTieringService';
+import { tierBadgeShort, TIER_NAMES } from './membershipTieringService';
 import { csvRow } from '../lib/csv';
 import { downloadFilename } from '../lib/downloadFilename';
 import type { PrintColumn, PrintRow, PrintableDocument } from '../lib/printableDocument';
@@ -214,9 +274,20 @@ import { checkTypedSlug } from './typedTokenRules';
 import { slugifyForTag } from './slugify';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { canonicalCountryName, personLocation } from './countryUtils';
+import {
+  EVENT_STATUS_LABELS, eventDateRange, eventStatusBadge, isRegistrationOpen, registrationCutoff,
+  toEventDatedItem,
+} from './eventListing';
+import type { DatedItemView } from '../types/datedItem';
+import { CURRENT_SPORTS, sportLabel, sportOptions } from './sportCategories';
+import { medalClass } from './playerShaping';
 import { COUNTRY_CHOICE_MESSAGE } from './memberLocationRules';
 import { emailService } from './emailService';
-import { locationPickers } from './memberService';
+import { locationPickers, memberService } from './memberService';
+import {
+  PICKER_LIMIT, buildMemberPicker, pickerSearchOutcome,
+  type MemberPickerView, type PickIntent, type PickerMember, type PickerSearchOutcome,
+} from './memberPicker';
 import { paymentService } from './paymentService';
 import { applyAttendanceInTx } from './activePlayerService';
 import { formatDateDisplay } from './dateFormat';
@@ -240,6 +311,10 @@ import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { loadSitePhotoUrl } from './siteMediaService';
+import {
+  coverPhotoImage, eventCoverPhotos, isCoverCandidate, refusedCoverChange, uploadCoverPhoto as uploadEntityCoverPhoto,
+  type CoverPhotoChange, type CoverPhotoFile, type CoverPhotoImage, type CoverPhotoSection, type CoverPhotoUploader,
+} from './entityCoverPhoto';
 
 const PUBLIC_EVENT_KEY_PATTERN = /^event_\d{4}_[a-z0-9_]+$/;
 
@@ -297,6 +372,8 @@ export interface PublicEventResultParticipant {
 
 export interface PublicResultPlacement {
   placement: number;
+  /** The placing's medal colour class, or empty. */
+  medalClass: string;
   scoreText: string | null;
   participants: PublicEventResultParticipant[];
 }
@@ -354,20 +431,45 @@ export interface FeaturedPromoCard {
 
 export interface EventsLandingContent {
   featuredPromo?: FeaturedPromoCard;
-  upcomingEvents: PublicEventSummary[];
+  /** Upcoming public events, each drawn as every listed event is. */
+  upcomingEvents: DatedItemView[];
+  /** The landing page's default year: the current year's completed events. */
+  currentYear: number;
+  currentYearEvents: DatedItemView[];
   archiveYears: number[];
   /** Where an organizer arriving cold reads what sanctioning takes and who may apply. */
   organizerLinks: { guidelinesHref: string };
 }
 
+/** What the deadline job's pass closed, recorded on its job-run row. */
+export interface CloseDueRegistrationsResult {
+  closedEventIds: string[];
+}
+
+// The actor stamped on an event row a scheduled job changes.
+const SYSTEM_ACTOR = 'system';
+
 export interface EventsYearContent {
   year: number;
-  events: PublicCompletedEventSummary[];
+  events: DatedItemView[];
+}
+
+/** One competition category's divisions on the event page, in their own order. */
+export interface PublicDisciplineGroup {
+  /** The category's name; null for standings that span several categories. */
+  label: string | null;
+  disciplines: PublicEventDiscipline[];
 }
 
 export interface EventDetailContent {
   event: PublicEvent;
   disciplines: PublicEventDiscipline[];
+  /** The divisions grouped by competition category, with each division's count. */
+  disciplineGroups?: PublicDisciplineGroup[];
+  /** The event's dates as one range. */
+  dateRange?: string;
+  /** Results belong to an event that has taken place; an upcoming one shows none. */
+  showResults?: boolean;
   hasResults: boolean;
   isSparse: boolean;
   primarySection: 'details' | 'results';
@@ -379,6 +481,8 @@ export interface EventDetailContent {
   registration: EventRegistrationBlock | null;
   /** The outcome of the member's last registration action. */
   notice: OutcomeNoticeView | null;
+  /** The event's cover photo at the top of the page; null when it has none. */
+  coverPhoto: CoverPhotoImage | null;
 }
 
 /** One division a registration entered, with its partner and Amateur choice. */
@@ -442,24 +546,9 @@ function normalizePublicEventKeyToStoredTag(eventKey: string): string {
   return `#${eventKey.toLowerCase()}`;
 }
 
-// Closed label/class set for the event-status badge. Statuses with no badge
-// class in style.css fall back to the neutral badge so an unmapped value can
-// never render unstyled raw-code text.
-const EVENT_STATUS_LABELS: Record<string, string> = {
-  draft: 'Draft',
-  pending_approval: 'Pending approval',
-  reg_open: 'Registration open',
-  closed: 'Registration closed',
-  completed: 'Completed',
-  canceled: 'Canceled',
-};
-const EVENT_STATUS_BADGE_CLASSES: Record<string, string> = {
-  reg_open: 'badge-reg_open',
-  closed: 'badge-closed',
-  completed: 'badge-completed',
-};
 
-function toPublicEventSummary(row: PublicEventSummaryRow): PublicEventSummary {
+function toPublicEventSummary(row: PublicEventSummaryRow, todayIso: string = new Date().toISOString()): PublicEventSummary {
+  const badge = eventStatusBadge(row, todayIso);
   return {
     eventId: row.event_id,
     eventKey: row.tag_normalized.startsWith('#') ? row.tag_normalized.slice(1) : row.tag_normalized,
@@ -474,8 +563,8 @@ function toPublicEventSummary(row: PublicEventSummaryRow): PublicEventSummary {
     externalUrl: row.external_url,
     registrationDeadline: row.registration_deadline,
     status: row.status,
-    statusLabel: EVENT_STATUS_LABELS[row.status] ?? row.status,
-    statusCssClass: EVENT_STATUS_BADGE_CLASSES[row.status] ?? 'badge-muted',
+    statusLabel: badge.text,
+    statusCssClass: badge.cssClass,
     registrationStatus: row.registration_status,
     regOpenedAt: row.reg_opened_at,
     hashtagTagId: row.hashtag_tag_id,
@@ -486,7 +575,7 @@ function toPublicEventSummary(row: PublicEventSummaryRow): PublicEventSummary {
 
 function toPublicCompletedEventSummary(row: PublicCompletedEventSummaryRow): PublicCompletedEventSummary {
   return {
-    ...toPublicEventSummary(row),
+    ...toPublicEventSummary(row, ''),
     hasResults: row.has_results === 1,
   };
 }
@@ -580,6 +669,7 @@ function disciplineSortKey(category: string | null, name: string | null, isAggre
 function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResultSection[] {
   type MutablePlacement = {
     placement: number;
+    medalClass: string;
     scoreText: string | null;
     participants: PublicEventResultParticipant[];
   };
@@ -624,6 +714,7 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
     if (!placement) {
       placement = {
         placement: row.placement,
+        medalClass: medalClass(row.placement),
         scoreText: row.score_text,
         participants: [],
       };
@@ -855,9 +946,11 @@ export interface ManageEventContent {
     name: string; memberId: string; profileHref: string; addedOn: string;
     isSelf: boolean; canRemove: boolean; removeAction: string;
   }>;
-  canAddOrganizer: boolean;
   organizerCap: number;
   addOrganizerAction: string;
+  addOrganizerFormId: string;
+  /** The picker whose row button adds the member; null once the event has its most organizers. */
+  organizerPicker: MemberPickerView | null;
   stepDownAction: string | null;
   /** The online-registration switch, while the event is open for registration. */
   onlineRegistration: {
@@ -900,6 +993,8 @@ export interface ManageEventContent {
   deleteEventAction: string | null;
   /** Why the event takes no further changes, on a canceled or completed event. */
   terminalNote: string | null;
+  /** The event's cover photo and its controls. */
+  coverPhoto: CoverPhotoSection;
 }
 
 /** The sanction request form as typed: every field a string, as the browser sends it. */
@@ -964,7 +1059,11 @@ export type SanctionDecisionResult =
 export interface SanctionReviewEvidence {
   eventTitle: string;
   facts: Array<{ label: string; value: string }>;
-  organizers: Array<{ name: string; profileHref: string; email: string | null }>;
+  organizers: Array<{
+    name: string; profileHref: string; email: string | null;
+    /** Every other event this organizer runs or ran, newest first. */
+    history: Array<{ title: string; dates: string; statusLabel: string; sanctionedLabel: string | null }>;
+  }>;
   deviations: string | null;
   divisions: Array<{ name: string; parts: string; prizeLabel: string | null }>;
   hasDivisions: boolean;
@@ -1031,8 +1130,95 @@ export interface ParticipantRowView {
   canMarkAttended: boolean;
 }
 
+/** One confirmed entry in a division group of the participant list. */
+export interface DivisionEntryRowView {
+  registrationId: string;
+  entrantName: string;
+  entrantHref: string;
+  partnerName: string | null;
+  /** A doubles entry naming no partner, which the results upload refuses. */
+  noPartner: boolean;
+  paymentLabel: string;
+  /** The entry's edit page while corrections are open; null after. */
+  editHref: string | null;
+}
+
+/** A division's confirmed entries, with their count. */
+export interface DivisionGroupView {
+  name: string;
+  confirmedCount: number;
+  isDoubles: boolean;
+  rows: DivisionEntryRowView[];
+}
+
+/** What an Add Entrant or Edit Entry form posts, every field as typed. */
+export interface EntryInput {
+  /** The entrant chosen from the member search; read on Add Entrant only. */
+  memberId: string;
+  divisionIds: string[];
+  /** The partner chosen for each doubles division, by member id; empty while none is. */
+  partners: Array<{ divisionId: string; memberId: string }>;
+  paidAtEvent: boolean;
+}
+
+export interface EntryDivisionView {
+  id: string;
+  name: string;
+  checked: boolean;
+  partnerPicker: MemberPickerView | null;
+}
+
+/** The Add Entrant and Edit Entry form, for an organizer or an administrator. */
+export interface EntryFormContent {
+  formId: string;
+  formAction: string;
+  cancelHref: string;
+  eventTitle: string;
+  eventDates: string;
+  /** The entrant search, on Add Entrant; null on Edit Entry, which names the entrant. */
+  entrantPicker: MemberPickerView | null;
+  entrantName: string | null;
+  divisions: EntryDivisionView[];
+  hasDivisions: boolean;
+  /** Offered only when the event has fees. */
+  paidAtEvent: { checked: boolean } | null;
+  /** An administrator's reason, carrying what was typed; null for an organizer. */
+  reasonField: { value: string } | null;
+  errorMessage: string | null;
+  /** The held entry's edit page, beside a refusal to add a member already registered. */
+  errorLink: { label: string; href: string } | null;
+  submitLabel: string;
+  /** Removing the entry goes through the registration's cancellation; organizers only. */
+  cancelRegistrationAction: string | null;
+}
+
+/** An Add Entrant or Edit Entry form, as the controller hands it back after a refusal or a picker step. */
+export interface EntryFormState {
+  input: EntryInput;
+  message: string | null;
+  link?: { label: string; href: string } | null;
+  reason?: string;
+}
+
+type EntryChanges = Array<{ label: string; before: string; after: string }>;
+
+export type AddEntrantResult =
+  | { branch: 'needs_confirmation'; memberName: string; eventTitle: string; changes: EntryChanges }
+  | { branch: 'added' | 'own_repeat' | 'already_held'; memberName: string; registrationId: string; divisionNames: string[] }
+  | { branch: 'already_registered'; memberName: string; registrationId: string; editHref: string };
+
+export type CorrectEntryResult =
+  | { branch: 'needs_confirmation'; memberName: string; eventTitle: string; changes: EntryChanges }
+  | { branch: 'corrected' | 'own_repeat' | 'already_held'; memberName: string; registrationId: string; whatChanged: string };
+
 export interface ParticipantsContent {
   notice: OutcomeNoticeView | null;
+  /** The entry the notice reports on, as an Edit Entry link beside it; null otherwise. */
+  noticeEditHref: string | null;
+  /** Add Entrant, while corrections are open; null after. */
+  addEntrantHref: string | null;
+  divisionGroups: DivisionGroupView[];
+  hasDivisionGroups: boolean;
   eventTitle: string;
   confirmedCount: number;
   pendingCount: number;
@@ -1086,8 +1272,6 @@ export interface ResultsPreviewView {
   }>;
   ties: Array<{ field: string; value: string; label: string; checked: boolean }>;
   contested: Array<{ field: string; value: string; label: string; checked: boolean }>;
-  unmatchedCount: number;
-  acceptUnmatchedChecked: boolean;
   missingDivisionsText: string | null;
   rowCount: number;
   committable: boolean;
@@ -1128,6 +1312,8 @@ export interface RegistrationSummaryContent {
   confirmedCount: number;
   pendingCount: number;
   byType: Array<{ label: string; count: number }>;
+  /** Confirmed registrations entering each competition category. */
+  byCategory: Array<{ label: string; count: number }>;
   byDivision: Array<{ name: string; count: number }>;
   hasDivisions: boolean;
   payments: Array<{ label: string; count: number; amount: string }>;
@@ -1135,7 +1321,8 @@ export interface RegistrationSummaryContent {
   timeline: Array<{ day: string; count: number }>;
   hasTimeline: boolean;
   tshirts: Array<{ size: string; count: number }> | null;
-  participantsHref: string;
+  /** The organizers' participant list; null on the administrator's view. */
+  participantsHref: string | null;
 }
 
 export interface EmailParticipantsContent {
@@ -1192,6 +1379,8 @@ interface EventRow {
   prize_money_total_cents: number | null;
   prize_money_currency: string | null;
   cancel_reason: string | null;
+  /** When the event first opened for registration, if it has. */
+  reg_opened_at: string | null;
   tag_normalized: string;
 }
 
@@ -1224,13 +1413,34 @@ interface GameRow {
   allows_masters: number;
 }
 
-const DISCIPLINE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: 'net', label: 'Net' },
-  { value: 'freestyle', label: 'Freestyle' },
-  { value: 'golf', label: 'Golf' },
-  { value: 'consecutives', label: 'Consecutives' },
-  { value: 'x_square', label: 'X-Square' },
-];
+const DISCIPLINE_OPTIONS: Array<{ value: string; label: string }> = sportOptions(CURRENT_SPORTS);
+
+// The event page names every category a division can carry, a past event's
+// sideline divisions included, which the division form does not offer.
+
+/**
+ * The event's divisions grouped by competition category, each group in the
+ * order its first division appears, so a visitor reads how many are entered
+ * in each category and division. Standings, which rank over the contests,
+ * form one unnamed group after every contest, whatever category they carry.
+ */
+export function groupDisciplinesByCategory(disciplines: PublicEventDiscipline[]): PublicDisciplineGroup[] {
+  const groups = new Map<string, PublicDisciplineGroup>();
+  const standings: PublicEventDiscipline[] = [];
+  for (const d of disciplines) {
+    if (d.isAggregateStanding) { standings.push(d); continue; }
+    const key = d.disciplineCategory ?? '';
+    let group = groups.get(key);
+    if (!group) {
+      group = { label: d.disciplineCategory ? sportLabel(d.disciplineCategory) : null, disciplines: [] };
+      groups.set(key, group);
+    }
+    group.disciplines.push(d);
+  }
+  const ordered = [...groups.values()];
+  if (standings.length > 0) ordered.push({ label: null, disciplines: standings });
+  return ordered;
+}
 
 const TEAM_TYPES = [
   { value: 'singles', label: 'Singles', flag: 'allows_singles' },
@@ -1442,7 +1652,7 @@ function resolveDivisionGame(source: { gameId: string | null; customName: string
   if (!customName) throw new ValidationError('Name the game, or choose one from the list.');
   if (customName.length > 60) throw new ValidationError('The game name must be 60 characters or fewer.');
   const discipline = DISCIPLINE_OPTIONS.find((d) => d.value === source.customDiscipline)?.value;
-  if (!discipline) throw new ValidationError('Choose the discipline the game belongs to.');
+  if (!discipline) throw new ValidationError('Choose the sport the game belongs to.');
   return { gameId: null, customName, discipline, gameName: customName, game: null };
 }
 
@@ -1457,16 +1667,16 @@ function validateDivisionParts(resolved: ResolvedGame, input: DivisionInput): {
   const gender = GENDERS.find((g) => g.value === input.gender);
   const divisionClass = CLASSES.find((c) => c.value === input.divisionClass);
   if (!teamType || !admits(resolved.game, teamType.flag)) {
-    throw new ValidationError(`Choose an entry size ${resolved.gameName} is played in.`);
+    throw new ValidationError(`Choose singles or doubles, as ${resolved.gameName} is played.`);
   }
   if (!gender || !admits(resolved.game, gender.flag)) {
     throw new ValidationError(`Choose who may enter, from what ${resolved.gameName} offers.`);
   }
   if (gender.value === 'mixed' && teamType.value !== 'doubles') {
-    throw new ValidationError('A mixed division is played in doubles.');
+    throw new ValidationError('A mixed competition is played in doubles.');
   }
   if (!divisionClass || !admits(resolved.game, divisionClass.flag)) {
-    throw new ValidationError(`Choose a class ${resolved.gameName} offers.`);
+    throw new ValidationError(`Choose a skill level ${resolved.gameName} offers.`);
   }
   return {
     teamType: teamType.value, gender: gender.value, divisionClass: divisionClass.value,
@@ -1508,7 +1718,7 @@ function divisionPartsStep(
     genders: choose(GENDERS, existing?.gender_eligibility ?? null),
     classes: choose(CLASSES, existing?.division_class ?? null),
     offersPrizeMoney: existing?.offers_prize_money === 1,
-    submitLabel: existing ? 'Save Division' : 'Add Division',
+    submitLabel: existing ? 'Save Competition' : 'Add Competition',
   };
 }
 
@@ -1521,11 +1731,17 @@ const WITHDRAWN_BY_MEMBER = 'Withdrawn by the member';
 const EVENT_CHECKOUT_UNSETTLED =
   'We are still confirming your last registration payment. Please try again in a few minutes.';
 const REGISTRATION_AWAITS_PAYMENT =
-  'Your registration is waiting for payment. Submit it again to return to checkout, or change it to start a new checkout.';
+  'Your registration is awaiting payment. Submit it again to return to checkout, or change it to start a new checkout.';
 const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const PARTNER_NAME_MAX = 100;
+// The registration form's id, which its partner pickers' buttons submit.
+const REGISTER_FORM_ID = 'event-register-form';
+// The manage page's add-organizer form, which its organizer picker submits.
+const ADD_ORGANIZER_FORM_ID = 'add-organizer-form';
 
-interface MemberRow { id: string; display_name: string; slug: string; gender: string | null }
+interface MemberRow {
+  id: string; display_name: string; slug: string; gender: string | null;
+  city: string | null; region: string | null; country: string | null;
+}
 
 interface OwnRegistrationRow {
   id: string;
@@ -1537,6 +1753,7 @@ interface OwnRegistrationRow {
   cancel_reason: string | null;
   payment_id: string | null;
   payment_status: string | null;
+  paid_at_event_at: string | null;
 }
 
 /** The fee a registration type carries on this event, or null when it is free. */
@@ -1577,7 +1794,7 @@ function formatFee(cents: number, currency: string): string {
 function sameRegistration(
   own: OwnRegistrationRow,
   type: RegistrationType,
-  entries: Array<{ division: { id: string }; partnerMemberId: string | null; partnerName: string | null; amateur: boolean }>,
+  entries: Array<{ division: { id: string }; partnerMemberId: string | null; amateur: boolean }>,
   tshirtSize: string | null,
 ): boolean {
   if (own.registration_type !== type || own.tshirt_size !== tshirtSize) return false;
@@ -1585,7 +1802,6 @@ function sameRegistration(
   if (held.length !== entries.length) return false;
   return entries.every((e) => held.some((s) => s.discipline_id === e.division.id
     && s.partner_member_id === e.partnerMemberId
-    && (s.partner_member_id !== null || s.partner_display_name === e.partnerName)
     && (s.enters_as_amateur === 1) === e.amateur));
 }
 
@@ -1597,12 +1813,8 @@ function heldRegistrationInput(own: OwnRegistrationRow): RegistrationInput {
     divisionIds: held.map((s) => s.discipline_id),
     amateurIds: held.filter((s) => s.enters_as_amateur === 1).map((s) => s.discipline_id),
     partners: held
-      .filter((s) => s.partner_member_id !== null || s.partner_display_name !== null)
-      .map((s) => ({
-        divisionId: s.discipline_id,
-        key: s.partner_member_slug ?? '',
-        name: s.partner_member_id === null ? s.partner_display_name ?? '' : '',
-      })),
+      .filter((s) => s.partner_member_id !== null)
+      .map((s) => ({ divisionId: s.discipline_id, memberId: s.partner_member_id ?? '' })),
     tshirtSize: own.tshirt_size ?? '',
   };
 }
@@ -1611,7 +1823,6 @@ interface SelectionRow {
   discipline_id: string;
   division_name: string;
   partner_member_id: string | null;
-  partner_display_name: string | null;
   enters_as_amateur: number;
   partner_member_name: string | null;
   partner_member_slug: string | null;
@@ -1622,8 +1833,11 @@ export interface RegistrationInput {
   type: string;
   divisionIds: string[];
   amateurIds: string[];
-  /** One entry per doubles division the form showed, in the form's order. */
-  partners: Array<{ divisionId: string; key: string; name: string }>;
+  /**
+   * The member chosen as partner for each doubles division, by member id; a
+   * division with no partner chosen yet carries an empty id.
+   */
+  partners: Array<{ divisionId: string; memberId: string }>;
   tshirtSize: string;
 }
 
@@ -1631,9 +1845,8 @@ export interface RegisterDivisionView {
   id: string;
   name: string;
   checked: boolean;
-  isDoubles: boolean;
-  partnerKey: string;
-  partnerName: string;
+  /** The partner picker of a doubles division; null for a singles one. */
+  partnerPicker: MemberPickerView | null;
   offersPrizeMoney: boolean;
   amateur: boolean;
   /** Shown beside a gender-gated division when the viewer has not declared a gender. */
@@ -1642,6 +1855,7 @@ export interface RegisterDivisionView {
 }
 
 export interface RegisterEventContent {
+  formId: string;
   formAction: string;
   cancelHref: string;
   eventDates: string;
@@ -1666,23 +1880,9 @@ export type RegisterPageResult =
   | { branch: 'form'; page: PageViewModel<RegisterEventContent> }
   | { branch: 'already_registered' | 'not_open'; message: string };
 
-/**
- * The last day a member can register or withdraw: the registration deadline,
- * or the start date when none is set. Exported for unit testing.
- */
-export function registrationCutoff(event: { registration_deadline: string | null; start_date: string }): string {
-  return event.registration_deadline ?? event.start_date;
-}
-
-/** Whether a member can register for the event on the given day. Exported for unit testing. */
-export function isRegistrationOpen(
-  event: { status: string; registration_status: string; registration_deadline: string | null; start_date: string },
-  todayIso: string,
-): boolean {
-  return event.status === 'reg_open'
-    && event.registration_status === 'open'
-    && todayIso.slice(0, 10) <= registrationCutoff(event);
-}
+// The cutoff and the open check live with the event listing shaping, which the
+// member profile shares; re-exported here for the registration code and its tests.
+export { registrationCutoff, isRegistrationOpen };
 
 /**
  * The registration types a member can choose here: competitor always, and
@@ -1707,45 +1907,74 @@ function declaredGender(gender: string | null): DeclaredGender {
   return gender === 'male' || gender === 'female' ? gender : null;
 }
 
-const GENDER_NEEDED = 'This division needs a declared gender. Set your gender on your profile to enter it.';
+const GENDER_NEEDED = 'To enter this competition, set your gender on your profile.';
 
 /**
- * Whether an entry may play a division, by the division's gender part. Gender is
- * checked only between member profiles; a typed partner's eligibility is the
- * organizer's to check at check-in. Returns the refusal, or null when the entry
- * is eligible. Exported for unit testing.
+ * Whether an entry may play a division, by the division's gender part, checked
+ * between the registrant's profile and the partner member's (null for a
+ * singles entry). Returns the refusal, or null when the entry is eligible.
+ * `entrantName` is given when an organizer or administrator enters someone
+ * else, so the refusal names that member instead of addressing the reader
+ * as the one whose profile needs changing. Exported for unit testing.
  */
 export function checkDivisionEligibility(
   division: { name: string; gender_eligibility: string | null },
   selfGender: string | null,
-  partner: { kind: 'member'; gender: string | null } | { kind: 'named' } | null,
+  partner: { gender: string | null } | null,
+  entrantName: string | null = null,
 ): string | null {
   const rule = division.gender_eligibility;
   if (rule !== 'women' && rule !== 'mixed') return null;
   const self = declaredGender(selfGender);
-  if (self === null) return GENDER_NEEDED;
+  if (self === null) {
+    return entrantName === null
+      ? `To enter ${division.name}, set your gender on your profile.`
+      : `To enter ${division.name}, ${entrantName} needs to set their gender on their profile.`;
+  }
   if (rule === 'women' && self !== 'female') return `${division.name} is for women.`;
-  if (partner?.kind === 'member') {
+  if (partner) {
     const other = declaredGender(partner.gender);
     if (rule === 'women' && other !== 'female') {
-      return `${division.name} needs a partner who has declared female on their profile.`;
+      return `${division.name} is for women, so the partner's profile must say female.`;
     }
     if (rule === 'mixed' && (other === null || other === self)) {
-      return `${division.name} needs one male and one female partner, as declared on your profiles.`;
+      return entrantName === null
+        ? `${division.name} is for one man and one woman, going by the gender on your profiles.`
+        : `${division.name} is for one man and one woman, going by the gender on their profiles.`;
     }
   }
   return null;
 }
 
-// A member typed by id or by profile URL, as the organizer and partner fields take it.
-function memberKeyFrom(typed: string): string {
-  return typed.trim().replace(/^.*\/members\//, '').replace(/\/+$/, '');
+// A member the member search can offer, by id, as a picker's Choose posts it:
+// a doubles partner or a co-organizer. A member search does not list is
+// refused, so nobody is chosen whom the form could not have offered.
+function findSearchableMember(memberId: string): MemberRow | null {
+  const id = memberId.trim();
+  if (!id) return null;
+  return (eventRegistrations.findSearchableMemberById.get(id) as MemberRow | undefined) ?? null;
 }
 
-function findMemberByTypedKey(typed: string): MemberRow | null {
-  const key = memberKeyFrom(typed);
-  if (!key) return null;
-  return (eventRegistrations.findMemberByKey.get(key, key) as MemberRow | undefined) ?? null;
+function toPickerMember(m: MemberRow): PickerMember {
+  return { memberId: m.id, displayName: m.display_name, location: personLocation(m.city, m.region, m.country)?.text ?? null };
+}
+
+/** What a picker control of a form asked for, with its search text and the caller's address. */
+export interface PickerRequest {
+  intent: PickIntent | null;
+  query: string;
+  ip: string;
+}
+
+// The member search a picker runs, only when its intent is that picker's search.
+function runPickerSearch(
+  picker: PickerRequest | undefined, key: string, actorMemberId: string, excludeMemberIds: readonly string[],
+): PickerSearchOutcome | null {
+  if (!picker || picker.intent?.kind !== 'search' || picker.intent.key !== key) return null;
+  return pickerSearchOutcome(memberService.searchMembers(
+    picker.query, { actorMemberId, ip: picker.ip },
+    { limit: PICKER_LIMIT, includeHistorical: false, excludeMemberIds, fullLocation: true },
+  ));
 }
 
 // ── Sanction request and decision ─────────────────────────────────────────
@@ -1755,7 +1984,7 @@ const SANCTION_GUIDELINES_PATH = '/ifpa/sanctioning-guidelines';
 const SANCTION_LONG_TEXT_MAX = 2000;
 const SANCTION_SHORT_TEXT_MAX = 500;
 const SANCTION_DECISION_TEXT_MAX = 500;
-const SANCTION_TIER_NOTE = 'Requesting sanction takes a Tier 2 or Tier 3 membership.';
+const SANCTION_TIER_NOTE = 'Requesting sanction takes Tier 2 (IFPA Organizer Member) or Tier 3 (IFPA Director).';
 const SANCTION_SELF_DECIDE =
   'You organize this event, so you cannot decide its sanction request. Another administrator must decide.';
 const SANCTION_TIER_LAPSED =
@@ -1888,10 +2117,10 @@ function readSanctionForm(
     if (!/^[A-Z]{3}$/.test(currency)) fieldErrors.prize_currency = 'Enter a three-letter currency code, such as USD.';
     else prizeCurrency = currency;
     if (prizeDivisions === 0) {
-      fieldErrors.prize_money = 'Mark at least one division as offering prize money on the manage page.';
+      fieldErrors.prize_money = 'Mark at least one competition as offering prize money on the manage page.';
     }
   } else if (prizeDivisions > 0) {
-    fieldErrors.prize_money = 'A division offers prize money. Choose yes, or change that division on the manage page.';
+    fieldErrors.prize_money = 'A competition offers prize money. Choose yes, or change that competition on the manage page.';
   }
 
   const entryFeeIncludes = boundedText(values.entryFeeIncludes, 'single_line', 'entry_fee_includes', SANCTION_SHORT_TEXT_MAX, fieldErrors);
@@ -1981,7 +2210,7 @@ export function missingSanctionDivisions(
 
 function sanctionDivisionWarning(missing: string[]): string | null {
   if (missing.length === 0) return null;
-  return `Sanctioned tournaments must offer a Women's and an Intermediate division in every competition category. Missing: ${missing.join('; ')}. You can still submit; an administrator decides.`;
+  return `Sanctioned tournaments must offer a Women's and an Intermediate division in each format, such as Singles Net and Doubles Net. Missing: ${missing.join('; ')}. You can still submit; an administrator decides.`;
 }
 
 // A reason is shown inside a sentence that supplies its own full stop.
@@ -2043,6 +2272,8 @@ interface EventRegistrationRow {
   cancel_reason: string | null;
   payment_id: string | null;
   payment_status: string | null;
+  paid_at_event_at: string | null;
+  tshirt_size: string | null;
   display_name: string;
 }
 
@@ -2064,6 +2295,7 @@ interface ParticipantRow {
   tier_status: string | null;
   is_active_player: number | null;
   payment_status: string | null;
+  paid_at_event_at: string | null;
   entries: ParticipantEntryView[];
 }
 
@@ -2089,8 +2321,26 @@ function requireReason(raw: string): string {
   return cleaned.text;
 }
 
-/** How a registration's payment reads to its organizers. */
-function paymentLabel(status: string | null): string {
+const PAID_AT_EVENT = 'Paid at the event';
+
+const NOT_PAID = 'Not paid';
+
+/**
+ * How a registration's payment reads to its organizers. A fee collected at
+ * the event's table reads as such unless an online payment also succeeded. A
+ * confirmed registration whose type carries a fee, with no payment and no
+ * such mark, has not paid; "No fee" is only for a type that charges none.
+ */
+function feeOwed(
+  event: { competitor_fee_cents: number | null; attendee_fee_cents: number | null },
+  r: { status: string; registration_type: RegistrationType },
+): boolean {
+  return r.status === 'confirmed' && registrationFeeCents(event, r.registration_type) !== null;
+}
+
+function paymentLabel(status: string | null, paidAtEventAt: string | null = null, feeOwed = false): string {
+  if (paidAtEventAt !== null && status !== 'succeeded') return PAID_AT_EVENT;
+  if (status === null && feeOwed) return NOT_PAID;
   switch (status) {
     case null: return 'No fee';
     case 'succeeded': return 'Paid';
@@ -2102,8 +2352,116 @@ function paymentLabel(status: string | null): string {
   }
 }
 
+// The payment statuses every charging event's summary lists, zero or not.
+const SUMMARY_PAYMENT_STATUSES = ['succeeded', 'pending', 'failed'];
+
+/**
+ * Confirmed registrations for every day from registration opening to today,
+ * a day without one shown as zero. With no opening date on record the first
+ * registration's day starts it; with neither there is nothing to show.
+ * Exported for unit testing.
+ */
+export function registrationTimeline(
+  days: Array<{ day: string; registered: number }>, regOpenedAt: string | null, now: Date,
+): Array<{ day: string; count: number }> {
+  const start = regOpenedAt?.slice(0, 10) ?? days[0]?.day;
+  if (!start) return [];
+  const today = now.toISOString().slice(0, 10);
+  const last = days.length > 0 && days[days.length - 1].day > today ? days[days.length - 1].day : today;
+  const counts = new Map(days.map((d) => [d.day, d.registered]));
+  const out: Array<{ day: string; count: number }> = [];
+  for (let d = new Date(`${start}T00:00:00.000Z`); d.toISOString().slice(0, 10) <= last; d.setUTCDate(d.getUTCDate() + 1)) {
+    const day = d.toISOString().slice(0, 10);
+    out.push({ day, count: counts.get(day) ?? 0 });
+  }
+  return out;
+}
+
 function eventBasePath(event: { tag_normalized: string }): string {
   return `/events/${encodeURIComponent(event.tag_normalized.slice(1))}`;
+}
+
+// ── Corrections at the event: Add Entrant and Edit Entry ───────────────────
+
+const PARTICIPANT_ADD_FORM_ID = 'participant-add-form';
+const PARTICIPANT_EDIT_FORM_ID = 'participant-edit-form';
+const CORRECTIONS_CLOSED = 'Corrections close once results are uploaded.';
+const ENTRANT_NEEDED = 'Search for the entrant by name and choose them.';
+const WALK_UP_HINT = 'A walk-up creates a free account on their phone and finishes signing up, then appears here.';
+
+/**
+ * An entry as its audit row records it: the divisions entered, the partner
+ * each doubles division names (member ids), and whether a fee was collected
+ * at the event. Ids only, so the trail names nobody.
+ */
+interface EntrySnapshot {
+  division_ids: string[];
+  partners: Record<string, string | null>;
+  paid_at_event: boolean;
+}
+
+interface ResolvedEntry {
+  division: DivisionRow;
+  partner: MemberRow | null;
+  amateur: boolean;
+}
+
+function snapshotOf(
+  entries: ReadonlyArray<{ divisionId: string; partnerId: string | null }>, paidAtEvent: boolean,
+): EntrySnapshot {
+  const sorted = [...entries].sort((a, b) => a.divisionId.localeCompare(b.divisionId));
+  return {
+    division_ids: sorted.map((e) => e.divisionId),
+    partners: Object.fromEntries(sorted.map((e) => [e.divisionId, e.partnerId])),
+    paid_at_event: paidAtEvent,
+  };
+}
+
+function heldSnapshot(held: readonly SelectionRow[], paidAtEventAt: string | null): EntrySnapshot {
+  return snapshotOf(held.map((s) => ({ divisionId: s.discipline_id, partnerId: s.partner_member_id })), paidAtEventAt !== null);
+}
+
+function resolvedSnapshot(entries: readonly ResolvedEntry[], paidAtEvent: boolean): EntrySnapshot {
+  return snapshotOf(entries.map((e) => ({ divisionId: e.division.id, partnerId: e.partner?.id ?? null })), paidAtEvent);
+}
+
+function sameSnapshot(a: EntrySnapshot, b: EntrySnapshot): boolean {
+  return a.paid_at_event === b.paid_at_event
+    && a.division_ids.length === b.division_ids.length
+    && a.division_ids.every((id, i) => id === b.division_ids[i] && (a.partners[id] ?? null) === (b.partners[id] ?? null));
+}
+
+// The entry as the member's own registration summary reads it, for the
+// confirm page's before and after.
+function entriesText(s: EntrySnapshot, divisionName: (id: string) => string, memberName: (id: string) => string): string {
+  if (s.division_ids.length === 0) return '(none)';
+  return s.division_ids.map((id) => {
+    const partner = s.partners[id];
+    return partner ? `${divisionName(id)} with ${memberName(partner)}` : divisionName(id);
+  }).join(', ');
+}
+
+/** What a correction changed, in words, for the outcome line and the member's email. */
+function entryChangePhrase(
+  before: EntrySnapshot, after: EntrySnapshot, divisionName: (id: string) => string, memberName: (id: string) => string,
+): string {
+  const parts: string[] = [];
+  for (const id of after.division_ids) {
+    if (!before.division_ids.includes(id)) parts.push(`${divisionName(id)} added`);
+  }
+  for (const id of before.division_ids) {
+    if (!after.division_ids.includes(id)) parts.push(`${divisionName(id)} removed`);
+  }
+  for (const id of after.division_ids) {
+    if (!before.division_ids.includes(id)) continue;
+    const was = before.partners[id] ?? null;
+    const now = after.partners[id] ?? null;
+    if (was === now) continue;
+    parts.push(now ? `${divisionName(id)} partner ${memberName(now)}` : `${divisionName(id)} partner removed`);
+  }
+  if (!before.paid_at_event && after.paid_at_event) parts.push('paid at the event');
+  if (before.paid_at_event && !after.paid_at_event) parts.push('paid at the event taken back');
+  return parts.join(', ');
 }
 
 // ── Results and attendance helpers ─────────────────────────────────────────
@@ -2173,7 +2531,6 @@ export interface ResultsUploadInput {
   filename: string;
   ties: string[];
   contested: string[];
-  acceptUnmatched: boolean;
 }
 
 export type CommitResultsResult = {
@@ -2230,15 +2587,13 @@ function toResultsPreviewView(input: ResultsUploadInput, result: ResultsPreview,
     })),
     ties,
     contested,
-    unmatchedCount: result.unmatchedCount,
-    acceptUnmatchedChecked: input.acceptUnmatched,
     // Only sanctioning makes every division's results owed, so only a
     // sanctioned event is told so.
     missingDivisionsText: result.missingDivisions.length > 0
       ? `No results for: ${result.missingDivisions.join(', ')}. `
         + (isSanctioned
-          ? 'A sanctioned event owes results for every division it ran; leave out only a division that did not run.'
-          : 'Leave out only a division that did not run.')
+          ? 'A sanctioned event owes results for every competition it ran; leave out only a competition that did not run.'
+          : 'Leave out only a competition that did not run.')
       : null,
     rowCount: result.rowCount,
     committable: result.committable,
@@ -2281,18 +2636,18 @@ const CORRECTION_LABELS: Record<string, string> = Object.fromEntries([
   ['country', 'country'],
   ['registration_deadline', 'registration deadline'],
   ['is_tshirt_size_collected', 'collecting t-shirt sizes'],
-  ['is_attendee_registration_open', 'accepting Attendee/Supporter registrations'],
+  ['is_attendee_registration_open', 'letting spectators register'],
   ['competitor_fee_cents', 'competitor fee'],
-  ['attendee_fee_cents', 'Attendee or Supporter fee'],
+  ['attendee_fee_cents', 'spectator fee'],
   ['sanction_status', 'IFPA sanction'],
   ['payment_enabled', 'online payment'],
-  ['division_name', 'division name'],
-  ['team_type', 'entry size'],
+  ['division_name', 'competition name'],
+  ['team_type', 'singles or doubles'],
   ['gender_eligibility', 'who may enter'],
-  ['division_class', 'class'],
+  ['division_class', 'skill level'],
   ['offers_prize_money', 'prize money'],
-  ['division', 'division'],
-  ['division_entries', 'entries in the division'],
+  ['division', 'competition'],
+  ['division_entries', 'entries in the competition'],
 ]);
 
 const FLAG_FIELDS = new Set(['is_tshirt_size_collected', 'is_attendee_registration_open', 'payment_enabled', 'offers_prize_money']);
@@ -2391,7 +2746,34 @@ export class EventService {
   listPublicUpcomingEvents(nowIso: string): PublicEventSummary[] {
     return runSqliteRead('listPublicUpcomingEvents', () => {
       const rows = publicEvents.listUpcoming.all(nowIso) as PublicEventSummaryRow[];
-      return rows.map(toPublicEventSummary);
+      return rows.map((row) => toPublicEventSummary(row, nowIso));
+    });
+  }
+
+  /** Upcoming public events as listed items, sorted by start date. */
+  listUpcomingEventItems(nowIso: string): DatedItemView[] {
+    return runSqliteRead('listUpcomingEventItems', () => {
+      const rows = publicEvents.listUpcoming.all(nowIso) as PublicEventSummaryRow[];
+      const covers = eventCoverPhotos(rows.map((row) => row.event_id));
+      return rows.map((row) => toEventDatedItem(row, {
+        todayIso: nowIso,
+        galleryHref: mediaService.getEntityGalleryHref(row.tag_normalized),
+        thumbUrl: covers.get(row.event_id)?.thumbUrl ?? null,
+      }));
+    });
+  }
+
+  /** One year's completed public events as listed items, sorted by start date. */
+  listCompletedEventItemsByYear(year: number): DatedItemView[] {
+    assertArchiveYear(year);
+    return runSqliteRead('listCompletedEventItemsByYear', () => {
+      const rows = publicEvents.listCompletedByYear.all(year) as PublicCompletedEventSummaryRow[];
+      const covers = eventCoverPhotos(rows.map((row) => row.event_id));
+      return rows.map((row) => toEventDatedItem(row, {
+        todayIso: '',
+        galleryHref: mediaService.getEntityGalleryHref(row.tag_normalized),
+        thumbUrl: covers.get(row.event_id)?.thumbUrl ?? null,
+      }));
     });
   }
 
@@ -2470,6 +2852,7 @@ export class EventService {
   }
 
   getPublicEventsLandingPage(nowIso: string): PageViewModel<EventsLandingContent> {
+    const currentYear = Number(nowIso.slice(0, 4));
     return {
       seo: { title: 'Events' },
       page: {
@@ -2480,7 +2863,9 @@ export class EventService {
       },
       content: {
         featuredPromo: this.getFeaturedPromo(nowIso) ?? undefined,
-        upcomingEvents: this.listPublicUpcomingEvents(nowIso),
+        upcomingEvents: this.listUpcomingEventItems(nowIso),
+        currentYear,
+        currentYearEvents: this.listCompletedEventItemsByYear(currentYear),
         archiveYears: this.listPublicArchiveYears(),
         organizerLinks: { guidelinesHref: SANCTION_GUIDELINES_PATH },
       },
@@ -2504,10 +2889,11 @@ export class EventService {
           previous: previousYear !== null ? { label: String(previousYear), href: `/events/year/${previousYear}` } : undefined,
           next: nextYear !== null ? { label: String(nextYear), href: `/events/year/${nextYear}` } : undefined,
         },
+        contextLinks: [{ label: 'Back to Footbag Events', href: '/events' }],
       },
       content: {
         year,
-        events: this.listPublicCompletedEventsByYear(year),
+        events: this.listCompletedEventItemsByYear(year),
       },
     };
   }
@@ -2551,6 +2937,10 @@ export class EventService {
     const backLink = detail.event.status === 'completed'
       ? { label: `Back to Completed Events From ${year}`, href: `/events/year/${year}` }
       : { label: 'Back to Footbag Events', href: '/events' };
+    // The cover is the page's share image too, absolute because a social
+    // preview is fetched from outside the site.
+    const cover = runSqliteRead('eventCoverPhoto', () => eventCoverPhotos([detail.event.eventId]))
+      .get(detail.event.eventId) ?? null;
     return {
       seo: {
         title: detail.event.standardTagDisplay,
@@ -2558,12 +2948,22 @@ export class EventService {
         // when and where whether or not the organizer wrote a description.
         description: `${detail.event.title}, ${eventDatesPhrase(detail.event.startDate, detail.event.endDate)}, `
           + `${[detail.event.city, detail.event.region, detail.event.country].filter((p) => p).join(', ')}.`,
+        ...(cover ? { imageUrl: cover.absoluteDisplayUrl } : {}),
       },
       page: { sectionKey: 'events', pageKey: 'event_detail', title: detail.event.title },
       navigation: {
         contextLinks: [backLink],
       },
-      content: { ...detail, organizers, registration, notice: opts.notice ?? null },
+      content: {
+        ...detail,
+        disciplineGroups: groupDisciplinesByCategory(detail.disciplines),
+        dateRange: eventDateRange(detail.event.startDate, detail.event.endDate),
+        showResults: !isUpcoming,
+        organizers,
+        registration,
+        notice: opts.notice ?? null,
+        coverPhoto: cover ? coverPhotoImage(cover, detail.event.title) : null,
+      },
     };
   }
 
@@ -2574,7 +2974,7 @@ export class EventService {
     const today = new Date().toISOString();
     const own = eventRegistrations.findForMember.get(event.id, memberId) as OwnRegistrationRow | undefined;
     const holds = own && own.status !== 'canceled';
-    const open = isRegistrationOpen(event, today) && offeredRegistrationTypes(event).length > 0;
+    const open = isRegistrationOpen(event, today) && this.typesFor(event, own).length > 0;
     const canRegister = !holds && open;
 
     const registrants = eventRegistrations.listConfirmedForEvent.all(event.id) as Array<{
@@ -2594,7 +2994,7 @@ export class EventService {
       const selections = eventRegistrations.listSelectionsForRegistration.all(own.id) as SelectionRow[];
       mine = {
         typeLabel: REGISTRATION_TYPE_LABELS[own.registration_type],
-        statusLabel: own.status === 'pending' ? 'Waiting for payment' : null,
+        statusLabel: own.status === 'pending' ? 'Awaiting payment' : null,
         entries: selections.map(toEntryView),
         tshirtSize: own.tshirt_size,
         withdrawAction: today.slice(0, 10) <= registrationCutoff(event) ? `${base}/withdraw` : null,
@@ -2619,11 +3019,16 @@ export class EventService {
   /**
    * The registration form for a signed-in member, or why it is not on offer:
    * they already hold a registration, or the event is not taking them now.
+   * `form` is what the member submitted, shown again with the refusal, or
+   * with no message when a partner picker control asked for the form again;
+   * `picker` is that control's request. Nothing is written, though a search
+   * spends a member-search slot.
    */
   getRegisterPage(
     eventKey: string,
     memberId: string,
-    form?: { input: RegistrationInput; message: string },
+    form?: { input: RegistrationInput; message: string | null },
+    picker?: PickerRequest,
   ): RegisterPageResult {
     const event = this.requirePublicEvent(eventKey);
     const own = eventRegistrations.findForMember.get(event.id, memberId) as OwnRegistrationRow | undefined;
@@ -2635,7 +3040,7 @@ export class EventService {
     if (!isRegistrationOpen(event, new Date().toISOString()) || types.length === 0) {
       return { branch: 'not_open', message: REGISTRATION_NOT_OPEN };
     }
-    const self = eventRegistrations.findMemberByKey.get(memberId, memberId) as MemberRow | undefined;
+    const self = eventRegistrations.findMemberById.get(memberId) as MemberRow | undefined;
     const base = `/events/${encodeURIComponent(eventKey)}`;
     // A registration waiting at checkout comes back as it was submitted, so
     // submitting it unchanged returns to that checkout.
@@ -2648,12 +3053,41 @@ export class EventService {
     const divisions = (eventWrites.listDivisions.all(event.id) as DivisionRow[]);
     const chosenType = input?.type ?? types[0];
     const tshirt = input?.tshirtSize ?? '';
+    const formAction = `${base}/register`;
+    const intent = picker?.intent ?? null;
+    // Each doubles division's partner: the member a Choose just named, else the
+    // one the form carried. An id the search could not offer is dropped, so
+    // the form never shows or posts back a partner the registration refuses.
+    const partnerPicker = (d: DivisionRow): MemberPickerView => {
+      const key = `partner-${d.id}`;
+      const chosenId = intent?.kind === 'choose' && intent.key === key
+        ? intent.memberId
+        : input?.partners.find((p) => p.divisionId === d.id)?.memberId ?? '';
+      const partner = chosenId !== '' ? findSearchableMember(chosenId) : null;
+      return buildMemberPicker({
+        formId: REGISTER_FORM_ID,
+        formAction,
+        fieldName: 'partner',
+        fieldKey: key,
+        label: 'Partner',
+        searchLabel: "Partner's name",
+        openLabel: 'Choose Partner',
+        rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name} as partner for ${d.name}` },
+        chosen: partner && partner.id !== memberId ? toPickerMember(partner) : null,
+        intent,
+        openOnLoad: false,
+        query: picker?.query ?? '',
+        search: runPickerSearch(picker, key, memberId, [memberId]),
+        notFoundHint: 'Your partner needs a footbag.org account and must appear in member search.',
+      });
+    };
     const page: PageViewModel<RegisterEventContent> = {
       seo: { title: `Register for ${event.title}`, noindex: true },
       page: { sectionKey: 'events', pageKey: 'event_register', title: `Register for ${event.title}` },
       navigation: { contextLinks: [{ label: `Back to ${event.title}`, href: base }] },
       content: {
-        formAction: `${base}/register`,
+        formId: REGISTER_FORM_ID,
+        formAction,
         cancelHref: base,
         eventDates: eventDatesPhrase(event.start_date, event.end_date),
         typeChoices: types.length > 1
@@ -2663,15 +3097,12 @@ export class EventService {
         impliedType: types.length === 1 ? types[0] : null,
         showDivisions: types.includes('competitor') && divisions.length > 0,
         divisions: divisions.map((d) => {
-          const partner = input?.partners.find((p) => p.divisionId === d.id);
           const gated = d.gender_eligibility === 'women' || d.gender_eligibility === 'mixed';
           return {
             id: d.id,
             name: d.name,
             checked: input?.divisionIds.includes(d.id) ?? false,
-            isDoubles: d.team_type === 'doubles',
-            partnerKey: partner?.key ?? '',
-            partnerName: partner?.name ?? '',
+            partnerPicker: d.team_type === 'doubles' ? partnerPicker(d) : null,
             offersPrizeMoney: d.offers_prize_money === 1,
             amateur: input?.amateurIds.includes(d.id) ?? false,
             genderWarning: gated && declaredGender(self?.gender ?? null) === null ? GENDER_NEEDED : null,
@@ -2693,9 +3124,20 @@ export class EventService {
 
   // The types offered to this member: all the event offers, or only the type
   // they already paid for when they register again after withdrawing it.
+  // A competitor is offered only when the event has a division to enter, so
+  // an event with none says registration is not open rather than offering a
+  // form that refuses every competitor.
   private typesFor(event: EventRow, own: OwnRegistrationRow | undefined): RegistrationType[] {
     const paid = paidTypeHeld(own);
-    return offeredRegistrationTypes(event).filter((t) => paid === null || t === paid);
+    const enterable = this.hasEnterableDivision(event.id);
+    return offeredRegistrationTypes(event)
+      .filter((t) => paid === null || t === paid)
+      .filter((t) => t !== 'competitor' || enterable);
+  }
+
+  private hasEnterableDivision(eventId: string): boolean {
+    const rows = publicEvents.listDisciplinesByEventId.all(eventId) as Array<{ is_aggregate_standing: number }>;
+    return rows.some((d) => d.is_aggregate_standing !== 1);
   }
 
   // What registering as this type charges now: its fee, unless already paid.
@@ -2737,47 +3179,38 @@ export class EventService {
       tshirtSize = input.tshirtSize;
     }
 
-    const self = eventRegistrations.findMemberByKey.get(memberId, memberId) as MemberRow | undefined;
+    const self = eventRegistrations.findMemberById.get(memberId) as MemberRow | undefined;
     if (!self) throw new NotFoundError('Member not found.');
-    const entries: Array<{ division: DivisionRow; partnerMemberId: string | null; partnerName: string | null; amateur: boolean; view: RegistrationEntryView }> = [];
+    const entries: Array<{ division: DivisionRow; partnerMemberId: string | null; amateur: boolean; view: RegistrationEntryView }> = [];
     if (type === 'competitor') {
       const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
       const chosen = divisions.filter((d) => input.divisionIds.includes(d.id));
-      if (chosen.length === 0) throw new ValidationError('Choose at least one division to enter.');
+      if (chosen.length === 0) throw new ValidationError('Choose at least one competition to enter.');
       for (const division of chosen) {
-        let partner: Parameters<typeof checkDivisionEligibility>[2] = null;
         let partnerMember: MemberRow | null = null;
-        let partnerName: string | null = null;
         if (division.team_type === 'doubles') {
-          const typed = input.partners.find((p) => p.divisionId === division.id) ?? { key: '', name: '' };
-          const hasKey = typed.key.trim() !== '';
-          const cleanName = sanitizeUserText(typed.name, 'single_line');
-          const name = cleanName.status === 'ok' ? cleanName.text : '';
-          if (hasKey === (name !== '')) {
-            throw new ValidationError(`${division.name} is played in doubles: enter your partner's member id or profile URL, or their name if they are not a member.`);
+          const chosenId = input.partners.find((p) => p.divisionId === division.id)?.memberId ?? '';
+          if (chosenId.trim() === '') {
+            throw new ValidationError(`${division.name} is played in doubles: search for your partner by name and choose them.`);
           }
-          if (hasKey) {
-            partnerMember = findMemberByTypedKey(typed.key);
-            if (!partnerMember) throw new ValidationError(`No member has the id or profile URL you gave as your ${division.name} partner.`);
-            if (partnerMember.id === memberId) throw new ValidationError(`Your ${division.name} partner has to be someone else.`);
-            partner = { kind: 'member', gender: partnerMember.gender };
-          } else {
-            if (name.length > PARTNER_NAME_MAX) throw new ValidationError(`Your partner's name must be ${PARTNER_NAME_MAX} characters or fewer.`);
-            partnerName = name;
-            partner = { kind: 'named' };
+          if (chosenId.trim() === memberId) throw new ValidationError(`Your ${division.name} partner has to be someone else.`);
+          // Only a member the partner search can offer is a partner; any other
+          // id the form carries is refused as if no member had been chosen.
+          partnerMember = findSearchableMember(chosenId);
+          if (!partnerMember) {
+            throw new ValidationError(`Your ${division.name} partner must be a footbag.org member. Search for them by name and choose them.`);
           }
         }
-        const refusal = checkDivisionEligibility(division, self.gender, partner);
+        const refusal = checkDivisionEligibility(division, self.gender, partnerMember && { gender: partnerMember.gender });
         if (refusal) throw new ValidationError(refusal);
         const amateur = division.offers_prize_money === 1 && input.amateurIds.includes(division.id);
         entries.push({
           division,
           partnerMemberId: partnerMember?.id ?? null,
-          partnerName,
           amateur,
           view: {
             divisionName: division.name,
-            partnerName: partnerMember?.display_name ?? partnerName,
+            partnerName: partnerMember?.display_name ?? null,
             partnerHref: null,
             isAmateur: amateur,
           },
@@ -2791,7 +3224,7 @@ export class EventService {
         for (const e of entries) {
           eventRegistrations.insertSelection.run(
             `rsel_${newId()}`, at, memberId, at, memberId,
-            registrationId, e.division.id, e.partnerMemberId, e.partnerName, e.amateur ? 1 : 0,
+            registrationId, e.division.id, e.partnerMemberId, e.amateur ? 1 : 0,
           );
         }
       };
@@ -2856,7 +3289,7 @@ export class EventService {
       for (const e of entries) {
         eventRegistrations.insertSelection.run(
           `rsel_${newId()}`, now, memberId, now, memberId,
-          registrationId, e.division.id, e.partnerMemberId, e.partnerName, e.amateur ? 1 : 0,
+          registrationId, e.division.id, e.partnerMemberId, e.amateur ? 1 : 0,
         );
       }
       emailService.sendToMember({
@@ -2902,7 +3335,7 @@ export class EventService {
     // leaving this registration withdrawn.
     const releasePayment = awaitsCheckout(own) && await paymentService.closeEventRegistrationCheckout(own.payment_id);
 
-    const self = eventRegistrations.findMemberByKey.get(memberId, memberId) as MemberRow | undefined;
+    const self = eventRegistrations.findMemberById.get(memberId) as MemberRow | undefined;
     const organizers = eventOrganizers.listForEvent.all(event.id) as Array<{ member_id: string }>;
     transaction(() => {
       eventRegistrations.cancel.run(WITHDRAWN_BY_MEMBER, now, now, memberId, own.id);
@@ -2995,14 +3428,14 @@ export class EventService {
    */
   createEvent(actorMemberId: string, values: EventFormValues): CreateEventResult {
     if (!hasTier1Benefits(actorMemberId)) {
-      throw new ForbiddenError('Creating an event is a Tier 1 benefit.');
+      throw new ForbiddenError('Creating an event is a Tier 1 (IFPA Member) benefit.');
     }
     const fieldErrors: Record<string, string> = {};
     const isSanctioned = values.eventType === 'sanctioned';
     if (values.eventType !== 'free' && values.eventType !== 'sanctioned') {
       fieldErrors.event_type = 'Choose a free event or a sanctioned event.';
     } else if (isSanctioned && !isTier2Plus(actorMemberId)) {
-      fieldErrors.event_type = 'A sanctioned event, and any registration fee, takes a Tier 2 or Tier 3 membership.';
+      fieldErrors.event_type = 'A sanctioned event, and any registration fee, takes Tier 2 (IFPA Organizer Member) or Tier 3 (IFPA Director).';
     }
     const details = readEventDetails(values, isSanctioned, fieldErrors);
 
@@ -3118,7 +3551,12 @@ export class EventService {
     eventKey: string,
     viewerMemberId: string,
     query: { game?: string; customName?: string; customDiscipline?: string; editDivision?: string } = {},
-    opts: { notice?: OutcomeNoticeView | null; detailsForm?: { values: EventFormValues; fieldErrors: Record<string, string>; message: string } } = {},
+    opts: {
+      notice?: OutcomeNoticeView | null;
+      detailsForm?: { values: EventFormValues; fieldErrors: Record<string, string>; message: string };
+      /** A control of the organizer picker, drawing the page again with nothing saved. */
+      organizerPicker?: PickerRequest;
+    } = {},
   ): PageViewModel<ManageEventContent> {
     const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
     const base = `/events/${encodeURIComponent(event.tag_normalized.slice(1))}`;
@@ -3151,7 +3589,7 @@ export class EventService {
         sectionKey: 'events',
         pageKey: 'event_manage',
         title: `Manage ${event.title}`,
-        intro: 'Every organizer of this event can change its details, its divisions and its organizers.',
+        intro: 'Every organizer of this event can change its details, its competitions and its organizers.',
       },
       navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${encodeURIComponent(this.slugFor(organizers, viewerMemberId))}` }] },
       content: {
@@ -3191,9 +3629,27 @@ export class EventService {
           canRemove: o.member_id !== viewerMemberId,
           removeAction: `${base}/organizers/remove`,
         })),
-        canAddOrganizer: organizers.length < ORGANIZER_CAP,
         organizerCap: ORGANIZER_CAP,
         addOrganizerAction: `${base}/organizers`,
+        addOrganizerFormId: ADD_ORGANIZER_FORM_ID,
+        organizerPicker: organizers.length < ORGANIZER_CAP
+          ? buildMemberPicker({
+            formId: ADD_ORGANIZER_FORM_ID,
+            formAction: `${base}/organizers`,
+            fieldName: 'member_id',
+            fieldKey: 'organizer',
+            label: 'Organizer',
+            searchLabel: "New organizer's name",
+            openLabel: 'Add Organizer',
+            rowAction: { label: 'Add Organizer', completes: true, ariaLabel: (name) => `Add Organizer: ${name}` },
+            chosen: null,
+            intent: opts.organizerPicker?.intent ?? null,
+            openOnLoad: true,
+            query: opts.organizerPicker?.query ?? '',
+            search: runPickerSearch(opts.organizerPicker, 'organizer', viewerMemberId, organizers.map((o) => o.member_id)),
+            notFoundHint: null,
+          })
+          : null,
         stepDownAction: isSole ? null : `${base}/step-down`,
         onlineRegistration: event.status === 'reg_open'
           ? event.registration_status === 'open'
@@ -3220,7 +3676,7 @@ export class EventService {
               statusLine: !open
                 ? `Results can be uploaded from the event's last day, ${event.end_date}.`
                 : hasResults
-                  ? 'Results are published on the event page. You can upload results for a division that has none yet, and confirm who attended.'
+                  ? 'Results are published on the event page. You can upload results for a competition that has none yet, and confirm who attended.'
                   : `Upload the results, then confirm who attended. Results are due by ${obligations.deadline}.`,
               badge: obligations.showBadge ? SANCTION_BADGE_TEXT : null,
               uploadHref: open ? `${base}/results` : null,
@@ -3248,8 +3704,102 @@ export class EventService {
         terminalNote: event.status === 'canceled'
           ? 'This event was canceled. Its record is kept, and it takes no further changes.'
           : event.status === 'completed' ? 'This event\'s results are published, so it can no longer be canceled or deleted.' : null,
+        coverPhoto: this.coverPhotoSection(event, base, viewerMemberId),
       },
     };
+  }
+
+  // The manage page's Cover Photo section. The controls follow the Share Media
+  // gate, Tier 1 benefits, and a canceled event takes no changes.
+  private coverPhotoSection(event: EventRow, base: string, viewerMemberId: string): CoverPhotoSection {
+    const cover = eventCoverPhotos([event.id]).get(event.id) ?? null;
+    const mayChange = event.status !== 'canceled' && hasTier1Benefits(viewerMemberId);
+    return {
+      thumbUrl: cover?.thumbUrl ?? null,
+      thumbAlt: cover ? coverPhotoImage(cover, event.title).alt : '',
+      uploadAction: mayChange ? `${base}/cover-photo` : null,
+      removeAction: mayChange && cover ? `${base}/cover-photo/remove` : null,
+    };
+  }
+
+  /**
+   * Upload a photo and make it the event's cover. The photo is the organizer's
+   * own, tagged with the event's hashtag, through the Share Media photo path;
+   * the upload runs before, and outside, the transaction that moves the
+   * pointer. The earlier cover photo, if any, stays in the gallery. The same
+   * file submitted again is the first submit's success.
+   */
+  async uploadCoverPhoto(uploader: CoverPhotoUploader, eventKey: string, file: CoverPhotoFile): Promise<CoverPhotoChange> {
+    const event = this.requireOrganizedEvent(eventKey, uploader.memberId);
+    if (event.status === 'canceled') {
+      return { branch: 'refused', message: 'This event is canceled, so it can no longer be changed.', httpStatus: 422 };
+    }
+    const upload = await uploadEntityCoverPhoto(uploader, event.tag_normalized, file);
+    if (upload.status === 'refused') return refusedCoverChange(upload);
+    return this.pointCoverAt(uploader.memberId, eventKey, upload.mediaId);
+  }
+
+  // Move the event's cover pointer to a photo that carries its hashtag. A
+  // pointer already there is this organizer's own standing act, or a state
+  // another act left.
+  private pointCoverAt(actorMemberId: string, eventKey: string, mediaId: string): CoverPhotoChange {
+    return transaction((): CoverPhotoChange => {
+      const event = this.requireOrganizedEvent(eventKey, actorMemberId);
+      const current = (eventWrites.findCoverMediaId.get(event.id) as { cover_media_id: string | null }).cover_media_id;
+      if (current === mediaId) {
+        const own = findStandingOwnAct(
+          actorMemberId, 'event.cover_photo_set', 'event.cover_photo_removed', 'event', event.id,
+          { metadataKey: 'media_id', id: mediaId },
+        );
+        return { branch: own ? 'own_repeat' : 'already_held' };
+      }
+      if (!isCoverCandidate(mediaId, event.tag_normalized)) {
+        return { branch: 'refused', message: 'That photo does not carry the event\'s hashtag.', httpStatus: 422 };
+      }
+      const now = new Date().toISOString();
+      eventWrites.setCoverMedia.run(mediaId, now, actorMemberId, event.id);
+      appendAuditEntry({
+        actionType: 'event.cover_photo_set',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'event',
+        entityId: event.id,
+        metadata: { media_id: mediaId, previous_media_id: current },
+      });
+      return { branch: 'changed' };
+    });
+  }
+
+  /**
+   * Clear the event's cover pointer. The photo itself is not deleted; it stays
+   * in the gallery. Removing a cover already gone repeats cleanly.
+   */
+  removeCoverPhoto(actorMemberId: string, eventKey: string): CoverPhotoChange {
+    const event = this.requireOrganizedEvent(eventKey, actorMemberId);
+    if (!hasTier1Benefits(actorMemberId)) {
+      throw new ForbiddenError('Tier 1 benefits required to manage member-owned media.');
+    }
+    if (event.status === 'canceled') {
+      return { branch: 'refused', message: 'This event is canceled, so it can no longer be changed.', httpStatus: 422 };
+    }
+    return transaction((): CoverPhotoChange => {
+      const current = (eventWrites.findCoverMediaId.get(event.id) as { cover_media_id: string | null }).cover_media_id;
+      if (current === null) {
+        const own = findStandingOwnAct(actorMemberId, 'event.cover_photo_removed', 'event.cover_photo_set', 'event', event.id);
+        return { branch: own ? 'own_repeat' : 'already_held' };
+      }
+      const now = new Date().toISOString();
+      eventWrites.setCoverMedia.run(null, now, actorMemberId, event.id);
+      appendAuditEntry({
+        actionType: 'event.cover_photo_removed',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'event',
+        entityId: event.id,
+        metadata: { previous_media_id: current },
+      });
+      return { branch: 'changed' };
+    });
   }
 
   /** Save the details form. A submission that changes nothing writes nothing. */
@@ -3314,7 +3864,7 @@ export class EventService {
     assertManageable(event);
     const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
     const existing = input.divisionId ? divisions.find((d) => d.id === input.divisionId) : undefined;
-    if (input.divisionId && !existing) throw new ValidationError('That division is no longer on this event.');
+    if (input.divisionId && !existing) throw new ValidationError('That competition is no longer on this event.');
     if (existing && existing.confirmed_count > 0) {
       throw new ValidationError(`${existing.name} has a confirmed registration, so it can no longer be changed here.`);
     }
@@ -3334,7 +3884,7 @@ export class EventService {
         && findOwnLatestAudit(actorMemberId, 'event.division_added', 'event', event.id)) {
         return { branch: 'added' };
       }
-      throw new ValidationError(`This event already has a division named ${clash.name}.`);
+      throw new ValidationError(`This event already has a competition named ${clash.name}.`);
     }
 
     const now = new Date().toISOString();
@@ -3417,13 +3967,13 @@ export class EventService {
     return { branch: 'removed' };
   }
 
-  /** Add a member as an organizer, by member id or profile URL. */
-  addOrganizer(actorMemberId: string, eventKey: string, memberKey: string): { branch: 'added' | 'own_repeat' | 'already_held'; name: string } {
+  /** Add a member as an organizer: a member the organizer picker's search can offer, by id. */
+  addOrganizer(actorMemberId: string, eventKey: string, memberId: string): { branch: 'added' | 'own_repeat' | 'already_held'; name: string } {
     const event = this.requireOrganizedEvent(eventKey, actorMemberId);
     assertManageable(event);
-    if (!memberKeyFrom(memberKey)) throw new ValidationError('Enter the member id or profile URL of the member to add.');
-    const member = findMemberByTypedKey(memberKey);
-    if (!member) throw new ValidationError('No member has that id or profile URL.');
+    if (memberId.trim() === '') throw new ValidationError('Search for the member by name, then press Add Organizer.');
+    const member = findSearchableMember(memberId);
+    if (!member) throw new ValidationError('Only a footbag.org member listed in member search can be added as an organizer.');
 
     if (eventOrganizers.findRow.get(event.id, member.id)) {
       const own = findStandingOwnAct(
@@ -3815,7 +4365,7 @@ export class EventService {
       { label: 'Dates', value: eventDatesPhrase(event.start_date, event.end_date) },
       { label: 'Location', value: [event.city, event.region, event.country].filter((p) => p).join(', ') },
       { label: 'Requested by', value: submitterName },
-      { label: 'Requester holds Tier 2 or Tier 3', value: submitter && isTier2Plus(submitter) ? 'Yes' : 'No' },
+      { label: 'Requester holds Tier 2 (IFPA Organizer Member) or Tier 3 (IFPA Director)', value: submitter && isTier2Plus(submitter) ? 'Yes' : 'No' },
       { label: 'Competitor fee', value: money(event.competitor_fee_cents, event.currency) },
       { label: 'Spectator fee', value: money(event.attendee_fee_cents, event.currency) },
       { label: 'Fee justification', value: event.sanction_justification ?? 'None given' },
@@ -3839,15 +4389,23 @@ export class EventService {
         name: o.display_name,
         profileHref: `/members/${encodeURIComponent(o.slug)}`,
         email: o.login_email,
+        history: (eventOrganizers.listHistoryForMember.all(o.member_id, event.id) as Array<{
+          id: string; title: string; start_date: string; end_date: string; status: string; sanction_status: string;
+        }>).map((h) => ({
+          title: h.title,
+          dates: eventDatesPhrase(h.start_date, h.end_date),
+          statusLabel: EVENT_STATUS_LABELS[h.status] ?? h.status,
+          sanctionedLabel: h.sanction_status === 'approved' ? 'IFPA-sanctioned' : null,
+        })),
       })),
       deviations: event.sanction_deviations,
       divisions: divisions.map((d) => ({
         name: d.name,
         parts: [
-          `Game: ${divisionGameName(d, games)}`,
-          `Entry: ${d.team_type === 'doubles' ? 'Doubles' : 'Singles'}`,
+          `What is played: ${divisionGameName(d, games)}`,
+          d.team_type === 'doubles' ? 'Doubles' : 'Singles',
           `Gender: ${genderLabel(d.gender_eligibility)}`,
-          `Class: ${classLabel(d.division_class)}`,
+          `Skill level: ${classLabel(d.division_class)}`,
         ].join(' · '),
         prizeLabel: d.offers_prize_money === 1 ? 'Offers prize money' : null,
       })),
@@ -3973,6 +4531,36 @@ export class EventService {
    * Close the registration window for good: the event moves from `reg_open`
    * to `closed`. The online-registration switch is the reversible pause.
    */
+  /**
+   * The deadline job's pass: closes registration on every open event whose
+   * cutoff (the deadline, or the start date when none is set) is before
+   * today, the same transition an organizer's close makes, with no mail. A
+   * repeat changes nothing, since only an event still open is touched. Each
+   * transition is audited as the system's act with the cutoff it passed.
+   */
+  closeDueRegistrations(now: Date): CloseDueRegistrationsResult {
+    const nowIso = now.toISOString();
+    const due = eventWrites.listDueToCloseRegistration.all(nowIso) as Array<{
+      id: string; registration_deadline: string | null; start_date: string;
+    }>;
+    const closedEventIds: string[] = [];
+    for (const event of due) {
+      transaction(() => {
+        if (eventWrites.closeRegistration.run(nowIso, SYSTEM_ACTOR, event.id).changes !== 1) return;
+        appendAuditEntry({
+          actionType: 'event.registration_closed',
+          actorType: 'system',
+          actorMemberId: null,
+          entityType: 'event',
+          entityId: event.id,
+          metadata: { before: 'reg_open', after: 'closed', cutoff: registrationCutoff(event) },
+        });
+        closedEventIds.push(event.id);
+      });
+    }
+    return { closedEventIds };
+  }
+
   closeRegistration(
     memberId: string, eventKey: string, confirmed: boolean,
   ): { branch: 'needs_confirmation' | 'closed' | 'own_repeat' | 'already_held'; eventTitle: string } {
@@ -4207,12 +4795,583 @@ export class EventService {
     return { branch: canceled ? 'canceled' : 'already_held', eventTitle: event.title, memberName: reg.display_name };
   }
 
+  // ── Corrections at the event: Add Entrant and Edit Entry ───────────────────
+  //
+  // An organizer corrects the registrations to match who actually competed:
+  // adding a walk-up, swapping a partner, moving a competitor between
+  // divisions, recording a fee paid at the table. Each is one method with two
+  // doors, as cancellation is: an organizer on an event they organize, found
+  // by key, who saves at once; and an administrator on any event, found by id,
+  // who gives a reason and confirms a preview first. Corrections are open from
+  // the start of registration until results are uploaded, whatever the
+  // deadline or the online-registration switch says. A registration made here
+  // is confirmed at once and never sent to checkout.
+
+  /** The Add Entrant form: the entrant search open, the divisions, and Paid at the event where a fee applies. */
+  getAddEntrantPage(
+    eventKey: string, organizerId: string, form?: EntryFormState, picker?: PickerRequest,
+  ): PageViewModel<EntryFormContent> {
+    const event = this.requireOrganizedEvent(eventKey, organizerId);
+    this.assertCorrectionsOpen(event);
+    const base = eventBasePath(event);
+    return {
+      seo: { title: `Add Entrant: ${event.title}`, noindex: true },
+      page: { sectionKey: 'events', pageKey: 'event_participant_add', title: 'Add Entrant' },
+      navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
+      content: this.entryFormContent(event, organizerId, null, form, picker, {
+        formId: PARTICIPANT_ADD_FORM_ID,
+        formAction: `${base}/participants/add`,
+        cancelHref: `${base}/participants`,
+        submitLabel: 'Add Entrant',
+        withReason: false,
+        cancelRegistrationAction: null,
+      }),
+    };
+  }
+
+  /** The Edit Entry form: the entrant named, their divisions and partners, and Paid at the event where a fee applies. */
+  getEditEntryPage(
+    eventKey: string, organizerId: string, registrationId: string, form?: EntryFormState, picker?: PickerRequest,
+  ): PageViewModel<EntryFormContent> {
+    const event = this.requireOrganizedEvent(eventKey, organizerId);
+    const entry = this.requireEditableEntry(event, registrationId);
+    this.assertCorrectionsOpen(event);
+    const base = eventBasePath(event);
+    return {
+      seo: { title: `Edit Entry: ${event.title}`, noindex: true },
+      page: { sectionKey: 'events', pageKey: 'event_participant_edit', title: 'Edit Entry' },
+      navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
+      content: this.entryFormContent(event, organizerId, entry, form, picker, {
+        formId: PARTICIPANT_EDIT_FORM_ID,
+        formAction: `${base}/participants/${encodeURIComponent(entry.reg.id)}/edit`,
+        cancelHref: `${base}/participants`,
+        submitLabel: 'Save Entry',
+        withReason: false,
+        cancelRegistrationAction: `${base}/registrations/${encodeURIComponent(entry.reg.id)}/cancel`,
+      }),
+    };
+  }
+
+  /**
+   * The administrator's Add Entrant or Edit Entry form content on any event,
+   * for AdminEventService to frame. `registrationId` null is Add Entrant.
+   */
+  getAdminEntryForm(
+    adminMemberId: string, eventId: string, registrationId: string | null, form?: EntryFormState, picker?: PickerRequest,
+  ): { eventTitle: string; content: EntryFormContent } {
+    const event = this.requireEventById(eventId);
+    const entry = registrationId === null ? null : this.requireEditableEntry(event, registrationId);
+    this.assertCorrectionsOpen(event);
+    const base = `/admin/events/${encodeURIComponent(event.id)}`;
+    return {
+      eventTitle: event.title,
+      content: this.entryFormContent(event, adminMemberId, entry, form, picker, {
+        formId: entry ? PARTICIPANT_EDIT_FORM_ID : PARTICIPANT_ADD_FORM_ID,
+        formAction: entry ? `${base}/registrations/${encodeURIComponent(entry.reg.id)}/edit` : `${base}/registrations/add`,
+        cancelHref: base,
+        // The administrator's form previews before it writes, so its button
+        // names the review, as every administrator correction does.
+        submitLabel: entry ? 'Review the Entry Change' : 'Review Adding the Entrant',
+        withReason: true,
+        cancelRegistrationAction: null,
+      }),
+    };
+  }
+
+  /** An organizer adds a member as a competitor, confirmed at once. */
+  addEntrant(organizerId: string, eventKey: string, input: EntryInput): Exclude<AddEntrantResult, { branch: 'needs_confirmation' }> {
+    const event = this.requireOrganizedEvent(eventKey, organizerId);
+    const result = this.addEntrantAs({ kind: 'organizer', memberId: organizerId }, event, input, '', true);
+    if (result.branch === 'needs_confirmation') throw new Error('an organizer\'s Add Entrant never stops at a preview');
+    return result;
+  }
+
+  /** An administrator adds a member to any event, with a reason, after a preview. */
+  adminAddEntrant(adminMemberId: string, eventId: string, input: EntryInput, rawReason: string, confirmed: boolean): AddEntrantResult {
+    return this.addEntrantAs({ kind: 'admin', memberId: adminMemberId }, this.requireEventById(eventId), input, rawReason, confirmed);
+  }
+
+  /** An organizer changes an entry's divisions, partners or payment at the event. */
+  correctEntry(
+    organizerId: string, eventKey: string, registrationId: string, input: EntryInput,
+  ): Exclude<CorrectEntryResult, { branch: 'needs_confirmation' }> {
+    const event = this.requireOrganizedEvent(eventKey, organizerId);
+    const result = this.correctEntryAs({ kind: 'organizer', memberId: organizerId }, event, registrationId, input, '', true);
+    if (result.branch === 'needs_confirmation') throw new Error('an organizer\'s Edit Entry never stops at a preview');
+    return result;
+  }
+
+  /** An administrator changes any entry, with a reason, after a preview. */
+  adminCorrectEntry(
+    adminMemberId: string, eventId: string, registrationId: string, input: EntryInput, rawReason: string, confirmed: boolean,
+  ): CorrectEntryResult {
+    return this.correctEntryAs(
+      { kind: 'admin', memberId: adminMemberId }, this.requireEventById(eventId), registrationId, input, rawReason, confirmed,
+    );
+  }
+
+  /** Whether an event's entries can be corrected now, for the administrator's record page. */
+  correctionsOpenById(eventId: string): boolean {
+    return this.correctionsClosedText(this.requireEventById(eventId)) === null;
+  }
+
+  // Why corrections are closed on this event, or null while they are open:
+  // from the start of registration until any result is recorded.
+  private correctionsClosedText(event: EventRow): string | null {
+    if (event.status === 'draft' || event.status === 'pending_approval') return REGISTRATION_NOT_OPEN;
+    if (event.status === 'canceled') return 'This event is canceled, so it can no longer be changed.';
+    if ((eventResults.countEntries.get(event.id) as { n: number }).n > 0) return CORRECTIONS_CLOSED;
+    return null;
+  }
+
+  private assertCorrectionsOpen(event: EventRow): void {
+    const closed = this.correctionsClosedText(event);
+    if (closed) throw new ValidationError(closed);
+  }
+
+  // A confirmed competitor registration of the event, with its member and
+  // entries: the only kind an entry edit reaches. Anything else is not found.
+  private requireEditableEntry(event: EventRow, registrationId: string): {
+    reg: EventRegistrationRow; entrant: MemberRow; held: SelectionRow[];
+  } {
+    const reg = eventRegistrations.findForEventById.get(registrationId, event.id) as EventRegistrationRow | undefined;
+    if (!reg || reg.status !== 'confirmed' || reg.registration_type !== 'competitor') {
+      throw new NotFoundError('Registration not found.');
+    }
+    const entrant =eventRegistrations.findMemberById.get(reg.member_id) as MemberRow | undefined;
+    if (!entrant) throw new NotFoundError('Registration not found.');
+    return { reg, entrant, held: eventRegistrations.listSelectionsForRegistration.all(reg.id) as SelectionRow[] };
+  }
+
+  // Where an entry is edited, through the door the actor came in by.
+  private entryEditHref(actor: EventActor, event: EventRow, registrationId: string): string {
+    return actor.kind === 'admin'
+      ? `/admin/events/${encodeURIComponent(event.id)}/registrations/${encodeURIComponent(registrationId)}/edit`
+      : `${eventBasePath(event)}/participants/${encodeURIComponent(registrationId)}/edit`;
+  }
+
+  // The divisions and partners an entry names, checked as the member's own
+  // registration checks them: at least one division, and for a doubles one a
+  // partner who is a member the search offers, never the entrant, eligible by
+  // gender with the entrant. A doubles division may be left with no partner,
+  // which the participant list flags. An Amateur choice the entrant made
+  // stays with the divisions they keep.
+  private resolveEntry(event: EventRow, entrant: MemberRow, input: EntryInput, held: readonly SelectionRow[]): ResolvedEntry[] {
+    const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
+    const chosen = divisions.filter((d) => input.divisionIds.includes(d.id));
+    if (chosen.length === 0) throw new ValidationError('Choose at least one competition to enter.');
+    return chosen.map((division) => {
+      let partner: MemberRow | null = null;
+      if (division.team_type === 'doubles') {
+        const chosenId = (input.partners.find((p) => p.divisionId === division.id)?.memberId ?? '').trim();
+        if (chosenId !== '') {
+          if (chosenId === entrant.id) {
+            throw new ValidationError(`${entrant.display_name}'s ${division.name} partner has to be someone else.`);
+          }
+          partner = findSearchableMember(chosenId);
+          if (!partner) {
+            throw new ValidationError(`The ${division.name} partner must be a footbag.org member. Search for them by name and choose them.`);
+          }
+        }
+      }
+      const refusal = checkDivisionEligibility(division, entrant.gender, partner && { gender: partner.gender }, entrant.display_name);
+      if (refusal) throw new ValidationError(refusal);
+      const amateur = division.offers_prize_money === 1
+        && held.some((s) => s.discipline_id === division.id && s.enters_as_amateur === 1);
+      return { division, partner, amateur };
+    });
+  }
+
+  // Names for an entry's ids, for the preview and the change line.
+  private entryNamers(event: EventRow): { divisionName: (id: string) => string; memberName: (id: string) => string } {
+    const divisions = new Map((eventWrites.listDivisions.all(event.id) as DivisionRow[]).map((d) => [d.id, d.name]));
+    return {
+      divisionName: (id) => divisions.get(id) ?? 'A removed competition',
+      memberName: (id) => (eventRegistrations.findMemberById.get(id) as MemberRow | undefined)?.display_name ?? 'A member',
+    };
+  }
+
+  private entryChanges(event: EventRow, before: EntrySnapshot | null, after: EntrySnapshot): EntryChanges {
+    const { divisionName, memberName } = this.entryNamers(event);
+    const changes: EntryChanges = [{
+      label: 'Competitions',
+      before: before ? entriesText(before, divisionName, memberName) : '(none)',
+      after: entriesText(after, divisionName, memberName),
+    }];
+    if (hasFees(event)) {
+      changes.push({
+        label: 'Payment',
+        before: before?.paid_at_event ? PAID_AT_EVENT : '(none)',
+        after: after.paid_at_event ? PAID_AT_EVENT : '(none)',
+      });
+    }
+    return changes;
+  }
+
+  private writeEntriesInTx(registrationId: string, entries: readonly ResolvedEntry[], actorId: string, now: string): void {
+    eventRegistrations.deleteSelections.run(registrationId);
+    for (const e of entries) {
+      eventRegistrations.insertSelection.run(
+        `rsel_${newId()}`, now, actorId, now, actorId,
+        registrationId, e.division.id, e.partner?.id ?? null, e.amateur ? 1 : 0,
+      );
+    }
+  }
+
+  private addEntrantAs(
+    actor: EventActor, event: EventRow, input: EntryInput, rawReason: string, confirmed: boolean,
+  ): AddEntrantResult {
+    const entrant = findSearchableMember(input.memberId);
+    if (!entrant) throw new ValidationError(ENTRANT_NEEDED);
+    const own = eventRegistrations.findForMember.get(event.id, entrant.id) as OwnRegistrationRow | undefined;
+    if (own && own.status !== 'canceled') {
+      // A member already registered is edited, never added twice. The same
+      // entry submitted again is the first submit's success when this actor's
+      // add is what stands, and a state found in place otherwise.
+      const held = eventRegistrations.listSelectionsForRegistration.all(own.id) as SelectionRow[];
+      const entries = this.resolveEntry(event, entrant, input, held);
+      const paid = hasFees(event) ? input.paidAtEvent : false;
+      if (own.status === 'confirmed' && own.registration_type === 'competitor'
+        && sameSnapshot(heldSnapshot(held, own.paid_at_event_at), resolvedSnapshot(entries, paid))) {
+        const ownAct = findStandingOwnAct(
+          actor.memberId, 'event.registration_added', 'event.registration_canceled', 'event', event.id,
+          { metadataKey: 'registration_id', id: own.id },
+        );
+        return {
+          branch: ownAct ? 'own_repeat' : 'already_held',
+          memberName: entrant.display_name,
+          registrationId: own.id,
+          divisionNames: held.map((s) => s.division_name),
+        };
+      }
+      return {
+        branch: 'already_registered',
+        memberName: entrant.display_name,
+        registrationId: own.id,
+        editHref: this.entryEditHref(actor, event, own.id),
+      };
+    }
+    this.assertCorrectionsOpen(event);
+    const entries = this.resolveEntry(event, entrant, input, []);
+    const paid = hasFees(event) && input.paidAtEvent;
+    const after = resolvedSnapshot(entries, paid);
+    const reason = actor.kind === 'admin' ? requireReason(rawReason) : null;
+    if (!confirmed) {
+      return {
+        branch: 'needs_confirmation', memberName: entrant.display_name, eventTitle: event.title,
+        changes: this.entryChanges(event, null, after),
+      };
+    }
+
+    const actorType = actor.kind === 'admin' ? 'admin' : 'member';
+    const now = new Date().toISOString();
+    const registrationId = own?.id ?? `reg_${newId()}`;
+    transaction(() => {
+      if (own) {
+        // A member who withdrew or was canceled comes back on the same row.
+        if (eventRegistrations.reactivate.run('competitor', 'confirmed', null, now, now, actor.memberId, own.id).changes !== 1) {
+          throw new Error(`registration ${own.id} changed between its read and its reactivation`);
+        }
+      } else {
+        eventRegistrations.insert.run(
+          registrationId, now, actor.memberId, now, actor.memberId,
+          event.id, entrant.id, now, 'competitor', 'confirmed', null,
+        );
+      }
+      this.writeEntriesInTx(registrationId, entries, actor.memberId, now);
+      if (paid || own?.paid_at_event_at) {
+        eventRegistrations.setPaidAtEvent.run(paid ? now : null, paid ? actor.memberId : null, now, actor.memberId, registrationId);
+      }
+      const auditId = appendAuditEntry({
+        actionType: 'event.registration_added',
+        actorType,
+        actorMemberId: actor.memberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: { registration_id: registrationId, member_id: entrant.id, before: null, after },
+      });
+      emailService.sendActNotice({
+        template: 'event_registration_added',
+        params: {
+          memberName: entrant.display_name,
+          eventTitle: event.title,
+          eventDates: eventDatesPhrase(event.start_date, event.end_date),
+          registrationSummary: registrationSummary('competitor', entries.map((e) => ({
+            divisionName: e.division.name, partnerName: e.partner?.display_name ?? null, partnerHref: null, isAmateur: e.amateur,
+          })), null),
+          byAdministrator: actor.kind === 'admin',
+          reason,
+        },
+        memberId: entrant.id,
+        actId: auditId,
+      });
+    });
+    return {
+      branch: 'added', memberName: entrant.display_name, registrationId, divisionNames: entries.map((e) => e.division.name),
+    };
+  }
+
+  private correctEntryAs(
+    actor: EventActor, event: EventRow, registrationId: string, input: EntryInput, rawReason: string, confirmed: boolean,
+  ): CorrectEntryResult {
+    const { reg, entrant, held } = this.requireEditableEntry(event, registrationId);
+    const entries = this.resolveEntry(event, entrant, input, held);
+    // Paid at the event is offered only where a fee applies; elsewhere the
+    // mark stands as it is.
+    const paid = hasFees(event) ? input.paidAtEvent : reg.paid_at_event_at !== null;
+    const before = heldSnapshot(held, reg.paid_at_event_at);
+    const after = resolvedSnapshot(entries, paid);
+    const { divisionName, memberName } = this.entryNamers(event);
+    if (sameSnapshot(before, after)) {
+      // Nothing to change: this actor's own correction is what stands, so the
+      // first submit's line is reported from its record.
+      const ownAct = findStandingOwnAct(
+        actor.memberId, 'event.registration_corrected', 'event.registration_added', 'event', event.id,
+        { metadataKey: 'registration_id', id: reg.id },
+      );
+      if (ownAct) {
+        const recorded = JSON.parse(ownAct.metadata_json) as { before: EntrySnapshot; after: EntrySnapshot };
+        return {
+          branch: 'own_repeat', memberName: entrant.display_name, registrationId: reg.id,
+          whatChanged: entryChangePhrase(recorded.before, recorded.after, divisionName, memberName),
+        };
+      }
+      return { branch: 'already_held', memberName: entrant.display_name, registrationId: reg.id, whatChanged: '' };
+    }
+    this.assertCorrectionsOpen(event);
+    const reason = actor.kind === 'admin' ? requireReason(rawReason) : null;
+    if (!confirmed) {
+      return {
+        branch: 'needs_confirmation', memberName: entrant.display_name, eventTitle: event.title,
+        changes: this.entryChanges(event, before, after),
+      };
+    }
+
+    const actorType = actor.kind === 'admin' ? 'admin' : 'member';
+    const whatChanged = entryChangePhrase(before, after, divisionName, memberName);
+    const now = new Date().toISOString();
+    transaction(() => {
+      this.writeEntriesInTx(reg.id, entries, actor.memberId, now);
+      // A partner this entry no longer names keeps their own entry, now
+      // naming nobody where it named this entrant, so the list flags it.
+      const cleared: string[] = [];
+      // Each old partner whose entry changed, with the divisions it changed in.
+      const partnersLeft = new Map<string, { registration: OwnRegistrationRow; divisionIds: string[] }>();
+      for (const s of held) {
+        if (s.partner_member_id === null || (after.partners[s.discipline_id] ?? null) === s.partner_member_id) continue;
+        const theirs = eventRegistrations.findForMember.get(event.id, s.partner_member_id) as OwnRegistrationRow | undefined;
+        if (!theirs || theirs.status === 'canceled') continue;
+        if (eventRegistrations.clearPartnerOnEntry.run(now, actor.memberId, theirs.id, s.discipline_id, entrant.id).changes > 0) {
+          cleared.push(theirs.id);
+          const left = partnersLeft.get(s.partner_member_id) ?? { registration: theirs, divisionIds: [] };
+          left.divisionIds.push(s.discipline_id);
+          partnersLeft.set(s.partner_member_id, left);
+        }
+      }
+      if (before.paid_at_event !== after.paid_at_event) {
+        eventRegistrations.setPaidAtEvent.run(paid ? now : null, paid ? actor.memberId : null, now, actor.memberId, reg.id);
+      } else {
+        eventRegistrations.touch.run(now, actor.memberId, reg.id);
+      }
+      const auditId = appendAuditEntry({
+        actionType: 'event.registration_corrected',
+        actorType,
+        actorMemberId: actor.memberId,
+        entityType: 'event',
+        entityId: event.id,
+        reasonText: reason,
+        metadata: {
+          registration_id: reg.id, member_id: entrant.id, before, after,
+          partner_cleared_registration_ids: cleared,
+        },
+      });
+      const byAdministrator = actor.kind === 'admin';
+      const eventDates = eventDatesPhrase(event.start_date, event.end_date);
+      emailService.sendActNotice({
+        template: 'event_registration_corrected',
+        params: {
+          memberName: entrant.display_name,
+          eventTitle: event.title,
+          eventDates,
+          whatChanged: `${whatChanged}.`,
+          registrationSummary: registrationSummary('competitor', entries.map((e) => ({
+            divisionName: e.division.name, partnerName: e.partner?.display_name ?? null, partnerHref: null, isAmateur: e.amateur,
+          })), reg.tshirt_size),
+          byAdministrator,
+          reason,
+        },
+        memberId: entrant.id,
+        actId: auditId,
+      });
+      // An old partner's registration changed too: they are told which of
+      // their entries now names no partner, once each.
+      for (const [partnerId, left] of partnersLeft) {
+        const partner = eventRegistrations.findMemberById.get(partnerId) as MemberRow | undefined;
+        if (!partner) continue;
+        const theirEntries = eventRegistrations.listSelectionsForRegistration.all(left.registration.id) as SelectionRow[];
+        emailService.sendActNotice({
+          template: 'event_registration_corrected',
+          params: {
+            memberName: partner.display_name,
+            eventTitle: event.title,
+            eventDates,
+            whatChanged: `${left.divisionIds.map((id) => `${divisionName(id)} partner removed`).join(', ')}.`,
+            registrationSummary: registrationSummary(
+              left.registration.registration_type, theirEntries.map(toEntryView), left.registration.tshirt_size,
+            ),
+            byAdministrator,
+            reason,
+          },
+          memberId: partnerId,
+          actId: auditId,
+        });
+      }
+    });
+    return { branch: 'corrected', memberName: entrant.display_name, registrationId: reg.id, whatChanged };
+  }
+
+  // The form both doors share: the entrant (searched for on Add Entrant,
+  // named on Edit Entry), every division with a partner picker on each doubles
+  // one, Paid at the event where a fee applies, and an administrator's reason.
+  private entryFormContent(
+    event: EventRow, actorId: string,
+    entry: { reg: EventRegistrationRow; entrant: MemberRow; held: SelectionRow[] } | null,
+    form: EntryFormState | undefined, picker: PickerRequest | undefined,
+    frame: {
+      formId: string; formAction: string; cancelHref: string; submitLabel: string;
+      withReason: boolean; cancelRegistrationAction: string | null;
+    },
+  ): EntryFormContent {
+    const intent = picker?.intent ?? null;
+    const input: EntryInput = form?.input ?? (entry
+      ? {
+        memberId: entry.entrant.id,
+        divisionIds: entry.held.map((s) => s.discipline_id),
+        partners: entry.held
+          .filter((s) => s.partner_member_id !== null)
+          .map((s) => ({ divisionId: s.discipline_id, memberId: s.partner_member_id ?? '' })),
+        paidAtEvent: entry.reg.paid_at_event_at !== null,
+      }
+      : { memberId: '', divisionIds: [], partners: [], paidAtEvent: false });
+
+    let entrantPicker: MemberPickerView | null = null;
+    let entrantId: string | null = entry?.entrant.id ?? null;
+    if (!entry) {
+      const chosenId = intent?.kind === 'choose' && intent.key === 'entrant' ? intent.memberId : input.memberId;
+      const chosen = chosenId.trim() !== '' ? findSearchableMember(chosenId) : null;
+      entrantId = chosen?.id ?? null;
+      entrantPicker = buildMemberPicker({
+        formId: frame.formId,
+        formAction: frame.formAction,
+        fieldName: 'member_id',
+        fieldKey: 'entrant',
+        label: 'Entrant',
+        searchLabel: "Entrant's name",
+        openLabel: 'Choose Member',
+        rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name} as entrant` },
+        chosen: chosen ? toPickerMember(chosen) : null,
+        intent,
+        openOnLoad: true,
+        query: picker?.query ?? '',
+        search: runPickerSearch(picker, 'entrant', actorId, []),
+        notFoundHint: WALK_UP_HINT,
+      });
+    }
+
+    const partnerPicker = (d: DivisionRow): MemberPickerView => {
+      const key = `partner-${d.id}`;
+      const chosenId = intent?.key === key && intent.kind === 'choose'
+        ? intent.memberId
+        : intent?.key === key && intent.kind === 'remove'
+          ? ''
+          : input.partners.find((p) => p.divisionId === d.id)?.memberId ?? '';
+      const partner = chosenId.trim() !== '' ? findSearchableMember(chosenId) : null;
+      return buildMemberPicker({
+        formId: frame.formId,
+        formAction: frame.formAction,
+        fieldName: 'partner',
+        fieldKey: key,
+        label: 'Partner',
+        searchLabel: "Partner's name",
+        openLabel: 'Choose Partner',
+        rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name} as partner for ${d.name}` },
+        chosen: partner && partner.id !== entrantId ? toPickerMember(partner) : null,
+        intent,
+        openOnLoad: false,
+        query: picker?.query ?? '',
+        search: runPickerSearch(picker, key, actorId, entrantId ? [entrantId] : []),
+        notFoundHint: WALK_UP_HINT,
+        canRemove: entry !== null,
+      });
+    };
+
+    const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
+    return {
+      formId: frame.formId,
+      formAction: frame.formAction,
+      cancelHref: frame.cancelHref,
+      eventTitle: event.title,
+      eventDates: eventDatesPhrase(event.start_date, event.end_date),
+      entrantPicker,
+      entrantName: entry?.entrant.display_name ?? null,
+      divisions: divisions.map((d) => ({
+        id: d.id,
+        name: d.name,
+        checked: input.divisionIds.includes(d.id),
+        partnerPicker: d.team_type === 'doubles' ? partnerPicker(d) : null,
+      })),
+      hasDivisions: divisions.length > 0,
+      paidAtEvent: hasFees(event) ? { checked: input.paidAtEvent } : null,
+      reasonField: frame.withReason ? { value: form?.reason ?? '' } : null,
+      errorMessage: form?.message ?? null,
+      errorLink: form?.link ?? null,
+      submitLabel: frame.submitLabel,
+      cancelRegistrationAction: frame.cancelRegistrationAction,
+    };
+  }
+
+  // The participant list's division groups: each division's confirmed
+  // entries, with the partner a doubles entry names or its flag for naming
+  // none, and how the entrant paid.
+  private divisionGroups(event: EventRow, editHref: ((registrationId: string) => string) | null): DivisionGroupView[] {
+    const rows = eventRegistrations.listConfirmedEntriesByDivision.all(event.id) as Array<{
+      registration_id: string; discipline_id: string; partner_member_id: string | null;
+      division_name: string; team_type: string; member_id: string; registration_type: RegistrationType;
+      paid_at_event_at: string | null; display_name: string; slug: string;
+      partner_member_name: string | null; payment_status: string | null;
+    }>;
+    const groups = new Map<string, DivisionGroupView>();
+    for (const r of rows) {
+      let group = groups.get(r.discipline_id);
+      if (!group) {
+        group = { name: r.division_name, confirmedCount: 0, isDoubles: r.team_type === 'doubles', rows: [] };
+        groups.set(r.discipline_id, group);
+      }
+      group.confirmedCount += 1;
+      group.rows.push({
+        registrationId: r.registration_id,
+        entrantName: r.display_name,
+        entrantHref: `/members/${encodeURIComponent(r.slug)}`,
+        partnerName: r.partner_member_name,
+        noPartner: group.isDoubles && r.partner_member_id === null,
+        paymentLabel: paymentLabel(r.payment_status, r.paid_at_event_at, feeOwed(event, { status: 'confirmed', registration_type: r.registration_type })),
+        editHref: editHref && r.registration_type === 'competitor' ? editHref(r.registration_id) : null,
+      });
+    }
+    return [...groups.values()];
+  }
+
   // ── Organizer management: participants, exports, email ─────────────────────
 
-  /** The organizers' participant list: every registration still standing. */
+  /**
+   * The organizers' participant list: every registration still standing, and
+   * above it the confirmed entries grouped by division. `entryId` names the
+   * entry a correction just saved, linked beside its notice.
+   */
   getParticipantsPage(
     eventKey: string, viewerMemberId: string, sort: string | undefined,
-    opts: { notice?: OutcomeNoticeView | null } = {},
+    opts: { notice?: OutcomeNoticeView | null; entryId?: string } = {},
   ): PageViewModel<ParticipantsContent> {
     const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
     const base = eventBasePath(event);
@@ -4222,6 +5381,12 @@ export class EventService {
     const showPayment = hasFees(event);
     const canCancel = event.status !== 'completed' && event.status !== 'canceled';
     const canMark = ATTENDANCE_STATUSES.includes(event.status) && lastDayHasCome(event);
+    const correctionsOpen = this.correctionsClosedText(event) === null;
+    const editHref = (registrationId: string): string => `${base}/participants/${encodeURIComponent(registrationId)}/edit`;
+    const divisionGroups = this.divisionGroups(event, correctionsOpen ? editHref : null);
+    const noticeEntry = opts.notice && opts.entryId && correctionsOpen
+      && divisionGroups.some((g) => g.rows.some((r) => r.registrationId === opts.entryId))
+      ? opts.entryId : null;
     return {
       seo: { title: `Participants: ${event.title}`, noindex: true },
       page: {
@@ -4233,6 +5398,10 @@ export class EventService {
       navigation: { contextLinks: [{ label: `Back to Manage ${event.title}`, href: `${base}/manage` }] },
       content: {
         notice: opts.notice ?? null,
+        noticeEditHref: noticeEntry ? editHref(noticeEntry) : null,
+        addEntrantHref: correctionsOpen ? `${base}/participants/add` : null,
+        divisionGroups,
+        hasDivisionGroups: divisionGroups.length > 0,
         eventTitle: event.title,
         confirmedCount: rows.filter((r) => r.status === 'confirmed').length,
         pendingCount: rows.filter((r) => r.status === 'pending').length,
@@ -4250,11 +5419,11 @@ export class EventService {
           registeredOn: r.registered_at.slice(0, 10),
           statusLabel: r.status === 'confirmed' ? 'Confirmed' : 'Awaiting payment',
           typeLabel: REGISTRATION_TYPE_LABELS[r.registration_type],
-          tierLabel: tierBadgeShort(r.tier_status) ?? 'Tier 0',
+          tierLabel: tierBadgeShort(r.tier_status) ?? TIER_NAMES.tier0,
           activePlayerLabel: r.is_active_player === 1 ? 'Active Player' : '',
           location: personLocation(r.city, r.region, r.country)?.text ?? '',
           email: r.email_visibility === 'members' ? r.login_email : null,
-          paymentLabel: showPayment ? paymentLabel(r.payment_status) : null,
+          paymentLabel: showPayment ? paymentLabel(r.payment_status, r.paid_at_event_at, feeOwed(event, r)) : null,
           tshirtSize: r.tshirt_size,
           entries: r.entries,
           cancelAction: canCancel ? `${base}/registrations/${encodeURIComponent(r.id)}/cancel` : null,
@@ -4276,9 +5445,13 @@ export class EventService {
   getParticipantsCsv(eventKey: string, viewerMemberId: string): { filename: string; body: string } {
     const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
     const rows = this.participantRows(event).filter((r) => r.status === 'confirmed');
+    // A free event has no payment to report, so its export carries no payment
+    // column, as its participant page shows none.
+    const charges = hasFees(event);
     const lines = [csvRow([
-      'Name', 'Email', 'City', 'Country', 'Registered', 'Tier', 'Active Player', 'Payment',
-      'Registration Type', 'Divisions', 'Partners', 'Amateur Entries', 'T-shirt Size',
+      'Name', 'Email', 'City', 'Country', 'Registered', 'Tier', 'Active Player',
+      ...(charges ? ['Payment'] : []),
+      'Registration Type', 'Competitions', 'Partners', 'Amateur Entries', 'T-shirt Size',
     ])];
     for (const r of rows) {
       lines.push(csvRow([
@@ -4287,9 +5460,9 @@ export class EventService {
         r.city,
         r.country ? (canonicalCountryName(r.country) ?? r.country) : '',
         r.registered_at.slice(0, 10),
-        tierBadgeShort(r.tier_status) ?? 'Tier 0',
+        tierBadgeShort(r.tier_status) ?? TIER_NAMES.tier0,
         r.is_active_player === 1 ? 'Yes' : 'No',
-        paymentLabel(r.payment_status),
+        ...(charges ? [paymentLabel(r.payment_status, r.paid_at_event_at, feeOwed(event, r))] : []),
         REGISTRATION_TYPE_LABELS[r.registration_type],
         r.entries.map((e) => e.divisionName).join('; '),
         r.entries.filter((e) => e.partner).map((e) => `${e.divisionName}: ${e.partner}`).join('; '),
@@ -4307,15 +5480,6 @@ export class EventService {
   getRegistrationSummaryPage(eventKey: string, viewerMemberId: string): PageViewModel<RegistrationSummaryContent> {
     const event = this.requireOrganizedEvent(eventKey, viewerMemberId);
     const base = eventBasePath(event);
-    const rows = this.participantRows(event);
-    const confirmed = rows.filter((r) => r.status === 'confirmed');
-    const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
-    const payments = eventRegistrations.summarizePaymentsForEvent.all(event.id) as Array<{
-      status: string; registrations: number; amount_cents: number;
-    }>;
-    const days = eventRegistrations.countConfirmedByDay.all(event.id) as Array<{ day: string; registered: number }>;
-    const tshirtCounts = new Map<string, number>();
-    for (const r of confirmed) if (r.tshirt_size) tshirtCounts.set(r.tshirt_size, (tshirtCounts.get(r.tshirt_size) ?? 0) + 1);
     return {
       seo: { title: `Registration Summary: ${event.title}`, noindex: true },
       page: {
@@ -4325,29 +5489,76 @@ export class EventService {
         intro: `How registration for ${event.title} stands right now. Counts are confirmed registrations unless a line says otherwise.`,
       },
       navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
-      content: {
-        eventTitle: event.title,
-        confirmedCount: confirmed.length,
-        pendingCount: rows.length - confirmed.length,
-        byType: (Object.keys(REGISTRATION_TYPE_LABELS) as RegistrationType[]).map((t) => ({
-          label: REGISTRATION_TYPE_LABELS[t],
-          count: confirmed.filter((r) => r.registration_type === t).length,
-        })),
-        byDivision: divisions.map((d) => ({ name: d.name, count: d.confirmed_count })),
-        hasDivisions: divisions.length > 0,
-        payments: payments.map((p) => ({
-          label: paymentLabel(p.status),
-          count: p.registrations,
-          amount: formatFee(p.amount_cents, event.currency),
-        })),
-        hasPayments: payments.length > 0,
-        timeline: days.map((d) => ({ day: d.day, count: d.registered })),
-        hasTimeline: days.length > 0,
-        tshirts: event.is_tshirt_size_collected === 1
-          ? TSHIRT_SIZES.map((size) => ({ size, count: tshirtCounts.get(size) ?? 0 }))
-          : null,
-        participantsHref: `${base}/participants`,
-      },
+      content: this.registrationSummary(event, new Date(), `${base}/participants`),
+    };
+  }
+
+  /**
+   * An administrator's view of any event's registration summary, by event
+   * id: the same counts its organizers see. AdminEventService shapes the page.
+   */
+  getAdminRegistrationSummary(eventId: string): { eventTitle: string; content: RegistrationSummaryContent } {
+    const event = this.requireEventById(eventId);
+    return { eventTitle: event.title, content: this.registrationSummary(event, new Date(), null) };
+  }
+
+  // The summary's counts, read on demand: totals by registration type, by
+  // competition category and by division, payments by status in the event's
+  // currency, and confirmed registrations for every day from registration
+  // opening to today, a day without one included.
+  private registrationSummary(event: EventRow, now: Date, participantsHref: string | null): RegistrationSummaryContent {
+    const rows = this.participantRows(event);
+    const confirmed = rows.filter((r) => r.status === 'confirmed');
+    const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
+    const byCategoryRows = eventRegistrations.countConfirmedByCategory.all(event.id) as Array<{
+      discipline_category: string; registered: number;
+    }>;
+    const payments = eventRegistrations.summarizePaymentsForEvent.all(event.id) as Array<{
+      status: string; registrations: number; amount_cents: number;
+    }>;
+    const days = eventRegistrations.countConfirmedByDay.all(event.id) as Array<{ day: string; registered: number }>;
+    const tshirtCounts = new Map<string, number>();
+    for (const r of confirmed) if (r.tshirt_size) tshirtCounts.set(r.tshirt_size, (tshirtCounts.get(r.tshirt_size) ?? 0) + 1);
+
+    // Each category the event offers, in the order its first division appears.
+    const categoryCounts = new Map(byCategoryRows.map((r) => [r.discipline_category, r.registered]));
+    const categories: string[] = [];
+    for (const d of divisions) {
+      if (d.discipline_category && !categories.includes(d.discipline_category)) categories.push(d.discipline_category);
+    }
+
+    // Paid, pending and failed always show for an event that charges, so a
+    // zero reads as none rather than as missing; any other status that
+    // occurs follows them.
+    const byStatus = new Map(payments.map((p) => [p.status, p]));
+    const statuses = hasFees(event)
+      ? [...SUMMARY_PAYMENT_STATUSES, ...payments.map((p) => p.status).filter((s) => !SUMMARY_PAYMENT_STATUSES.includes(s))]
+      : payments.map((p) => p.status);
+
+    const timeline = registrationTimeline(days, event.reg_opened_at, now);
+    return {
+      eventTitle: event.title,
+      confirmedCount: confirmed.length,
+      pendingCount: rows.length - confirmed.length,
+      byType: (Object.keys(REGISTRATION_TYPE_LABELS) as RegistrationType[]).map((t) => ({
+        label: REGISTRATION_TYPE_LABELS[t],
+        count: confirmed.filter((r) => r.registration_type === t).length,
+      })),
+      byCategory: categories.map((c) => ({ label: sportLabel(c), count: categoryCounts.get(c) ?? 0 })),
+      byDivision: divisions.map((d) => ({ name: d.name, count: d.confirmed_count })),
+      hasDivisions: divisions.length > 0,
+      payments: statuses.map((s) => ({
+        label: paymentLabel(s),
+        count: byStatus.get(s)?.registrations ?? 0,
+        amount: formatFee(byStatus.get(s)?.amount_cents ?? 0, event.currency),
+      })),
+      hasPayments: statuses.length > 0,
+      timeline,
+      hasTimeline: timeline.length > 0,
+      tshirts: event.is_tshirt_size_collected === 1
+        ? TSHIRT_SIZES.map((size) => ({ size, count: tshirtCounts.get(size) ?? 0 }))
+        : null,
+      participantsHref,
     };
   }
 
@@ -4365,7 +5576,7 @@ export class EventService {
     const columns: PrintColumn[] = [
       { header: 'Name', width: 3, kind: 'text' },
       { header: 'Type', width: 1.6, kind: 'text' },
-      { header: 'Divisions', width: 4, kind: 'text' },
+      { header: 'Competitions', width: 4, kind: 'text' },
       { header: 'Partner', width: 2.4, kind: 'text' },
       { header: 'Payment', width: 1.4, kind: 'text' },
       ...(showTshirt ? [{ header: 'T-shirt', width: 0.9, kind: 'text' as const }] : []),
@@ -4379,7 +5590,7 @@ export class EventService {
         REGISTRATION_TYPE_LABELS[r.registration_type],
         r.entries.map((e) => e.divisionName + (e.amateurLabel ? ` (${e.amateurLabel})` : '')).join('\n'),
         r.entries.map((e) => e.partner ?? '').filter((p) => p !== '').join('\n'),
-        paymentLabel(r.payment_status),
+        paymentLabel(r.payment_status, r.paid_at_event_at, feeOwed(event, r)),
         ...(showTshirt ? [r.tshirt_size ?? ''] : []),
         null,
         null,
@@ -4453,7 +5664,7 @@ export class EventService {
             subject: values.subject,
             bodyText: participantEmailBody(
               values.bodyText, event.title,
-              (eventRegistrations.findMemberByKey.get(viewerMemberId, viewerMemberId) as MemberRow | undefined)?.display_name,
+              (eventRegistrations.findMemberById.get(viewerMemberId) as MemberRow | undefined)?.display_name,
             ),
           }
           : null,
@@ -4498,7 +5709,7 @@ export class EventService {
     if (blocked) throw new ValidationError(blocked);
     if (previewOnly) return { branch: 'preview' };
 
-    const sender = eventRegistrations.findMemberByKey.get(memberId, memberId) as MemberRow | undefined;
+    const sender = eventRegistrations.findMemberById.get(memberId) as MemberRow | undefined;
     const bodyText = participantEmailBody(compose.bodyText, event.title, sender?.display_name);
     let result: EmailParticipantsResult = { branch: 'no_recipients' };
     transaction(() => {
@@ -4552,14 +5763,14 @@ export class EventService {
     const rows = eventRegistrations.listParticipantsForEvent.all(event.id) as Array<Omit<ParticipantRow, 'entries'>>;
     const entries = eventRegistrations.listParticipantEntriesForEvent.all(event.id) as Array<{
       registration_id: string; division_name: string; offers_prize_money: number;
-      partner_display_name: string | null; partner_member_name: string | null; enters_as_amateur: number;
+      partner_member_name: string | null; enters_as_amateur: number;
     }>;
     const byRegistration = new Map<string, ParticipantEntryView[]>();
     for (const e of entries) {
       const list = byRegistration.get(e.registration_id) ?? [];
       list.push({
         divisionName: e.division_name,
-        partner: e.partner_member_name ?? e.partner_display_name,
+        partner: e.partner_member_name,
         amateurLabel: e.offers_prize_money === 1 && e.enters_as_amateur === 1 ? 'Amateur' : null,
       });
       byRegistration.set(e.registration_id, list);
@@ -4602,7 +5813,7 @@ export class EventService {
         sectionKey: 'events',
         pageKey: 'event_results_upload',
         title: 'Upload Results',
-        intro: `Upload the results of ${event.title} as a CSV file. You check a preview first, and nothing is published until you commit it.`,
+        intro: `Upload the results of ${event.title} as a CSV file. You check a preview first, and nothing shows on the event page until you publish it.`,
       },
       navigation: { contextLinks: [{ label: `Back to Manage ${event.title}`, href: `${base}/manage` }] },
       content: {
@@ -4660,7 +5871,7 @@ export class EventService {
         { metadataKey: 'file_sha256', id: fileHash },
       );
       if (own) return { branch: 'own_repeat', rowCount: preview.rowCount, attendedCount: 0 };
-      throw new ValidationError(preview.fileErrors[0] ?? preview.problems[0] ?? 'The file has no results to commit.');
+      throw new ValidationError(preview.fileErrors[0] ?? preview.problems[0] ?? 'The file has no results to publish.');
     }
     const candidates = eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[];
     const byRegistration = new Map(candidates.map((c) => [c.id, c]));
@@ -4713,7 +5924,6 @@ export class EventService {
         metadata: {
           upload_id: uploadId,
           rows: preview.rowCount,
-          unmatched: preview.unmatchedCount,
           new_divisions: newDivisions,
           attended: attendedCount,
           before_status: event.status,
@@ -4751,7 +5961,7 @@ export class EventService {
           registrationId: r.id,
           name: r.display_name,
           field: 'registration',
-          tierLabel: tierBadgeShort(r.tier_status) ?? 'Tier 0',
+          tierLabel: tierBadgeShort(r.tier_status) ?? TIER_NAMES.tier0,
         })),
         marked: marked.map((r) => ({ name: r.display_name, markedOn: (r.attended_at ?? '').slice(0, 10) })),
         hasUnmarked: unmarked.length > 0,
@@ -4849,13 +6059,17 @@ export class EventService {
     const divisions = (eventWrites.listDivisions.all(event.id) as DivisionRow[]).map((d) => ({
       id: d.id, name: d.name, teamType: d.team_type, hasResults: withResults.has(d.id),
     }));
+    const partnerless = new Map<string, string[]>();
+    for (const e of eventRegistrations.listPartnerlessDoublesEntries.all(event.id) as Array<{ registration_id: string; discipline_id: string }>) {
+      partnerless.set(e.registration_id, [...(partnerless.get(e.registration_id) ?? []), e.discipline_id]);
+    }
     const candidates = (eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[]).map((c) => ({
       registrationId: c.id, memberId: c.member_id, displayName: c.display_name, historicalPersonId: c.historical_person_id,
+      partnerlessDivisionIds: partnerless.get(c.id) ?? [],
     }));
     return readResultsFile(input.text, divisions, candidates, {
       ties: new Set(input.ties),
       newDivisions: new Set(input.contested),
-      acceptUnmatched: input.acceptUnmatched,
     });
   }
 
@@ -5012,14 +6226,14 @@ export class EventService {
     const reason = requireReason(rawReason);
     const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
     const existing = divisions.find((d) => d.id === input.divisionId);
-    if (!existing) throw new ValidationError('That division is no longer on this event.');
+    if (!existing) throw new ValidationError('That competition is no longer on this event.');
     const resolved = resolveDivisionGame({
       gameId: existing.game_id, customName: existing.custom_game_name, customDiscipline: existing.discipline_category,
     });
     const parts = validateDivisionParts(resolved, input);
     const name = divisionName(parts.divisionClass, parts.gender, parts.teamType, resolved.gameName);
     const clash = divisions.find((d) => d.name.toLowerCase() === name.toLowerCase() && d.id !== existing.id);
-    if (clash) throw new ValidationError(`This event already has a division named ${clash.name}.`);
+    if (clash) throw new ValidationError(`This event already has a competition named ${clash.name}.`);
 
     const changes = new CorrectionChanges(event.currency);
     changes.note('division_name', existing.name, name);
@@ -5043,7 +6257,7 @@ export class EventService {
         reasonText: reason,
         metadata: { division_id: existing.id, changes: changes.forAudit() },
       });
-      this.notifyOrganizersOfCorrectionInTx(event, `the division ${existing.name}`, reason, auditId);
+      this.notifyOrganizersOfCorrectionInTx(event, `the competition ${existing.name}`, reason, auditId);
     });
     return changes.result(false);
   }
@@ -5083,7 +6297,32 @@ export class EventService {
           entries: entries.map((e) => ({ registration_id: e.registration_id, member_id: e.member_id, status: e.status })),
         },
       });
-      this.notifyOrganizersOfCorrectionInTx(event, `the division ${division.name}, which has been removed`, reason, auditId);
+      this.notifyOrganizersOfCorrectionInTx(event, `the competition ${division.name}, which has been removed`, reason, auditId);
+      // Each member whose registration entered it is told, as an
+      // administrator's change to an entry tells them, with what remains.
+      const told = new Set<string>();
+      for (const e of entries) {
+        if (e.status === 'canceled' || told.has(e.member_id)) continue;
+        told.add(e.member_id);
+        const member = eventRegistrations.findMemberById.get(e.member_id) as MemberRow | undefined;
+        const reg = eventRegistrations.findForMember.get(event.id, e.member_id) as OwnRegistrationRow | undefined;
+        if (!member || !reg) continue;
+        const remaining = eventRegistrations.listSelectionsForRegistration.all(reg.id) as SelectionRow[];
+        emailService.sendActNotice({
+          template: 'event_registration_corrected',
+          params: {
+            memberName: member.display_name,
+            eventTitle: event.title,
+            eventDates: eventDatesPhrase(event.start_date, event.end_date),
+            whatChanged: `${division.name} removed from the event.`,
+            registrationSummary: registrationSummary(reg.registration_type, remaining.map(toEntryView), reg.tshirt_size),
+            byAdministrator: true,
+            reason,
+          },
+          memberId: e.member_id,
+          actId: auditId,
+        });
+      }
     });
     return changes.result(false);
   }
@@ -5092,13 +6331,13 @@ export class EventService {
   getDivisionCorrectionStep(eventId: string, divisionId: string): { eventTitle: string; divisionName: string; step: DivisionPartsStep } {
     const event = this.requireEventById(eventId);
     const division = (eventWrites.listDivisions.all(event.id) as DivisionRow[]).find((d) => d.id === divisionId);
-    if (!division) throw new NotFoundError('Division not found.');
+    if (!division) throw new NotFoundError('Competition not found.');
     const games = eventWrites.listGames.all() as GameRow[];
     const adminBase = `/admin/events/${encodeURIComponent(event.id)}`;
     const step = divisionPartsStep(adminBase, games, {
       gameId: division.game_id, customName: division.custom_game_name, customDiscipline: division.discipline_category,
     }, division);
-    if (!step) throw new NotFoundError('Division not found.');
+    if (!step) throw new NotFoundError('Competition not found.');
     return {
       eventTitle: event.title,
       divisionName: division.name,
@@ -5106,7 +6345,7 @@ export class EventService {
         ...step,
         action: `${adminBase}/divisions/${encodeURIComponent(division.id)}`,
         cancelHref: adminBase,
-        submitLabel: 'Review the Division Correction',
+        submitLabel: 'Review the Competition Correction',
       },
     };
   }

@@ -88,6 +88,7 @@ import {
 const AUDIT_RETENTION_FLOOR_DAYS = 2555;
 import { runSqliteRead } from './sqliteRetry';
 import { memberService } from './memberService';
+import { eventService, type CloseDueRegistrationsResult } from './eventService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
 import { recordOperationalError } from './operationalErrors';
 import { getCommunicationService, type ProcessBatchResult } from './communicationService';
@@ -411,6 +412,19 @@ export class OperationsPlatformService {
     return this.recordJobRun(
       'SYS_Send_Event_Registration_Reminders',
       () => runEventRegistrationReminderPass({ now }),
+      now,
+    );
+  }
+
+  /**
+   * SYS_Close_Event_Registration hourly entry point: closes registration on
+   * every open event whose cutoff has passed, recorded as one
+   * `system_job_runs` row naming the events closed.
+   */
+  async runCloseEventRegistration(now?: Date): Promise<CloseDueRegistrationsResult> {
+    return this.recordJobRun(
+      'SYS_Close_Event_Registration',
+      async () => eventService.closeDueRegistrations(now ?? new Date()),
       now,
     );
   }

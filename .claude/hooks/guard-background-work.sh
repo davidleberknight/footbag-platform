@@ -12,7 +12,12 @@
 # 2. Closing status. The final message, fenced blocks aside, ends with a last line
 #    starting "Session done" or carries a "Not done:" list. A message whose last line
 #    asks a question is exempt (guard-question-quality.sh governs it), and so is plan
-#    mode. A missing status gets non-error feedback (additionalContext) naming the
+#    mode. A message with a question line anywhere but a last line that is not a
+#    question is blocked once, so an owed question is never buried above a status
+#    list: its last line must restate it ("Your call: ...?"). Also on a first pass (plan
+#    mode included): a "Still running:" line below the first question line blocks, and so
+#    does a "Question N of M" count or a "Not done:" item naming a question, ruling or
+#    decision, since a message asks one question and names no later one. A missing status gets non-error feedback (additionalContext) naming the
 #    audit; the hook cannot see plan steps, verification or promises, so that audit is
 #    Claude's.
 # Claude Code ends the turn after eight consecutive continuations, which bounds a stuck
@@ -38,12 +43,39 @@ if [ -n "$tasks" ]; then
     [ "$claims_done" -eq 1 ] && contra='Your message says "Session done" while this work is still registered, which is not true yet. '
     reason="This session still has background work in flight:
 ${tasks}
-${contra}Before ending the turn, stop each task whose work is finished or no longer needed with TaskStop, including a subagent that has already reported back.${dev} Keep one running only if you are waiting on its result for the current task or the maintainer asked for it to stay up; then name each one you are leaving, and why, on a line starting \"Still running:\" inside a \"Not done:\" list. Then finish the turn."
+${contra}Before ending the turn, stop each task whose work is finished or no longer needed with TaskStop, including a subagent that has already reported back.${dev} Keep one running only if you are waiting on its result for the current task or the maintainer asked for it to stay up; then name each one you are leaving, and why, on a line starting \"Still running:\" placed above any question to the human, never after it. If you already asked a question, do not repeat or re-ask it: write only the Still running line. Then finish the turn."
     jq -cn --arg r "$reason" '{decision:"block",reason:$r}'
     exit 0
   fi
 fi
+q_re='\?[[:space:]*]*$'
+active="$(jq -r '.stop_hook_active // false' <<<"$input" 2>/dev/null)"
+if [ "$active" != true ]; then
+  # Status sits above the question, so the question is the last thing read.
+  q_line="$(printf '%s\n' "$body" | grep -nE "$q_re" | head -n 1 | cut -d: -f1)"
+  sr_line="$(printf '%s\n' "$body" | grep -nE '^[[:space:]]*([-*][[:space:]]+)?(\*\*)?Still running:' | tail -n 1 | cut -d: -f1)"
+  if [ -n "$q_line" ] && [ -n "$sr_line" ] && [ "$sr_line" -gt "$q_line" ]; then
+    jq -cn --arg r 'Your "Still running:" line comes after your question to the human. Put every status line, and any "Not done:" list, above the question, so the message ends on it.' '{decision:"block",reason:$r}'
+    exit 0
+  fi
+  # One question per message: a later question is never counted, previewed or carried
+  # as a status item; it is first mentioned when it is asked.
+  nd_items="$(printf '%s\n' "$body" | sed -En '/^[[:space:]]*(\*\*)?Not done:/,$p' | sed '1d' \
+    | grep -E '^[[:space:]]*[-*][[:space:]]' | grep -v 'Still running:' || true)"
+  if printf '%s\n' "$body" | grep -Eiq '\bQuestions? [0-9]+ (of|to|and) [0-9]+' \
+    || printf '%s\n' "$nd_items" | grep -Eiq '\b(questions?|rulings?|decisions?|your answer|your call)\b'; then
+    jq -cn --arg r 'Your message counts, previews or lists a question to the human beyond the one it asks (a "Question N of M" count, or a "Not done:" item naming a question, ruling or decision). Ask one question and name no other: drop the count or the item; a later question is first mentioned when it is asked.' '{decision:"block",reason:$r}'
+    exit 0
+  fi
+fi
 [ "$(jq -r '.permission_mode // empty' <<<"$input" 2>/dev/null)" = plan ] && exit 0
+if [ "$active" != true ] \
+  && printf '%s\n' "$body" | grep -Eq "$q_re" \
+  && ! printf '%s\n' "$last" | grep -Eq "$q_re"; then
+  qreason='Your message asks the human a question that is not on its last line, so it will scroll out of sight under the status list. Keep the full question where it is, and end the message, after any "Not done:" list, with one last line: "Your call: <one sentence, recommended answer first>?". If the earlier line was not a question owed to the human, reword it so it does not end in a question mark.'
+  jq -cn --arg r "$qreason" '{decision:"block",reason:$r}'
+  exit 0
+fi
 printf '%s\n' "$last" | grep -Eq "$done_re" && exit 0
 printf '%s\n' "$body" | grep -Eq '^[[:space:]]*(\*\*)?Not done:' && exit 0
 printf '%s\n' "$last" | grep -Eq '\?[[:space:]*]*$' && exit 0

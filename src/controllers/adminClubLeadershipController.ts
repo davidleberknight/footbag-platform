@@ -6,11 +6,14 @@ import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
 import { z } from 'zod';
-import { parseFormBody, formText } from '../lib/parseFormBody';
+import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+import { parsePickIntent } from '../services/memberPicker';
 
 const assignForm = z.object({
-  member_key: formText('Member id or slug'),
+  member_id: formText('Member'),
   reason: formText('Reason'),
+  pick: formOptionalText('The member picker'),
+  pick_q: formText('Name or login email'),
 });
 
 const demoteForm = z.object({
@@ -38,11 +41,15 @@ function renderDetailError(
   next: NextFunction,
   clubId: string,
   err: ValidationError | NotFoundError,
+  typed?: { memberId: string; reason: string; query: string },
 ): void {
   const status = err instanceof NotFoundError ? 404 : 422;
   let page;
   try {
-    page = adminClubLeadershipService.getClubLeadershipPage(clubId, { errorMessage: err.message });
+    page = adminClubLeadershipService.getClubLeadershipPage(clubId, {
+      errorMessage: err.message,
+      ...(typed ? { form: { ...typed, intent: null } } : {}),
+    });
   } catch (reloadErr) {
     // Only a club that is genuinely gone has no page to answer on. Any other
     // reload failure keeps its own answer -- a contended database renders the
@@ -77,12 +84,22 @@ export const adminClubLeadershipController = {
   /** POST /admin/clubs/:clubId/leadership/assign */
   assign(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId ?? '';
+    let typed: { memberId: string; reason: string; query: string } | undefined;
     try {
       const form = read(assignForm, req);
+      typed = { memberId: form.member_id, reason: form.reason, query: form.pick_q };
+      // A member picker control draws the page again with what was typed, and
+      // assigns nothing.
+      if (form.pick !== undefined) {
+        res.render('admin/club-leadership/detail', adminClubLeadershipService.getClubLeadershipPage(clubId, {
+          form: { ...typed, intent: parsePickIntent(form.pick) },
+        }));
+        return;
+      }
       const outcome = adminClubLeadershipService.assignLeader(
         req.user!.userId,
         clubId,
-        form.member_key,
+        form.member_id,
         form.reason,
       );
       redirectWithOutcome(req, res, {
@@ -93,7 +110,7 @@ export const adminClubLeadershipController = {
       });
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
-        renderDetailError(res, next, clubId, err);
+        renderDetailError(res, next, clubId, err, typed);
         return;
       }
       handleControllerError(err, res, next, 'admin club leadership controller');

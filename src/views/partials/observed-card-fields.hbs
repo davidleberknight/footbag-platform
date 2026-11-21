@@ -11,13 +11,13 @@
   <header class="observed-card-head">
     <span class="observed-card-source-badge observed-card-source-badge--{{sourceBadge}}" title="{{sourceLabel}}">{{sourceBadge}}</span>
     <h3 class="observed-card-name">{{name}}</h3>
-    <span class="tracked-tag" title="Observational: not a canonical trick">{{slug}}</span>
+    <span class="tracked-tag" title="Seen in other sources: not a confirmed trick">{{slug}}</span>
   </header>
   {{#if addLabel}}<p class="observed-card-meta"><span class="observed-add">{{addLabel}}</span></p>{{/if}}
   {{#if hasDetails}}
   <details class="observed-card-details">
     <summary class="observed-card-details-summary">Reading</summary>
-    {{#if decomposition}}<p class="observed-card-detail-formula"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> <code>{{decomposition}}</code> <span class="text-muted">(extrapolated, not canonical)</span></p>{{/if}}
+    {{#if decomposition}}<p class="observed-card-detail-formula"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> <code>{{decomposition}}</code> <span class="text-muted">(worked out, not confirmed)</span></p>{{/if}}
     {{#if curatorNote}}<p class="observed-card-detail-note"><em>Curator note:</em> {{curatorNote}}</p>{{/if}}
   </details>
   {{/if}}

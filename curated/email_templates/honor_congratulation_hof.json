@@ -1,7 +1,7 @@
 {
   "templateKey": "honor_congratulation_hof",
   "subjectTemplate": "Congratulations from the IFPA",
-  "bodyTemplate": "Congratulations, you have been inducted into the Footbag Hall of Fame.\n\nThis permanent honor grants you Tier 2 IFPA membership.",
+  "bodyTemplate": "Congratulations, you have been inducted into the Footbag Hall of Fame.\n\nThis permanent honor makes you a Tier 2 IFPA Organizer Member.",
   "piiClassification": "internal",
   "isEnabled": true
 }

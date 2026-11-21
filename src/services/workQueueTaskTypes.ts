@@ -140,6 +140,13 @@ export type WorkQueueAction =
       /** Offered only on a link-help item filed as a conflict dispute; the
        *  revert has nothing to act on otherwise. */
       disputeOnly?: boolean;
+      /**
+       * The record this action acts on, chosen rather than typed: `link_target`
+       * offers a picker over the unclaimed old accounts and one over the
+       * historical records, `disputed_record` a choice among the records the
+       * dispute named when it was filed.
+       */
+      targetChoice?: 'link_target' | 'disputed_record';
     }
   | {
       kind: 'close';
@@ -416,7 +423,7 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     brief: {
       what: 'A member asked for help linking their account to an old footbag.org account or to their competition record.',
       why:  'Until the link is made or refused, the member cannot see that history on their profile.',
-      todo: 'Check what they told you against the records shown, then approve with exactly one id to link, or reject with a reason.',
+      todo: 'Check what they told you against the records shown, then approve by choosing the one record to link, or reject with a reason.',
     },
     entityTypes:   ['member'],
     routeTopic:    'membership',
@@ -427,11 +434,9 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
         key:   'link-help/approve',
         label: 'Approve and Link',
         style: 'primary',
-        hint:  'Enter exactly one target: the legacy account id, or the historical person id for a competition-record link.',
-        fields: [
-          { name: 'target_legacy_member_id',     label: 'Legacy account id to link',    input: 'text', maxLength: 200, required: false },
-          { name: 'target_historical_person_id', label: 'Historical person id to link', input: 'text', maxLength: 200, required: false },
-        ],
+        hint:  'Choose one.',
+        targetChoice: 'link_target',
+        fields: [],
       },
       {
         kind:  'act',
@@ -448,11 +453,10 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
         label:       "Uphold Dispute: Revert Holder's Claim",
         style:       'outline',
         disputeOnly: true,
-        hint:        'Enter exactly one disputed record. The claim reverted is whoever currently holds it.',
+        hint:        'Choose the disputed record. The claim reverted is whoever currently holds it.',
+        targetChoice: 'disputed_record',
         fields: [
-          { name: 'target_legacy_member_id',     label: 'Disputed legacy account id',     input: 'text',     maxLength: 200, required: false },
-          { name: 'target_historical_person_id', label: 'Disputed historical person id',  input: 'text',     maxLength: 200, required: false },
-          { name: 'reason',                      label: 'Dispute reason',                 input: 'textarea', maxLength: 500, required: true },
+          { name: 'reason', label: 'Dispute reason', input: 'textarea', maxLength: 500, required: true },
         ],
       },
       {

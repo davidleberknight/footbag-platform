@@ -34,7 +34,7 @@
  */
 import { account, media } from '../db/db';
 import {
-  adminOverride, getTierStatus, tierBadgeShort, type MemberTier,
+  adminOverride, getTierStatus, tierBadgeShort, TIER_NAMES, type MemberTier,
 } from './membershipTieringService';
 import {
   correctExpiry as correctActivePlayerExpiry,
@@ -58,16 +58,12 @@ import { formatDateDisplay } from './dateFormat';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
 import { cleanUserText } from '../lib/textSanitizer';
+import { personLocation } from './countryUtils';
 
 const LOOKUP_LIMIT = 25;
 const MIN_LOOKUP_QUERY = 2;
 
-const TIER_LABEL: Record<MemberTier, string> = {
-  tier0: 'Tier 0 (none)',
-  tier1: 'Tier 1',
-  tier2: 'Tier 2',
-  tier3: 'Tier 3 (IFPA director)',
-};
+const TIER_LABEL: Record<MemberTier, string> = TIER_NAMES;
 
 /**
  * What a committed correction did, carried across the redirect as a short code
@@ -941,7 +937,7 @@ export const adminMemberService = {
     let errorMessage: string | undefined;
 
     if (query !== '' && query.length < MIN_LOOKUP_QUERY) {
-      errorMessage = `Enter at least ${MIN_LOOKUP_QUERY} characters, or an exact member id, profile URL, or email.`;
+      errorMessage = `Enter at least ${MIN_LOOKUP_QUERY} letters of the name, or a login email.`;
     } else if (query !== '') {
       const escaped = query.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
       // One over the cap, so a full page of results can be told apart from a
@@ -973,7 +969,7 @@ export const adminMemberService = {
     }
 
     const resultSummary = query === ''
-      ? 'Search for a member by id, profile URL, login email, or part of their display name.'
+      ? 'Search for a member by name or login email.'
       : results.length === 0
         ? 'No member matches that search.'
         : hasMore
@@ -987,7 +983,7 @@ export const adminMemberService = {
       page: {
         sectionKey: '', pageKey: 'admin_members', title,
         instructions: {
-          what: 'Finds any member account by exact id, exact profile address, exact login email, or part of the name.',
+          what: 'Finds any member account by part of the name or by login email.',
           why: 'It reaches accounts that member search hides: those held back from search, those inside the deletion grace period, and those marked deceased.',
           how: 'Type at least two characters, then open a result. Every correction starts from the member\'s record.',
           headsUp: ['This page shows private details.'],
@@ -1003,6 +999,34 @@ export const adminMemberService = {
         errorMessage,
       },
     };
+  },
+
+  /**
+   * The lookup's matches as plain rows, for an administrator's form that picks
+   * one member (assigning an event organizer): the same population and the
+   * same matching (exact id, profile address or login email, or part of the
+   * name), keeping only the members `accept` takes, at most `limit` of them.
+   */
+  lookupMembersForPicker(
+    rawQuery: string,
+    opts: { limit: number; accept: (memberId: string) => boolean },
+  ): { tooShort: boolean; hasMore: boolean; results: Array<{ memberId: string; displayName: string; location: string | null }> } {
+    const query = rawQuery.trim();
+    if (query.length < MIN_LOOKUP_QUERY) return { tooShort: true, hasMore: false, results: [] };
+    const escaped = query.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
+    const key = query.toLowerCase();
+    const ids = (account.findMemberIdsForAdminSearch.all(query, key, key, escaped, LOOKUP_LIMIT + 1) as Array<{ id: string }>)
+      .map(({ id }) => id)
+      .filter((id) => opts.accept(id));
+    const rows = ids.slice(0, opts.limit).map((id) => {
+      const row = readMember(id);
+      return {
+        memberId: row.id,
+        displayName: row.display_name,
+        location: personLocation(row.city, row.region, row.country)?.text ?? null,
+      };
+    });
+    return { tooShort: false, hasMore: ids.length > opts.limit, results: rows };
   },
 
   /** The member record: everything an administrator acts on, in one place. */
@@ -1029,7 +1053,7 @@ export const adminMemberService = {
 
     const identityLinks: FactRow[] = [];
     if (links?.legacy_member_id) {
-      identityLinks.push({ label: 'Legacy account', value: links.legacy_member_id });
+      identityLinks.push({ label: 'Old footbag.org account', value: links.legacy_member_id });
       identityLinks.push({ label: 'Claimed', value: dateOrDash(links.legacy_claimed_at) });
     }
     if (links?.historical_person_id) {

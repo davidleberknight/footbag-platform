@@ -9,7 +9,11 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertEvent, insertMember, insertTag, insertMediaItem, attachMediaTag } from '../fixtures/factories';
+import {
+  insertEvent, insertMember, insertTag, insertMediaItem, attachMediaTag,
+  insertDiscipline, insertEventOrganizer, insertRegistration,
+  insertResultsUpload, insertResultEntry, insertResultParticipant,
+} from '../fixtures/factories';
 
 // The instant the recent-events window is measured from, passed in so the
 // window never moves with the wall clock.
@@ -59,6 +63,25 @@ beforeAll(async () => {
   event('mts-upcoming', '#event_2027_spring_jam', '2027-03-01', 'reg_open');
   event('mts-old', '#event_2025_old_open', '2025-10-01', 'completed');
   event('mts-draft', '#event_2026_secret_meet', '2026-09-01', 'draft');
+
+  // A second member's own events, each related to them a different way.
+  const own = insertMember(db, { id: 'mts-own', slug: 'mts_own', login_email: 'own@mts.test' });
+  const ownEvent = (id: string, tag: string, start: string, status: 'reg_open' | 'completed' | 'draft' | 'canceled') =>
+    insertEvent(db, {
+      id, title: id, start_date: start, end_date: start, status,
+      hashtag_tag_id: insertTag(db, { tag_normalized: tag, tag_display: tag, standard_type: 'event' }),
+    });
+  const placeIn = (eventId: string) => {
+    const division = insertDiscipline(db, eventId);
+    const entry = insertResultEntry(db, eventId, insertResultsUpload(db, eventId, own), division);
+    insertResultParticipant(db, entry, 'Own Member', { member_id: own });
+  };
+  insertEventOrganizer(db, ownEvent('mts-own-draft', '#event_2026_own_draft', '2026-12-01', 'draft'), own);
+  insertEventOrganizer(db, ownEvent('mts-own-canceled', '#event_2026_own_canceled', '2026-10-01', 'canceled'), own);
+  insertRegistration(db, 'mts-upcoming', own, { status: 'confirmed' });
+  insertRegistration(db, ownEvent('mts-own-pending', '#event_2026_own_pending', '2026-12-15', 'reg_open'), own, { status: 'pending' });
+  placeIn('mts-worlds');
+  placeIn('mts-old');
   db.close();
 
   hashtagDiscoveryService = (await import('../../src/services/hashtagDiscoveryService')).hashtagDiscoveryService;
@@ -109,6 +132,23 @@ describe('recent events suggested to a member', () => {
       .getTagSuggestionsForMember('mts-a', 'mts_a', NOW)
       .recentEventTags.map((t) => t.normalized);
     // ordering-is-the-contract: newest start date first.
-    expect(offered).toEqual(['#event_2027_spring_jam', '#event_2026_worlds_japan']);
+    expect(offered).toEqual(['#event_2027_spring_jam', '#event_2026_own_pending', '#event_2026_worlds_japan']);
+  });
+});
+
+describe("the member's own events suggested to them", () => {
+  // Defect caught: an organizer cannot find their own new event's hashtag (it is
+  // a draft, or they have not placed in it yet), a registrant cannot find the
+  // event they are going to, or the list fills with long-past events, a canceled
+  // one, an unconfirmed registration's, or another member's draft.
+  it('offers events they placed in, are registered for or organize, inside the window, newest first', () => {
+    const suggestions = hashtagDiscoveryService.getTagSuggestionsForMember('mts-own', 'mts_own', NOW);
+    // ordering-is-the-contract: newest start date first.
+    expect(suggestions.participatedEventTags.map((t) => t.normalized)).toEqual([
+      '#event_2027_spring_jam', '#event_2026_own_draft', '#event_2026_worlds_japan',
+    ]);
+    // Everyone's recent events then offer only what is not already the member's own:
+    // the event they hold only a pending registration for.
+    expect(suggestions.recentEventTags.map((t) => t.normalized)).toEqual(['#event_2026_own_pending']);
   });
 });

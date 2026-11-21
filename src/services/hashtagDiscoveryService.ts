@@ -23,7 +23,9 @@
  *   - The /media/browse href for a single tag, shared with mediaService so one
  *     builder fixes every hashtag destination on the site.
  *   - Tag prefix suggest (autocomplete)
- *   - Member-context tag suggestions (club affiliations, participated events)
+ *   - Member-context tag suggestions (current club affiliations, and the
+ *     member's own recent events: placed in, registered for or organized,
+ *     inside the recent-events window)
  *
  * Does not own:
  *   - Tag creation (CuratorMediaService for freeform, ClubService/EventService
@@ -34,7 +36,8 @@
  * Persistence:
  *   tag_stats (write), tags (read), media_tags (read), media_items (read),
  *   member_club_affiliations (read), clubs (read), events (read),
- *   event_result_entry_participants (read).
+ *   event_result_entries and event_result_entry_participants (read),
+ *   registrations (read), event_organizers (read).
  *
  * Service shape: singleton object (no external adapters beyond db.ts).
  */
@@ -80,10 +83,26 @@ const CURATED_TAG = '#curated';
  * member's tag input, so a field where a member applies tags never offers them.
  * They stay offered where a person searches, where they are legitimate filters.
  */
+function recentEventWindow(now: Date): { from: string; to: string } {
+  return {
+    from: new Date(now.getTime() - RECENT_EVENT_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10),
+    to: new Date(now.getTime() + RECENT_EVENT_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10),
+  };
+}
+
 function recentEventTagRows(now: Date): MemberTagRow[] {
-  const from = new Date(now.getTime() - RECENT_EVENT_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
-  const to = new Date(now.getTime() + RECENT_EVENT_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+  const { from, to } = recentEventWindow(now);
   return tagStats.listRecentPublicEventTags.all(from, to, RECENT_EVENT_LIMIT) as MemberTagRow[];
+}
+
+// The member's own events inside the same window: placed in, registered for, or
+// organized. Older ones are found by typing, so the list stays short.
+const OWN_EVENT_LIMIT = 10;
+function ownRecentEventTagRows(memberId: string, now: Date): MemberTagRow[] {
+  const { from, to } = recentEventWindow(now);
+  return tagStats.listMemberRecentEventTags.all(
+    from, to, memberId, memberId, memberId, OWN_EVENT_LIMIT,
+  ) as MemberTagRow[];
 }
 
 function memberCanApply(tagNormalized: string): boolean {
@@ -149,6 +168,7 @@ export interface MemberTagSuggestions {
   /** The member's own player hashtag, so crediting themselves is one click. */
   playerTags: TagChipShape[];
   clubTags: TagChipShape[];
+  /** The member's own recent events: placed in, registered for, or organized. */
   participatedEventTags: TagChipShape[];
   /** Recent and upcoming public events, other than the member's own, media or not. */
   recentEventTags: TagChipShape[];
@@ -410,7 +430,7 @@ export const hashtagDiscoveryService = {
   ): MemberTagSuggestions {
     return runSqliteRead('hashtagDiscoveryService.getTagSuggestionsForMember', () => {
       const clubRows = tagStats.listMemberClubTags.all(memberId) as MemberTagRow[];
-      const eventRows = tagStats.listMemberParticipatedEventTags.all(memberId, 10) as MemberTagRow[];
+      const eventRows = ownRecentEventTagRows(memberId, now);
       const ownEvents = new Set(eventRows.map((r) => r.tag_normalized));
       const recentRows = recentEventTagRows(now).filter((r) => !ownEvents.has(r.tag_normalized));
       // The same two tiers the browse page offers: community usage first, then

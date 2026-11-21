@@ -9,6 +9,8 @@ export interface PlayerResultEntry {
   disciplineCategory: string | null;
   teamType: string | null;
   placement: number;
+  /** The placing's medal colour class, or empty. */
+  medalClass: string;
   scoreText: string | null;
   teammates: { name: string; playerHref?: string }[];
   isTie: boolean;
@@ -24,6 +26,10 @@ export interface PlayerEventGroup {
   city: string;
   eventRegion: string | null;
   eventCountry: string;
+  /** Where the event was held, in the site's one location form. */
+  locationText: string | null;
+  /** The event's media gallery, when its hashtag carries media. */
+  galleryHref: string | null;
   results: PlayerResultEntry[];
 }
 

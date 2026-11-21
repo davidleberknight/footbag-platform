@@ -37,7 +37,8 @@ import {
   insertFreestyleEvAdjudication, insertFreestyleTrick, insertFreestyleTrickAlias, insertFreestyleTrickModifier,
   insertHistoricalPerson, insertLegacyMember, insertMediaItem, insertMediaJob, insertMember,
   insertMemberClubAffiliation, insertMemberGallery, insertPayment,
-  insertRecurringDonationSubscription, insertSystemJobRun, insertTag, insertWorkQueueItem,
+  insertRecurringDonationSubscription, insertRegistration, insertRegistrationDisciplineSelection,
+  insertSystemJobRun, insertTag, insertWorkQueueItem,
 } from '../fixtures/factories';
 import {
   EXEMPT, REACH, REACH_ROWS, STRESS, VIEWERS, forMember, listPageTemplates,
@@ -84,6 +85,14 @@ test.beforeAll(() => {
   const upload = insertResultsUpload(db, REACH_ROWS.eventId, 'member_persona_admin_t2');
   insertResultEntry(db, REACH_ROWS.eventId, upload, REACH_ROWS.resultDisciplineId, { id: REACH_ROWS.resultEntryId, score_text: '15-11' });
   insertResultParticipant(db, REACH_ROWS.resultEntryId, 'Rendered Style Player A', { historical_person_id: playerA });
+  // An event with no results yet, so its entries are still open to correction:
+  // Add Entrant, and Edit Entry on one confirmed doubles entry.
+  const correctionsTag = insertTag(db, { standard_type: 'event', tag_normalized: `#${REACH_ROWS.correctionsEventKey}`, tag_display: `#${REACH_ROWS.correctionsEventKey}` });
+  insertEvent(db, { id: REACH_ROWS.correctionsEventId, hashtag_tag_id: correctionsTag, title: 'Rendered Style Corrections' });
+  insertEventOrganizer(db, REACH_ROWS.correctionsEventId, member);
+  const correctionsDoubles = insertDiscipline(db, REACH_ROWS.correctionsEventId, { name: 'Open Doubles Net', discipline_category: 'net', game_id: 'game_footbag_net', team_type: 'doubles' });
+  insertRegistration(db, REACH_ROWS.correctionsEventId, 'member_persona_admin_t2', { id: REACH_ROWS.correctionsRegistrationId, status: 'confirmed' });
+  insertRegistrationDisciplineSelection(db, REACH_ROWS.correctionsRegistrationId, correctionsDoubles, { partner_member_id: member });
   insertMemberGallery(db, { id: REACH_ROWS.memberGalleryId, owner_member_id: member, created_by: member, name: 'Rendered Style Gallery', description: '', is_default: 0 });
   insertMediaItem(db, { id: REACH_ROWS.memberMediaId, uploader_member_id: member, caption: 'Rendered style upload' });
   insertPayment(db, { id: REACH_ROWS.paymentId, member_id: member, status: 'succeeded', stripe_checkout_session_id: REACH_ROWS.checkoutSessionId });

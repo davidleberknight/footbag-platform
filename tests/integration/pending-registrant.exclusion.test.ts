@@ -150,8 +150,10 @@ describe('admin surfaces never find or name a prospective member', () => {
     expect(search(PENDING.slug)).toEqual([]);
     expect(dbMod.account.findActiveMemberByKey.get(MEMBER.slug, MEMBER.slug)).toBeDefined();
     expect(dbMod.account.findActiveMemberByKey.get(PENDING.slug, PENDING.slug)).toBeUndefined();
-    expect(dbMod.clubLeaders.findMemberByKeyForAdmin.get(MEMBER.slug, MEMBER.slug)).toBeDefined();
-    expect(dbMod.clubLeaders.findMemberByKeyForAdmin.get(PENDING.slug, PENDING.slug)).toBeUndefined();
+    expect(dbMod.account.findActiveMemberById.get(MEMBER.id)).toBeDefined();
+    expect(dbMod.account.findActiveMemberById.get(PENDING.id)).toBeUndefined();
+    expect(dbMod.clubLeaders.findAppointableMemberById.get(MEMBER.id)).toBeDefined();
+    expect(dbMod.clubLeaders.findAppointableMemberById.get(PENDING.id)).toBeUndefined();
   });
 
   it('the admin member record opens for the member and answers not-found for the prospective member', async () => {
@@ -254,7 +256,7 @@ describe('admin surfaces never find or name a prospective member', () => {
     const pending = dbMod.legacyClaim.findHolderForAdmin.get(PENDING.id) as { is_nameable: number };
     expect(member.is_nameable).toBe(1);
     expect(pending.is_nameable).toBe(0);
-    const rows = dbMod.deceasedMarking.searchHistoricalPersons.all('', 'name pr_', 50) as
+    const rows = dbMod.deceasedMarking.searchHistoricalPersons.all('', '', 'name pr_', 50) as
       { person_id: string; claimed_by_is_nameable: number }[];
     const byRecord = new Map(rows.map((r) => [r.person_id, r.claimed_by_is_nameable]));
     expect(byRecord.get(MEMBER.hp)).toBe(1);

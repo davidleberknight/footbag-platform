@@ -21,6 +21,11 @@
  *     earlier organizer's row holds can block a new one.
  *   - An event has at most five current organizers, a hard limit: assigning a
  *     sixth is refused.
+ *   - The member assigned is chosen in the page's member picker, which
+ *     searches the administrator's member lookup (AdminMemberService), so it
+ *     reaches members who opted out of member search, and offers only live,
+ *     onboarded members who do not already organize the event. The choice is
+ *     posted by member id, and only a live, onboarded member is assigned.
  *   - An organizer row outlives the member, matching club leadership, so "has
  *     an organizer" is decided by the current-organizer view, which leaves out
  *     deleted and deceased members, rather than by the row existing.
@@ -45,16 +50,22 @@
  * Service shape: singleton object literal; it reaches no adapter.
  */
 import { randomUUID } from 'crypto';
-import { eventOrganizers, clubLeaders, workQueue, transaction } from '../db/db';
+import { eventOrganizers, workQueue, transaction } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { workQueueService } from './workQueueService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { cleanUserText } from '../lib/textSanitizer';
+import { adminMemberService } from './adminMemberService';
+import { personLocation } from './countryUtils';
+import { PICKER_LIMIT, buildMemberPicker, type MemberPickerView, type PickIntent } from './memberPicker';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
 
 const NEEDS_ORGANIZER_TASK = 'needs_organizer';
+// The assign form, and the one picker on it.
+const ASSIGN_FORM_ID = 'assign-organizer-form';
+const PICKER_KEY = 'organizer';
 const ORGANIZER_CAP = 5;
 const REASON_MIN = 3;
 const REASON_MAX = 500;
@@ -94,6 +105,11 @@ export interface AdminEventOrganizerDetailContent {
   hasOrganizers: boolean;
   needsOrganizer: boolean;
   assignHref: string;
+  assignFormId: string;
+  /** The picker choosing the member to assign. */
+  organizerPicker: MemberPickerView;
+  /** The reason as typed, kept while the picker draws the page again. */
+  reasonValue: string;
   removeHref: string;
   queueHref: string;
   /** The result of the last assign or remove, carried across its redirect. */
@@ -179,12 +195,56 @@ export const adminEventOrganizerService = {
     };
   },
 
+  /**
+   * The event's organizers and the assign form. `form` is what the
+   * administrator submitted: the chosen member, the reason, and a picker
+   * control's request, which draws the page again with nothing written.
+   */
   getEventOrganizersPage(
     eventId: string,
-    opts: { notice?: OutcomeNoticeView | null; errorMessage?: string } = {},
+    opts: {
+      notice?: OutcomeNoticeView | null;
+      errorMessage?: string;
+      form?: { memberId: string; reason: string; intent: PickIntent | null; query: string };
+    } = {},
   ): PageViewModel<AdminEventOrganizerDetailContent> {
     const event = loadEvent(eventId);
     const organizers = shapeOrganizers(eventId);
+    const intent = opts.form?.intent ?? null;
+    const organizerIds = new Set(organizers.map((o) => o.memberId));
+    const chosenId = intent?.kind === 'choose' && intent.key === PICKER_KEY ? intent.memberId : opts.form?.memberId ?? '';
+    const chosen = chosenId !== ''
+      ? eventOrganizers.findMember.get(chosenId) as
+        | { id: string; display_name: string; city: string | null; region: string | null; country: string | null }
+        | undefined
+      : undefined;
+    // The administrator's lookup population, which member search hides some
+    // of, narrowed to members who can organize and do not already.
+    const search = intent?.kind === 'search' && intent.key === PICKER_KEY
+      ? adminMemberService.lookupMembersForPicker(opts.form?.query ?? '', {
+        limit: PICKER_LIMIT,
+        accept: (id) => !organizerIds.has(id) && eventOrganizers.findMember.get(id) !== undefined,
+      })
+      : null;
+    const assignHref = `/admin/events/${event.id}/organizers/assign`;
+    const organizerPicker = buildMemberPicker({
+      formId: ASSIGN_FORM_ID,
+      formAction: assignHref,
+      fieldName: 'member_id',
+      fieldKey: PICKER_KEY,
+      label: 'Member',
+      searchLabel: 'Name or login email',
+      openLabel: 'Choose Member',
+      rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name} as organizer` },
+      chosen: chosen
+        ? { memberId: chosen.id, displayName: chosen.display_name, location: personLocation(chosen.city, chosen.region, chosen.country)?.text ?? null }
+        : null,
+      intent,
+      openOnLoad: true,
+      query: opts.form?.query ?? '',
+      search: search && { ...search, rateLimited: false },
+      notFoundHint: null,
+    });
     return {
       seo:  { title: 'Event Organizers', noindex: true },
       page: {
@@ -194,7 +254,7 @@ export const adminEventOrganizerService = {
         eyebrow:    event.title,
         instructions: {
           what: 'Shows who runs this event, and assigns or removes an organizer.',
-          how: 'Enter a member and a reason to assign them, or give a reason beside an organizer to remove them.',
+          how: 'Search for a member, choose them and give a reason to assign them, or give a reason beside an organizer to remove them.',
           headsUp: [
             'An event has at most five organizers.',
             'Both actions take a reason and are recorded in the audit log.',
@@ -213,7 +273,10 @@ export const adminEventOrganizerService = {
         organizers,
         hasOrganizers: organizers.length > 0,
         needsOrganizer: organizers.length === 0,
-        assignHref:    `/admin/events/${event.id}/organizers/assign`,
+        assignHref,
+        assignFormId:  ASSIGN_FORM_ID,
+        organizerPicker,
+        reasonValue:   opts.form?.reason ?? '',
         removeHref:    `/admin/events/${event.id}/organizers/remove`,
         queueHref:     '/admin/events/organizers',
         notice:        opts.notice ?? null,
@@ -231,14 +294,15 @@ export const adminEventOrganizerService = {
    * this admin's own standing assignment reports the first submit's success,
    * and one someone else made reports that nothing changed.
    */
-  assignOrganizer(adminMemberId: string, eventId: string, memberKey: string, reason: string): OrganizerChangeOutcome {
+  assignOrganizer(adminMemberId: string, eventId: string, memberId: string, reason: string): OrganizerChangeOutcome {
     const trimmedReason = requireReason(reason);
     const event = loadEvent(eventId);
-    const key = memberKey.trim();
-    const member = clubLeaders.findMemberByKeyForAdmin.get(key, key) as
+    // The member chosen from the member search, by id: only a live, onboarded
+    // account can organize.
+    const member = eventOrganizers.findMember.get(memberId.trim()) as
       | { id: string; display_name: string; slug: string }
       | undefined;
-    if (!member) throw new NotFoundError('No active member with that id or slug.');
+    if (!member) throw new NotFoundError('Only a footbag.org member can organize an event. Search for them by name and choose them.');
 
     if (eventOrganizers.findRow.get(eventId, member.id)) {
       return ownStandingAct(adminMemberId, eventId, member.id, 'event.organizer_assigned')

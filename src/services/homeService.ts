@@ -51,7 +51,7 @@ export const homeService = {
       },
       hero: {
         heading: 'Footbag Worldwide',
-        subheading: 'The home of footbag sports and recreational "Hacky Sack."',
+        subheading: 'The official home of footbag sports and recreational "Hacky Sack."',
       },
       primaryLinks: [
         {

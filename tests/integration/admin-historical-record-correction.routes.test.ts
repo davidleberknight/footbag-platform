@@ -286,6 +286,18 @@ describe('refusals', () => {
     expect(held.text).toContain('Held Person');
     expect(held.text).not.toMatch(/historical-records\/[^/"]+\/correction"/);
   });
+
+  // Defect caught: an administrator holding only someone's old footbag.org
+  // account id cannot find the competition record linked to it.
+  it('finds a record by the exact old account id linked to it, and only that record', async () => {
+    const linked = seedPerson({ person_name: 'Oldid Linked', legacy_member_id: '987654' });
+    const other = seedPerson({ person_name: 'Oldid Other', legacy_member_id: '9876540' });
+    const res = await request(createApp())
+      .get('/admin/historical-records?q=987654').set('Cookie', cookieFor(ADMIN_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`href="/admin/historical-records/${linked}/correction"`);
+    expect(res.text).not.toContain(`href="/admin/historical-records/${other}/correction"`);
+  });
 });
 
 describe('a submission that changes nothing', () => {

@@ -101,7 +101,7 @@ describe('getOwnProfile().content.membership', () => {
     // temporary and the tier under it is not.
     expect(vm.content.membership!.benefitsBlurb).toMatch(/You can browse the platform/);
     expect(vm.content.membership!.activePlayer?.currentExplanation)
-      .toMatch(/Tier 1 benefits while Active Player/);
+      .toMatch(/Tier 1 IFPA Member benefits while Active Player/);
   });
 
   it('tier1: no AP block; only Tier 2 upgrade CTA', () => {
@@ -173,7 +173,7 @@ describe('getOwnProfile().content.membership.rosterStatusText', () => {
     db.close();
     const membership = memberServiceMod.memberService.getOwnProfile(m.slug).content.membership!;
     expect(membership.rosterStatusText).toBe(
-      'You are not on the Official IFPA Roster. Tier 1 membership or current Active Player status puts you on it.',
+      'You are not on the Official IFPA Roster. Becoming a Tier 1 IFPA Member, or holding current Active Player status, puts you on it.',
     );
   });
 

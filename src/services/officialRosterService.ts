@@ -36,6 +36,7 @@ import {
 import { ValidationError } from './serviceErrors';
 import { formatDateDisplay } from './dateFormat';
 import { personLocation } from './countryUtils';
+import { TIER_NAMES } from './membershipTieringService';
 import type { PageViewModel } from '../types/page';
 
 export type MemberTier = 'tier0' | 'tier1' | 'tier2' | 'tier3';
@@ -152,18 +153,13 @@ const VALID_TIERS: ReadonlySet<MemberTier> = new Set(['tier0', 'tier1', 'tier2',
 /** Roster rows per page. The roster is small; this keeps the table readable. */
 const PAGE_SIZE = 50;
 
-const TIER_LABELS: Record<MemberTier, string> = {
-  tier0: 'Tier 0 Registered Member',
-  tier1: 'Tier 1 IFPA Member',
-  tier2: 'Tier 2 IFPA Organizer Member',
-  tier3: 'Tier 3 IFPA Director',
-};
+const TIER_LABELS: Record<MemberTier, string> = TIER_NAMES;
 
 const TIER_FILTER_LABELS: Record<MemberTier, string> = {
   tier0: 'Tier 0 Active Player',
-  tier1: 'Tier 1',
-  tier2: 'Tier 2',
-  tier3: 'Tier 3',
+  tier1: TIER_NAMES.tier1,
+  tier2: TIER_NAMES.tier2,
+  tier3: TIER_NAMES.tier3,
 };
 
 function validateFilter(filter: RosterFilter | undefined): MemberTier[] | null {
@@ -366,9 +362,9 @@ export function getOfficialRosterPage(
       summaryRows: [
         { label: 'Total on Roster', value: String(counts.total) },
         { label: 'Tier 0 Active Player', value: String(counts.byTier.tier0_active_player) },
-        { label: 'Tier 1', value: String(counts.byTier.tier1) },
-        { label: 'Tier 2', value: String(counts.byTier.tier2) },
-        { label: 'Tier 3', value: String(counts.byTier.tier3) },
+        { label: TIER_NAMES.tier1, value: String(counts.byTier.tier1) },
+        { label: TIER_NAMES.tier2, value: String(counts.byTier.tier2) },
+        { label: TIER_NAMES.tier3, value: String(counts.byTier.tier3) },
         { label: 'Hall of Fame', value: String(counts.byHonor.hof) },
         { label: 'Big Add Posse', value: String(counts.byHonor.bap) },
         { label: 'IFPA Board', value: String(counts.byHonor.board) },

@@ -529,6 +529,8 @@ export interface ClubOverrides {
   // and the directory views exclude it whatever the tag. A test that needs a club
   // to appear IN the directory must also pass a real (non 'club-test-') id.
   publiclyVisible?: boolean;
+  /** The club's cover photo pointer; NULL (no cover) by default. */
+  cover_media_id?: string | null;
 }
 
 export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): string {
@@ -551,8 +553,9 @@ export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): s
     INSERT INTO clubs (
       id, hashtag_tag_id, name, description, city, region, country,
       external_url, external_url_validated_at, external_url_quarantine_reason, status,
+      cover_media_id,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, tagId,
     o.name         ?? 'Test Club',
@@ -564,6 +567,7 @@ export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): s
     validatedAt,
     quarantineReason,
     o.status       ?? 'active',
+    o.cover_media_id ?? null,
     nowIso(), SYS, nowIso(), SYS,
   );
   return id;
@@ -1390,6 +1394,8 @@ export interface MemberAnnouncementOverrides {
   decided_at?: string | null;
   email_archive_id?: string | null;
   summary_event_id?: string | null;
+  publish_to?: 'list' | 'feed' | 'both';
+  news_item_id?: string | null;
   created_at?: string;
 }
 
@@ -1409,8 +1415,9 @@ export function insertMemberAnnouncement(
     INSERT INTO member_announcements (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, submit_token, subject, body_text, status, admin_comment,
-      decided_by_member_id, decided_at, email_archive_id, summary_event_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      decided_by_member_id, decided_at, email_archive_id, summary_event_id,
+      publish_to, news_item_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, created, o.member_id, created, o.member_id,
     o.member_id,
@@ -1423,6 +1430,8 @@ export function insertMemberAnnouncement(
     o.decided_at ?? (decided ? nowIso() : null),
     o.email_archive_id ?? null,
     o.summary_event_id ?? null,
+    o.publish_to ?? 'list',
+    o.news_item_id ?? null,
   );
   return id;
 }
@@ -2053,6 +2062,8 @@ export interface EventOverrides {
   is_tshirt_size_collected?: 0 | 1;
   /** The club that hosted it, which is what gives a club its event history. */
   host_club_id?: string | null;
+  /** The event's cover photo pointer; NULL (no cover) by default. */
+  cover_media_id?: string | null;
 }
 
 export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}): string {
@@ -2072,9 +2083,9 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
       host_club_id,
       payment_enabled, currency, competitor_fee_cents, attendee_fee_cents,
       prize_money_total_cents, prize_money_currency,
-      is_attendee_registration_open, is_tshirt_size_collected,
+      is_attendee_registration_open, is_tshirt_size_collected, cover_media_id,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, tagId,
     o.title              ?? 'Test Event',
@@ -2103,6 +2114,7 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
     o.prize_money_currency ?? null,
     o.is_attendee_registration_open ?? 0,
     o.is_tshirt_size_collected ?? 0,
+    o.cover_media_id     ?? null,
     nowIso(), SYS, nowIso(), SYS,
   );
   return id;
@@ -2196,6 +2208,9 @@ export interface RegistrationOverrides {
   /** Set together on a canceled registration, as a withdrawal or cancellation writes them. */
   cancel_reason?: string | null;
   canceled_at?: string | null;
+  /** Set together on an entry fee an organizer collected at the event, which holds no payment. */
+  paid_at_event_at?: string | null;
+  paid_at_event_marked_by_member_id?: string | null;
 }
 
 export function insertRegistration(
@@ -2210,8 +2225,9 @@ export function insertRegistration(
     INSERT INTO registrations (
       id, created_at, created_by, updated_at, updated_by, version,
       event_id, member_id, registered_at, registration_type, status,
-      attended_at, payment_id, tshirt_size, cancel_reason, canceled_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      attended_at, payment_id, tshirt_size, cancel_reason, canceled_at,
+      paid_at_event_at, paid_at_event_marked_by_member_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, registeredAt, SYS, registeredAt, SYS,
     eventId, memberId, registeredAt,
@@ -2222,6 +2238,8 @@ export function insertRegistration(
     o.tshirt_size ?? null,
     o.cancel_reason ?? null,
     o.canceled_at ?? null,
+    o.paid_at_event_at ?? null,
+    o.paid_at_event_marked_by_member_id ?? null,
   );
   return id;
 }
@@ -2234,7 +2252,6 @@ export function insertRegistration(
 export interface RegistrationDisciplineSelectionOverrides {
   id?: string;
   partner_member_id?: string | null;
-  partner_display_name?: string | null;
   enters_as_amateur?: 0 | 1;
 }
 
@@ -2248,14 +2265,13 @@ export function insertRegistrationDisciplineSelection(
   db.prepare(`
     INSERT INTO registration_discipline_selections (
       id, created_at, created_by, updated_at, updated_by, version,
-      registration_id, discipline_id, partner_member_id, partner_display_name,
+      registration_id, discipline_id, partner_member_id,
       enters_as_amateur
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
   `).run(
     id, nowIso(), SYS, nowIso(), SYS,
     registrationId, disciplineId,
     o.partner_member_id ?? null,
-    o.partner_display_name ?? null,
     o.enters_as_amateur ?? 0,
   );
   return id;

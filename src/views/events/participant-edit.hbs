@@ -1,0 +1,17 @@
+{{! An organizer changing one entry of their event }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+    <p class="hero-subtitle">{{content.eventTitle}}, {{content.eventDates}}</p>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{> event-entry-form content}}
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
+  </section>
+
+  {{> back-link}}
+</div>

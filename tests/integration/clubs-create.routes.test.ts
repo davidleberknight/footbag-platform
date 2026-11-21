@@ -606,7 +606,9 @@ describe('POST /clubs/create submitted twice', () => {
       .set('Cookie', [authCookie(REPEAT_ID), flash].join('; '));
     expect(landed.status).toBe(200);
     expect(landed.text).toContain('Repeat Footbag');
-    expect(landed.text).toContain('<div class="form-success-banner" role="status">Club created.</div>');
+    // The success message names the club's hashtag, so a new leader learns the tag
+    // their members' photos fill the gallery under.
+    expect(landed.text).toMatch(/<div class="form-success-banner" role="status">[^<]*#club_repeat_boulder[^<]*<\/div>/);
   });
 
   // Defect caught: a creator who goes back, edits a field and submits again is

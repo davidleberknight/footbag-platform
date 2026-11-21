@@ -17,7 +17,7 @@
       <p>{{content.pendingNote}}</p>
     {{/if}}
 
-    <form method="POST" action="{{content.formAction}}" class="form-block">
+    <form method="POST" action="{{content.formAction}}" id="{{content.formId}}" class="form-block">
 
       {{#if content.typeChoices}}
         <fieldset class="form-fieldset">
@@ -25,7 +25,7 @@
           {{#each content.typeChoices}}
             <div class="form-field"><label><input type="radio" name="registration_type" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
           {{/each}}
-          <small class="form-hint">An attendee or supporter enters no divisions.</small>
+          <small class="form-hint">A spectator comes to the event without competing.</small>
         </fieldset>
       {{else}}
         <input type="hidden" name="registration_type" value="{{content.impliedType}}" />
@@ -34,7 +34,7 @@
 
       {{#if content.showDivisions}}
         <fieldset class="form-fieldset">
-          <legend>Divisions</legend>
+          <legend>What are you entering?</legend>
           {{#each content.divisions}}
             <div class="form-field">
               <label>
@@ -45,16 +45,9 @@
                 <p>{{this.genderWarning}}{{#if this.profileHref}} <a href="{{siteHref this.profileHref}}">Your profile</a>{{/if}}</p>
               {{/if}}
             </div>
-            {{#if this.isDoubles}}
+            {{#if this.partnerPicker}}
               <input type="hidden" name="partner_division" value="{{this.id}}" />
-              <div class="form-field">
-                <label for="partner_key_{{this.id}}">Partner's member id or profile URL</label>
-                <input type="text" id="partner_key_{{this.id}}" name="partner_key" value="{{this.partnerKey}}" />
-              </div>
-              <div class="form-field">
-                <label for="partner_name_{{this.id}}">Or partner's name, if not a member</label>
-                <input type="text" id="partner_name_{{this.id}}" name="partner_name" value="{{this.partnerName}}" maxlength="100" />
-              </div>
+              {{> member-picker this.partnerPicker}}
             {{/if}}
             {{#if this.offersPrizeMoney}}
               <div class="form-field">
@@ -67,7 +60,7 @@
           {{/each}}
         </fieldset>
         <div class="form-field">
-          <small class="form-hint">A competitor enters at least one division.</small>
+          <small class="form-hint">A competitor enters at least one competition.</small>
         </div>
       {{/if}}
 
@@ -88,6 +81,7 @@
       </div>
 
     </form>
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
   </section>
 
   {{> back-link}}

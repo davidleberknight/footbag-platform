@@ -303,7 +303,7 @@ describe('correcting a result', () => {
       const res = await post(`/admin/events/${s.eventId}/results/entries/${s.entryId}/confirm`,
         entryBody(s, { discipline_id: target }));
       expect(res.status, target).toBe(422);
-      expect(res.text).toContain('Choose a division of this event with the same team format.');
+      expect(res.text).toContain('Choose a competition of this event that is also singles or also doubles.');
     }
     expect(entryRow(s.entryId).discipline_id).toBe(s.openId);
   });
@@ -338,7 +338,7 @@ describe('correcting a division', () => {
       sport_family: '', aggregate_standing: '1', reason: 'overall ranking',
     });
     expect(preview.status).toBe(200);
-    expect(preview.text).toContain('Single contest &rarr; Aggregate standing');
+    expect(preview.text).toContain('Single contest &rarr; Overall or club ranking');
     expect(disciplineRow(s.openId)).toEqual({ discipline_category: 'net', is_aggregate_standing: 0 });
 
     const res = await post(`/admin/events/${s.eventId}/results/disciplines/${s.openId}/confirm`, {

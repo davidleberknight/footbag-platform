@@ -1987,6 +1987,66 @@ if [ -n "$enum_hits" ]; then
 fi
 fi
 
+# Rule: a form lets a person choose another member only through the member
+# picker (the member-picker partial), never by typing an id.
+# Reason: people know names, not member ids, slugs, profile URLs or historical
+# person ids, so a form asking for one cannot be filled in without looking the
+# answer up somewhere else.
+# Refused, in templates: a visible input, textarea or select named for a member
+# or person key (whole tags, so one written across lines is still seen), and any
+# line asking for a member id, slug or identifier, "id or slug", "id or profile
+# URL" or a person id. In controllers and services: the same phrase in a form
+# field's label, a thrown message, a hint, a field error or a text field's
+# definition. Allowed: a hidden field, which carries forward a member an earlier
+# step chose; a checkbox or radio over members the page lists; a member's own
+# Profile URL; an id displayed on a record. An old footbag.org account id (a
+# legacy member id) is not matched, because an administrator looking for a
+# legacy account or its record may search by it.
+if check "a member is chosen with the member picker, never by a typed id" src/views src/controllers src/services; then
+member_pick_out=$(python3 - <<'PYEOF'
+import re, pathlib
+TAG = re.compile(r'<(?:input|textarea|select)\b[^>]*>', re.S | re.I)
+KEY_NAME = re.compile(r'\bname\s*=\s*"(?:(?:member|partner)_key|member_?id|person_?id|target_(?:legacy_member|historical_person)_id)"', re.I)
+CARRIED = re.compile(r'\btype\s*=\s*"(?:hidden|checkbox|radio)"', re.I)
+ASKS = re.compile(r'\b(?<!legacy )member (?:id|slug|identifier)\b|\bid or (?:slug|profile url)\b|\bperson id\b', re.I)
+HBS_COMMENT = re.compile(r'\{\{!--.*?--\}\}|\{\{![^}]*\}\}', re.S)
+TS_ASK_CALL = re.compile(r'\b(?:formText|formOptionalText|\w*Error)\(\s*([\'"`])(.*?)\1', re.S)
+TS_ASK_LINE = re.compile(r'\b(?:hint|errorMessage|fieldErrors(?:\.\w+)?)\s*[:=]|\binput:\s*\'text\'')
+TS_STRING = re.compile(r'([\'"`])((?:\\.|(?!\1).)*)\1')
+def line_of(text, pos): return text.count('\n', 0, pos) + 1
+hits = []
+for f in sorted(pathlib.Path('src/views').rglob('*.hbs')):
+    raw = f.read_text(encoding='utf-8')
+    # Blank comments out, keeping their newlines, so line numbers still hold.
+    text = HBS_COMMENT.sub(lambda m: re.sub(r'[^\n]', ' ', m.group(0)), raw)
+    for m in TAG.finditer(text):
+        if KEY_NAME.search(m.group(0)) and not CARRIED.search(m.group(0)):
+            hits.append((str(f), line_of(text, m.start()), 'a typed member or person key field'))
+    for n, line in enumerate(text.splitlines(), 1):
+        if ASKS.search(line):
+            hits.append((str(f), n, 'text asking for a member id, slug or person id'))
+for base in ('src/controllers', 'src/services'):
+    for f in sorted(pathlib.Path(base).rglob('*.ts')):
+        text = f.read_text(encoding='utf-8')
+        for m in TS_ASK_CALL.finditer(text):
+            if ASKS.search(m.group(2)):
+                hits.append((str(f), line_of(text, m.start(2)), 'a typed-key label or message'))
+        for n, line in enumerate(text.splitlines(), 1):
+            if line.lstrip().startswith(('//', '*', '/*')) or not TS_ASK_LINE.search(line):
+                continue
+            if any(ASKS.search(s.group(2)) for s in TS_STRING.finditer(line)):
+                hits.append((str(f), n, 'a typed-key hint or field'))
+for path, n, what in sorted(set(hits)):
+    print(f'{path}:{n}: {what}')
+PYEOF
+)
+if [ -n "$member_pick_out" ]; then
+  echo "$member_pick_out" >&2
+  echo "  FAIL: choose a member with the member picker (the member-picker partial), never a typed member id, slug, profile URL or person id" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: cookies are set or cleared only through the cookie-helper libs.
 # Reason: a session or flash cookie carries HttpOnly/Secure/SameSite attributes
 # that must not vary; a direct res.cookie()/res.clearCookie()/Set-Cookie write can

@@ -1092,8 +1092,8 @@ export const paymentReconciliationService = {
           typeLabel: PAYMENT_TYPE_LABELS[String(r.payment_type)] ?? String(r.payment_type),
           amountDisplay: formatAmount(Number(r.amount_cents), String(r.currency)),
           statusLabel: String(r.status),
-          memberSlug: r.member_slug ? String(r.member_slug) : null,
-          memberHref: r.member_slug ? `/members/${String(r.member_slug)}` : null,
+          memberName: r.member_display_name ? String(r.member_display_name) : null,
+          memberHref: r.member_display_name ? `/admin/members/${String(r.member_id)}` : null,
           reference: String(r.stripe_payment_intent_id ?? r.stripe_subscription_id ?? r.id),
           providerModeLabel: providerModeLabel(r.provider_livemode),
           hasProviderModeBadge: providerModeLabel(r.provider_livemode) !== null,
@@ -1471,7 +1471,8 @@ export interface AdminPaymentRowViewModel {
   typeLabel: string;
   amountDisplay: string;
   statusLabel: string;
-  memberSlug: string | null;
+  /** The payer by name, linked to their administrator member record. */
+  memberName: string | null;
   memberHref: string | null;
   reference: string;
   /** Null for a live payment, which is deliberately unbadged; see
@@ -2190,9 +2191,11 @@ function resolveMemberIdsForPaymentSearch(input: string): string[] {
     .replace(/\\/g, '\\\\')
     .replace(/%/g, '\\%')
     .replace(/_/g, '\\_');
+  // A profile address is stored lowercase, so a pasted one is compared lowercased,
+  // as the member lookup compares it.
   const rows = account.findMemberIdsForAdminSearch.all(
     input,
-    input,
+    normalized,
     normalized,
     escaped,
     MEMBER_SEARCH_RESOLVE_LIMIT,

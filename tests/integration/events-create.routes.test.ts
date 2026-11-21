@@ -183,7 +183,9 @@ describe('a free event', () => {
     const manage = await request(createApp()).get(res.headers.location)
       .set('Cookie', [cookieFor(tier1), flashCookieOf(res)].filter(Boolean).join('; '));
     expect(manage.status).toBe(200);
-    expect(manage.text).toContain('form-success-banner');
+    // Defect caught: a new organizer is never shown the hashtag their event's
+    // photos fill its gallery under.
+    expect(manage.text).toMatch(new RegExp(`form-success-banner[^>]*>[^<]*#event_${YEAR}_beaver_open[^<]*<`));
   });
 
   // Defect caught: a fee typed on a free event is stored, so an event that

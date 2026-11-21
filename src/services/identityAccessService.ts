@@ -1538,7 +1538,7 @@ function detectRegistrationConflicts(
     if (surnamePasses(name)) {
       out.push({
         displayName:        name,
-        sourceLabel:        'Claimed legacy footbag.org account',
+        sourceLabel:        'Claimed old footbag.org account',
         legacyMemberId:     row.legacy_member_id,
         historicalPersonId: null,
       });
@@ -2123,7 +2123,7 @@ function claimLegacyAccountInTx(
     claimLegacyAccountInTxInner(requestingMemberId, targetLegacyMemberId, evidenceStrength, actor, evidence);
   } catch (err) {
     if (isUniqueConstraintError(err)) {
-      throw new ConflictError('This legacy record has already been claimed by another account.');
+      throw new ConflictError('This old footbag.org account has already been claimed by another member.');
     }
     throw err;
   }
@@ -2138,15 +2138,15 @@ function claimLegacyAccountInTxInner(
 ): void {
   const already = legacyClaim.checkAlreadyClaimed.get(requestingMemberId) as AlreadyClaimedRow | undefined;
   if (already) {
-    throw new ValidationError('Your account is already linked to a legacy record.');
+    throw new ValidationError('Your account is already linked to an old footbag.org account.');
   }
 
   const row = legacyMembers.findByLegacyMemberId.get(targetLegacyMemberId) as LegacyMemberRow | undefined;
   if (!row) {
-    throw new ValidationError('The legacy record is no longer available for claim.');
+    throw new ValidationError('That old footbag.org account can no longer be claimed.');
   }
   if (row.claimed_by_member_id) {
-    throw new ValidationError('This legacy record has already been claimed by another account.');
+    throw new ValidationError('This old footbag.org account has already been claimed by another member.');
   }
 
   // Birth-date evidence comparison, read BEFORE the field transfer below
@@ -2188,7 +2188,7 @@ function claimLegacyAccountInTxInner(
 
   const marked = legacyMembers.markClaimed.run(requestingMemberId, now, targetLegacyMemberId);
   if (marked.changes === 0) {
-    throw new ValidationError('This legacy record has already been claimed by another account.');
+    throw new ValidationError('This old footbag.org account has already been claimed by another member.');
   }
 
   // A historical record marked deceased is not self-claimable, and claiming this
@@ -2200,7 +2200,7 @@ function claimLegacyAccountInTxInner(
   // exits here, so claim status stays non-enumerable. An administrator who
   // flagged a record in error clears the flag and the claim then proceeds.
   if (hp?.is_deceased) {
-    throw new ValidationError('The legacy record is no longer available for claim.');
+    throw new ValidationError('That old footbag.org account can no longer be claimed.');
   }
 
   // Merge precedence: the member's own answer beats every import, and the
@@ -2690,7 +2690,7 @@ function claimHistoricalPersonInTx(
     claimHistoricalPersonInTxInner(requestingMemberId, personId, evidenceStrength, actor, evidence);
   } catch (err) {
     if (isUniqueConstraintError(err)) {
-      throw new ConflictError('This historical record has already been claimed by another member.');
+      throw new ConflictError('These past results have already been claimed by another member.');
     }
     throw err;
   }
@@ -2713,14 +2713,14 @@ function claimHistoricalPersonInTxInner(
 
   const hp = legacyClaim.findHistoricalPersonById.get(personId) as HistoricalPersonClaimRow | undefined;
   if (!hp) {
-    throw new ValidationError('The historical record is no longer available for claim.');
+    throw new ValidationError('These past results can no longer be claimed.');
   }
 
   // A record marked deceased is not self-claimable: a living member cannot
   // claim a deceased person's identity. Gate the execution path too, so a
   // direct POST cannot bypass the suppressed CTA and confirm-page preview.
   if (hp.is_deceased) {
-    throw new ValidationError('The historical record is no longer available for claim.');
+    throw new ValidationError('These past results can no longer be claimed.');
   }
 
   // A holder whose record still stands owns this historical record, the two
@@ -2730,7 +2730,7 @@ function claimHistoricalPersonInTxInner(
   // the surfaces already refuse to offer.
   const existing = legacyClaim.findMemberClaimingHp.get(personId) as { id: string; slug: string } | undefined;
   if (existing) {
-    throw new ValidationError('This historical record has already been claimed by another member.');
+    throw new ValidationError('These past results have already been claimed by another member.');
   }
 
   // The surname gate constrains self-serve claiming. Admin-vetted evidence
@@ -2775,7 +2775,7 @@ function claimHistoricalPersonInTxInner(
   if (hp.legacy_member_id) {
     if (member.legacy_member_id && member.legacy_member_id !== hp.legacy_member_id) {
       throw new ValidationError(
-        'This historical record is tied to a different legacy account than the one already linked to your profile.',
+        'These past results belong to a different old footbag.org account than the one already linked to your profile.',
       );
     }
     const lm = legacyMembers.findByLegacyMemberId.get(hp.legacy_member_id) as LegacyMemberRow | undefined;
@@ -2796,7 +2796,7 @@ function claimHistoricalPersonInTxInner(
       const marked = legacyMembers.markClaimed.run(requestingMemberId, now, hp.legacy_member_id);
       if (marked.changes === 0) {
         throw new ValidationError(
-          'The legacy account tied to this historical record has already been claimed by another member.',
+          'The old footbag.org account these past results belong to has already been claimed by another member.',
         );
       }
       if (!member.legacy_member_id) {
@@ -2804,7 +2804,7 @@ function claimHistoricalPersonInTxInner(
       }
     } else if (lm && lm.claimed_by_member_id && lm.claimed_by_member_id !== requestingMemberId) {
       throw new ValidationError(
-        'The legacy account tied to this historical record has already been claimed by another member.',
+        'The old footbag.org account these past results belong to has already been claimed by another member.',
       );
     }
   }
@@ -3681,7 +3681,7 @@ function resolveDisputeRevert(
   const personId = target.historicalPersonId?.trim() ?? '';
   if ((legacyId && personId) || (!legacyId && !personId)) {
     throw new ValidationError(
-      'Enter exactly one disputed record: a legacy account id or a historical person id.',
+      'Choose the disputed record.',
     );
   }
   const item = loadOpenLinkHelpItem(workQueueItemId);
@@ -4298,7 +4298,7 @@ function previewLinkHelpApproval(
   const personId = target.historicalPersonId?.trim() ?? '';
   if ((legacyId && personId) || (!legacyId && !personId)) {
     throw new ValidationError(
-      'Enter exactly one link target: a legacy account id or a historical person id.',
+      'Choose one thing to link: an old footbag.org account or a past player\'s results.',
     );
   }
   const item = loadOpenLinkHelpItem(workQueueItemId);
@@ -4352,16 +4352,15 @@ function previewLinkHelpApproval(
         first_competition_year: number | null; claimed_by_member_id: string | null;
       }
       | undefined;
-    // A ValidationError, not a not-found: the id came from a form field an
-    // administrator typed, so an unknown one is a correction to make here rather
-    // than a missing page.
-    if (!row) throw new ValidationError('No legacy account with that id.');
+    // A ValidationError, not a not-found: the id came from the approve form, so
+    // an unknown one is a correction to make there rather than a missing page.
+    if (!row) throw new ValidationError('Search for the account by name and choose it.');
     if (member.legacy_member_id) {
-      throw new ValidationError('This member already holds a legacy account, so this link cannot be applied.');
+      throw new ValidationError('This member already holds an old footbag.org account, so this link cannot be applied.');
     }
     if (row.claimed_by_member_id) {
       throw new ValidationError(
-        'Another member already holds that legacy account, so it cannot be linked here.',
+        'Another member already holds that old footbag.org account, so it cannot be linked here.',
       );
     }
     const backLinked = legacyClaim.findHistoricalPersonByLegacyId.get(row.legacy_member_id) as
@@ -4370,7 +4369,7 @@ function previewLinkHelpApproval(
     return {
       ...shared,
       target: {
-        kindLabel:  'Legacy account',
+        kindLabel:  'Old footbag.org account',
         recordId:   row.legacy_member_id,
         recordName: row.display_name ?? row.real_name ?? row.legacy_member_id,
         facts: [
@@ -4389,10 +4388,10 @@ function previewLinkHelpApproval(
     | { person_id: string; person_name: string; country: string | null; first_year: number | null;
         legacy_member_id: string | null }
     | undefined;
-  if (!person) throw new ValidationError('No competition record with that id.');
+  if (!person) throw new ValidationError('Search for the past player by name and choose them.');
   if (member.historical_person_id) {
     throw new ValidationError(
-      'This member already holds a competition record, so this link cannot be applied.',
+      'This member already has past results linked, so this link cannot be applied.',
     );
   }
   refuseLinkedRecord(person.person_id);
@@ -4402,27 +4401,27 @@ function previewLinkHelpApproval(
   const holder = legacyClaim.findMemberClaimingHp.get(personId) as { id: string } | undefined;
   if (holder) {
     throw new ValidationError(
-      'Another member already holds that competition record, so it cannot be linked here.',
+      'Those past results are already linked to another member, so they cannot be linked here.',
     );
   }
   if (person.legacy_member_id) {
     if (member.legacy_member_id && member.legacy_member_id !== person.legacy_member_id) {
       throw new ValidationError(
-        'That competition record is tied to a different legacy account than the one this member holds.',
+        'Those past results belong to a different old footbag.org account than the one this member holds.',
       );
     }
     const tied = legacyMembers.findByLegacyMemberId.get(person.legacy_member_id) as
       | { claimed_by_member_id: string | null } | undefined;
     if (tied?.claimed_by_member_id && tied.claimed_by_member_id !== member.id) {
       throw new ValidationError(
-        'The legacy account tied to that competition record is held by another member.',
+        'The old footbag.org account those past results belong to is held by another member.',
       );
     }
   }
   return {
     ...shared,
     target: {
-      kindLabel:  'Competition record',
+      kindLabel:  'Past results',
       recordId:   person.person_id,
       recordName: person.person_name,
       facts: [
@@ -4454,7 +4453,7 @@ function approveLinkHelpRequest(
   const personId = target.historicalPersonId?.trim() ?? '';
   if ((legacyId && personId) || (!legacyId && !personId)) {
     throw new ValidationError(
-      'Enter exactly one link target: a legacy account id or a historical person id.',
+      'Choose one thing to link: an old footbag.org account or a past player\'s results.',
     );
   }
   const item = loadOpenLinkHelpItem(workQueueItemId);

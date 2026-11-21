@@ -9,18 +9,56 @@
 
 <div class="wrapper">
   {{#if content.notice}}
-    {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+    {{#if content.noticeEditHref}}
+      {{#> outcome-notice tone=content.notice.tone}}<p>{{content.notice.text}} <a href="{{siteHref content.noticeEditHref}}">Edit Entry</a></p>{{/outcome-notice}}
+    {{else}}
+      {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+    {{/if}}
   {{/if}}
 
   <section>
     <p><span class="fw-600">{{content.confirmedCount}}</span> confirmed{{#if content.pendingCount}}, <span class="fw-600">{{content.pendingCount}}</span> awaiting payment{{/if}}.</p>
     <div class="form-actions">
+      {{#if content.addEntrantHref}}<a href="{{siteHref content.addEntrantHref}}" class="btn btn-primary">Add Entrant</a>{{/if}}
       <a href="{{siteHref content.csvHref}}" class="btn btn-outline">Download Participants (CSV)</a>
       <a href="{{siteHref content.checkInByNameHref}}" class="btn btn-outline">Download Check-in Sheet (PDF)</a>
       <a href="{{siteHref content.checkInByTypeHref}}" class="btn btn-outline">Check-in Sheet by Type (PDF)</a>
       <a href="{{siteHref content.summaryHref}}" class="btn btn-outline">Registration Summary</a>
       <a href="{{siteHref content.emailHref}}" class="btn btn-outline">Email Participants</a>
     </div>
+  </section>
+
+  <section>
+    <div class="section-heading"><h2>Competitions</h2></div>
+    {{#if content.hasDivisionGroups}}
+      {{#each content.divisionGroups}}
+        <h3>{{this.name}}: {{this.confirmedCount}} Confirmed</h3>
+        <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{this.name}}">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Entrant</th>
+              {{#if this.isDoubles}}<th scope="col">Partner</th>{{/if}}
+              <th scope="col">Payment</th>
+              <th scope="col">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each this.rows}}
+              <tr data-registration-id="{{this.registrationId}}">
+                <td><a href="{{siteHref this.entrantHref}}">{{this.entrantName}}</a></td>
+                {{#if ../isDoubles}}<td>{{#if this.noPartner}}<span class="badge" data-no-partner>No partner</span>{{else}}{{this.partnerName}}{{/if}}</td>{{/if}}
+                <td>{{this.paymentLabel}}</td>
+                <td>{{#if this.editHref}}<a href="{{siteHref this.editHref}}" class="btn btn-outline btn-sm">Edit Entry</a>{{/if}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+        </div>
+      {{/each}}
+    {{else}}
+      <p class="empty-state">Nobody is registered yet.</p>
+    {{/if}}
   </section>
 
   <section>
@@ -37,7 +75,7 @@
           <tr>
             <th scope="col">Name</th>
             <th scope="col">Registration</th>
-            <th scope="col">Divisions</th>
+            <th scope="col">Competitions</th>
             <th scope="col">Member</th>
             <th scope="col">Location</th>
             <th scope="col">Email</th>
@@ -82,7 +120,7 @@
       </div>
       {{#if content.attendanceAction}}
         <form method="POST" action="{{content.attendanceAction}}" id="attendance-form" class="form-block mt-2">
-          <p>Tick everyone who took part, then mark them attended. Attendance gives a Tier 0 member Active Player status.</p>
+          <p>Tick everyone who took part, then mark them attended. Attendance gives a Registered Member (Tier 0) Active Player status.</p>
           <div class="form-actions">
             <button type="submit" class="btn btn-primary">Mark Attended</button>
           </div>

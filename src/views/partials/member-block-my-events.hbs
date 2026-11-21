@@ -1,5 +1,16 @@
-<div class="profile-section">
-  <h2 class="profile-section-heading">My Events</h2>
+<div class="profile-section" id="upcoming-events">
+  <h2 class="profile-section-heading">Upcoming Events</h2>
+  {{#if upcoming.length}}
+    <div class="dated-list">
+      {{#each upcoming}}{{> dated-item this compact=true}}{{/each}}
+    </div>
+  {{else}}
+    <p>You are not registered for any upcoming events.</p>
+  {{/if}}
+</div>
+
+<div class="profile-section" id="organized-events">
+  <h2 class="profile-section-heading">Events I Organize</h2>
   <div class="my-clubs-block">
     {{#if events.length}}
       <ul class="my-clubs-list">

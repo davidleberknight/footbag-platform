@@ -50,7 +50,7 @@ describe('division gender eligibility', () => {
   const open = { name: 'Open Singles', gender_eligibility: 'open' };
   const women = { name: "Women's Doubles", gender_eligibility: 'women' };
   const mixed = { name: 'Mixed Doubles', gender_eligibility: 'mixed' };
-  const member = (gender: string | null) => ({ kind: 'member' as const, gender });
+  const member = (gender: string | null) => ({ gender });
 
   // Defect caught: an open division, or a historical one with no gender part,
   // refuses anyone.
@@ -65,6 +65,15 @@ describe('division gender eligibility', () => {
       expect(checkDivisionEligibility(women, g, member('female')), String(g)).not.toBeNull();
       expect(checkDivisionEligibility(mixed, g, member('male')), String(g)).not.toBeNull();
     }
+  });
+
+  // Defect caught: an organizer entering someone else is told to fix their
+  // own profile, and the refusal never says whose gender is missing; the
+  // member registering themselves is addressed, not named.
+  it('names the entrant when someone else enters them', () => {
+    expect(checkDivisionEligibility(women, null, null, 'Ada Entrant')).toContain('Ada Entrant');
+    expect(checkDivisionEligibility(mixed, 'male', member('male'), 'Ada Entrant')).not.toBeNull();
+    expect(checkDivisionEligibility(women, null, null)).not.toContain('Ada Entrant');
   });
 
   // Defect caught: a man enters a women's division, or a women's pair is
@@ -84,14 +93,5 @@ describe('division gender eligibility', () => {
     expect(checkDivisionEligibility(mixed, 'male', member('male'))).not.toBeNull();
     expect(checkDivisionEligibility(mixed, 'female', member('female'))).not.toBeNull();
     expect(checkDivisionEligibility(mixed, 'female', member(null))).not.toBeNull();
-  });
-
-  // Defect caught: a typed partner, whose eligibility the organizer checks at
-  // check-in, is refused, or excuses the registrant's own gender.
-  it('judges a typed-partner entry on the registrant alone', () => {
-    expect(checkDivisionEligibility(mixed, 'male', { kind: 'named' })).toBeNull();
-    expect(checkDivisionEligibility(women, 'female', { kind: 'named' })).toBeNull();
-    expect(checkDivisionEligibility(women, 'male', { kind: 'named' })).not.toBeNull();
-    expect(checkDivisionEligibility(mixed, 'undisclosed', { kind: 'named' })).not.toBeNull();
   });
 });

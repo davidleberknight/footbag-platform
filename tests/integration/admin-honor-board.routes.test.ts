@@ -125,7 +125,7 @@ beforeEach(() => {
 describe('granting an honour', () => {
   it('sets the badge and the induction year, not only the tier', async () => {
     const res = await post('/admin/honor-grants/grant/confirm', {
-      member_key: HOF_ID, honor: 'hof', induction_year: '2019',
+      member_id: HOF_ID, honor: 'hof', induction_year: '2019',
     });
     expect(res.status).toBe(303);
 
@@ -137,7 +137,7 @@ describe('granting an honour', () => {
 
   it('records the Big Add Posse year in its own column, for a member with no historical record', async () => {
     const res = await post('/admin/honor-grants/grant/confirm', {
-      member_key: BAP_ID, honor: 'bap', induction_year: '2021',
+      member_id: BAP_ID, honor: 'bap', induction_year: '2021',
     });
     expect(res.status).toBe(303);
 
@@ -162,7 +162,7 @@ describe('granting an honour', () => {
 
   it('refuses a year that is not a four-digit year', async () => {
     const res = await post('/admin/honor-grants/grant/confirm', {
-      member_key: UNDO_ID, honor: 'hof', induction_year: 'last summer',
+      member_id: UNDO_ID, honor: 'hof', induction_year: 'last summer',
     });
     expect(res.status).toBe(422);
     expect(honourRow(UNDO_ID).is_hof).toBe(0);
@@ -170,7 +170,7 @@ describe('granting an honour', () => {
 
   it('refuses a year outside the range the sport has existed in', async () => {
     const res = await post('/admin/honor-grants/grant/confirm', {
-      member_key: UNDO_ID, honor: 'hof', induction_year: '1812',
+      member_id: UNDO_ID, honor: 'hof', induction_year: '1812',
     });
     expect(res.status).toBe(422);
     expect(honourRow(UNDO_ID).is_hof).toBe(0);
@@ -180,13 +180,13 @@ describe('granting an honour', () => {
 describe('taking back a grant made in error', () => {
   it('clears the badge and its year, and leaves the membership tier alone', async () => {
     expect((await post('/admin/honor-grants/grant/confirm', {
-      member_key: UNDO_ID, honor: 'hof', induction_year: '2020',
+      member_id: UNDO_ID, honor: 'hof', induction_year: '2020',
     })).status).toBe(303);
     expect(honourRow(UNDO_ID).is_hof).toBe(1);
     expect(tierOf(UNDO_ID)).toBe('tier2');
 
     const res = await post('/admin/honor-grants/remove/confirm', {
-      member_key: UNDO_ID, honor: 'hof', reason: 'granted to the wrong member',
+      member_id: UNDO_ID, honor: 'hof', reason: 'granted to the wrong member',
     });
     expect(res.status).toBe(303);
 
@@ -209,7 +209,7 @@ describe('taking back a grant made in error', () => {
 
   it('lets the honour be granted again once the mistake is corrected', async () => {
     const res = await post('/admin/honor-grants/grant/confirm', {
-      member_key: UNDO_ID, honor: 'hof', induction_year: '2022',
+      member_id: UNDO_ID, honor: 'hof', induction_year: '2022',
     });
     expect(res.status).toBe(303);
     expect(honourRow(UNDO_ID).hof_inducted_year).toBe(2022);
@@ -217,7 +217,7 @@ describe('taking back a grant made in error', () => {
 
   it('refuses to take back an honour the member does not hold', async () => {
     const res = await post('/admin/honor-grants/remove', {
-      member_key: BAP_ID, honor: 'hof', reason: 'never granted',
+      member_id: BAP_ID, honor: 'hof', reason: 'never granted',
     });
     expect(res.status).toBe(422);
   });
@@ -226,7 +226,7 @@ describe('taking back a grant made in error', () => {
 describe('an honour that came from a claimed historical record', () => {
   it('is not offered for granting, because there is nothing to grant', async () => {
     const res = await post('/admin/honor-grants/grant/confirm', {
-      member_key: CLAIMED_ID, honor: 'hof', induction_year: '2005',
+      member_id: CLAIMED_ID, honor: 'hof', induction_year: '2005',
     });
     expect(res.status).toBe(409);
     expect(res.text).toContain('claimed historical record');
@@ -244,7 +244,7 @@ describe('an honour that came from a claimed historical record', () => {
     // the grant back corrects the grant, but the archive still says they hold
     // the honour, so the badge stays.
     expect((await post('/admin/honor-grants/grant/confirm', {
-      member_key: LATE_CLAIM_ID, honor: 'bap', induction_year: '2018',
+      member_id: LATE_CLAIM_ID, honor: 'bap', induction_year: '2018',
     })).status).toBe(303);
     expect(honourRow(LATE_CLAIM_ID).is_bap).toBe(1);
 
@@ -254,7 +254,7 @@ describe('an honour that came from a claimed historical record', () => {
     ).run(LATE_CLAIM_PERSON_ID, LATE_CLAIM_ID));
 
     const res = await post('/admin/honor-grants/remove/confirm', {
-      member_key: LATE_CLAIM_ID, honor: 'bap', reason: 'granted to the wrong member',
+      member_id: LATE_CLAIM_ID, honor: 'bap', reason: 'granted to the wrong member',
     });
     expect(res.status).toBe(303);
 
@@ -273,14 +273,14 @@ describe('an honour that came from a claimed historical record', () => {
 describe('board standing', () => {
   it('puts a Tier 0 member on the board and returns them to Tier 1 on the way out', async () => {
     expect((await post('/admin/honor-grants/board/set/confirm', {
-      member_key: BOARD_T0_ID, reason: 'elected at the November meeting',
+      member_id: BOARD_T0_ID, reason: 'elected at the November meeting',
     })).status).toBe(303);
 
     expect(tierOf(BOARD_T0_ID)).toBe('tier3');
     expect(honourRow(BOARD_T0_ID).is_board).toBe(1);
 
     expect((await post('/admin/honor-grants/board/remove/confirm', {
-      member_key: BOARD_T0_ID, reason: 'term ended',
+      member_id: BOARD_T0_ID, reason: 'term ended',
     })).status).toBe(303);
 
     expect(tierOf(BOARD_T0_ID)).toBe('tier1');
@@ -289,12 +289,12 @@ describe('board standing', () => {
 
   it('returns a Tier 2 entrant to Tier 2 rather than to Tier 1', async () => {
     expect((await post('/admin/honor-grants/board/set/confirm', {
-      member_key: BOARD_T2_ID, reason: 'elected at the November meeting',
+      member_id: BOARD_T2_ID, reason: 'elected at the November meeting',
     })).status).toBe(303);
     expect(tierOf(BOARD_T2_ID)).toBe('tier3');
 
     expect((await post('/admin/honor-grants/board/remove/confirm', {
-      member_key: BOARD_T2_ID, reason: 'term ended',
+      member_id: BOARD_T2_ID, reason: 'term ended',
     })).status).toBe(303);
     expect(tierOf(BOARD_T2_ID)).toBe('tier2');
     expect(honourRow(BOARD_T2_ID).is_board).toBe(0);
@@ -304,11 +304,11 @@ describe('board standing', () => {
     // Defect caught: the second confirm of a double submit drew an error page
     // quoting an internal member id, for a change the admin's own first submit made.
     const first = await post('/admin/honor-grants/board/set/confirm', {
-      member_key: BOARD_T2_ID, reason: 'elected at the spring meeting',
+      member_id: BOARD_T2_ID, reason: 'elected at the spring meeting',
     });
     expect(first.status).toBe(303);
     const again = await post('/admin/honor-grants/board/set/confirm', {
-      member_key: BOARD_T2_ID, reason: 'elected at the spring meeting',
+      member_id: BOARD_T2_ID, reason: 'elected at the spring meeting',
     });
     expect(again.status).toBe(303);
     expect(tierOf(BOARD_T2_ID)).toBe('tier3');
@@ -319,20 +319,20 @@ describe('board standing', () => {
     expect(sets.c).toBe(1);
     // Leave the member as the other cases found them.
     expect((await post('/admin/honor-grants/board/remove/confirm', {
-      member_key: BOARD_T2_ID, reason: 'term ended',
+      member_id: BOARD_T2_ID, reason: 'term ended',
     })).status).toBe(303);
   });
 
   it('refuses a board change with no reason', async () => {
     const res = await post('/admin/honor-grants/board/set/confirm', {
-      member_key: BOARD_T0_ID, reason: '  ',
+      member_id: BOARD_T0_ID, reason: '  ',
     });
     expect(res.status).toBe(422);
   });
 
   it('shows the tier the member will return to before the standing is set', async () => {
     const res = await post('/admin/honor-grants/board/set', {
-      member_key: BOARD_T0_ID, reason: 'elected at the November meeting',
+      member_id: BOARD_T0_ID, reason: 'elected at the November meeting',
     });
     expect(res.status).toBe(200);
     expect(res.text).toContain('Reverts to on leaving the board');
@@ -359,7 +359,7 @@ describe('board standing', () => {
     // Each write's own status is asserted where it happens, so a refused write
     // fails here, at its cause, rather than as a stale row two steps later.
     expect((await post('/admin/honor-grants/board/set/confirm', {
-      member_key: BOARD_T0_ID, reason: 'elected at the November meeting',
+      member_id: BOARD_T0_ID, reason: 'elected at the November meeting',
     })).status).toBe(303);
 
     const page = await request(createApp())
@@ -369,7 +369,7 @@ describe('board standing', () => {
     expect(honourRow(BOARD_T0_ID).is_board).toBe(1);
 
     expect((await post('/admin/honor-grants/board/remove/confirm', {
-      member_key: BOARD_T0_ID, reason: 'term ended',
+      member_id: BOARD_T0_ID, reason: 'term ended',
     })).status).toBe(303);
     const after = await request(createApp())
       .get('/admin/honor-grants').set('Cookie', adminCookie());

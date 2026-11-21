@@ -572,7 +572,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — validation', () => {
     const before = trickRow('save_guard');
     const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(), validBody({ canonicalName: '   ' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Canonical name is required.');
+    expect(res.text).toContain('Official name is required.');
     expect(trickRow('save_guard').canonical_name).toBe(before.canonical_name);
     expect(auditRows('save_guard')).toHaveLength(0);
   });
@@ -664,7 +664,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — typed text is cleaned befo
     const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
       validBody({ canonicalName: '<b></b>' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Canonical name is required.');
+    expect(res.text).toContain('Official name is required.');
     expect(trickRow('save_guard')).toEqual(before);
     expect(auditRows('save_guard')).toHaveLength(0);
   });

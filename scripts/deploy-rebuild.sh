@@ -436,6 +436,25 @@ if [[ "$REMOTE" == "footbag-production" ]]; then
   shipped_db_checks "$REPO_ROOT" "$LOCAL_DB" || exit 1
 fi
 
+# Seal the database for upload, after the last step that writes it. The upload
+# carries the main file only, so every page must be in it: a checkpoint that
+# another connection blocks means the file on disk is not the whole database,
+# and a copy taken while another process writes it arrives torn. A write that
+# lands after the seal changes the fingerprint, which the host half refuses. The integrity check is repeated because the steps since
+# the first one wrote the file. The fingerprint goes to the host half, which
+# refuses an upload that does not match it before it stops the service.
+echo "==> Sealing the database for upload..."
+_checkpoint="$(sqlite3 "$LOCAL_DB" 'PRAGMA wal_checkpoint(TRUNCATE);')" || {
+  cr_die "could not checkpoint $LOCAL_DB before upload"
+}
+if [[ "${_checkpoint%%|*}" != "0" ]]; then
+  cr_die "another process holds $LOCAL_DB open (checkpoint returned ${_checkpoint}); stop it (a dev server or a test run) and re-run the deploy"
+fi
+grep -qx 'ok' <<< "$(sqlite3 "$LOCAL_DB" 'PRAGMA integrity_check;')" || {
+  cr_die "$LOCAL_DB failed integrity_check after the last local write"
+}
+SHIPPED_DB_SHA256="$(sha256sum "$LOCAL_DB" | cut -d' ' -f1)"
+
 echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" \
   "rm -rf '$REMOTE_RELEASE_DIR' && mkdir -p '$REMOTE_RELEASE_DIR'" </dev/null
@@ -668,6 +687,7 @@ send_remote_half() {
   printf '%s\n' "$SUDO_PASS"
   printf 'RELEASE_DIR=%q\n'                  "$REMOTE_RELEASE_DIR"
   printf 'RELEASE_STAMP=%q\n'                "$RELEASE_STAMP"
+  printf 'EXPECTED_DB_SHA256=%q\n'           "$SHIPPED_DB_SHA256"
   printf 'EXPECTED_WEB_IMAGE_LAYERS=%q\n'    "$WEB_IMAGE_LAYERS"
   printf 'EXPECTED_WORKER_IMAGE_LAYERS=%q\n' "$WORKER_IMAGE_LAYERS"
   printf 'EXPECTED_IMAGE_IMAGE_LAYERS=%q\n'  "$IMAGE_IMAGE_LAYERS"

@@ -191,9 +191,22 @@ describe('GET /admin/payments', () => {
     expect(res.text).toContain('No payments match your search.');
   });
 
+  // Defect caught: the list names the payer by profile handle or links to the
+  // public profile, so an administrator reconciling payments cannot tell who
+  // paid or reach the record they act on.
+  it('names the payer and links to their administrator record', async () => {
+    seedPayments();
+    const res = await plainRequest(createApp())
+      .get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`<a href="/admin/members/${MEMBER}">Member Pay</a>`);
+    expect(res.text).not.toContain('<a href="/members/adminpay_member">');
+  });
+
   it("finds a member's payments by display name, login email, or profile handle", async () => {
     seedPayments();
-    for (const handle of ['Member', 'mp@example.com', 'adminpay_member']) {
+    // A pasted profile address may carry capitals the stored one does not.
+    for (const handle of ['Member', 'mp@example.com', 'adminpay_member', 'AdminPay_Member']) {
       const res = await plainRequest(createApp())
         .get(`/admin/payments?member=${encodeURIComponent(handle)}`).set('Cookie', cookie(ADMIN));
       expect(res.text, `member handle: ${handle}`).toContain('pi_don');

@@ -6,6 +6,10 @@
  * Owns:
  *   - The event lookup and the per-event record page
  *   - The preview and confirm pages of each correction and cancellation
+ *   - The frame of the administrator's Add Entrant and Edit Entry pages, whose
+ *     form EventService shapes as it does the organizers'
+ *   - The frame of the administrator's registration summary page, whose counts
+ *     EventService shapes as it does for the organizers
  *
  * Does not own:
  *   - Any write. Every correction and cancellation is EventService's, which
@@ -26,6 +30,7 @@
 import { eventOrganizers, eventRegistrations, eventWrites } from '../db/db';
 import {
   eventService, emptyEventForm, type EventCorrection, type EventFormValues, type DivisionPartsStep,
+  type EntryFormContent, type EntryFormState, type PickerRequest, type RegistrationSummaryContent,
 } from './eventService';
 import { NotFoundError } from './serviceErrors';
 import { canonicalCountryName } from './countryUtils';
@@ -91,9 +96,15 @@ export interface AdminEventRecordContent {
   clearDescriptionAction: string | null;
   divisions: Array<{ name: string; entriesLabel: string; correctHref: string; removeAction: string }>;
   hasDivisions: boolean;
+  /** Add Entrant, while the event's corrections are open; null after. */
+  addEntrantHref: string | null;
+  /** The event's registration summary, as its organizers see it. */
+  summaryHref: string;
   registrations: Array<{
     name: string;
     statusLabel: string;
+    /** Edit Entry, on a confirmed competitor registration while corrections are open. */
+    editHref: string | null;
     /** The member's administrator record, where their Active Player standing is corrected. */
     memberRecordHref: string;
     cancelAction: string;
@@ -236,8 +247,9 @@ export const adminEventService = {
     const organizers = eventOrganizers.listForEvent.all(row.id) as Array<{ member_id: string; display_name: string }>;
     const divisions = eventWrites.listDivisions.all(row.id) as Array<{ id: string; name: string; confirmed_count: number }>;
     const registrations = eventRegistrations.listStandingForEvent.all(row.id) as Array<{
-      id: string; member_id: string; status: string; display_name: string; attended_at: string | null;
+      id: string; member_id: string; status: string; registration_type: string; display_name: string; attended_at: string | null;
     }>;
+    const correctionsOpen = eventService.correctionsOpenById(row.id);
     const isOpen = ['reg_open', 'closed', 'completed'].includes(row.status);
     const isTerminal = row.status === 'completed' || row.status === 'canceled';
     const values = opts.values ?? formOf(row);
@@ -250,7 +262,7 @@ export const adminEventService = {
         ...(opts.notice ? { notice: opts.notice.text, noticeTone: opts.notice.tone } : {}),
         instructions: {
           what: 'One event\'s record, and the corrections and cancellations an administrator can make on it.',
-          why: 'An event\'s organizers keep their own event; this covers what they cannot reach, such as a division with confirmed entries, the sanction itself, or an event nobody is left to run.',
+          why: 'An event\'s organizers keep their own event; this covers what they cannot reach, such as a competition with confirmed entries, the sanction itself, or an event nobody is left to run.',
           how: 'Open a correction, change what is wrong, give a reason, and review it before it is written.',
           headsUp: [
             'Every correction is recorded with each value before and after, and the event\'s organizers are emailed with your reason.',
@@ -292,9 +304,14 @@ export const adminEventService = {
           removeAction: `${base}/divisions/${encodeURIComponent(d.id)}/remove`,
         })),
         hasDivisions: divisions.length > 0,
+        addEntrantHref: correctionsOpen ? `${base}/registrations/add` : null,
+        summaryHref: `${base}/summary`,
         registrations: registrations.map((r) => ({
           name: r.display_name,
           statusLabel: r.status === 'confirmed' ? 'Confirmed' : 'Awaiting payment',
+          editHref: correctionsOpen && r.status === 'confirmed' && r.registration_type === 'competitor'
+            ? `${base}/registrations/${encodeURIComponent(r.id)}/edit`
+            : null,
           memberRecordHref: `/admin/members/${encodeURIComponent(r.member_id)}`,
           cancelAction: `${base}/registrations/${encodeURIComponent(r.id)}/cancel`,
           attendedLabel: r.attended_at ? 'Attended' : null,
@@ -324,10 +341,10 @@ export const adminEventService = {
         pageKey: 'admin_event_division',
         title,
         instructions: {
-          what: `Correct the parts of a division of ${found.eventTitle}.`,
-          why: 'An organizer cannot change a division once a registration in it is confirmed.',
+          what: `Correct the parts of a competition of ${found.eventTitle}.`,
+          why: 'An organizer cannot change a competition once a registration in it is confirmed.',
           how: 'Choose the corrected parts, give a reason, and review the change before it is written.',
-          headsUp: ['The division\'s name is generated from its parts, and every entry in it stays.'],
+          headsUp: ['The competition\'s name is generated from its parts, and every entry in it stays.'],
         },
       },
       navigation: { contextLinks: [{ label: `Back to ${found.eventTitle}`, href: recordHref(eventId) }] },
@@ -349,6 +366,75 @@ export const adminEventService = {
       noChangeMessage: opts.correction.changes.length > 0 ? null : 'That is what the event already holds. Nothing would change.',
       reason: opts.reason,
       summary: opts.summary,
+      hiddenFields: opts.hiddenFields,
+      confirmAction: opts.confirmAction,
+      confirmLabel: opts.confirmLabel,
+      cancelHref: recordHref(opts.eventId),
+    });
+  },
+
+  /**
+   * The administrator's Add Entrant (`registrationId` null) or Edit Entry
+   * form on any event: the organizers' form, with a reason, previewed before
+   * it writes.
+   */
+  getEntryPage(
+    adminMemberId: string, eventId: string, registrationId: string | null, form?: EntryFormState, picker?: PickerRequest,
+  ): PageViewModel<EntryFormContent> {
+    const found = eventService.getAdminEntryForm(adminMemberId, eventId, registrationId, form, picker);
+    const title = registrationId === null ? 'Add Entrant' : 'Edit Entry';
+    return {
+      seo: { title, noindex: true },
+      page: {
+        sectionKey: '',
+        pageKey: registrationId === null ? 'admin_event_entry_add' : 'admin_event_entry_edit',
+        title,
+        eyebrow: found.eventTitle,
+        instructions: {
+          what: 'Add a member to this event or change an entry when its organizers cannot.',
+          how: 'Search for the member by name, choose the competitions and any doubles partner, and give a reason. You confirm before anything is saved.',
+          headsUp: ['The member is emailed.', 'The reason is kept in the audit log.'],
+        },
+      },
+      navigation: { contextLinks: [{ label: `Back to ${found.eventTitle}`, href: recordHref(eventId) }] },
+      content: found.content,
+    };
+  },
+
+  /** Any event's registration summary: the counts its organizers see, read-only. */
+  getRegistrationSummaryPage(eventId: string): PageViewModel<RegistrationSummaryContent> {
+    const found = eventService.getAdminRegistrationSummary(eventId);
+    return {
+      seo: { title: `Registration Summary: ${found.eventTitle}`, noindex: true },
+      page: {
+        sectionKey: '',
+        pageKey: 'admin_event_registration_summary',
+        title: 'Registration Summary',
+        eyebrow: found.eventTitle,
+        instructions: {
+          what: "How registration for this event stands right now, as its organizers see it. Counts are confirmed registrations unless a line says otherwise.",
+          how: 'Read the counts here; nothing on this page changes the event.',
+        },
+      },
+      navigation: { contextLinks: [{ label: `Back to ${found.eventTitle}`, href: recordHref(eventId) }] },
+      content: found.content,
+    };
+  },
+
+  /** The preview of an added or changed entry: its divisions and payment before and after, then the final button. */
+  entryConfirmPage(opts: {
+    eventId: string; title: string; caution: string; changes: EventCorrection['changes']; reason: string;
+    hiddenFields: Array<{ name: string; value: string }>; confirmAction: string; confirmLabel: string;
+  }): PageViewModel<AdminEventConfirmContent> {
+    const row = readEvent(opts.eventId);
+    return confirmPage(opts.title, {
+      eventTitle: row.title,
+      caution: opts.caution,
+      changes: opts.changes,
+      hasChanges: opts.changes.length > 0,
+      noChangeMessage: null,
+      reason: opts.reason,
+      summary: 'The people it affects are emailed with the reason you give here.',
       hiddenFields: opts.hiddenFields,
       confirmAction: opts.confirmAction,
       confirmLabel: opts.confirmLabel,

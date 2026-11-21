@@ -1,0 +1,48 @@
+{{!-- One member picker field of a form, shaped by memberPicker.ts. Every
+      control is a submit button of the host form: the form's handler sees the
+      `pick` field, saves nothing, and draws the page again with what was typed,
+      so the picker needs no JavaScript. The page includes the Enter-key script
+      once, not this partial. --}}
+<div class="form-field"{{#if isActive}} id="{{anchorId}}"{{/if}}>
+  {{#if holdsChoice}}<input type="hidden" name="{{fieldName}}" value="{{chosenId}}" form="{{formId}}" />{{/if}}
+  {{#if showState}}
+    <p>{{stateText}}
+      {{#unless isOpen}}
+        {{#if chosen}}
+          <button type="submit" form="{{formId}}" name="pick" value="{{changeValue}}" formaction="{{intentAction}}" formnovalidate aria-label="Change {{label}}, {{chosen.displayName}}" class="btn btn-outline btn-sm">Change</button>
+          {{#if canRemove}}
+            <button type="submit" form="{{formId}}" name="pick" value="{{removeValue}}" formaction="{{intentAction}}" formnovalidate class="btn btn-outline btn-sm">Remove</button>
+          {{/if}}
+        {{else}}
+          <button type="submit" form="{{formId}}" name="pick" value="{{openValue}}" formaction="{{intentAction}}" formnovalidate class="btn btn-outline btn-sm">{{openLabel}}</button>
+        {{/if}}
+      {{/unless}}
+    </p>
+  {{/if}}
+  {{#if isOpen}}
+    <label for="{{searchInputId}}">{{searchLabel}}</label>
+    <div class="search-box-form" role="search">
+      <input type="text" id="{{searchInputId}}" name="pick_q" form="{{formId}}" maxlength="100" value="{{query}}" class="search-box-input" data-member-picker-q{{#if autofocus}} autofocus{{/if}} />
+      <button type="submit" form="{{formId}}" name="pick" value="{{searchValue}}" formaction="{{intentAction}}" formnovalidate class="btn btn-outline" data-member-picker-search>Search</button>
+    </div>
+    {{#if rateLimited}}
+      {{> outcome-notice tone='no' text='Too many searches just now. Please wait a moment and try again.'}}
+    {{else if tooShort}}
+      {{> outcome-notice tone='no' text='Enter at least 2 letters of the name.'}}
+    {{else if notFound}}
+      <p class="empty-state">No {{notFoundNoun}} found for "{{query}}".{{#if notFoundHint}} {{notFoundHint}}{{/if}}</p>
+    {{else if results.length}}
+      {{#if hasMore}}<p>Showing the first 5. Add more of the name to narrow the list.</p>{{/if}}
+      <div class="search-box-results">
+        {{#each results}}
+          <div class="search-box-result">
+            <span>{{displayName}}</span>
+            {{#if location}}<span class="text-muted">{{location}}</span>{{/if}}
+            {{#if badge}}<span class="badge badge-historical">{{badge}}</span>{{/if}}
+            <button type="submit" form="{{../formId}}" name="{{buttonName}}" value="{{buttonValue}}"{{#if ../rowFormAction}} formaction="{{../rowFormAction}}" formnovalidate{{/if}} aria-label="{{ariaLabel}}" class="btn btn-outline btn-sm">{{../rowAction.label}}</button>
+          </div>
+        {{/each}}
+      </div>
+    {{/if}}
+  {{/if}}
+</div>

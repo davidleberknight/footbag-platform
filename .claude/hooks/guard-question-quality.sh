@@ -9,7 +9,7 @@ set -euo pipefail
 input="$(cat)"
 
 # Avoid loops: if we already blocked once this turn, let it through.
-printf '%s' "$input" | grep -q '"stop_hook_active":[[:space:]]*true' && exit 0
+[ "$(printf '%s' "$input" | jq -r '.stop_hook_active // false' 2>/dev/null)" = true ] && exit 0
 
 # The final message arrives in the input; the transcript file may not hold it yet at
 # Stop time, so it is only the fallback.

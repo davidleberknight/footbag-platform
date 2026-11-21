@@ -898,7 +898,7 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
 
     const heldItem = insertQueueItem({ entityId: memberId, isDispute: false });
     expect(() => svc.previewLinkHelpApproval(ADMIN_ID, heldItem, { historicalPersonId: otherHp }))
-      .toThrow(/already holds a competition record/);
+      .toThrow(/already has past results linked/);
 
     // An account whose linked record is marked deceased cannot be linked.
     const freshItem = insertQueueItem({ entityId: freshMember, isDispute: false });

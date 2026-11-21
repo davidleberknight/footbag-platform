@@ -4,10 +4,10 @@
  * (legacy_member_id linked, historical_person_id linked):
  *
  *   no/no   → "No past account or competition record linked." + CTA visible
- *   yes/no  → "Legacy account: linked (since <date>)"
- *             + "Competition record: not yet linked."
+ *   yes/no  → the old-account line reads linked (since <date>)
+ *             + "Past competition results: not yet linked."
  *             + "Find your competition record" CTA
- *   no/yes  → "Legacy account: none on file." + the old-account CTA; the record's
+ *   no/yes  → the old-account line reads none on file + the old-account CTA; the record's
  *             name shows once, in the facts strip inside this block
  *   yes/yes → legacy linked summary and the record's name + no CTA; the
  *             claimed old-site account is never listed by name
@@ -114,20 +114,20 @@ describe('GET /members/<slug> — Identity & History block', () => {
     const res = await getDashboard(NO_NO_ID);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Identity');
-    expect(res.text).toContain('No past account or competition record linked.');
+    expect(res.text).toContain('No old account or past competition results linked.');
     expect(res.text).toContain('Ask an administrator to link your history');
     expect(res.text).toContain(`href="/members/${NO_NO_SLUG}/contact-admin?category`);
     expect(res.text).toContain('identity_link_issue');
     expect(res.text).not.toContain('/register/wizard/legacy_claim');
-    expect(res.text).not.toContain('Legacy account: linked');
-    expect(res.text).not.toContain('Competition record:');
+    expect(res.text).not.toContain('data-old-account=');
+    expect(res.text).not.toContain('Past competition results:');
   });
 
   it('yes/no: shows linked-since date, HP not-yet-linked line, control labelled for the missing link', async () => {
     const res = await getDashboard(YES_NO_ID);
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Legacy account: linked.*Jan.*2024/);
-    expect(res.text).toContain('Competition record: not yet linked.');
+    expect(res.text).toMatch(/data-old-account="linked"[^<]*Jan.*2024/);
+    expect(res.text).toContain('Past competition results: not yet linked.');
     expect(res.text).toContain('Ask an administrator to link your competition history');
     expect(res.text).toContain(`href="/members/${YES_NO_SLUG}/contact-admin?category`);
     expect(res.text).toContain('identity_link_issue');
@@ -137,7 +137,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
   it('no/yes: shows HP summary, legacy none-on-file, control labelled for the missing link', async () => {
     const res = await getDashboard(NO_YES_ID);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Legacy account: none on file.');
+    expect(res.text).toContain('data-old-account="none"');
     // The record's name shows once, inside this block, and nothing links to
     // the claimed history page, which only redirects back here.
     expect(res.text.split(HP_NAME).length - 1).toBe(1);
@@ -149,7 +149,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
   it('yes/yes: shows both linked summaries, no CTA', async () => {
     const res = await getDashboard(YES_YES_ID);
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Legacy account: linked.*Jan.*2024/);
+    expect(res.text).toMatch(/data-old-account="linked"[^<]*Jan.*2024/);
     expect(res.text.split(HP_NAME).length - 1).toBe(1);
     expect(identityBlock(res.text)).toContain(HP_NAME);
     // The old site's account name tells the member nothing they can use, so
@@ -157,7 +157,7 @@ describe('GET /members/<slug> — Identity & History block', () => {
     expect(res.text).not.toContain('Yes Yes Legacy');
     expect(res.text).not.toMatch(/href="\/history\/[^"]+"/);
     expect(res.text).not.toContain('not yet linked');
-    expect(res.text).not.toContain('none on file');
+    expect(res.text).not.toContain('data-old-account="none"');
     expect(res.text).not.toContain('Find your past account');
     expect(res.text).not.toContain('Find your competition record');
   });

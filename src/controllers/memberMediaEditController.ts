@@ -34,7 +34,9 @@ import {
   memberItemLandingHref,
   parseTagList,
   type MemberMediaEditFormValues,
+  type PlayerPickRequest,
 } from '../services/curatorMediaService';
+import { parsePickIntent } from '../services/memberPicker';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, writeShareFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
@@ -50,6 +52,10 @@ const mediaEditForm = z.object({
   tags: formText('Hashtags'),
   externalUrl: formText('Link'),
   addPlayer: formOptionalText('The player to tag'),
+  // The player picker's Search posts the form back under `pick`, with the
+  // search text in `pick_q`; it saves nothing.
+  pick: formOptionalText('The player picker'),
+  pick_q: formText("Player's name"),
 });
 
 type FormValues = MemberMediaEditFormValues;
@@ -63,7 +69,7 @@ function renderForm(
     status?: number;
     errorMessage?: string;
     tagSuggestions?: MemberTagSuggestions;
-    playerSearch?: { query?: string; actorMemberId: string; ip: string };
+    playerSearch?: PlayerPickRequest;
     owner?: { memberId: string; slug: string };
   } = {},
 ): void {
@@ -95,19 +101,14 @@ export const memberMediaEditController = {
         renderNotFound(res);
         return;
       }
-      // The player search submits the edit form by GET, so what the member had
-      // typed arrives in the query and is shown again rather than lost.
-      const typedField = (name: string) => (typeof req.query[name] === 'string' ? String(req.query[name]) : undefined);
       const formValues = {
-        caption: typedField('caption') ?? stored.caption,
-        tags: typedField('tags') ?? stored.tags,
-        externalUrl: typedField('externalUrl') ?? stored.externalUrl,
+        caption: stored.caption,
+        tags: stored.tags,
+        externalUrl: stored.externalUrl,
       };
       const tagSuggestions = hashtagDiscoveryService.getTagSuggestionsForMember(memberId, req.user!.slug);
-      const query = typeof req.query.q === 'string' ? req.query.q : undefined;
       renderForm(res, memberKey, mediaId, formValues, {
         tagSuggestions,
-        playerSearch: { query, actorMemberId: memberId, ip: req.ip ?? 'unknown' },
         owner: { memberId, slug: req.user!.slug },
       });
     } catch (err) {
@@ -143,6 +144,22 @@ export const memberMediaEditController = {
       return;
     }
     const form = parsed.data;
+    if (form.pick !== undefined) {
+      // The player picker's Search: the form again, holding what was typed.
+      // Saves nothing, so it takes no media-edit slot.
+      try {
+        renderForm(res, memberKey, mediaId, {
+          caption: form.caption, tags: form.tags, externalUrl: form.externalUrl,
+        }, {
+          tagSuggestions: hashtagDiscoveryService.getTagSuggestionsForMember(memberId, slug),
+          playerSearch: { intent: parsePickIntent(form.pick), query: form.pick_q, actorMemberId: memberId, ip: req.ip ?? 'unknown' },
+          owner: { memberId, slug },
+        });
+      } catch (err) {
+        next(err);
+      }
+      return;
+    }
     const captionRaw = form.caption.trim();
     const caption: string | null = captionRaw.length === 0 ? null : captionRaw;
     const tags = parseTagList(form.tags);

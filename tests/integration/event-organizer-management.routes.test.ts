@@ -107,7 +107,7 @@ function register(ev: SeededEvent, memberId: string, o: {
     });
     insertRegistrationDisciplineSelection(db, reg, o.division ?? ev.singles, {
       enters_as_amateur: o.amateur ?? 0,
-      partner_display_name: o.partner ?? null,
+      partner_member_id: o.partner ?? null,
     });
     return reg;
   });
@@ -353,7 +353,7 @@ describe('the participant list and its exports', () => {
   it('lists the standing registrations with the details each member chose to share', async () => {
     const ev = seedEvent({ competitor_fee_cents: 2500, is_tshirt_size_collected: 1 });
     register(ev, ada, { paid: 'succeeded', division: ev.prize, amateur: 1, tshirt: 'S' });
-    register(ev, max, { status: 'pending', paid: 'pending', partner: 'Typed Partner' });
+    register(ev, max, { status: 'pending', paid: 'pending', partner: eve });
     register(ev, wren, { status: 'canceled' });
     register(ev, gone);
 
@@ -365,7 +365,8 @@ describe('the participant list and its exports', () => {
     expect(res.text).not.toContain('om-max@example.com');
     expect(res.text).not.toContain('HYPERLINK');
     expect(res.text).not.toContain('Member om-gone');
-    expect(res.text).toContain('Typed Partner');
+    // The partner, who is not registered themselves, is named on the entry.
+    expect(res.text).toContain('Member om-eve');
     expect(res.text).toContain(`action="${ev.base}/registrations/`);
     expect((await get(eve, `${ev.base}/participants`)).status).toBe(404);
   });

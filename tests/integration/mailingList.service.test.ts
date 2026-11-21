@@ -367,14 +367,15 @@ describe('adjusting a subscription on a member\'s behalf', () => {
     expect(subscriptionStatus(slug, MEMBER)).toBe('subscribed');
   });
 
-  it('reports a member who holds no row on the list as a no-op', () => {
+  // Defect caught: a member the picker would never offer, because they hold no
+  // subscription on the list, is accepted, and the administrator is told the
+  // change went through or that nothing needed changing.
+  it('refuses a member who holds no row on the list, writing nothing', () => {
     const slug = svc.mailingListService.createList({ name: 'No Row' }, ADMIN);
 
-    const outcome = svc.mailingListService.adjustSubscription(
+    expect(() => svc.mailingListService.adjustSubscription(
       slug, MEMBER, 'subscribed', 'Nothing to move', ADMIN,
-    );
-
-    expect(outcome).toEqual({ status: 'noop', reason: 'unchanged' });
+    )).toThrow(errors.ValidationError);
     expect(auditFor(slug, 'mailing_list.subscription_adjusted')).toHaveLength(0);
   });
 

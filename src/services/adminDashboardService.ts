@@ -154,7 +154,6 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Event Records', href: '/admin/events' },
       { label: 'Event Results', href: '/admin/events/results' },
       { label: 'Board-awarded Sanctions', href: '/admin/events/sanctions' },
-      { label: 'Legacy Accounts', href: '/admin/legacy-accounts' },
       { label: 'Clubs', href: '/admin/clubs' },
       { label: 'Club Cleanup', href: '/admin/club-cleanup' },
     ],

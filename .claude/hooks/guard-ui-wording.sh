@@ -3,8 +3,9 @@
 # changes only on explicit human instruction. An Edit, Write or MultiEdit that adds text
 # a site visitor reads (template copy and visible attributes, prose string literals in
 # server and client code, email subjects and bodies) asks the human once, the prompt
-# saying that a human must approve this change to visible UI copy and naming the file
-# and the new text. It passes silently when the human already approved that text.
+# saying that a human must approve this change to visible UI copy and naming the file,
+# each changed line before and after, and the new text. It passes silently when the
+# human already approved that text.
 #
 # Wording is judged in whole units: a text node or visible attribute in a template, a
 # prose string literal in code. Only a unit the file did not already hold is new
@@ -19,7 +20,8 @@
 # of under three words also needs the file's name in that text, so a common word in
 # some message cannot approve it.
 #
-# Pre-approval: a human message such as "approve all technical UI wording" lets
+# Pre-approval: a human message such as "approve all technical UI wording" or
+# "approve ui edits" lets
 # technical wording through for the rest of the session without a prompt, each unit
 # still announced to the human. A later message such as "stop approving UI wording"
 # ends it. Editorial copy is never covered: email template text, and any unit of over
@@ -142,8 +144,8 @@ let todo = fresh.filter((u) => !approved(u));
 if (!todo.length) process.exit(0);
 
 // The latest pre-approval or withdrawal of one decides; a pre-approval covers every unit.
-const UI = '\\bui\\s+(copy|text|words?|wording)\\b';
-const grant = new RegExp('\\b(all|technical)\\b[^\\n.]{0,40}' + UI + '|' + UI + '[^\\n]{0,60}\\btechnical\\b', 'i');
+const UI = '\\bui\\s+(copy|text|words?|wording|edits?)\\b';
+const grant = new RegExp('\\b(all|technical|approve[ds]?)\\b[^\\n.]{0,40}' + UI + '|' + UI + '[^\\n]{0,60}\\btechnical\\b', 'i');
 const withdraw = new RegExp('\\b(stop|revoke|withdraw|cancel)\\b[^\\n]{0,40}' + UI
   + '|\\b(no|not|don\'?t|do not|never)\\s+(to\\s+)?(approve|all)\\b[^\\n]{0,40}' + UI, 'i');
 let preApproved = false;
@@ -159,8 +161,18 @@ if (preApproved) {
   process.exit(0);
 }
 
+// Whole changed lines of the file, so wording a template expression splits into
+// pieces still reads as the sentence a visitor sees.
+const linesOf = (s) => s.split('\n').map((l) => l.trim()).filter((l) => /[A-Za-z]/.test(l));
+const after = typeof t.content === 'string' ? t.content : doc;
+const beforeLines = new Set(linesOf(orig)), afterLines = new Set(linesOf(after));
+const shown = (ls) => ls.slice(0, 6).map((l) => quote(l.length > 200 ? l.slice(0, 200) + '...' : l)).join(' / ');
+const lineBefore = linesOf(orig).filter((l) => !afterLines.has(l) && gone.some((g) => norm(l).includes(norm(g))));
+const lineAfter = linesOf(after).filter((l) => !beforeLines.has(l) && todo.some((u) => norm(l).includes(u.k)));
 const reason = 'HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors read in ' + rel
   + ', and public UI wording changes only with a human\'s approval, so approve or reject this exact text.\n'
+  + (lineBefore.length ? 'Line before: ' + shown(lineBefore) + '\n' : '')
+  + (lineAfter.length ? 'Line after: ' + shown(lineAfter) + '\n' : '')
   + (gone.length ? 'Text it replaces or removes: ' + gone.map(quote).join('; ') + '\n' : '')
   + 'New text: ' + todo.map((u) => quote(u.raw)).join('; ') + '\n'
   + 'To let all UI wording through for the rest of this session, say "approve all technical UI wording".';

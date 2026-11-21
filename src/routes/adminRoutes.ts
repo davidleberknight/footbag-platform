@@ -16,7 +16,6 @@ import { adminAdminRolesController } from '../controllers/adminAdminRolesControl
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminMemberController } from '../controllers/adminMemberController';
 import { adminHistoricalRecordController } from '../controllers/adminHistoricalRecordController';
-import { adminLegacyAccountController } from '../controllers/adminLegacyAccountController';
 import { adminAuditLogController } from '../controllers/adminAuditLogController';
 import { adminEmailLogController } from '../controllers/adminEmailLogController';
 import { adminSystemHealthController } from '../controllers/adminSystemHealthController';
@@ -96,9 +95,6 @@ adminRouter.post('/members/:memberId/restrict/lift',           adminMemberContro
 adminRouter.post('/members/:memberId/restrict/lift/confirm',   adminMemberController.confirmLift);
 adminRouter.post('/members/:memberId/discipline',              adminMemberController.previewDiscipline);
 adminRouter.post('/members/:memberId/discipline/confirm',      adminMemberController.confirmDiscipline);
-// The old sign-ins nobody has claimed. Read-only: this is where the account id
-// a link-help approval asks for actually comes from.
-adminRouter.get('/legacy-accounts',                                   adminLegacyAccountController.index);
 adminRouter.get('/historical-records',                                adminHistoricalRecordController.index);
 // Correcting the imported facts on a competition record nobody has claimed:
 // the form, its preview, and the write on confirm, longer path first.
@@ -221,6 +217,13 @@ adminRouter.post('/events/:eventId/divisions/:divisionId/remove',          admin
 adminRouter.post('/events/:eventId/divisions/:divisionId/confirm',         adminEventController.correctDivision(true));
 adminRouter.post('/events/:eventId/divisions/:divisionId',                 adminEventController.correctDivision(false));
 adminRouter.post('/events/:eventId/cancel',           adminEventController.cancelEvent);
+adminRouter.get('/events/:eventId/summary',                   adminEventController.summary);
+adminRouter.get('/events/:eventId/registrations/add',          adminEventController.entryPage('add'));
+adminRouter.post('/events/:eventId/registrations/add/confirm', adminEventController.addEntrant(true));
+adminRouter.post('/events/:eventId/registrations/add',         adminEventController.addEntrant(false));
+adminRouter.get('/events/:eventId/registrations/:registrationId/edit',          adminEventController.entryPage('edit'));
+adminRouter.post('/events/:eventId/registrations/:registrationId/edit/confirm', adminEventController.correctEntry(true));
+adminRouter.post('/events/:eventId/registrations/:registrationId/edit',         adminEventController.correctEntry(false));
 adminRouter.post('/events/:eventId/registrations/:registrationId/cancel', adminEventController.cancelRegistration);
 adminRouter.post('/events/:eventId/registrations/:registrationId/attendance/confirm', adminEventController.correctAttendance(true));
 adminRouter.post('/events/:eventId/registrations/:registrationId/attendance',         adminEventController.correctAttendance(false));

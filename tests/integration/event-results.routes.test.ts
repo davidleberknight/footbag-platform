@@ -6,8 +6,9 @@
  * event's last day. The file is read into a preview that writes nothing; the
  * commit writes the results, completes the event, and marks every placing
  * member with a confirmed registration attended, granting a Tier 0 member
- * Active Player status and telling them so. A name with no registration is
- * recorded by name only once the organizer accepts it. A division that
+ * Active Player status and telling them so. Every named competitor must match
+ * a confirmed registration: a name that does not refuses the upload, naming its
+ * row, and nothing is written. A division that
  * already has results takes no more rows. The attendance screen marks the
  * rest, once each. An administrator marks or unmarks attendance with a
  * reason, and unmarking leaves the Active Player grant. A sanctioned event
@@ -83,7 +84,7 @@ function seedEvent(o: { endDaysAgo?: number; sanctioned?: boolean; organizers?: 
   });
 }
 
-function register(ev: SeededEvent, memberId: string, o: { status?: 'confirmed' | 'pending'; amateur?: 0 | 1 } = {}): string {
+function register(ev: SeededEvent, memberId: string, o: { status?: 'confirmed' | 'pending' | 'canceled'; amateur?: 0 | 1 } = {}): string {
   return withDb((db) => {
     const reg = insertRegistration(db, ev.id, memberId, { status: o.status ?? 'confirmed' });
     insertRegistrationDisciplineSelection(db, reg, ev.singles, { enters_as_amateur: o.amateur ?? 0 });
@@ -139,6 +140,7 @@ let olive: string;   // organizes every event
 let tia: string;     // Tier 0, no Active Player: attendance grants it
 let ben: string;     // Tier 1: attendance records, grants nothing
 let cara: string;    // Tier 0, registered but not placing
+let pat: string;     // Tier 1, a doubles partner
 let eve: string;     // organizes nothing
 let admin: string;
 let hpMember: string;
@@ -149,6 +151,7 @@ beforeAll(async () => {
   tia = makeMember('er-tia', 'Tia Tamm', 'tier0');
   ben = makeMember('er-ben', 'Ben Ito');
   cara = makeMember('er-cara', 'Cara Diaz', 'tier0');
+  pat = makeMember('er-pat', 'Pat Partner');
   eve = makeMember('er-eve', 'Eve Elsewhere');
   admin = withDb((db) => insertMember(db, { id: 'er-admin', slug: 'er_admin', display_name: 'Admin Ann', login_email: 'er-admin@example.com', is_admin: 1 }));
   hpMember = makeMember('er-hp', 'Hal Past', 'tier1', 'hp-er-hal');
@@ -186,14 +189,15 @@ describe('who can upload, and when', () => {
 describe('preview, then commit', () => {
   // Defect caught: previewing writes results or completes the event before the
   // organizer has checked them.
-  it('previews without writing anything, and offers the tie and the unmatched name to settle', async () => {
+  it('previews without writing anything, offering the tie to settle and naming the unregistered row', async () => {
     const ev = seedEvent();
     register(ev, ben);
     const csv = `${HEADER}Open Singles Footbag Net,,1,Ben Ito,,\nOpen Singles Footbag Net,,1,Nora Nonmember,,\n`;
     const res = await upload(olive, ev, csv);
     expect(res.status).toBe(200);
     expect(res.text).toContain('name="tie:0"');
-    expect(res.text).toContain('name="accept_unmatched"');
+    expect(res.text).toContain('row 3 (Nora Nonmember)');
+    expect(res.text).not.toContain('row 2 (Ben Ito)');
     expect(res.text).not.toContain('name="step" value="commit"');
     expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(0);
     // The advertised doubles division has no rows; an unsanctioned event is
@@ -207,16 +211,17 @@ describe('preview, then commit', () => {
 
   // Defect caught: a commit that writes results but leaves the event open, does
   // not link placing members, never marks them attended, grants a Tier 1
-  // member Active Player status, or records an unmatched name against a member.
+  // member Active Player status, or links a name to the wrong member.
   it('writes the results, completes the event, marks placing registrants attended and grants a Tier 0 one', async () => {
     const ev = seedEvent();
     const tiaReg = register(ev, tia, { amateur: 1 });
     const benReg = register(ev, ben);
     const caraReg = register(ev, cara);
-    const csv = `${HEADER}Open Singles Footbag Net,,1,tia tamm,,21-9\nOpen Singles Footbag Net,,2,Ben Ito,,\nOpen Singles Footbag Net,,3,Nora Nonmember,,\n`
+    const patReg = register(ev, pat);
+    const csv = `${HEADER}Open Singles Footbag Net,,1,tia tamm,,21-9\nOpen Singles Footbag Net,,2,Ben Ito,,\n`
       + 'Open Doubles Footbag Net,,1,Ben Ito,Pat Partner,\n';
 
-    const res = await commitStep(olive, ev, csv, 'commit', { accept_unmatched: '1' });
+    const res = await commitStep(olive, ev, csv, 'commit');
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe(`${ev.base}/attendance`);
 
@@ -230,14 +235,14 @@ describe('preview, then commit', () => {
     expect(rows).toEqual([
       { division: 'Open Singles Footbag Net', placement: 1, score_text: '21-9', participant_order: 1, member_id: tia, display_name: 'Tia Tamm' },
       { division: 'Open Singles Footbag Net', placement: 2, score_text: null, participant_order: 1, member_id: ben, display_name: 'Ben Ito' },
-      { division: 'Open Singles Footbag Net', placement: 3, score_text: null, participant_order: 1, member_id: null, display_name: 'Nora Nonmember' },
       { division: 'Open Doubles Footbag Net', placement: 1, score_text: null, participant_order: 1, member_id: ben, display_name: 'Ben Ito' },
-      { division: 'Open Doubles Footbag Net', placement: 1, score_text: null, participant_order: 2, member_id: null, display_name: 'Pat Partner' },
+      { division: 'Open Doubles Footbag Net', placement: 1, score_text: null, participant_order: 2, member_id: pat, display_name: 'Pat Partner' },
     ]);
 
     const attended = (reg: string) => one<{ attended_at: string | null }>('SELECT attended_at FROM registrations WHERE id = ?', reg).attended_at;
     expect(attended(tiaReg)).not.toBeNull();
     expect(attended(benReg)).not.toBeNull();
+    expect(attended(patReg)).not.toBeNull();
     expect(attended(caraReg)).toBeNull();
     expect(grants(tia)).toBe(1);
     expect(grants(ben)).toBe(0);
@@ -246,8 +251,8 @@ describe('preview, then commit', () => {
 
     const audit = JSON.parse(one<{ metadata_json: string }>(
       "SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'event.results_uploaded'", ev.id).metadata_json);
-    expect(audit).toMatchObject({ rows: 4, unmatched: 2, attended: 2, before_status: 'reg_open', after_status: 'completed' });
-    expect(count("SELECT COUNT(*) c FROM audit_entries WHERE entity_id = ? AND action_type = 'event.attendance_marked'", ev.id)).toBe(2);
+    expect(audit).toMatchObject({ rows: 3, attended: 3, before_status: 'reg_open', after_status: 'completed' });
+    expect(count("SELECT COUNT(*) c FROM audit_entries WHERE entity_id = ? AND action_type = 'event.attendance_marked'", ev.id)).toBe(3);
 
     // The public page shows the results, with the Amateur mark on the entrant who chose it.
     const page = await get(null, ev.base);
@@ -256,9 +261,9 @@ describe('preview, then commit', () => {
     expect(page.text.match(/<span class="badge">Amateur<\/span>/g)?.length).toBe(1);
 
     // Defect caught: the same commit submitted twice writes the results twice.
-    const again = await commitStep(olive, ev, csv, 'commit', { accept_unmatched: '1' });
+    const again = await commitStep(olive, ev, csv, 'commit');
     expect(again.status).toBe(303);
-    expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(4);
+    expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(3);
     expect(grants(tia)).toBe(1);
     expect(mailTo('event_attendance_active_player', tia)).toBe(1);
     expect(count("SELECT COUNT(*) c FROM audit_entries WHERE entity_id = ? AND action_type = 'event.results_uploaded'", ev.id)).toBe(1);
@@ -271,7 +276,7 @@ describe('preview, then commit', () => {
 
   // Defect caught: a deleted account's registration is matched, so a result
   // is linked to a member who is gone and they are marked attended.
-  it('does not match a name to a registration whose member deleted their account', async () => {
+  it('refuses a name whose registration belongs to a deleted account', async () => {
     const ev = seedEvent();
     const gone = withDb((db) => {
       const id = insertMember(db, {
@@ -281,25 +286,50 @@ describe('preview, then commit', () => {
       return id;
     });
     const goneReg = register(ev, gone);
-    const res = await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Gwen Gone,,\n`, 'commit', { accept_unmatched: '1' });
-    expect(res.status).toBe(303);
-    expect(one<{ member_id: string | null }>(
-      'SELECT erp.member_id FROM event_result_entry_participants erp JOIN event_result_entries ere ON ere.id = erp.result_entry_id WHERE ere.event_id = ?',
-      ev.id).member_id).toBeNull();
+    const res = await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Gwen Gone,,\n`, 'commit');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('row 2 (Gwen Gone)');
+    expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(0);
     expect(one<{ attended_at: string | null }>('SELECT attended_at FROM registrations WHERE id = ?', goneReg).attended_at).toBeNull();
   });
 
-  // Defect caught: an unmatched name is committed without the organizer
-  // accepting it, or a refused commit loses the preview the organizer needs.
-  it('refuses a commit with an unaccepted unmatched name, showing the preview again', async () => {
+  // Defect caught: a name is matched to a registration still awaiting payment
+  // or one that was canceled, so a result is linked to someone who never
+  // completed their entry.
+  it('refuses a name whose registration is pending or canceled', async () => {
     const ev = seedEvent();
-    const csv = `${HEADER}Open Singles Footbag Net,,1,Nora Nonmember,,\n`;
+    register(ev, ben);
+    register(ev, tia, { status: 'pending' });
+    register(ev, cara, { status: 'canceled' });
+    const csv = `${HEADER}Open Singles Footbag Net,,1,Ben Ito,,\nOpen Singles Footbag Net,,2,Tia Tamm,,\n`
+      + 'Open Singles Footbag Net,,3,Cara Diaz,,\n';
+    const res = await upload(olive, ev, csv);
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('row 2 (Ben Ito)');
+    expect(res.text).toContain('row 3 (Tia Tamm)');
+    expect(res.text).toContain('row 4 (Cara Diaz)');
+    expect(res.text).not.toContain('name="step" value="commit"');
+    expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(0);
+  });
+
+  // Defect caught: a result is saved as a bare name with no member behind it,
+  // or a refused upload writes part of the file, completes the event or marks
+  // anyone attended.
+  it('refuses a commit naming someone with no confirmed registration, writing nothing', async () => {
+    const ev = seedEvent();
+    const benReg = register(ev, ben);
+    const csv = `${HEADER}Open Singles Footbag Net,,1,Ben Ito,,\nOpen Singles Footbag Net,,2,Nora Nonmember,,\n`;
     const res = await commitStep(olive, ev, csv, 'commit');
     expect(res.status).toBe(422);
-    expect(res.text).toContain('name="accept_unmatched"');
+    expect(res.text).toContain('form-error-banner');
+    expect(res.text).toContain('row 3 (Nora Nonmember)');
     expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(0);
-    // Resubmitting the rendered form with the box ticked succeeds.
-    const ok = await commitStep(olive, ev, csv, 'commit', { accept_unmatched: '1' });
+    expect(count('SELECT COUNT(*) c FROM event_results_uploads WHERE event_id = ?', ev.id)).toBe(0);
+    expect(count("SELECT COUNT(*) c FROM audit_entries WHERE entity_id = ? AND action_type = 'event.results_uploaded'", ev.id)).toBe(0);
+    expect(one<{ status: string }>('SELECT status FROM events WHERE id = ?', ev.id).status).toBe('reg_open');
+    expect(one<{ attended_at: string | null }>('SELECT attended_at FROM registrations WHERE id = ?', benReg).attended_at).toBeNull();
+    // The organizer corrects the file and uploads it again.
+    const ok = await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Ben Ito,,\n`, 'commit');
     expect(ok.status).toBe(303);
     expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(1);
   });
@@ -308,17 +338,19 @@ describe('preview, then commit', () => {
   // that already has them, or a division that ran unadvertised is lost.
   it('takes a later upload only for divisions with no results, and adds a confirmed unadvertised division', async () => {
     const ev = seedEvent();
-    expect((await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Nora Nonmember,,\n`, 'commit', { accept_unmatched: '1' })).status).toBe(303);
+    register(ev, ben);
+    register(ev, cara);
+    expect((await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Ben Ito,,\n`, 'commit')).status).toBe(303);
 
-    const repeatDivision = await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Other Person,,\n`, 'commit', { accept_unmatched: '1' });
+    const repeatDivision = await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Cara Diaz,,\n`, 'commit');
     expect(repeatDivision.status).toBe(422);
     expect(count('SELECT COUNT(*) c FROM event_result_entries WHERE event_id = ?', ev.id)).toBe(1);
 
-    const csv = `${HEADER}Shred 30,x-square,1,Nora Nonmember,,\n`;
-    const unconfirmed = await commitStep(olive, ev, csv, 'commit', { accept_unmatched: '1' });
+    const csv = `${HEADER}Shred 30,x-square,1,Cara Diaz,,\n`;
+    const unconfirmed = await commitStep(olive, ev, csv, 'commit');
     expect(unconfirmed.status).toBe(422);
     expect(unconfirmed.text).toContain('name="contested:0"');
-    const confirmed = await commitStep(olive, ev, csv, 'commit', { accept_unmatched: '1', 'contested:0': 'shred 30' });
+    const confirmed = await commitStep(olive, ev, csv, 'commit', { 'contested:0': 'shred 30' });
     expect(confirmed.status).toBe(303);
     expect(one<{ discipline_category: string; team_type: string }>(
       "SELECT discipline_category, team_type FROM event_disciplines WHERE event_id = ? AND name = 'Shred 30'", ev.id))
@@ -402,7 +434,8 @@ describe('the twenty-day rule', () => {
     expect((await get(olive, `${onTime.base}/manage`)).text).not.toContain(badge);
     expect((await get(olive, `${unsanctioned.base}/manage`)).text).not.toContain(badge);
 
-    await commitStep(olive, overdue, `${HEADER}Open Singles Footbag Net,,1,Nora Nonmember,,\n`, 'commit', { accept_unmatched: '1' });
+    register(overdue, ben);
+    await commitStep(olive, overdue, `${HEADER}Open Singles Footbag Net,,1,Ben Ito,,\n`, 'commit');
     expect((await get(olive, `${overdue.base}/manage`)).text).not.toContain(badge);
   });
 
@@ -421,7 +454,8 @@ describe('the twenty-day rule', () => {
     expect(items(coOrganizer, 'er_co')[0].options.map((o) => o.href)).toEqual([`${ev.base}/results`]);
     expect(items(eve, 'er_eve')).toEqual([]);
 
-    await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Nora Nonmember,,\n`, 'commit', { accept_unmatched: '1' });
+    register(ev, ben);
+    await commitStep(olive, ev, `${HEADER}Open Singles Footbag Net,,1,Ben Ito,,\n`, 'commit');
     expect(items(olive, 'er_olive')[0].options.map((o) => o.href)).toEqual(['/members/er_olive/announce']);
 
     withDb((db) => insertMemberAnnouncement(db, { member_id: olive, status: 'approved', summary_event_id: ev.id }));

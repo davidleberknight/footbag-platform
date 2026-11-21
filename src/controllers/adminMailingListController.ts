@@ -14,6 +14,7 @@ import { renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 import { z } from 'zod';
 import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
+import { parsePickIntent } from '../services/memberPicker';
 
 const listForm = z.object({
   name: formText('Name'),
@@ -24,9 +25,11 @@ const listForm = z.object({
 });
 
 const subscriptionForm = z.object({
-  memberId: formText('Member'),
+  member_id: formText('Member'),
   status: formText('Subscription'),
   reason: formText('Reason'),
+  pick: formOptionalText('The member picker'),
+  pick_q: formText('Name or login email'),
 });
 
 // The list as typed, whether it parsed or not, and a refusal for a shape the
@@ -166,10 +169,26 @@ export const adminMailingListController = {
   adjustSubscription(req: Request, res: Response, next: NextFunction): void {
     const slug = String(req.params.slug);
     const parsed = parseFormBody(subscriptionForm, req.body);
+    const typed = parsed.ok
+      ? { memberId: parsed.data.member_id, status: parsed.data.status, reason: parsed.data.reason, query: parsed.data.pick_q }
+      : undefined;
 
     try {
       if (!parsed.ok) throw new ValidationError(parsed.message, { fieldErrors: parsed.fieldErrors });
-      const { memberId, status, reason } = parsed.data;
+      // A member picker control draws the page again with what was typed, and
+      // changes nothing.
+      if (parsed.data.pick !== undefined) {
+        const vm = mailingListService.getMailingListDetailPage(slug, {
+          form: { ...typed!, intent: parsePickIntent(parsed.data.pick) },
+        });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.render('admin/mailing-lists/detail', vm);
+        return;
+      }
+      const { member_id: memberId, status, reason } = parsed.data;
       const outcome = mailingListService.adjustSubscription(
         slug, memberId, status, reason, req.user!.userId,
       );
@@ -178,6 +197,7 @@ export const adminMailingListController = {
       if (err instanceof ValidationError) {
         const vm = mailingListService.getMailingListDetailPage(slug, {
           fieldErrors: err.fieldErrors ?? { status: err.message },
+          ...(typed ? { form: { ...typed, intent: null } } : {}),
         });
         if (!vm) {
           renderNotFound(res);

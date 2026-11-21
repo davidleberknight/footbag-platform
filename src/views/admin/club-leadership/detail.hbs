@@ -42,21 +42,18 @@
 
   <section>
     <div class="section-heading"><h2>Assign a Co-leader</h2></div>
-    <form method="POST" action="/admin/clubs/{{content.club.clubId}}/leadership/assign" class="form-block">
-      <div class="form-field">
-        <label for="assign_member">Member id or slug</label>
-        <input id="assign_member" name="member_key" required maxlength="200" />
-      </div>
+    <form method="POST" action="{{content.club.assignHref}}" id="{{content.club.assignFormId}}" class="form-block">
+      {{> member-picker content.club.leaderPicker}}
       <div class="form-field">
         <label for="assign_reason">Reason (required)</label>
-        <input id="assign_reason" name="reason" required maxlength="500" />
+        <input id="assign_reason" name="reason" value="{{content.club.reasonValue}}" required maxlength="500" />
       </div>
-      <button type="submit" class="btn btn-primary btn-sm">Assign</button>
+      <button type="submit" class="btn btn-primary">Assign</button>
     </form>
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
 
-    {{! Which member the id belongs to is the whole question this form asks, and
-        the club's own roster answers it for most cases. Anyone else is found in
-        the member lookup, which the form never named. }}
+    {{! The club's own members are the likeliest co-leaders, so each is a ready
+        choice for the assign form's picker; anyone else is found by searching. }}
     {{#if content.club.affiliatedMembers.length}}
       <p class="mt-4 fs-sm">Members of this club who are not co-leaders. Any member can be assigned, not only these.</p>
       {{#each content.club.affiliatedMembers}}
@@ -64,12 +61,12 @@
           <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{memberId}}</span></div>
           <p class="m-0 mt-1 text-muted fs-sm">{{slug}}</p>
           <p class="m-0 mt-1"><a href="{{recordHref}}">Open their member record</a></p>
+          <button type="submit" form="{{../content.club.assignFormId}}" name="pick" value="{{chooseValue}}" formaction="{{../content.club.leaderPicker.intentAction}}" formnovalidate aria-label="{{chooseAriaLabel}}" class="btn btn-outline btn-sm">Choose</button>
         </div>
       {{/each}}
     {{else}}
       <p class="mt-4 fs-sm">No member of this club is available to assign. Any member can be assigned, not only members of the club.</p>
     {{/if}}
-    <p class="fs-sm"><a href="/admin/members">Find a member</a> to get the id or profile URL this form takes.</p>
   </section>
 
   <p class="mt-4"><a href="/admin/club-cleanup">Back to the club cleanup queue</a></p>

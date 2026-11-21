@@ -202,41 +202,47 @@ describe('member edit page player search', () => {
   const editPath = () => `/members/${OWNER_SLUG}/media/${creditedItemId}/edit`;
   const creditButton = (formId: string, tag: string) =>
     `form="${formId}" name="addPlayer" value="${tag}"`;
+  /** The edit form posted by the player picker's Search, carrying what was typed. */
+  const searchPlayers = (q: string, typed: Record<string, string> = {}) => request(createApp())
+    .post(editPath())
+    .set('Cookie', cookieFor(OWNER_ID))
+    .type('form')
+    .send({ caption: '', tags: '', externalUrl: '', ...typed, pick: 'search:player', pick_q: q });
 
-  it('finds a historical record by name and offers to credit its folded player tag through the edit form', async () => {
-    const res = await request(createApp())
-      .get(`${editPath()}?q=Pcquist`)
-      .set('Cookie', cookieFor(OWNER_ID));
+  // Defect caught: a historical player is missing from the credit search, is
+  // credited under something other than their player hashtag, or is shown
+  // unmarked beside the members.
+  it('finds a historical record by name, badged, and offers to credit its folded player tag through the edit form', async () => {
+    const res = await searchPlayers('Pcquist');
     expect(res.status).toBe(200);
     expect(res.text).toContain('<form id="member-media-edit-form"');
     expect(res.text).toContain(creditButton('member-media-edit-form', HP_ACCENTED_TAG));
+    const row = new RegExp(`${HP_ACCENTED_NAME}</span>[\\s\\S]*?badge-historical[\\s\\S]*?value="${HP_ACCENTED_TAG}"`);
+    expect(res.text).toMatch(row);
   });
 
   it('offers a searchable member by their slug, and never a member who opted out of search', async () => {
-    const res = await request(createApp())
-      .get(`${editPath()}?q=Pcplayer`)
-      .set('Cookie', cookieFor(OWNER_ID));
+    const res = await searchPlayers('Pcplayer');
     expect(res.status).toBe(200);
     expect(res.text).toContain(creditButton('member-media-edit-form', `#player_${PLAYER_SLUG}`));
     expect(res.text).not.toContain(HIDDEN_NAME);
     expect(res.text).not.toContain('#player_pc_hidden');
   });
 
-  // The search runs as a reload of the edit page, so without JavaScript the
-  // caption and hashtags typed but not yet saved ride along in the query and
-  // come back filled in, rather than being thrown away by the search.
-  it('keeps the unsaved caption and hashtags typed before a search', async () => {
+  // The search posts the edit form back, so without JavaScript the caption and
+  // hashtags typed but not yet saved come back filled in, rather than being
+  // thrown away by the search, and nothing is saved.
+  it('keeps the unsaved caption and hashtags typed before a search, and saves nothing', async () => {
     const page = await request(createApp()).get(editPath()).set('Cookie', cookieFor(OWNER_ID));
-    const button = /<button[^>]*formmethod="get"[^>]*>/.exec(page.text)?.[0] ?? '';
+    const button = /<button[^>]*data-member-picker-search[^>]*>/.exec(page.text)?.[0] ?? '';
     expect(button).toContain('form="member-media-edit-form"');
-    const res = await request(createApp())
-      .get(editPath())
-      .query({ q: 'Pcquist', caption: 'Unsaved caption words', tags: '#unsaved_typed_tag' })
-      .set('Cookie', cookieFor(OWNER_ID));
+    const before = tagsOf(creditedItemId);
+    const res = await searchPlayers('Pcquist', { caption: 'Unsaved caption words', tags: '#unsaved_typed_tag' });
     expect(res.status).toBe(200);
     expect(res.text).toContain('Unsaved caption words');
     expect(res.text).toContain('#unsaved_typed_tag');
     expect(res.text).toContain(creditButton('member-media-edit-form', HP_ACCENTED_TAG));
+    expect(tagsOf(creditedItemId)).toEqual(before);
   });
 
   it('runs no search and offers no credit button without a query', async () => {
@@ -280,8 +286,10 @@ describe('member edit page player search', () => {
 describe('curator edit page player search', () => {
   it('offers the same search, and a picked player is saved onto the curated item', async () => {
     const page = await request(createApp())
-      .get(`/admin/curator/media/${curatedItemId}/edit?q=Pcquist`)
-      .set('Cookie', cookieFor(ADMIN_ID, 'admin'));
+      .post(`/admin/curator/media/${curatedItemId}/edit`)
+      .set('Cookie', cookieFor(ADMIN_ID, 'admin'))
+      .type('form')
+      .send({ caption: 'curated', tags: '#freestyle', pick: 'search:player', pick_q: 'Pcquist' });
     expect(page.status).toBe(200);
     expect(page.text).toContain('<form id="curator-media-edit-form"');
     expect(page.text).toContain(`form="curator-media-edit-form" name="addPlayer" value="${HP_ACCENTED_TAG}"`);

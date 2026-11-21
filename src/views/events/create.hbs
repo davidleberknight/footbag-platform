@@ -10,13 +10,13 @@
 <div class="wrapper">
   <section>
 
-    <p>You become the event's first organizer. After creating it, you add its divisions and any co-organizers on the event's manage page.</p>
+    <p>You become the event's first organizer. After creating it, you add its competitions and any co-organizers on the event's manage page.</p>
 
     {{#if content.errorMessage}}
       {{> outcome-notice tone=content.errorTone text=content.errorMessage}}
     {{/if}}
 
-    <form method="POST" action="{{content.formAction}}" class="form-block">
+    <form method="POST" action="{{content.formAction}}" enctype="multipart/form-data" class="form-block">
 
       <fieldset class="form-fieldset">
         <legend>Free or Sanctioned</legend>
@@ -30,7 +30,7 @@
           <div class="form-field">
             <label>
               <input type="radio" name="event_type" value="sanctioned"{{#if content.isSanctioned}} checked{{/if}}>
-              Sanctioned event: it stays a draft until IFPA approves its sanction request. Registration fees need a sanctioned event.
+              Sanctioned event, officially recognized by IFPA: it is not published until IFPA approves its sanction request. Registration fees need a sanctioned event.
             </label>
           </div>
         {{/if}}
@@ -53,6 +53,12 @@
         {{#if content.fieldErrors.slug}}
           <p class="form-field-error" role="alert">{{content.fieldErrors.slug}}</p>
         {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="cover_photo">Cover photo (optional)</label>
+        <input type="file" id="cover_photo" name="cover_photo" accept="image/jpeg,image/png" />
+        <small class="form-hint">A photo for the top of the event's page. It is tagged with the event's hashtag, so it also appears in the event's gallery.</small>
       </div>
 
       <div class="form-actions">

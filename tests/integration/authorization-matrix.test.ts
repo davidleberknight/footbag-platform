@@ -202,7 +202,6 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/admin-roles',
     '/admin/members',
     '/admin/historical-records',
-    '/admin/legacy-accounts',
     '/admin/work-queue',
     '/admin/work-queue/parked',
     '/admin/work-queue-areas',

@@ -71,7 +71,7 @@
         </dl>
         <h3>Where It Differs From the Official Rules</h3>
         {{#if deviations}}<p>{{deviations}}</p>{{else}}<p>The organizer says it uses the official formats and judging systems.</p>{{/if}}
-        <h3>Divisions</h3>
+        <h3>Competitions</h3>
         {{#if hasDivisions}}
           <ul>
             {{#each divisions}}
@@ -79,12 +79,22 @@
             {{/each}}
           </ul>
         {{else}}
-          <p>The event has no divisions yet.</p>
+          <p>The event has no competitions yet.</p>
         {{/if}}
         <h3>Organizers</h3>
         <ul>
           {{#each organizers}}
-            <li><a href="{{siteHref profileHref}}">{{name}}</a>{{#if email}} &middot; {{email}}{{/if}}</li>
+            <li><a href="{{siteHref profileHref}}">{{name}}</a>{{#if email}} &middot; {{email}}{{/if}}
+              {{#if history.length}}
+                <ul>
+                  {{#each history}}
+                    <li>{{title}}, {{dates}} <span class="badge">{{statusLabel}}</span>{{#if sanctionedLabel}} <span class="badge">{{sanctionedLabel}}</span>{{/if}}</li>
+                  {{/each}}
+                </ul>
+              {{else}}
+                <br><span class="card-meta">No other events organized on footbag.org.</span>
+              {{/if}}
+            </li>
           {{/each}}
         </ul>
       {{/with}}
@@ -124,9 +134,9 @@
         <p class="fs-sm">This member has not attempted a claim, so there is no evidence on file yet.</p>
       {{/if}}
 
-      {{! What the platform can already see for this member, with the ids
-          the approve form takes. Without it the administrator is asked to
-          type an identifier the admin interface never showed them. }}
+      {{! What the platform can already see for this member, so the
+          administrator judges the request on the records the matching reaches
+          before choosing one on the approve form. }}
       <h3>What the Platform Can See for Them</h3>
       {{#if evidence.candidates.hasLegacyAccounts}}
         <p class="fs-sm">Old accounts their evidence reaches:</p>
@@ -156,13 +166,12 @@
       {{#unless evidence.candidates.hasAny}}
         <p class="fs-sm">Nothing on file reaches an old account or a competition record for this member.</p>
       {{/unless}}
-      <p class="card-meta"><a href="{{evidence.candidates.lookupHref}}">Search the unclaimed legacy accounts</a></p>
       {{#if evidence.linkHelp.isDispute}}
         {{#if evidence.linkHelp.hasDisputedRecords}}
           <p class="fs-sm">Records this dispute named when it was filed:</p>
           <ul>
             {{#each evidence.linkHelp.disputedRecords}}
-              <li>{{this.kindLabel}}: {{this.recordId}}</li>
+              <li>{{this.label}}</li>
             {{/each}}
           </ul>
         {{else}}
@@ -247,8 +256,20 @@
         {{#if this.isLink}}
           <p><a href="{{this.href}}" class="{{this.buttonClass}}">{{this.label}}</a></p>
         {{else}}
-          <form method="POST" action="{{this.actionPath}}" class="form-block">
+          <form method="POST" action="{{this.actionPath}}" id="{{this.formId}}" class="form-block">
             <input type="hidden" name="kind" value="{{@root.content.state.kind}}" /><input type="hidden" name="topic" value="{{@root.content.state.topic}}" /><input type="hidden" name="unclaimed" value="{{@root.content.state.unclaimed}}" /><input type="hidden" name="page" value="{{@root.content.state.page}}" /><input type="hidden" name="from" value="item" />
+            {{#if this.targetPickers}}
+              {{> member-picker this.targetPickers.accountPicker}}
+              {{> member-picker this.targetPickers.recordPicker}}
+            {{/if}}
+            {{#if this.disputeChoices}}
+              <fieldset class="form-fieldset">
+                <legend>Disputed record</legend>
+                {{#each this.disputeChoices}}
+                  <div class="form-field"><label><input type="radio" id="{{this.inputId}}" name="disputed_record" value="{{this.value}}" required /> {{this.label}}</label></div>
+                {{/each}}
+              </fieldset>
+            {{/if}}
             {{#if this.hasDecisions}}
               <div class="form-field">
                 <label for="{{this.decisionInputId}}">Decision</label>
@@ -290,6 +311,7 @@
   </section>
   </div>
   {{/with}}
+  <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
 
   {{> back-link}}
 </div>

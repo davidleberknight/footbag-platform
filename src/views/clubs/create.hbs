@@ -28,7 +28,7 @@
       {{/outcome-notice}}
     {{/if}}
 
-    <form method="POST" action="{{formAction}}" class="login-form">
+    <form method="POST" action="{{formAction}}" enctype="multipart/form-data" class="login-form">
 
       {{#if nearMatches.length}}
         <div class="form-field">
@@ -124,6 +124,12 @@
         {{#if fieldErrors.slug}}
           <p class="form-field-error" role="alert">{{fieldErrors.slug}}</p>
         {{/if}}
+      </div>
+
+      <div class="form-field">
+        <label for="cover_photo">Cover photo (optional)</label>
+        <input type="file" id="cover_photo" name="cover_photo" accept="image/jpeg,image/png" />
+        <small class="form-hint">A photo for the top of the club's page. It is tagged with the club's hashtag, so it also appears in the club's gallery.</small>
       </div>
 
       <div class="form-actions">

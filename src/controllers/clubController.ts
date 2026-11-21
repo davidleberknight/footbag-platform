@@ -2,7 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import { clubService, COLEAD_CAP_VOLUNTEER_REFUSAL, NO_LEADER_JOIN_REFUSAL } from '../services/clubService';
 import { locationPickers } from '../services/memberService';
 import { ValidationError } from '../services/serviceErrors';
-import { handleControllerError, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { handleControllerError, renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { COVER_PHOTO_MISSING_MESSAGE, coverNoteAfterCreate, readCoverForm, type CoverForm } from '../lib/coverPhotoForm';
+import { isAdminCaller } from '../lib/routeOwnership';
+import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { z } from 'zod';
 import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
 
@@ -57,6 +60,105 @@ function takeActionNotice(req: Request, res: Response): OutcomeNoticeView | null
   if (flash?.kind !== FLASH_KIND.CLUB_ACTION) return null;
   clearFlash(res, req);
   return outcomeNotice(flash.payload);
+}
+
+function clubCoverOutcome(req: Request, res: Response, clubKey: string, branch: 'changed' | 'own_repeat' | 'already_held', text: string): void {
+  const ending: ActionEnding = branch === 'changed' ? 'advance' : branch;
+  redirectWithOutcome(req, res, { flash: FLASH_KIND.CLUB_ACTION, to: `/clubs/${encodeURIComponent(clubKey)}`, ending, text });
+}
+
+// The create form, read from either body. The club is created in its own
+// transaction first; a chosen cover photo is uploaded after, and a refusal of
+// the photo is added to the success message rather than undoing the club.
+async function createClubFrom(req: Request, res: Response, form: CoverForm): Promise<void> {
+  const parsed = form.fields ? parseFormBody(createForm, form.fields) : parseFormBody(createForm, req.body);
+  const typed = parsed.ok ? parsed.data : parsed.submitted;
+  const name = typed.name ?? '';
+  const description = typed.description ?? '';
+  const city = typed.city ?? '';
+  const region = typed.region ?? '';
+  const country = typed.country ?? '';
+  const slug = typed.slug ?? '';
+  const confirmNearMatches = typed.confirm_near_matches === '1';
+
+  const club = { name, description, city, region, country, slug, confirmNearMatches };
+
+  // A near match holds the club back for a second look rather than
+  // refusing it, so that one prompt reads neutral; every other branch
+  // refuses the create.
+  const renderForm = (status: number, errorMessage: string, fieldErrors?: Record<string, string>, extra?: Record<string, unknown>, errorTone: OutcomeTone = 'no') => {
+    res.status(status).render('clubs/create', {
+      seo: { title: 'Create a Club' },
+      page: { sectionKey: 'clubs', pageKey: 'clubs_create', title: 'Create a Club' },
+      formAction: '/clubs/create',
+      cancelHref: '/clubs',
+      errorMessage,
+      errorTone,
+      fieldErrors,
+      club,
+      countryOptions: locationPickers(country, '').countryOptions,
+      ...extra,
+    });
+  };
+
+  if (!parsed.ok) {
+    renderForm(422, parsed.message, parsed.fieldErrors);
+    return;
+  }
+
+  let result;
+  try {
+    result = clubService.createClub(req.user!.userId, club);
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      renderForm(422, err.message, err.fieldErrors);
+      return;
+    }
+    throw err;
+  }
+
+  switch (result.branch) {
+    case 'created':
+    case 'own_repeat': {
+      const clubKey = result.clubKey;
+      const uploader = { memberId: req.user!.userId, slug: req.user!.slug, isAdmin: isAdminCaller(req) };
+      const coverNote = await coverNoteAfterCreate(
+        form, (file) => clubService.uploadCoverPhoto(uploader, clubKey, file), "the club's page",
+      );
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok',
+        `Club created. Its hashtag is #${clubKey}: photos and videos carrying it appear in the club's gallery.` + coverNote));
+      res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
+      return;
+    }
+    case 'colead_cap_reached':
+      renderForm(422, 'You already co-lead three clubs, the most a member can lead. To create a new club, step down at one of them first.');
+      return;
+    case 'affiliation_cap':
+      renderForm(422, 'You are already in 3 clubs. Leave one before creating a new club.');
+      return;
+    case 'exact_name_exists':
+      renderForm(422, `A club named "${result.existingClubName}" already exists in that country.`, undefined, {
+        existingClubHref: `/clubs/${encodeURIComponent(result.existingClubKey)}`,
+        existingClubName: result.existingClubName,
+      });
+      return;
+    case 'exact_candidate_exists':
+      renderForm(422, `A club named "${result.existingClubName}" already exists in that country.`);
+      return;
+    case 'near_matches_found':
+      renderForm(422, 'A similarly named club may already exist in that country. Review the matches below; if your club is distinct, confirm and submit again.', undefined, {
+        nearMatches: result.nearMatches,
+      }, 'info');
+      return;
+    case 'tag_conflict':
+      renderForm(422, `The hashtag ${result.tagNormalized} is already taken. Try adding something that sets your club apart, such as a neighbourhood or part of the club name.`);
+      return;
+    case 'slug_folded':
+      renderForm(422, `Your club hashtag will be #club_${result.slug}. A club hashtag uses only the letters a to z, digits and underscores, so accented letters became plain ones and other characters became underscores. It is permanent, so check it, then press Create Club again.`, undefined, {
+        club: { ...club, slug: result.slug },
+      }, 'info');
+      return;
+  }
 }
 
 /**
@@ -170,89 +272,54 @@ export const clubController = {
     });
   },
 
+  /**
+   * POST /clubs/create. Multipart when it carries a cover photo; the club is
+   * created first, in its own transaction, and the photo uploaded after it, so
+   * a refused photo leaves the club created and the message says so.
+   */
   postCreate(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const parsed = parseFormBody(createForm, req.body);
-      const typed = parsed.ok ? parsed.data : parsed.submitted;
-      const name = typed.name ?? '';
-      const description = typed.description ?? '';
-      const city = typed.city ?? '';
-      const region = typed.region ?? '';
-      const country = typed.country ?? '';
-      const slug = typed.slug ?? '';
-      const confirmNearMatches = typed.confirm_near_matches === '1';
+    readCoverForm(req, { isAdmin: isAdminCaller(req), maxTextFields: 20 }, (form) => {
+      createClubFrom(req, res, form).catch((err: unknown) => handleControllerError(err, res, next, 'clubs controller'));
+    }, (err) => next(err));
+  },
 
-      const club = { name, description, city, region, country, slug, confirmNearMatches };
-
-      // A near match holds the club back for a second look rather than
-      // refusing it, so that one prompt reads neutral; every other branch
-      // refuses the create.
-      const renderForm = (status: number, errorMessage: string, fieldErrors?: Record<string, string>, extra?: Record<string, unknown>, errorTone: OutcomeTone = 'no') => {
-        res.status(status).render('clubs/create', {
-          seo: { title: 'Create a Club' },
-          page: { sectionKey: 'clubs', pageKey: 'clubs_create', title: 'Create a Club' },
-          formAction: '/clubs/create',
-          cancelHref: '/clubs',
-          errorMessage,
-          errorTone,
-          fieldErrors,
-          club,
-          countryOptions: locationPickers(country, '').countryOptions,
-          ...extra,
-        });
+  /** POST /clubs/:key/cover-photo: upload a photo and make it the club's cover. */
+  postCoverPhoto(req: Request, res: Response, next: NextFunction): void {
+    const clubKey = req.params.key;
+    const uploader = { memberId: req.user!.userId, slug: req.user!.slug, isAdmin: isAdminCaller(req) };
+    readCoverForm(req, { isAdmin: uploader.isAdmin, maxTextFields: 2 }, (form) => {
+      const refuse = (change: { message: string; httpStatus: number; retryAfterSeconds?: number }): void => {
+        if (change.retryAfterSeconds) res.setHeader('Retry-After', String(change.retryAfterSeconds));
+        res.status(change.httpStatus).render('clubs/detail', clubService.getPublicClubPage(
+          clubKey, req.isMember, uploader.memberId, { notice: { text: change.message, tone: 'no' } },
+        ));
       };
-
-      if (!parsed.ok) {
-        renderForm(422, parsed.message, parsed.fieldErrors);
-        return;
-      }
-
-      let result;
-      try {
-        result = clubService.createClub(req.user!.userId, club);
-      } catch (err) {
-        if (err instanceof ValidationError) {
-          renderForm(422, err.message, err.fieldErrors);
+      (async () => {
+        if (form.tooLargeMessage || !form.file) {
+          clubService.requireLedClub(clubKey, uploader.memberId);
+          refuse({ message: form.tooLargeMessage ?? COVER_PHOTO_MISSING_MESSAGE, httpStatus: 422 });
           return;
         }
-        throw err;
-      }
+        const change = await clubService.uploadCoverPhoto(uploader, clubKey, form.file);
+        if (change.branch === 'refused') { refuse(change); return; }
+        clubCoverOutcome(req, res, clubKey, change.branch, 'Cover photo saved.');
+      })().catch((err: unknown) => {
+        if (err instanceof ImageProcessingError) { renderImageWorkerUnavailable(res, 'club cover photo: image worker unavailable', err); return; }
+        handleControllerError(err, res, next, 'clubs controller');
+      });
+    }, (err) => next(err));
+  },
 
-      switch (result.branch) {
-        case 'created':
-        case 'own_repeat':
-          writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club created.'));
-          res.redirect(303, `/clubs/${encodeURIComponent(result.clubKey)}`);
-          return;
-        case 'colead_cap_reached':
-          renderForm(422, 'You already co-lead three clubs, the most a member can lead. To create a new club, step down at one of them first.');
-          return;
-        case 'affiliation_cap':
-          renderForm(422, 'You are already in 3 clubs. Leave one before creating a new club.');
-          return;
-        case 'exact_name_exists':
-          renderForm(422, `A club named "${result.existingClubName}" already exists in that country.`, undefined, {
-            existingClubHref: `/clubs/${encodeURIComponent(result.existingClubKey)}`,
-            existingClubName: result.existingClubName,
-          });
-          return;
-        case 'exact_candidate_exists':
-          renderForm(422, `A club named "${result.existingClubName}" already exists in that country.`);
-          return;
-        case 'near_matches_found':
-          renderForm(422, 'A similarly named club may already exist in that country. Review the matches below; if your club is distinct, confirm and submit again.', undefined, {
-            nearMatches: result.nearMatches,
-          }, 'info');
-          return;
-        case 'tag_conflict':
-          renderForm(422, `The hashtag ${result.tagNormalized} is already taken. Try adding something that sets your club apart, such as a neighbourhood or part of the club name.`);
-          return;
-        case 'slug_folded':
-          renderForm(422, `Your club hashtag will be #club_${result.slug}. A club hashtag uses only the letters a to z, digits and underscores, so accented letters became plain ones and other characters became underscores. It is permanent, so check it, then press Create Club again.`, undefined, {
-            club: { ...club, slug: result.slug },
-          }, 'info');
-          return;
+  /** POST /clubs/:key/cover-photo/remove: clear the cover; the photo stays in the gallery. */
+  postRemoveCoverPhoto(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const clubKey = req.params.key;
+      const change = clubService.removeCoverPhoto(req.user!.userId, clubKey);
+      if (change.branch === 'refused') {
+        redirectWithOutcome(req, res, { flash: FLASH_KIND.CLUB_ACTION, to: `/clubs/${encodeURIComponent(clubKey)}`, ending: 'refused', text: change.message });
+        return;
       }
+      clubCoverOutcome(req, res, clubKey, change.branch, 'Cover photo removed.');
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
     }
@@ -400,7 +467,7 @@ export const clubController = {
         volunteered:        ['ok',   'You are now a co-leader of this club.'],
         club_not_found:     ['no',   'Club not found.'],
         not_member:         ['no',   'Join this club before volunteering to co-lead it.'],
-        not_eligible:       ['no',   'Co-leading requires Tier 1 benefits: a paid Tier 1 membership or a current Active Player period.'],
+        not_eligible:       ['no',   'Co-leading requires Tier 1 IFPA Member benefits: a paid Tier 1 IFPA Member membership or a current Active Player period.'],
         already_coleader:   ['info', 'You already co-lead this club.'],
         colead_cap_reached: ['no',   COLEAD_CAP_VOLUNTEER_REFUSAL],
         cap_reached:        ['no',   'This club already has the maximum of 5 co-leaders.'],

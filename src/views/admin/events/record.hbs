@@ -77,35 +77,38 @@
   </section>
 
   <section>
-    <div class="section-heading"><h2>Divisions</h2></div>
+    <div class="section-heading"><h2>Competitions</h2></div>
     {{#if content.hasDivisions}}
       {{#each content.divisions}}
         <div class="card card-static">
           <div class="card-title">{{name}}</div>
           <p class="card-meta">{{entriesLabel}}</p>
-          <p><a href="{{siteHref correctHref}}" class="btn btn-outline btn-sm">Correct Division</a></p>
+          <p><a href="{{siteHref correctHref}}" class="btn btn-outline btn-sm">Correct Competition</a></p>
           <details class="admin-action-disclosure">
-            <summary>Remove This Division</summary>
+            <summary>Remove This Competition</summary>
             <form method="POST" action="{{removeAction}}" class="form-block">
               <div class="form-field">
                 <label>Reason (required) <input type="text" name="reason" maxlength="500" required /></label>
               </div>
-              <button type="submit" class="btn btn-outline btn-sm">Review Removing the Division</button>
+              <button type="submit" class="btn btn-outline btn-sm">Review Removing the Competition</button>
             </form>
           </details>
         </div>
       {{/each}}
     {{else}}
-      <p>This event has no divisions.</p>
+      <p>This event has no competitions.</p>
     {{/if}}
   </section>
 
   <section>
     <div class="section-heading"><h2>Registrations</h2></div>
+    <p><a href="{{siteHref content.summaryHref}}" class="action-link">Registration Summary</a></p>
+    {{#if content.addEntrantHref}}<p><a href="{{siteHref content.addEntrantHref}}" class="btn btn-outline">Add Entrant</a></p>{{/if}}
     {{#if content.hasRegistrations}}
       {{#each content.registrations}}
         <div class="card card-static">
           <div class="card-title"><a href="{{memberRecordHref}}">{{name}}</a> <span class="badge">{{statusLabel}}</span>{{#if attendedLabel}} <span class="badge">{{attendedLabel}}</span>{{/if}}</div>
+          {{#if editHref}}<p><a href="{{siteHref editHref}}" class="btn btn-outline btn-sm">Edit Entry</a></p>{{/if}}
           {{#if attendance}}
             <details class="admin-action-disclosure">
               <summary>{{attendance.summary}}</summary>

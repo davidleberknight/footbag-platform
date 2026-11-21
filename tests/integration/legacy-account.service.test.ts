@@ -156,7 +156,7 @@ describe('claimLegacyAccount', () => {
     db.close();
 
     expect(() => svc.claimLegacyAccount(MEMBER_GHOST, 'nonexistent-legacy-id')).toThrow(
-      /no longer available/i,
+      /can no longer be claimed/i,
     );
   });
 });

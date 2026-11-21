@@ -22,7 +22,7 @@
     <form method="POST" action="{{content.formAction}}" class="form-block">
 
       <fieldset class="form-fieldset">
-        <legend>Divisions</legend>
+        <legend>Competitions</legend>
         {{#if content.divisions.length}}
           <ul>
             {{#each content.divisions}}
@@ -30,9 +30,9 @@
             {{/each}}
           </ul>
         {{else}}
-          <p>This event has no divisions yet.</p>
+          <p>This event has no competitions yet.</p>
         {{/if}}
-        <small class="form-hint">Divisions, and whether each offers prize money, are set on the event's manage page.</small>
+        <small class="form-hint">Competitions, and whether each offers prize money, are set on the event's manage page.</small>
       </fieldset>
 
       {{! The attestation opens the form, so "below" points at the question

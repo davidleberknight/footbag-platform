@@ -72,7 +72,7 @@
           {{/if}}
           {{#if content.preview.contested.length}}
             <fieldset class="form-fieldset">
-              <legend>Divisions Not Advertised</legend>
+              <legend>Competitions Not Advertised</legend>
               {{#each content.preview.contested}}
                 <div class="form-field">
                   <label>
@@ -82,14 +82,6 @@
                 </div>
               {{/each}}
             </fieldset>
-          {{/if}}
-          {{#if content.preview.unmatchedCount}}
-            <div class="form-field">
-              <label>
-                <input type="checkbox" name="accept_unmatched" value="1"{{#if content.preview.acceptUnmatchedChecked}} checked{{/if}} />
-                Record the {{content.preview.unmatchedCount}} names with no registration by name only
-              </label>
-            </div>
           {{/if}}
           <div class="form-actions">
             <button type="submit" name="step" value="check" class="btn btn-outline">Check Again</button>
@@ -105,7 +97,7 @@
   <section>
     <div class="section-heading"><h2>Upload a File</h2></div>
     {{#if content.canUpload}}
-      <p>One row per placing, with the columns division, place, player, partner (doubles only) and score (optional). Use the division names as the event lists them; for a division that ran but was not listed, also fill in category (net, freestyle, golf, consecutives or x-square). Give tied entries the same place. Up to {{content.maxSizeText}}.</p>
+      <p>One row per placing, with the columns competition, place, player, partner (doubles only) and score (optional). Use the competition names as the event lists them; for a competition that ran but was not listed, also fill in sport (net, freestyle, golf, consecutives or x-square). Give tied entries the same place. Up to {{content.maxSizeText}}.</p>
       <p><a href="{{siteHref content.templateHref}}" class="action-link">Download a Blank Results File (CSV)</a></p>
       <form method="POST" action="{{content.previewAction}}" enctype="multipart/form-data" class="form-block">
         <div class="form-field">

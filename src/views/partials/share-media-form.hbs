@@ -65,9 +65,9 @@
         <details class="gallery-advanced"{{#if (or c.fieldErrors.startSeconds c.fieldErrors.primarySlug)}} open{{/if}}>
           <summary>Advanced: source and clip</summary>
           <div class="form-field">
-            <label for="share-source-id">Source id (optional):</label>
+            <label for="share-source-id">Source (optional):</label>
             <input type="text" id="share-source-id" name="sourceId" value="{{c.formValues.sourceId}}">
-            <small class="form-hint">A source already in the media-source registry.</small>
+            <small class="form-hint">The short name of a source already on the list of media sources.</small>
           </div>
           <div class="form-field">
             <label for="share-start-seconds">Clip start, in seconds (optional):</label>
@@ -82,7 +82,7 @@
           </div>
           {{#if c.curator.sidecarWritesEnabled}}
           <div class="form-field">
-            <label for="share-primary-slug">Primary slug:</label>
+            <label for="share-primary-slug">File name start:</label>
             <input type="text" id="share-primary-slug" name="primarySlug" value="{{c.formValues.primarySlug}}" placeholder="around_the_world">
             <small class="form-hint">Filename prefix: lowercase letters, digits and underscores.</small>
             {{#if c.fieldErrors.primarySlug}}
@@ -124,7 +124,7 @@
   {{#if c.curator.sidecarWritesEnabled}}
   <fieldset class="form-fieldset">
     <legend>Category</legend>
-    <p class="fs-sm">Required for every upload. Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
+    <p class="fs-sm">Required for every upload. Decides which folder of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new folder.</p>
     {{#if c.curator.categories.length}}
       <div class="form-field">
         {{#each c.curator.categories}}
@@ -132,7 +132,7 @@
         {{/each}}
       </div>
     {{else}}
-      <p class="fs-sm"><em>No existing curated category subdirectories found.</em></p>
+      <p class="fs-sm"><em>No existing category folders found.</em></p>
     {{/if}}
     <div class="form-field">
       <label for="share-new-category">Or new category name</label>

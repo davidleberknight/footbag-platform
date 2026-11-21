@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_registration_corrected",
+  "subjectTemplate": "Your registration for {eventTitle} was changed",
+  "bodyTemplate": "Hi {memberName},\n\nYour registration for {eventTitle} ({eventDates}) was changed by {changedBy}: {whatChanged}\n\n{reasonNote}Your registration now reads:\n\n{registrationSummary}\n\nIf you think this is a mistake, contact the event's organizers from the event page on footbag.org.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

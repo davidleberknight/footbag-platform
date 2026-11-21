@@ -156,7 +156,7 @@ When system events require administrator attention (event sanction requests, fla
 - Real-time features (WebSockets, live updates).
 - Mobile native apps.
 - OAuth/SSO authentication.
-- Forums/discussion boards.
+- Hosting a forum or discussion board (the site links to the community forum).
 - AI/ML content moderation.
 - Multi-language support (English only, except event info).
 - Advanced analytics and BI.
@@ -643,7 +643,7 @@ Benefits Gained: Zero antivirus maintenance, Standardized image quality, Simple 
 
 **Rate Limiting:** Upload operations enforce rate limits to prevent abuse. This protects against spam, denial of service attempts, and ensures fair resource usage across the community.
 
-**Text Sanitization:** All user text inputs (captions, bios, names, descriptions, comments) undergo sanitization and validation to prevent injection attacks: HTML tags are stripped, Unicode is normalized to reduce homograph risks, control characters are removed, and length limits are enforced. Output encoding via the Handlebars template engine ensures user content is always rendered as data, never executed as code. CSV uploads (such as event results) are validated to detect and reject formula indicators. Together, input sanitization, safe templating, and CSV validation provide a defense in depth approach that prevents script and injection attacks while maintaining usability for legitimate international content and avoiding dependence on external libraries.
+**Text Sanitization:** All user text inputs (captions, bios, names, descriptions, comments) undergo sanitization and validation to prevent injection attacks: HTML tags are stripped (a pasted Markdown body, such as a news item's, instead shows any raw HTML as text), Unicode is normalized to reduce homograph risks, control characters are removed, and length limits are enforced. Output encoding via the Handlebars template engine ensures user content is always rendered as data, never executed as code. CSV uploads (such as event results) are validated to detect and reject formula indicators. Together, input sanitization, safe templating, and CSV validation provide a defense in depth approach that prevents script and injection attacks while maintaining usability for legitimate international content and avoiding dependence on external libraries.
 
 **Data Access Pattern:** All data access occurs through single database module (db.ts) exporting prepared SQL statements. Services call statements directly: queries.memberByEmail.get(email), queries.createMember.run(data). Parameter binding prevents SQL injection.
 

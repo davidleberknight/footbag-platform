@@ -34,7 +34,7 @@ export type RegistrationType = 'competitor' | 'attendee_supporter';
 
 export const REGISTRATION_TYPE_LABELS: Record<RegistrationType, string> = {
   competitor: 'Competitor',
-  attendee_supporter: 'Attendee or Supporter',
+  attendee_supporter: 'Spectator',
 };
 
 /** Stored on a pending registration whose checkout session closed unpaid. */
@@ -54,12 +54,12 @@ export function eventDatesPhrase(startDate: string, endDate: string): string {
 }
 
 export function toEntryView(row: {
-  division_name: string; partner_display_name: string | null; enters_as_amateur?: number;
+  division_name: string; enters_as_amateur?: number;
   partner_member_name: string | null; partner_member_slug: string | null;
 }): RegistrationEntryView {
   return {
     divisionName: row.division_name,
-    partnerName: row.partner_member_name ?? row.partner_display_name,
+    partnerName: row.partner_member_name,
     partnerHref: row.partner_member_slug ? `/members/${encodeURIComponent(row.partner_member_slug)}` : null,
     isAmateur: row.enters_as_amateur === 1,
   };

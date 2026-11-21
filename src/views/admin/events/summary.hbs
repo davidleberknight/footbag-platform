@@ -1,0 +1,15 @@
+{{! An administrator's view of any event's registration summary: the counts its organizers see }}
+
+<div class="hero hero-sm">
+  <div>
+    {{#if page.eyebrow}}<p class="hero-eyebrow">{{page.eyebrow}}</p>{{/if}}
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> event-registration-summary content}}
+
+  {{> back-link}}
+</div>

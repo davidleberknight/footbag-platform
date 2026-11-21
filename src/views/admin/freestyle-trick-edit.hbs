@@ -33,7 +33,7 @@
     <form method="POST" action="/admin/freestyle/tricks/{{content.slug}}/edit" class="form-block">
       <fieldset class="form-fieldset">
         <div class="form-field">
-          <label for="trick-canonicalName">Canonical name</label>
+          <label for="trick-canonicalName">Official name</label>
           <input type="text" id="trick-canonicalName" name="canonicalName" value="{{content.fields.canonicalName}}" />
           {{#if content.fieldErrors.canonicalName}}<p class="form-field-error" role="alert">{{content.fieldErrors.canonicalName}}</p>{{/if}}
         </div>

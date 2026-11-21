@@ -55,7 +55,7 @@
       <div class="form-field">
         <label for="member">Member</label>
         <input type="text" id="member" name="member" value="{{content.filters.memberId}}">
-        <small class="form-hint">Matches a member id, profile handle, login email, or part of a display name.</small>
+        <small class="form-hint">Matches part of a name or a login email.</small>
       </div>
 
       <div class="form-field">
@@ -142,7 +142,7 @@
                 <td>{{this.statusLabel}}</td>
                 <td>
                   {{#if this.memberHref}}
-                    <a href="{{this.memberHref}}">{{this.memberSlug}}</a>
+                    <a href="{{this.memberHref}}">{{this.memberName}}</a>
                   {{else}}
                     <span class="text-muted">none</span>
                   {{/if}}

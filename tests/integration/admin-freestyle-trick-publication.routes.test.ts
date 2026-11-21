@@ -417,7 +417,7 @@ describe('what the form refuses', () => {
     const tricksBefore = trickCount();
     const res = await post(publishHref(id), validForm({ canonicalName: '<b></b>' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('Canonical name is required.');
+    expect(res.text).toContain('Official name is required.');
     expect(trickCount()).toBe(tricksBefore);
     expect(ruling(id).published_trick_slug).toBeNull();
   });

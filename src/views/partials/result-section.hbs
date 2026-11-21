@@ -11,7 +11,7 @@
     <table class="data-table" data-sortable>
       <thead>
         <tr>
-          <th class="w-12" data-sort-type="number">#</th>
+          <th class="w-12" data-sort-type="number">Place</th>
           <th data-sort-type="text">Name</th>
           <th class="w-20" data-sort-type="text">Score</th>
         </tr>
@@ -19,7 +19,7 @@
       <tbody>
         {{#each placements}}
           <tr>
-            <td class="placement-num">{{placement}}</td>
+            <td class="placement-num {{medalClass}}">{{placement}}</td>
             <td>
               {{#if participants.length}}
                 <ul class="participants-list">

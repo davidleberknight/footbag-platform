@@ -106,8 +106,8 @@ function countOutboxFor(memberId: string): number {
   db.close();
   return row.c;
 }
-function grant(cookie: string, member_key: string, honor: string) {
-  return request(createApp()).post('/admin/honor-grants/grant/confirm').set('Cookie', cookie).type('form').send({ member_key, honor });
+function grant(cookie: string, member_id: string, honor: string) {
+  return request(createApp()).post('/admin/honor-grants/grant/confirm').set('Cookie', cookie).type('form').send({ member_id, honor });
 }
 
 describe('GET /admin/honor-grants', () => {
@@ -159,7 +159,7 @@ describe('GET /admin/honor-grants', () => {
 
 describe('POST /admin/honor-grants/grant (preview)', () => {
   it('names the member and current tier and writes nothing', async () => {
-    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_key: PREVIEW_T2, honor: 'hof' });
+    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_id: PREVIEW_T2, honor: 'hof' });
     expect(res.status).toBe(200);
     expect(res.text).toContain('Percy Two');
     expect(res.text).toContain('Tier 2');
@@ -168,21 +168,79 @@ describe('POST /admin/honor-grants/grant (preview)', () => {
   });
   it('an already-granted honor shows already-held with no confirm action', async () => {
     expect((await grant(adminCookie(), PREVIEW_DUP, 'hof')).status).toBe(303);
-    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_key: PREVIEW_DUP, honor: 'hof' });
+    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_id: PREVIEW_DUP, honor: 'hof' });
     expect(res.status).toBe(200);
     expect(res.text).toContain('already holds');
     expect(res.text).not.toContain('/admin/honor-grants/grant/confirm');
   });
   it('unknown member → 422', async () => {
-    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_key: 'no_such_member', honor: 'hof' });
+    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_id: 'no_such_member', honor: 'hof' });
     expect(res.status).toBe(422);
   });
+
+  // Defect caught: the grant still accepts a typed profile handle, so the admin
+  // is asked for something nobody knows instead of choosing the member by name.
+  it('refuses a profile handle posted in place of the chosen member, writing nothing', async () => {
+    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_id: NONADMIN_SLUG, honor: 'hof' });
+    expect(res.status).toBe(422);
+    expect(res.text).not.toContain('/admin/honor-grants/grant/confirm');
+    expect(countAudit('tier.hof_grant', NONADMIN_ID)).toBe(0);
+  });
+});
+
+describe('the honor grant and board pickers', () => {
+  function post(path: string, fields: Record<string, string>) {
+    return request(createApp()).post(path).set('Cookie', adminCookie()).type('form').send(fields);
+  }
+
+  // Defect caught: choosing a member drops the honor and year typed beside the
+  // search, or the confirm page loses the choice, so the grant lands on the
+  // wrong honor or on nobody.
+  it('carries the chosen member, honor and year through the grant form to the confirm page', async () => {
+    const chose = await post('/admin/honor-grants/grant', { pick: `choose:grant:${PREVIEW_T2}`, pick_q: 'Percy', honor: 'bap', induction_year: '2011' });
+    expect(chose.status).toBe(200);
+    expect(chose.text).toContain(`<input type="hidden" name="member_id" value="${PREVIEW_T2}" form="honor-grant-form" />`);
+    expect(chose.text).toContain('<option value="bap" selected>');
+    expect(chose.text).toContain('name="induction_year" value="2011"');
+    expect(countAudit('tier.bap_grant', PREVIEW_T2)).toBe(0);
+
+    const preview = await post('/admin/honor-grants/grant', { member_id: PREVIEW_T2, honor: 'bap', induction_year: '2011' });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain(`<input type="hidden" name="member_id" value="${PREVIEW_T2}" />`);
+  });
+
+  // Defect caught: the board picker offers a director who already sits on the
+  // board, or misses an eligible member, or a search writes something.
+  it('the board search leaves out sitting directors and finds an eligible member, writing nothing', async () => {
+    const res = await post('/admin/honor-grants/board/set', { pick: 'search:board', pick_q: 'Tre', reason: 'elected' });
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain(`value="choose:board:${T3_MEMBER}"`);
+    expect(res.text).toMatch(/id="board_set_reason" name="reason" value="elected"/);
+
+    const eligible = await post('/admin/honor-grants/board/set', { pick: 'search:board', pick_q: 'Cleo', reason: '' });
+    expect(eligible.text).toContain(`value="choose:board:${BOARD_CLEAN}"`);
+    expect(countAudit('tier.governance_set', BOARD_CLEAN)).toBe(0);
+  });
+
+  // Defect caught: a holder can no longer be reached for a take-back or a
+  // board removal once the typed-id forms are gone, because their row carries
+  // no form of its own.
+  it('puts the take-back and board-removal forms on each holder\'s own row', async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: 'hg_row_hof', slug: 'hg_row_hof', display_name: 'Rowan Hof', real_name: 'Rowan Hof', login_email: 'hg-row-hof@example.com', is_hof: 1 });
+    insertMember(db, { id: 'hg_row_board', slug: 'hg_row_board', display_name: 'Rhea Board', real_name: 'Rhea Board', login_email: 'hg-row-board@example.com', is_board: 1 });
+    db.close();
+    const page = await request(createApp()).get('/admin/honor-grants').set('Cookie', adminCookie());
+    expect(page.status).toBe(200);
+    expect(page.text).toMatch(/action="\/admin\/honor-grants\/remove"[^]*?name="member_id" value="hg_row_hof"[^]*?name="honor" value="hof"/);
+    expect(page.text).toMatch(/action="\/admin\/honor-grants\/board\/remove"[^]*?name="member_id" value="hg_row_board"/);
+  });
   it('invalid honor → 422', async () => {
-    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_key: PREVIEW_T2, honor: 'nonsense' });
+    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).type('form').send({ member_id: PREVIEW_T2, honor: 'nonsense' });
     expect(res.status).toBe(422);
   });
   it('non-admin → 403', async () => {
-    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', memberCookie()).type('form').send({ member_key: PREVIEW_T2, honor: 'hof' });
+    const res = await request(createApp()).post('/admin/honor-grants/grant').set('Cookie', memberCookie()).type('form').send({ member_id: PREVIEW_T2, honor: 'hof' });
     expect(res.status).toBe(403);
   });
 });
@@ -243,7 +301,7 @@ describe('POST /admin/honor-grants/grant/confirm (commit)', () => {
     // Defect caught: a second tab with another year reports success while the badge keeps the first year.
     const withYear = (cookie: string, year: string) => request(createApp())
       .post('/admin/honor-grants/grant/confirm').set('Cookie', cookie).type('form')
-      .send({ member_key: YEAR_T0, honor: 'bap', induction_year: year });
+      .send({ member_id: YEAR_T0, honor: 'bap', induction_year: year });
     const first = await withYear(adminCookie(), '2010');
     expect(first.status).toBe(303);
     expect(flashOf(first)).toBeUndefined();
@@ -286,7 +344,7 @@ describe('the reason an administrator gives is stored cleaned', () => {
     for (const path of ['/admin/honor-grants/board/set', '/admin/honor-grants/board/set/confirm']) {
       const refused = await request(createApp())
         .post(path).set('Cookie', adminCookie())
-        .type('form').send({ member_key: BOARD_CLEAN, reason: markupOnly });
+        .type('form').send({ member_id: BOARD_CLEAN, reason: markupOnly });
       expect(refused.status, path).toBe(422);
     }
     expect(readTier(BOARD_CLEAN)).toBe('tier1');
@@ -295,13 +353,13 @@ describe('the reason an administrator gives is stored cleaned', () => {
     const dirty = '<b>Elected</b> at\u0085 the   AGM.';
     const preview = await request(createApp())
       .post('/admin/honor-grants/board/set').set('Cookie', adminCookie())
-      .type('form').send({ member_key: BOARD_CLEAN, reason: dirty });
+      .type('form').send({ member_id: BOARD_CLEAN, reason: dirty });
     expect(preview.status).toBe(200);
     expect(preview.text).toContain('name="reason" value="Elected at the AGM."');
 
     const res = await request(createApp())
       .post('/admin/honor-grants/board/set/confirm').set('Cookie', adminCookie())
-      .type('form').send({ member_key: BOARD_CLEAN, reason: dirty });
+      .type('form').send({ member_id: BOARD_CLEAN, reason: dirty });
     expect(res.status).toBe(303);
     expect(readTier(BOARD_CLEAN)).toBe('tier3');
     const db = new BetterSqlite3(dbPath);
@@ -326,11 +384,11 @@ describe('the roster of current holders', () => {
 
 describe('CSRF / Origin-pin gate', () => {
   it('grant POST with a mismatched Origin → 403 (before auth)', async () => {
-    const res = await rawRequest(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).set('Origin', 'http://evil.example').type('form').send({ member_key: HOF_T0, honor: 'hof' });
+    const res = await rawRequest(createApp()).post('/admin/honor-grants/grant').set('Cookie', adminCookie()).set('Origin', 'http://evil.example').type('form').send({ member_id: HOF_T0, honor: 'hof' });
     expect(res.status).toBe(403);
   });
   it('confirm POST with a mismatched Origin → 403 (before auth)', async () => {
-    const res = await rawRequest(createApp()).post('/admin/honor-grants/grant/confirm').set('Cookie', adminCookie()).set('Origin', 'http://evil.example').type('form').send({ member_key: HOF_T0, honor: 'hof' });
+    const res = await rawRequest(createApp()).post('/admin/honor-grants/grant/confirm').set('Cookie', adminCookie()).set('Origin', 'http://evil.example').type('form').send({ member_id: HOF_T0, honor: 'hof' });
     expect(res.status).toBe(403);
   });
 });

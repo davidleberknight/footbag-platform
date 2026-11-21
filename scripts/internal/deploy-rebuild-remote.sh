@@ -372,6 +372,34 @@ if [[ "$found_stamp" != "$RELEASE_STAMP" ]]; then
   exit 1
 fi
 
+# uploaded-db-check: begin
+# The uploaded database is judged here, before the service stops and before the
+# live database is deleted, so an upload that cannot be served leaves the running
+# site exactly as it was. The check after the install below cannot do that: by
+# then the live database is gone and the service is down. Two questions, asked in
+# order so the refusal names the cause: is this the file the workstation sealed
+# (its fingerprint, taken after the last local write), and is it a sound database.
+# A fingerprint that differs means the transfer or a later local write changed
+# it; a matching fingerprint on an unsound file means it left the workstation
+# that way.
+: "${EXPECTED_DB_SHA256:?EXPECTED_DB_SHA256 must be sent by the calling deploy script}"
+found_db_sha256="$(sha256sum "$NEW_DB" | cut -d' ' -f1)"
+if [[ "$found_db_sha256" != "$EXPECTED_DB_SHA256" ]]; then
+  echo "ERROR: the uploaded database is not the file the workstation sealed for this deploy." >&2
+  echo "       Expected fingerprint ${EXPECTED_DB_SHA256}, found ${found_db_sha256}." >&2
+  echo "       Refusing to replace the live database; the site is untouched." >&2
+  echo "       Re-run the deploy with nothing else holding the local database open." >&2
+  exit 1
+fi
+if ! uploaded_db_check="$(sqlite3 "$NEW_DB" 'PRAGMA integrity_check;' 2>&1)" \
+   || [[ "$uploaded_db_check" != "ok" ]]; then
+  echo "ERROR: the uploaded database matches the sealed fingerprint but fails its integrity check." >&2
+  echo "       sqlite3 said: $(printf '%s\n' "$uploaded_db_check" | head -n 1)" >&2
+  echo "       Refusing to replace the live database; the site is untouched." >&2
+  exit 1
+fi
+# uploaded-db-check: end
+
 # Runtime AWS credential files must exist on the host for the source-profile +
 # AssumeRole chain. Without these the app cannot assume the runtime role and
 # KMS Sign / SES Send fail at request time.

@@ -1,0 +1,67 @@
+{{!-- The Add Entrant and Edit Entry form, shared by an event's organizers and
+      an administrator, shaped by EventService as EntryFormContent. The
+      entrant and partner pickers are submit buttons of this form; the page
+      loads the picker's Enter-key script. --}}
+{{#if errorMessage}}
+  {{#if errorLink}}
+    {{#> outcome-notice tone='no'}}<p>{{errorMessage}} <a href="{{siteHref errorLink.href}}">{{errorLink.label}}</a></p>{{/outcome-notice}}
+  {{else}}
+    {{> outcome-notice tone='no' text=errorMessage}}
+  {{/if}}
+{{/if}}
+
+<form method="POST" action="{{formAction}}" id="{{formId}}" class="form-block">
+  {{#if entrantPicker}}
+    {{> member-picker entrantPicker}}
+  {{else}}
+    <p>Entrant: <span class="fw-600">{{entrantName}}</span></p>
+  {{/if}}
+
+  {{#if hasDivisions}}
+    <fieldset class="form-fieldset">
+      <legend>Competitions</legend>
+      {{#each divisions}}
+        <div class="form-field">
+          <label>
+            <input type="checkbox" name="division" value="{{this.id}}"{{#if this.checked}} checked{{/if}} />
+            {{this.name}}
+          </label>
+        </div>
+        {{#if this.partnerPicker}}
+          <input type="hidden" name="partner_division" value="{{this.id}}" />
+          {{> member-picker this.partnerPicker}}
+        {{/if}}
+      {{/each}}
+    </fieldset>
+  {{else}}
+    <p class="empty-state">This event has no competitions.</p>
+  {{/if}}
+
+  {{#if paidAtEvent}}
+    <div class="form-field">
+      <input type="hidden" name="paid_at_event" value="0" />
+      <label>
+        <input type="checkbox" name="paid_at_event" value="1"{{#if paidAtEvent.checked}} checked{{/if}} />
+        Paid at the event
+      </label>
+    </div>
+  {{/if}}
+
+  {{#if reasonField}}
+    <div class="form-field">
+      <label for="entry_reason">Reason (required)</label>
+      <input type="text" id="entry_reason" name="reason" maxlength="500" value="{{reasonField.value}}" />
+    </div>
+  {{/if}}
+
+  <div class="form-actions">
+    <button type="submit" class="btn btn-primary">{{submitLabel}}</button>
+    <a href="{{siteHref cancelHref}}" class="btn btn-outline">Cancel</a>
+  </div>
+</form>
+
+{{#if cancelRegistrationAction}}
+  <form method="POST" action="{{cancelRegistrationAction}}" class="form-block mt-2">
+    <button type="submit" class="btn btn-outline">Cancel Registration</button>
+  </form>
+{{/if}}

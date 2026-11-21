@@ -878,7 +878,7 @@ describe('GET /register/wizard/legacy_claim — name-match record card', () => {
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
     expect(followUp.text).toContain(`href="/history/${hpId}/claim"`);
-    expect(followUp.text).toContain('Claim This Record');
+    expect(followUp.text).toContain('Review and Claim These Results');
   });
 });
 

@@ -256,7 +256,7 @@ export function seedFinanceDemo(
     description: EVENT_DESCRIPTION,
     start_date: startDate,
     end_date: new Date(startMs + 5 * DAY_MS).toISOString().slice(0, 10),
-    city: 'Testville',
+    city: 'Denver',
     region: 'CO',
     country: 'United States',
     status: 'reg_open',
@@ -325,7 +325,7 @@ export function seedFinanceDemo(
       descriptor: p.kind === 'membership'
         ? `IFPA ${p.tier === 'tier2' ? 'Tier 2' : 'Tier 1'} Membership`
         : p.kind === 'event_registration'
-          ? `Event Registration: World Footbag Championships (${p.entry === 'spectator' ? 'Attendee or Supporter' : 'Competitor'})`
+          ? `Event Registration: World Footbag Championships (${p.entry === 'spectator' ? 'Spectator' : 'Competitor'})`
           : (p.recurring ? 'Recurring Donation' : 'Donation'),
       purchased_tier_status: p.kind === 'membership' ? (p.tier ?? 'tier1') : null,
       created_at: at(p.daysAgo),

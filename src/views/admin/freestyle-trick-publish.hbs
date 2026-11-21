@@ -49,16 +49,16 @@
   {{#if content.publishable}}
   <section class="content-section">
     <div class="section-heading">
-      <h2>The Canonical Trick</h2>
+      <h2>The Trick</h2>
     </div>
 
     <form method="POST" action="{{content.publishHref}}" class="form-block">
       <div class="form-field">
-        <label for="canonicalName">Canonical name</label>
+        <label for="canonicalName">Official name</label>
         <input type="text" id="canonicalName" name="canonicalName" maxlength="200"
                value="{{content.fields.canonicalName}}" aria-describedby="canonicalName-hint">
         {{#if content.fieldErrors.canonicalName}}<p class="form-field-error" role="alert">{{content.fieldErrors.canonicalName}}</p>{{/if}}
-        <small class="form-hint" id="canonicalName-hint">The slug is folded from this name, and nothing may already hold it.</small>
+        <small class="form-hint" id="canonicalName-hint">The trick's page address is made from this name, and no other trick may already have it.</small>
       </div>
 
       <div class="form-field">
@@ -69,7 +69,7 @@
       </div>
 
       <div class="form-field">
-        <label for="baseTrick">Base trick slug</label>
+        <label for="baseTrick">Base trick, by its page address</label>
         <input type="text" id="baseTrick" name="baseTrick" value="{{content.fields.baseTrick}}" aria-describedby="baseTrick-hint">
         {{#if content.fieldErrors.baseTrick}}<p class="form-field-error" role="alert">{{content.fieldErrors.baseTrick}}</p>{{/if}}
         <small class="form-hint" id="baseTrick-hint">The trick this is built on. Its family becomes this trick's family.</small>
@@ -132,7 +132,7 @@
       </div>
 
       <div class="form-field">
-        <label for="modifierLinks">Modifier slugs</label>
+        <label for="modifierLinks">Modifiers, by their page addresses</label>
         <input type="text" id="modifierLinks" name="modifierLinks" value="{{content.fields.modifierLinks}}" aria-describedby="modifierLinks-hint">
         {{#if content.fieldErrors.modifierLinks}}<p class="form-field-error" role="alert">{{content.fieldErrors.modifierLinks}}</p>{{/if}}
         <small class="form-hint" id="modifierLinks-hint">Separate several with a vertical bar, in the order they apply.</small>

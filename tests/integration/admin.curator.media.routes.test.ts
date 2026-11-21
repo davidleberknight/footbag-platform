@@ -299,7 +299,7 @@ describe('GET /admin/curator/media/:id/edit', () => {
     const mediaId = await uploadPhotoViaRoute(`ENTER_${Math.random().toString(36).slice(2, 8)}`, []);
     const res = await request(createApp()).get(`/admin/curator/media/${mediaId}/edit`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('data-member-search-submit');
+    expect(res.text).toContain('data-member-picker-search');
     const formId = /<form id="([^"]+)"[^>]*method="POST"/.exec(res.text)?.[1] ?? '';
     expect(defaultSubmitButton(res.text, formId)?.overridesForm).toBe(false);
   });

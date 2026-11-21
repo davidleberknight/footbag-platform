@@ -13,7 +13,7 @@
     <form method="POST" action="{{content.step.action}}" class="form-block">
       <h3>{{content.step.gameName}}</h3>
       <fieldset class="form-fieldset">
-        <legend>Class</legend>
+        <legend>Skill Level</legend>
         {{#each content.step.classes}}
           <div class="form-field"><label><input type="radio" name="division_class" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
         {{/each}}
@@ -25,7 +25,7 @@
         {{/each}}
       </fieldset>
       <fieldset class="form-fieldset">
-        <legend>Entry Size</legend>
+        <legend>Singles or Doubles</legend>
         {{#each content.step.teamTypes}}
           <div class="form-field"><label><input type="radio" name="team_type" value="{{this.value}}"{{#if this.checked}} checked{{/if}}> {{this.label}}</label></div>
         {{/each}}
@@ -34,7 +34,7 @@
         <label>
           <input type="hidden" name="offers_prize_money" value="0" />
           <input type="checkbox" name="offers_prize_money" value="1"{{#if content.step.offersPrizeMoney}} checked{{/if}} />
-          This division offers prize money
+          This competition offers prize money
         </label>
       </div>
       <div class="form-field">

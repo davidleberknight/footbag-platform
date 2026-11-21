@@ -1,4 +1,6 @@
-{{! Events landing page — upcoming events + archive year links }}
+{{! Events landing page: upcoming events first, then the current year's
+    completed events, with the archive years in a side list. Every event is the
+    shared dated item, the same as on a year page and a member's profile. }}
 
 <div class="hero hero-sm">
   <div>
@@ -36,49 +38,51 @@
     </section>
   {{/if}}
 
-  {{! ── Upcoming events ─────────────────────────────────────────── }}
-  <section>
-    <div class="section-heading">
-      <h2>Upcoming Events</h2>
+  <div class="side-list-layout">
+    <div>
+      {{! ── Upcoming events ─────────────────────────────────────── }}
+      <section id="upcoming-events">
+        <div class="section-heading">
+          <h2>Upcoming Events</h2>
+        </div>
+        <p>Organizing an event? Create it on footbag.org. To have it sanctioned by IFPA, see the <a href="{{siteHref content.organizerLinks.guidelinesHref}}">sanctioning guidelines</a>.</p>
+        {{#if content.upcomingEvents.length}}
+          <div class="card-grid">
+            {{#each content.upcomingEvents}}{{> dated-item this}}{{/each}}
+          </div>
+        {{else}}
+          <p>No upcoming events are listed yet.</p>
+        {{/if}}
+      </section>
+
+      {{! ── This year's completed events ────────────────────────── }}
+      {{#if content.currentYearEvents.length}}
+        <section id="current-year-events">
+          <div class="section-heading">
+            <h2>Completed Events From {{content.currentYear}}</h2>
+          </div>
+          <div class="dated-list">
+            {{#each content.currentYearEvents}}{{> dated-item this compact=true}}{{/each}}
+          </div>
+        </section>
+      {{/if}}
     </div>
-    <p>Organizing an event? Create it on footbag.org. To have it sanctioned by IFPA, see the <a href="{{siteHref content.organizerLinks.guidelinesHref}}">sanctioning guidelines</a>.</p>
-    {{#if content.upcomingEvents.length}}
-      <div class="event-list">
-        {{#each content.upcomingEvents}}
-          <a href="/events/{{eventKey}}" class="event-list-row">
-            <div class="event-list-main">
-              <span class="event-list-title">{{title}}</span>
-              {{#if hostClub}}<span class="event-list-host">{{hostClub}}</span>{{/if}}
-              {{#if description}}<span class="text-muted fs-sm">{{description}}</span>{{/if}}
-            </div>
-            <div class="event-list-meta">
-              <span class="event-list-date">{{formatDate startDate}}{{#unless (eq startDate endDate)}} – {{formatDate endDate}}{{/unless}}</span>
-              <span class="event-list-location">{{formatLocation city region country}}</span>
-              <span class="badge {{statusCssClass}}">{{statusLabel}}</span>
-            </div>
-          </a>
-        {{/each}}
-      </div>
-    {{else}}
-      <p>No upcoming events are listed yet.</p>
+
+    {{! ── Past events by year ─────────────────────────────────────── }}
+    {{#if content.archiveYears.length}}
+      <aside class="side-list" id="past-events" aria-labelledby="past-events-heading">
+        <div class="section-heading">
+          <h2 id="past-events-heading">Past Events</h2>
+        </div>
+        <p>Browse completed events and results by year.</p>
+        <ul>
+          {{#each content.archiveYears}}
+            <li><a href="/events/year/{{this}}">{{this}}</a></li>
+          {{/each}}
+        </ul>
+        <p class="fs-sm">Results data before 1997 is incomplete.</p>
+      </aside>
     {{/if}}
-  </section>
-
-  {{! ── Past events by year ─────────────────────────────────────── }}
-  {{#if content.archiveYears.length}}
-  <section>
-    <div class="section-heading">
-      <h2>Past Events</h2>
-    </div>
-    <p class="mb-4">Browse completed events and results by year.</p>
-    <div class="year-grid">
-      {{#each content.archiveYears}}
-        <a href="/events/year/{{this}}" class="year-pill">{{this}}</a>
-      {{/each}}
-    </div>
-    <p class="mt-4 fs-sm">Results data before 1997 is incomplete.</p>
-  </section>
-  {{/if}}
-
+  </div>
 
 </div>

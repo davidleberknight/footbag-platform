@@ -152,7 +152,7 @@ export const PERSONA_CHECKS: PersonaCheck[] = [
   {
     persona: FIN,
     story: 'A_Reconcile_Payments',
-    criterion: 'The All Payments view allows filtering and sorting by type, date range, status, member, event, and payment reference, and shows at least: type, date, amount, currency, status, related member ID, the related event where the payment is a registration fee, resolved through the registration that carries both, and Stripe payment reference. Clubs take no payments, so no payment carries a club.',
+    criterion: 'The All Payments view allows filtering and sorting by type, date range, status, member, event, and payment reference, and shows at least: type, date, amount, currency, status, the related member by name, the related event where the payment is a registration fee, resolved through the registration that carries both, and Stripe payment reference. Clubs take no payments, so no payment carries a club.',
     defect: 'A filter that leaks or drops rows, or a missing column, misstates what was paid for what.',
     writes: false,
     async run(ctx) {

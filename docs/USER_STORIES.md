@@ -117,6 +117,7 @@ each release contains is §1.3.
   - [4.2 Registration Management](#42-registration-management)
     - [EO_View_Participants](#eo_view_participants)
     - [EO_Cancel_Registration](#eo_cancel_registration)
+    - [EO_Correct_Registrations](#eo_correct_registrations)
     - [EO_Close_Registration](#eo_close_registration)
     - [EO_Export_Participants](#eo_export_participants)
     - [EO_View_Registration_Summary](#eo_view_registration_summary)
@@ -314,7 +315,7 @@ To keep gallery pages fast, the system may cache gallery scan results. As a resu
 
 Gallery pages can lazy-load photos using JavaScript (an optional user experience enhancement). Initial HTML contains metadata and thumbnails. JavaScript requests full-resolution images on scroll. Without JavaScript, users see thumbnails and can click through to full images.
 
-Event and club detail pages automatically detect and link to media galleries when content carrying the standard event or club hashtag exists. When content exists, the page shows the gallery link near the top: View Event Gallery or View Club Gallery. It shows no individual media items; the gallery holds them. The page's own hashtag is shown beside that gallery link, near the top of the page body and never in the page header; it links to the same gallery when content exists and is a plain token otherwise. A person's page shows no hashtag; it links the media crediting them as a player under Media Featuring the person and View Player Gallery, kept apart from the media they uploaded. Gallery listings mix photos and videos naturally. This unified approach simplifies the user experience.
+Event and club detail pages automatically detect and link to media galleries when content carrying the standard event or club hashtag exists. When content exists, the page shows the gallery link near the top: View Event Gallery or View Club Gallery. It shows no individual media items other than the page's own cover photo; the gallery holds them. The page's own hashtag is shown beside that gallery link, near the top of the page body and never in the page header; it links to the same gallery when content exists and is a plain token otherwise. A person's page shows no hashtag; it links the media crediting them as a player under Media Featuring the person and View Player Gallery, kept apart from the media they uploaded. Gallery listings mix photos and videos naturally. This unified approach simplifies the user experience.
 
 Media gallery links appear from club and event pages when content exists (for example, 'View Event Gallery' or 'View Club Gallery'). The system must perform a lightweight scan that reads only the few newest media items carrying the event or club hashtag (it does not compute or display image or video total counts). We avoid scans where possible in the UI to keep things quick. All media galleries can include optional external web page URLs, security validated before publication using the full URL validation pipeline used for profile, event, and club URLs.
 
@@ -459,7 +460,7 @@ Story: As a visitor, I want to browse upcoming events and open their public deta
 Success Criteria: 
 
 - Main events landing page shows upcoming public events sorted by start date.
-- Each upcoming event card shows the fields needed for public browsing: title, date range, location, host club, description when present, and registration status.
+- Each upcoming event card shows the fields needed for public browsing: title, date range, location, host club, description when present, registration status, the event's hashtag (linked to its gallery when content carries it), and a small thumbnail of the event's cover photo when it has one.
 - Each publicly visible upcoming event links to the canonical public event page at `GET /events/:eventKey`.
 - Public canonical event pages are available only for events with status `reg_open`, `closed`, or `completed`.
 - Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
@@ -477,7 +478,7 @@ Success Criteria:
 - The public events landing page shows archive-year links derived from completed public events, showing all years with events in a side list for easy access to a given year. The default year for the landing page is the current year (for example: 2026). Every year page has navigation between that year and previous or next years when those adjacent years contain completed public events.
 - All historic events are viewed grouped by year (one page per year), with events sorted by start date. The year page shows the full completed public event list for the selected year even when some events do not have results.
 - The year page at `GET /events/year/:year` is a whole-year archive/results page. It is not paginated. The list of events for any given year is short enough that it does not need UI pagination.
-- Each year-page event block shows the public summary fields required for browsing historic events: title, date, location, host club when known, description when present, and the standardized event hashtag / canonical key when available.
+- Each year-page event block shows the public summary fields required for browsing historic events: title, date, location, host club when known, description when present, the standardized event hashtag / canonical key when available (linked to its gallery when content carries it), and a small thumbnail of the event's cover photo when it has one.
 - The year page shows event summaries only; results are on the canonical event detail page at `GET /events/:eventKey`.
 - When no result rows exist for a completed public event, the year page still shows the event; the event detail page explicitly indicates that no results are available yet.
 - Each completed public event also has a canonical public page at `GET /events/:eventKey` for event-focused viewing and direct linking.
@@ -1281,7 +1282,7 @@ Story: As a member, I can view club details and member roster so that I learn ab
 
 Success Criteria:
 
-- Club page displays: club name, description, city, country, external URL (if provided), standardized hashtag. To authenticated members it also shows each co-leader's contact email (and that co-leader's WhatsApp where they opted in).
+- Club page displays: club name, description, city, country, external URL (if provided), standardized hashtag, and its cover photo when it has one. To authenticated members it also shows each co-leader's contact email (and that co-leader's WhatsApp where they opted in).
 - Member roster shows all members where clubId matches the club.
 - The roster also lists unconfirmed affiliations imported from the legacy site in the same member-visible list; each carries a per-entry "unconfirmed" label and is never presented as current membership.
 - Roster displays: member display name, membership tier badge, current Active Player badge where applicable, city, country, and gender when the member has opted in to gender visibility.
@@ -1305,13 +1306,13 @@ Success Criteria:
 - Registration confirmation email sent to member.
 - System confirms registration and sends reminder email one week before event.
 - After tournament, member profile will automatically link to event results page (for every event they have participated in that posted results).
-- Registration includes a required selection of registration type: Competitor or Attendee/Supporter (if the organizer has enabled both; otherwise the single available type is implied).
+- Registration includes a required selection of registration type: Competitor or Spectator (if the organizer has enabled both; otherwise the single available type is implied).
 - If Competitor: member selects one or more of the competition categories and divisions the organizer offers.
-- If a selected competition category is doubles/team: member provides partner/team information (member-select when possible; otherwise free-text).
-- A division's gender eligibility is enforced at registration from the division's own gender part. A women's division requires every member on the entry to have declared female. A mixed division requires one member with gender Male and one with gender Female. An open division admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open divisions; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies only between two member profiles. For a free-text (non-member) partner, the organizer verifies eligibility at check-in. Class is self-selected: the competitor chooses the division whose class fits them, and the entry records that division.
+- Only members compete. If a selected competition category is doubles/team: the partner is a member, found by searching members by name and chosen from the results; the member never types a member ID or profile address.
+- A division's gender eligibility is enforced at registration from the division's own gender part. A women's division requires every member on the entry to have declared female. A mixed division requires one member with gender Male and one with gender Female. An open division admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open divisions; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies between the two member profiles on the entry. Class is self-selected: the competitor chooses the division whose class fits them, and the entry records that division.
 - In a division that offers prize money, the competitor chooses whether to enter as an Amateur. An Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The choice appears on the registration confirmation and on the organizer's participant list, and is carried into the results so the organizer knows who is eligible for prize money; the organizer pays prize money outside the platform.
 - When a member selects a gender-gated division while their stored gender is `undisclosed`, the registration surface warns them that the gendered draw requires a declared gender and points them to set it in their profile; the member may still register for Open divisions.
-- If Attendee/Supporter: no competition categories or divisions are required; optional fields may be collected if configured by organizer (e.g., t-shirt size, donation amount).
+- If Spectator: no competition categories or divisions are required; optional fields may be collected if configured by organizer (e.g., t-shirt size, donation amount).
 - Confirmation email includes registration type and selected competition categories and divisions and/or partners (if any).
 - Some events are free and others are paid.
 - For paid events, the member must complete the Stripe checkout process to be officially registered. Changes are applied only after webhook-confirmed success.
@@ -1398,7 +1399,7 @@ Story: As a member, I see my own registered events in two sections: upcoming eve
 
 Success Criteria:
 
-- Upcoming Events section shows events where member is registered AND startDate greater than today AND status in (reg_open, closed).
+- Upcoming Events section shows events where member is registered AND endDate on or after today AND status in (reg_open, closed).
 - Past Events with Results section shows events where member participated AND the event has published results records.
 - Each entry shows event title, date, location, status or placement.
 - One-click access to event details, results, and media galleries.
@@ -1717,7 +1718,7 @@ Success Criteria:
 
 - Photos and videos support same hashtag system.
 - Captions supported for both media types (max 500 chars, plain text).
-- Can create named galleries mixing photos and videos. A gallery is created on the Share Media form by naming the hashtags given there, with or without anything shared in the same submit; when no hashtag is given, the hashtag made from the gallery's name by the slug rule is used. The gallery's address and hashtags are shown to the member before it is saved. An item already shared shows in a gallery once its hashtags satisfy that gallery's; the Share Media form and the item's edit page offer each of the member's galleries' hashtags as a quick-add suggestion, alongside the member's player, club and event hashtags and popular hashtags, and typing a word offers the matching event and club hashtags.
+- Can create named galleries mixing photos and videos. A gallery is created on the Share Media form by naming the hashtags given there, with or without anything shared in the same submit; when no hashtag is given, the hashtag made from the gallery's name by the slug rule is used. The gallery's address and hashtags are shown to the member before it is saved. An item already shared shows in a gallery once its hashtags satisfy that gallery's; the Share Media form and the item's edit page offer each of the member's galleries' hashtags as a quick-add suggestion, alongside the member's player hashtag, their current clubs' hashtags, the hashtags of their own recent events (those they placed in, organize or are registered for that started within the last year or start within the next), and popular hashtags, and typing a word offers the matching event and club hashtags.
 - Each gallery can include optional external links that are validated before publication, with clear error messages and a simple retry path if validation fails.
 - Media appears in personal galleries and event galleries via hashtag matching.
 - The gallery edit form offers the same hashtag suggestions as the upload form beside its criteria hashtags (the member's player hashtag, clubs and events, recent events, popular hashtags), and its type-ahead leaves out the hashtags only the platform applies.
@@ -1737,6 +1738,7 @@ Story: As a member, I can delete my own photo, video link, or named gallery so t
 Success Criteria:
 
 - Uploader can delete own media anytime, with immediate permanent effect (no soft delete for media).
+- A deleted photo that was an event's or club's cover photo stops being its cover; the event or club shows none until another is uploaded.
 - Delete controls for user-owned media are rendered for members with Tier 1 benefits. A Tier 0 member without current Active Player status has no media to delete, so no control and no benefit text appears.
 - When deleting a media item, the deletion is permanent and has a cascading deletion of all the associated hashtags.
 - Deleting a named gallery removes only that gallery (its saved query: name, criteria hashtags, exclude hashtags, sort order, cover photo). The items it displayed are not deleted; they stay published and continue to appear wherever else their hashtags match. Deleting an item is the separate, permanent action above.
@@ -1993,7 +1995,7 @@ Success Criteria:
 
 - Members with Tier 1 benefits can create basic free events; Tier 2 or Tier 3 members can request sanctioned events and enable paid registration.
 
-Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional).
+Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional), cover photo (optional).
 
 The organizer then adds the competition categories and divisions the event contests. Each division of a category is a structured record, an `event_disciplines` row: it names its game, its entry size (singles or doubles), its gender eligibility (open, women's, or mixed), and its class (novice, intermediate, open, or masters). The display name, for example "Open Women's Singles Net" or "Intermediate Doubles Net", is generated from those parts. Mixed is the doubles entry size with mixed gender, so a mixed doubles division is the pairing of those two parts. The game and entry size name the competition category, and the gender and class parts name the division.
 
@@ -2010,6 +2012,7 @@ Social kicking, also called free-flow or cooperative kicking, and circle kicking
 - Organizer sees clear error messages for validation failures with hints about what to fix.
 - Member gains Event Organizer status for this event (only).
 - Creating the event writes its permanent standard hashtag, `#event_{year}_{event_slug}`, where the year is the event's start year and the slug is suggested from the title, editable before saving, and folded by the slug rule; once made it never changes, even when the event's dates move.
+- The organizer may upload a cover photo when creating the event, and any organizer may add, replace or remove it later from the event's manage page. The photo is an ordinary photo owned by whoever uploaded it and carries the event's hashtag, so it also shows in the event's gallery. It shows as the cover only while it is active and still carries the hashtag; replacing it leaves the earlier photo in the gallery. The success message after creating the event names its hashtag.
 - An Event Organizer may organize more than one event at a time.
 - For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that takes fees through footbag.org, these actions wait for Admin approval. Opening a free public event emits a news item announcing it (`V_View_News_Feed`).
 
@@ -2054,7 +2057,7 @@ Story: As an event organizer, I can edit event details so that I can update info
 
 Success Criteria:
 
-- All fields may be edited except free/sanctioned status.
+- All fields may be edited except free/sanctioned status and, once a sanction request is sent, its fees. An administrator corrects a fee after that (`A_Correct_Event_Data`).
 - Co-organizers can edit all event fields.
 - All edits audit-logged with organizer ID, fields changed, old values, new values, timestamp.
 - Organizers see a clear success message when event is updated.
@@ -2101,11 +2104,11 @@ Story: As an event organizer, I can add, view, and remove co-organizers so that 
 
 Success Criteria:
 
-- An organizer can add up to 4 co-organizers by member id.
+- An organizer can add up to 4 co-organizers, found by searching members by name.
 - System sends email to new organizer with key points: event name, event date, co-organizer responsibilities.
 - Co-organizer gains identical event management permissions as every other organizer of the event; there is no primary organizer.
 - Maximum 5 total organizers per event.
-- Organizer can view list of all current co-organizers. List shows: co-organizer name, member id, date added.
+- Organizer can view list of all current co-organizers. List shows: co-organizer name and date added.
 - Co-organizer can opt out of leadership role via the member dashboard.
 - All co-organizer actions are audit-logged.
 - Organizers see a clear success message when co-organizer is added or removed.
@@ -2154,6 +2157,24 @@ Success Criteria:
 - The member is notified by email that their registration was canceled, and the reason is included.
 - For a paid registration, the confirmation screen states that any refund is arranged by the IFPA Treasurer outside the platform.
 - Cancellation is audit-logged with actor ID, affected member ID, event ID, reason, and timestamp.
+
+### EO_Correct_Registrations
+
+Access: Event organizers and co-organizers, for events they organize. Administrators reach any event's registrations through `A_Correct_Event_Data`.
+
+Story: As an event organizer, I can correct the registrations at the event, adding walk-ups, swapping partners and moving competitors between divisions, so that the registrations match who actually competed and the results upload matches them.
+
+Success Criteria:
+
+- The organizer's participant list groups confirmed registrations by division with a count for each, and each row shows the entrant, their partner where the division is doubles, their payment status, and an Edit link.
+- Corrections are open from the start of registration until the event's results are uploaded, whether or not the registration deadline has passed or online registration is paused.
+- Add Entrant registers any member as a competitor: the organizer searches members by name and chooses one, ticks the divisions, and for a doubles division chooses the partner the same way. A walk-up creates a free account on their own phone first and is then found in the search.
+- Editing an entry changes its divisions and its doubles partner, both chosen the same way. A partner must be a member.
+- A fee the organizer collects at the table is recorded as paid at the event, with no amount; such a registration is never charged online.
+- Removing an entry follows `EO_Cancel_Registration`.
+- A doubles entry left without a partner is flagged on the participant list, and a results upload naming it is refused (`EO_Upload_Results`).
+- Each save returns to the participant list with a one-line message naming what changed and an Edit link back to that entry.
+- Each correction is audit-logged with the organizer who made it, and the member is emailed what changed.
 
 ### EO_Close_Registration
 
@@ -2240,7 +2261,7 @@ Success Criteria:
 
 - Results upload accepts CSV with enough information to create `event_results_uploads`, `event_result_entries`, and `event_result_entry_participants` database rows for singles and multi-participant placements (if that data is available for the event).
 - The upload is a two-step flow: the file is parsed into a preview the organizer reviews, and nothing is written to the event's public results, no participant profile is touched, and no attendance step runs until the organizer commits that preview.
-- The preview reports, per row, whether each named participant matched a confirmed registration in that event. Matching is quality assurance rather than a gate: an unmatched participant is flagged for the organizer to correct or accept, and accepting one records the participant by display name without a member link. This is expected rather than exceptional, because partners change on the day, non-members compete, and competitors are moved between divisions as entries are combined or split at the event.
+- The preview reports, per row, whether each named participant matched a confirmed registration in that event. A participant who matches no confirmed registration is an error: the upload is refused, naming the unmatched rows, and nothing is recorded without a member link. Partner swaps, walk-ups and division moves made on the day are corrected in the registrations first (`EO_Correct_Registrations`), and the upload then matches.
 - The preview refuses to commit a file that is malformed as results: a placement missing, a competition category or division the event does not carry and the organizer has not confirmed as contested, or a duplicate placement that the organizer has not declared as a tie.
 - Each group of results names the competition category and division that actually ran, whether or not it matches what the event advertised beforehand.
 - Ties are recorded as a shared placement: tied competitors take the same, lower place and the next place is skipped, as the IFPA competition rules specify.
@@ -2250,7 +2271,7 @@ Success Criteria:
 - Results also added to participant profiles (if participant linked to member account).
 - The first publication of an event's results emits a news feed item linking to them; a later upload or correction keeps that one item (`V_View_News_Feed`).
 - Only organizers can upload results.
-- Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
+- Results upload audit-logged, including the committed upload's row count.
 - An entrant who entered a prize-money division as an Amateur is marked as Amateur in that division's results; the mark changes neither the placing nor the ranking points.
 - For a sanctioned event, uploading complete results for every competition category and division in the platform within 20 days of the event's last day is a sanctioning requirement, one deadline for every discipline. Sending the event summary to the announce list within the same 20 days is the other (`EO_Request_Sanction`).
 - A sanctioned event whose complete results are not uploaded within those 20 days shows its organizers a "sanctioning requirements not met" badge, on the event's manage page and on its results-upload page where the organizer acts on it, never on the public event page; the badge clears once the results are uploaded. A summary not yet sent keeps the event's work item open but does not show the badge.
@@ -2356,8 +2377,8 @@ Success Criteria:
 - A team entry survives the day: a partner can be added, replaced, or removed after entry, an
   entry can sit incomplete while a partner is sought, and the change is recorded rather than
   overwriting the original pairing silently.
-- An entry links to a platform member where one exists and otherwise records a display name and
-  country, because non-members compete and partners are found on site.
+- Every entry links to a platform member, because only members compete; a partner found on site
+  creates a free account and is then entered.
 - Entries carry the state the day needs: entered, waitlisted, checked in, withdrawn, no-show.
 - Entry caps, entry deadlines and withdrawal deadlines are per division.
 - Entry changes are audit-logged with who made them.
@@ -2621,7 +2642,7 @@ Story: As an eligible member, I can create a club so that I can become its first
 
 Success Criteria:
 
-- Club creation form includes: club name, description, city, state or province, country. The creator becomes the club's first co-leader, and the club is reached through that co-leader's member-visible contact email; there is no separate club contact field. A club that later loses all co-leaders still persists and surfaces only on the low-priority "could use a leader" admin list (see the Club Lifecycle section).
+- Club creation form includes: club name, description, city, state or province, country, and an optional cover photo. The creator becomes the club's first co-leader, and the club is reached through that co-leader's member-visible contact email; there is no separate club contact field. A club that later loses all co-leaders still persists and surfaces only on the low-priority "could use a leader" admin list (see the Club Lifecycle section).
 - A club's country is chosen from the country picker and stored as that single canonical name, with an alias or ISO code folded to it, so a club lands on the same country page and in the same duplicate checks as every other club, member and event in that country. A submitted country the picker does not offer is refused.
 - A club's city follows the member city rule: entered entirely in lowercase, it is stored with each word capitalized; containing any capital letter, it is stored as entered. The rule applies on creation, co-leader edit, administrator correction, and promotion from a legacy record.
 - A club in a country that writes its addresses with states or provinces must name one, and it is stored as the full name ("New York"), with a submitted two-letter code folded to that name. The requirement exists because the country page groups clubs by state or province only when every club in that country has one, so a single club without it flattens the whole country into one list. This is the opposite of the member location rule, where the region is stored as the two-letter code because that column feeds the Official IFPA Roster and a fixed code is the reconcilable form there. The two are deliberately spelled differently and are never joined. A country with no official state or province set keeps a free-text region, which may be blank.
@@ -2636,6 +2657,7 @@ Success Criteria:
 - Member becomes the club's first co-leader. A member may co-lead up to three clubs at a time.
 - If the authenticated member already co-leads three clubs, the create-club option is not shown in the UI. If attempted via direct URL or API, the member is shown: "You already co-lead three clubs, the most a member can lead. To create a new club, step down at one of them first." A member who already holds three current club affiliations is refused for that reason instead, and is asked to leave one first.
 - Club display names are not required to be globally unique (for example the name could be "Hacky Crew"). Two clubs may share the same display name. The standardised club hashtag, globally unique, is the canonical identifier. The UI makes the club hashtag visible at creation so leaders understand it is the persistent unique handle.
+- The creator may upload a cover photo when creating the club, and any co-leader may add, replace or remove it later from the club's page. The photo is an ordinary photo owned by whoever uploaded it and carries the club's hashtag, so it also shows in the club's gallery. It shows as the cover only while it is active and still carries the hashtag; replacing it leaves the earlier photo in the gallery. The success message after creating the club names its hashtag.
 
 ### CL_Edit_Club
 
@@ -2732,7 +2754,7 @@ Story: As a group owner, I can add or remove members of my group so that I maint
 
 Success Criteria:
 
-- Owner can add any Tier 1+ member to the group by member ID or via member search.
+- Owner can add any Tier 1+ member to the group via member search.
 - Owner can remove any current member from the group, subject to the sole-owner protection (an owner cannot remove the only owner; a successor must be promoted first via `GO_Manage_CoOwners`).
 - On a `type='board'` group the add and remove actions are not offered to owners at all; the roster is managed by an administrator through `A_Manage_Group_Roster`, which also sets the governance fields on each row.
 - On every other group, a row added here carries `is_voting=0`, empty `office`, `seat_basis`, and `seat_reference`, `term_start` set to the add date, and no `display_order`; those fields exist for governance groups and are set by an administrator where they apply.
@@ -2752,7 +2774,7 @@ Story: As a group owner, I can add, view, and remove co-owners so that I share g
 
 Success Criteria:
 
-- Any owner can add co-owners by member ID; co-owners must be Tier 1+ members (consistent with the Tier 1+ floor enforced for initial owners in `A_Create_Group` and for added members in `GO_Manage_Members`). A group carries as many owners as its work needs.
+- Any owner can add co-owners via member search; co-owners must be Tier 1+ members (consistent with the Tier 1+ floor enforced for initial owners in `A_Create_Group` and for added members in `GO_Manage_Members`). A group carries as many owners as its work needs.
 - System sends an email to a new co-owner with: group name, owner responsibilities.
 - Co-owner gains identical group management permissions as the original owner.
 - Owners can view the list of all current co-owners; list shows display name, date added.
@@ -2831,7 +2853,7 @@ Story: As an administrator, I can view all inbound payments (donations, membersh
 Success Criteria:
 
 - There is an admin-only All Payments view that lists all inbound payments recorded by the system, including donations, membership purchases/upgrades, and event registration fees.
-- The All Payments view allows filtering and sorting by type, date range, status, member, event, and payment reference, and shows at least: type, date, amount, currency, status, related member ID, the related event where the payment is a registration fee, resolved through the registration that carries both, and Stripe payment reference. Clubs take no payments, so no payment carries a club.
+- The All Payments view allows filtering and sorting by type, date range, status, member, event, and payment reference, and shows at least: type, date, amount, currency, status, the related member by name, the related event where the payment is a registration fee, resolved through the registration that carries both, and Stripe payment reference. Clubs take no payments, so no payment carries a club.
 - For donation payments, the admin can see the member’s donation comment as a read-only field when viewing payment details, so that reconciliation and investigations can take the comment into account without allowing admins to edit it.
 - A nightly worker (or equivalent scheduled job) performs reconciliation against Stripe (or the payment provider) and records mismatches (for example missing webhooks, amount discrepancies, status mismatches, or unexpected duplicates).
 - The Reconciliation Issues view includes a status filter with options: Outstanding (default) / Resolved / All. Resolved reconciliation issues show: admin who resolved the issue, resolution timestamp, resolution note explaining action taken. This allows multiple administrators to see what reconciliation issues have already been handled and by whom.
@@ -2852,7 +2874,7 @@ Admin can delete member accounts that violate registration rules (real full name
 Success Criteria:
 
 - Admin member management is a single admin-only surface: a member lookup and a per-member detail view. Every other admin action on an individual member is reached from that detail view rather than from a page of its own, including the tier change, the Active Player expiry correction, the deceased marking, and the member history in A_View_Member_History. A question to a member is not reached from here: it belongs to the work-queue item that raised it, so that the answer returns to where the administrator was already working.
-- The lookup finds a member by exact member id, profile URL slug, or login email, or by a fragment of the display name, matching the admin lookup the payments views already use. It reads the whole member population rather than the member-facing search view, because an admin must reach members that view excludes by design: members who opted out of member search, members inside the deletion grace period, and deceased members whose flag may need reversing.
+- The lookup finds a member by login email or by a fragment of the display name, and a pasted profile address also finds its member, matching the admin lookup the payments views already use. It reads the whole member population rather than the member-facing search view, because an admin must reach members that view excludes by design: members who opted out of member search, members inside the deletion grace period, and deceased members whose flag may need reversing.
 - The member detail view is admin-only and may show the member's owner-and-admin-private fields, including birth date, gender, and contact fields, because it sits at the internal-and-admin-only sensitivity level. It shows the member's identity, membership standing, account state, and identity links, and links to their public profile.
 - Admin can correct a member's display name from the member detail view. The corrected name passes the same validation a name passes at registration, so a correction is not a way to take a name registration would refuse. The correction requires a mandatory reason, is audit-logged with the old and the new value, and leaves the member's profile URL unchanged, since a profile URL correction is a separate request.
 - The correction covers the member's recorded legal name as well as the display name, in one action with one reason and one audit row carrying every before-and-after value. The recorded family name is the anchor the display-name rule and every claim path match on, and the member's own surfaces leave it to an administrator to correct, so correcting the display name alone would leave the two drifting apart and hold the member to a name they no longer carry. The correction rewrites the recorded name and nothing else: it re-runs no identity matcher, and it neither creates nor unwinds an identity link the member already holds.
@@ -3047,6 +3069,7 @@ Success Criteria:
 - Admin can edit any event's fields, including fields the organizer is barred from changing after the fact, such as an event's sanctioned status or a division whose entries are already confirmed.
 - Admin can cancel any event, with the same registrant notification, reason, and audit trail the organizer's own cancellation carries.
 - Admin can cancel any registration, with the same member notification, reason, and audit trail the organizer's own cancellation carries.
+- Admin can add an entrant to any event or change any entry's divisions, partner and payment at the event, as the organizer does in `EO_Correct_Registrations`, with the same member notification.
 - Admin can assign an event organizer from the member base where an event has none (see `A_Reassign_Event_Organizer`).
 - Every correction requires a reason entered by the admin, previews before it writes, and writes an audit row carrying the before and after values, the admin's identity, the timestamp, and the reason.
 - Corrections appear in the normal public and member-facing views immediately, with no separate publication step.
@@ -3109,7 +3132,7 @@ Success Criteria:
 - Both answers reach the member. Submitting the request promised a reply, and this is the one contact category an administrator answers by applying a link rather than by writing back, so neither answer may be silent. An approval tells the member their records are now linked and that they will find them on their profile, which is where the in-app half of the answer lives; a rejection carries the administrator's reason, because a refusal a member cannot see the reason for leaves them with no way to answer it. The member's own submitted words are never echoed back, matching the contact-request resolution reply. The notice is enqueued after the decision commits, so the decision stands whatever the outbox does, and a notice that cannot be enqueued records an operational failure for an operator rather than being dropped in silence.
 - Admin can defer for further investigation, which parks the request: it leaves the working queue with a reason on it until the member answers or an administrator takes it back.
 - The card carries what the platform can already see for the member, computed by the same matching rules the claim step uses: every old account and competition record their own evidence reaches, with the keys that reached each, its confidence, and the date of birth held on each; records the claim step did not offer, with the reason (held by another member, named in the holder; deceased; declined; uncorroborated; surname differs); any email address of theirs that more than one old account carries; and the member's full claim evidence trail, uncapped, including declines, refused claims and their non-claiming answer. Where nothing on file reaches a record, the card says so rather than falling silent.
-- An administrator can search the old accounts nobody has claimed, by name, account id, username, or an exact email address, because approving a request asks for an account id and no other admin surface can produce one. Only unclaimed accounts are listed; an account someone holds is reached from that member's record. An email address is matched whole rather than by fragment, so the search cannot be used to read through the archived addresses.
+- An administrator can search the old accounts nobody has claimed, by name, username, or an exact email address, and approves a request by choosing the account from that search, which also finds an account by its exact old account id. Only unclaimed accounts are listed; an account someone holds is reached from that member's record. An email address is matched whole rather than by fragment, so the search cannot be used to read through the archived addresses.
 - Approval shows the member and the record it is about to bind, naming both, and applies only on confirmation. Every refusal the apply step would make is made at that step instead, with the request left open: an unknown identifier, a record another member already holds, a member who already holds a record of that kind, a linked record flagged deceased, and a record tied to an old account that a different member holds or that differs from the member's own.
 - Approval never auto-promotes legacy `is_admin` metadata to a live admin role.
 - The legacy banned flag is recorded as audit metadata only and does not gate admin approval; any action against a member on the new platform is taken through the new platform's content moderation and administrator controls.

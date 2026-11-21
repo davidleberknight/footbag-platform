@@ -501,7 +501,7 @@ describe('changing one member\'s subscription through the surface', () => {
       .post('/admin/mailing-lists/adjust-list/subscriptions/adjust')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ memberId: MEMBER_ID, status: 'subscribed', reason: 'Mailbox is working again' });
+      .send({ member_id: MEMBER_ID, status: 'subscribed', reason: 'Mailbox is working again' });
 
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/mailing-lists/adjust-list');
@@ -519,7 +519,7 @@ describe('changing one member\'s subscription through the surface', () => {
       .post('/admin/mailing-lists/no-reason/subscriptions/adjust')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ memberId: MEMBER_ID, status: 'subscribed', reason: '' });
+      .send({ member_id: MEMBER_ID, status: 'subscribed', reason: '' });
 
     expect(res.status).toBe(422);
     expect(res.text).toMatch(/Reason: required/);
@@ -538,7 +538,7 @@ describe('changing one member\'s subscription through the surface', () => {
       .post('/admin/mailing-lists/reason-list/subscriptions/adjust')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ memberId: MEMBER_ID, status: 'subscribed', reason });
+      .send({ member_id: MEMBER_ID, status: 'subscribed', reason });
 
     const refused = await adjust('<b></b>');
     expect(refused.status).toBe(422);
@@ -553,21 +553,79 @@ describe('changing one member\'s subscription through the surface', () => {
     expect(ledger).toEqual([{ reason_text: 'Mailbox fixed Café now' }]);
   });
 
-  it('reports a member with no subscription on the list as having changed nothing', async () => {
-    withDb((db) => insertMailingList(db, { slug: 'empty-list', name: 'Empty List' }));
-
-    const res = await request(createApp())
-      .post('/admin/mailing-lists/empty-list/subscriptions/adjust')
+  // Defect caught: a member the picker would never offer, because they hold no
+  // subscription here, or a typed profile handle, is accepted and the admin is
+  // told the change went through or quietly nothing happened.
+  it('refuses a member with no subscription on the list, and a profile handle, changing nothing', async () => {
+    withDb((db) => {
+      insertMailingList(db, { slug: 'empty-list', name: 'Empty List' });
+      insertMailingList(db, { slug: 'handle-list', name: 'Handle List' });
+      insertMailingListSubscription(db, { member_id: MEMBER_ID, list_slug: 'handle-list', status: 'bounced' });
+    });
+    const post = (slug: string, memberId: string) => request(createApp())
+      .post(`/admin/mailing-lists/${slug}/subscriptions/adjust`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ memberId: MEMBER_ID, status: 'subscribed', reason: 'Nothing to move' });
+      .send({ member_id: memberId, status: 'subscribed', reason: 'Nothing to move' });
 
-    expect(res.headers.location).toBe('/admin/mailing-lists/empty-list');
+    expect((await post('empty-list', MEMBER_ID)).status).toBe(422);
+    expect(subscriptionStatus('empty-list', MEMBER_ID)).toBeUndefined();
+    expect((await post('handle-list', 'aml_member')).status).toBe(422);
+    expect(subscriptionStatus('handle-list', MEMBER_ID)).toBe('bounced');
+  });
 
-    const detail = await request(createApp())
-      .get(res.headers.location)
-      .set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
-    expect(detail.text).toMatch(/Nothing changed/);
+  // Defect caught: setting a subscription to the status it already holds is
+  // written as a change, so the ledger records an adjustment that never
+  // happened and the admin is told the subscription was updated.
+  it('reports a subscription already in the chosen state as having changed nothing, writing no audit row', async () => {
+    withDb((db) => {
+      insertMailingList(db, { slug: 'same-list', name: 'Same List' });
+      insertMailingListSubscription(db, { member_id: MEMBER_ID, list_slug: 'same-list', status: 'subscribed' });
+    });
+
+    const res = await request(createApp())
+      .post('/admin/mailing-lists/same-list/subscriptions/adjust')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_id: MEMBER_ID, status: 'subscribed', reason: 'Nothing to move' });
+
+    expect(res.headers.location).toBe('/admin/mailing-lists/same-list');
+    expect(flashValueOf(res)).toBe('mailing_list_result:unchanged');
+    const ledger = withDb((db) => db.prepare(
+      `SELECT COUNT(*) AS c FROM audit_entries
+        WHERE action_type = 'mailing_list.subscription_adjusted' AND entity_id = 'same-list'`,
+    ).get() as { c: number });
+    expect(ledger.c).toBe(0);
+  });
+
+  // Defect caught: the search offers a member with no subscription to change,
+  // or choosing one closes the form and drops what was typed beside it.
+  it('searches only the list\'s subscribers, and keeps the form open with the choice and the typed fields', async () => {
+    withDb((db) => {
+      insertMailingList(db, { slug: 'pick-list', name: 'Pick List' });
+      insertMailingListSubscription(db, { member_id: MEMBER_ID, list_slug: 'pick-list', status: 'bounced' });
+    });
+    const post = (fields: Record<string, string>) => request(createApp())
+      .post('/admin/mailing-lists/pick-list/subscriptions/adjust')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(fields);
+
+    const found = await post({ pick: 'search:subscriber', pick_q: 'aml-member@example.com', status: 'suppressed', reason: 'Held' });
+    expect(found.status).toBe(200);
+    expect(found.text).toContain(`value="choose:subscriber:${MEMBER_ID}"`);
+    expect(found.text).toContain('<details class="admin-action-disclosure" open>');
+
+    // The administrator is a member too, but holds no subscription on this list.
+    const notSubscribed = await post({ pick: 'search:subscriber', pick_q: 'aml-admin@example.com', status: '', reason: '' });
+    expect(notSubscribed.text).not.toContain(`value="choose:subscriber:${ADMIN_ID}"`);
+
+    const chose = await post({ pick: `choose:subscriber:${MEMBER_ID}`, pick_q: '', status: 'suppressed', reason: 'Held' });
+    expect(chose.status).toBe(200);
+    expect(chose.text).toContain(`<input type="hidden" name="member_id" value="${MEMBER_ID}" form="adjust-subscription-form" />`);
+    expect(chose.text).toContain('<option value="suppressed" selected>');
+    expect(chose.text).toMatch(/name="reason" value="Held"/);
+    expect(subscriptionStatus('pick-list', MEMBER_ID)).toBe('bounced');
   });
 
   it('refuses the change on a group-backed list', async () => {
@@ -583,7 +641,7 @@ describe('changing one member\'s subscription through the surface', () => {
       .post('/admin/mailing-lists/committee/subscriptions/adjust')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ memberId: MEMBER_ID, status: 'unsubscribed', reason: 'Asked to leave' });
+      .send({ member_id: MEMBER_ID, status: 'unsubscribed', reason: 'Asked to leave' });
 
     expect(res.status).toBe(422);
     expect(subscriptionStatus('committee', MEMBER_ID)).toBe('subscribed');
@@ -594,7 +652,7 @@ describe('changing one member\'s subscription through the surface', () => {
       .post('/admin/mailing-lists/no-such-list/subscriptions/adjust')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ memberId: MEMBER_ID, status: 'subscribed', reason: 'Anything' });
+      .send({ member_id: MEMBER_ID, status: 'subscribed', reason: 'Anything' });
     expect(res.status).toBe(404);
   });
 });

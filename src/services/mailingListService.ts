@@ -36,18 +36,28 @@
  *   - Archiving preserves everything. The list stops appearing in the member
  *     subscription screen and in new send flows; its subscriptions and its
  *     history stay exactly as they were.
+ *   - The member whose subscription is adjusted is chosen in the detail page's
+ *     member picker, which searches the administrator's member lookup
+ *     (AdminMemberService) and offers only onboarded members who hold a
+ *     subscription on this list. The choice is posted by member id, and the
+ *     adjustment refuses any other member.
  *
  * Persistence: mailing_lists (read/write), mailing_list_subscriptions
- * (status write, counts read).
+ * (status write, counts and one member's status read), members (read).
  *
  * Side effects: audit_entries append on every successful write.
  */
 import {
+  account,
   mailingLists,
+  mailingListSubscriptions,
   transaction,
   type MailingListRow,
   type MailingListWithCountsRow,
 } from '../db/db';
+import { adminMemberService } from './adminMemberService';
+import { personLocation } from './countryUtils';
+import { PICKER_LIMIT, buildMemberPicker, type MemberPickerView, type PickIntent } from './memberPicker';
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import {
@@ -353,8 +363,15 @@ export interface MailingListDetailContent {
   canAdjust: boolean;
   canCompose: boolean;
   cannotComposeReason: string;
-  statusOptions: Array<{ value: string; label: string }>;
+  statusOptions: Array<{ value: string; label: string; selected: boolean }>;
   reasonMax: number;
+  adjustFormId: string;
+  /** The picker choosing whose subscription to change. */
+  adjustPicker: MemberPickerView;
+  /** The adjustment opens already expanded while it is in use. */
+  adjustOpen: boolean;
+  /** The reason as typed, kept while the picker draws the page again. */
+  adjustReasonValue: string;
   savedNotice: string;
   savedNoticeTone?: OutcomeTone;
   fieldErrors: Record<string, string>;
@@ -376,7 +393,7 @@ const DETAIL_NOTICES: Record<string, [OutcomeTone, string]> = {
   archived:         ['ok',   'List archived. Its subscriptions and its past sends are kept; it is no longer offered to members or to new sends.'],
   already_archived: ['info', 'This list was already archived, so nothing changed.'],
   adjusted:         ['ok',   'Subscription updated, and the change is recorded against you in the audit history.'],
-  unchanged:        ['info', 'Nothing changed: that member holds no subscription on this list, or it already had the status you chose.'],
+  unchanged:        ['info', 'Nothing changed: that member\'s subscription already had the status you chose.'],
   sent:             ['ok',   'Message queued for the list. It goes out in paced batches, and it is recorded under Broadcasts.'],
   already_sent:     ['info', 'That message was already sent. Nothing went out a second time.'],
   no_recipients:    ['no',   'Nothing was sent: this list resolved to no deliverable subscribers.'],
@@ -444,6 +461,68 @@ interface DetailPageOptions {
   /** The outcome key the redirect carried, which names the banner to show. */
   notice?: string;
   fieldErrors?: Record<string, string>;
+  /** What the adjustment form submitted, kept while the picker or a refusal
+   *  draws the page again. */
+  form?: SubscriptionAdjustForm;
+}
+
+/** The adjustment form as submitted: the chosen member, the other fields, and
+ *  a picker control's request, which draws the page again with nothing written. */
+export interface SubscriptionAdjustForm {
+  memberId: string;
+  status: string;
+  reason: string;
+  intent: PickIntent | null;
+  query: string;
+}
+
+const ADJUST_FORM_ID = 'adjust-subscription-form';
+const PICKER_KEY = 'subscriber';
+const NOT_CHOSEN = 'Search for the member by name and choose them.';
+
+interface SubscriberRow {
+  id: string; display_name: string;
+  city: string | null; region: string | null; country: string | null;
+}
+
+/** A member who holds a subscription on this list, the only kind the
+ *  adjustment can change. */
+function findSubscriber(slug: string, memberId: string): SubscriberRow | undefined {
+  const id = memberId.trim();
+  if (id === '') return undefined;
+  const member = account.findActiveMemberById.get(id) as SubscriberRow | undefined;
+  if (!member || mailingListSubscriptions.findStatus.get(slug, id) === undefined) return undefined;
+  return member;
+}
+
+function subscriberPicker(slug: string, formAction: string, form: SubscriptionAdjustForm | undefined): MemberPickerView {
+  const intent = form?.intent ?? null;
+  const chosenId = intent?.kind === 'choose' && intent.key === PICKER_KEY ? intent.memberId : form?.memberId ?? '';
+  const chosen = findSubscriber(slug, chosenId);
+  const search = intent?.kind === 'search' && intent.key === PICKER_KEY
+    ? adminMemberService.lookupMembersForPicker(form?.query ?? '', {
+      limit: PICKER_LIMIT,
+      accept: (id) => findSubscriber(slug, id) !== undefined,
+    })
+    : null;
+  return buildMemberPicker({
+    formId: ADJUST_FORM_ID,
+    formAction,
+    fieldName: 'member_id',
+    fieldKey: PICKER_KEY,
+    label: 'Member',
+    searchLabel: 'Name or login email',
+    openLabel: 'Choose Member',
+    rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name}` },
+    chosen: chosen
+      ? { memberId: chosen.id, displayName: chosen.display_name, location: personLocation(chosen.city, chosen.region, chosen.country)?.text ?? null }
+      : null,
+    intent,
+    openOnLoad: true,
+    query: form?.query ?? '',
+    search: search && { ...search, rateLimited: false },
+    notFoundHint: 'Only members who hold a subscription on this list are listed.',
+  });
 }
 
 function formPage(
@@ -620,8 +699,13 @@ export const mailingListService = {
         statusOptions: ADMIN_SETTABLE_SUBSCRIPTION_STATUSES.map((value) => ({
           value,
           label: value.charAt(0).toUpperCase() + value.slice(1),
+          selected: value === opts.form?.status,
         })),
         reasonMax: REASON_MAX,
+        adjustFormId: ADJUST_FORM_ID,
+        adjustPicker: subscriberPicker(row.slug, `/admin/mailing-lists/${row.slug}/subscriptions/adjust`, opts.form),
+        adjustOpen: opts.form !== undefined,
+        adjustReasonValue: opts.form?.reason ?? '',
         savedNotice: outcome ? outcome[1] : '',
         ...(outcome ? { savedNoticeTone: outcome[0] } : {}),
         fieldErrors,
@@ -778,6 +862,9 @@ export const mailingListService = {
     if (!list) throw new NotFoundError(`No mailing list "${slug}"`);
 
     const errors: Record<string, string> = {};
+    // Only a member the picker could offer: onboarded, and holding a
+    // subscription on this list for the adjustment to change.
+    if (!findSubscriber(slug, memberId)) errors.member_id = NOT_CHOSEN;
     if (!ADMIN_SETTABLE_SUBSCRIPTION_STATUSES.includes(status as AdminSettableSubscriptionStatus)) {
       errors.status = 'Status: choose one of the listed values.';
     }
@@ -803,7 +890,7 @@ export const mailingListService = {
     let changed = 0;
     transaction(() => {
       const result = mailingLists.adminSetSubscriptionStatus.run(
-        status, now, now, actorMemberId, slug, memberId,
+        status, now, now, actorMemberId, slug, memberId, status,
       );
       changed = result.changes;
       // Nothing moved: either this member holds no row on this list, or it

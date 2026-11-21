@@ -58,7 +58,7 @@ Compose every public page from one small set: site frame (header / main / footer
 (eyebrow / title / subtitle / notice), content section, compact disclosure card grid,
 discipline tag, result section, year navigation, pager, metadata / summary rows, data table (`.data-table`,
 the one table treatment), queue row, grouped link
-index, prominent action link, back link (the `back-link` partial),
+index, dated item, side list, member picker, prominent action link, back link (the `back-link` partial),
 empty state, notice block, and admin instructions block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
@@ -84,6 +84,36 @@ whose destinations a reader learns the position of. Both are used on the adminis
 A **pager** (the `_pager` partial) closes every paged list: numbered page links and a "Page X of
 Y" status, shaped by the page service as its pagination block. A paged hashtag-media result also
 shows the large-result notice above its grid whenever the set spans more than one page.
+
+A **dated item** (the `dated-item` partial) is one entry in a list of things that happen or were
+published on a date, upcoming events and news items alike: its date, a title linking to its page,
+an optional status or label badge, an optional meta line whose parts may be links, an optional
+excerpt, and an optional small square thumbnail at the card's top right from the item's cover photo,
+drawn on the card classes; a compact form drops the excerpt and the thumbnail where two lists sit
+side by side. The thumbnail is decorative: the title stays the card's one link. Every page that lists events draws each one as a dated item, upcoming or completed: the page
+service shapes its date as one preformatted range, its label as the registration status of an
+upcoming event (a completed event carries none), and its meta line as location, host club and its
+hashtag, drawn as the shared hashtag token that links to the event's gallery when content carries
+it and is plain otherwise. A template never lays out an event, compares its two dates or
+derives its status. A dated item whose body is not itself a link is a static card, so it does not
+lift on hover. A **side list** (`.side-list-layout` holding the main column and a `.side-list`) sets a
+short index of links beside a page's main content from 1024px up, and stacks it after the main
+content below that, such as the events landing page's archive years.
+
+A **member picker** (the `member-picker` partial) is the one way a form lets a person choose
+another member, by name, because people know names, not member ids, slugs or profile URLs. The
+field shows who is chosen, or that no one is, and Choose or Change
+opens a member search directly under that field. Every picker control posts back to the form,
+which re-renders with what was typed and saves nothing until the form's own submit. The search
+shows at most five plain names with their location, each with a Choose button, or with the
+form's own verb where choosing completes the action. The service accepts only a member the
+picker could offer, never a typed member id, slug or profile URL; a confirm page carries the
+chosen member forward in a hidden field. A lookup or filter that finds a member or a member's
+record asks for a name, or for a login email or legacy username where an admin genuinely has
+one, never a member id. A search for an old footbag.org account, or for the historical record
+linked to one, also takes that account's old id, which an admin may hold. The conventions gate
+refuses a visible field, label or message that asks for a member id, slug, profile URL or
+historical person id.
 
 A **sortable data table** carries `data-sortable` on its `.data-table`; the shared
 `sortable-table.js` reorders its rows when a reader activates a column header, and without
@@ -232,7 +262,7 @@ discipline and the shared classes; per-section classes are in the stylesheet.
   `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`; media line `.media-line` (its hashtag is the shared `.hashtag` token);
   sections `.content-section`, `.section-heading`, `.section-intro` (`.profile-section` on member
   profile pages only); cards and tables `.card`, `.card-static`, `.card-title`, `.card-meta`,
-  `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; actions `.btn`,
+  `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; side list `.side-list-layout`, `.side-list`; actions `.btn`,
   `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`; forms
   `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`;
   text `.text-muted` (metadata only), `.text-center`, `.fs-sm`, `.fw-600`.
@@ -348,7 +378,8 @@ the measurable parts of this standard, with known findings in a shrink-only base
 ## Detail-page order
 
 A detail page orients before it analyses. Under the hero, in this order: a notice band if the page
-has one; a short horizontal strip of identifying facts, if one opens the page; the media line when
+has one; the page's cover photo at full content width, when it has one; a short horizontal strip of
+identifying facts, if one opens the page; the media line when
 the page has its own hashtag; plain-language prose saying what the thing
 is; then the structured or technical sections; then actions; then the back link from
 `navigation.contextLinks`. Club detail, event detail and the member profile are the worked examples.

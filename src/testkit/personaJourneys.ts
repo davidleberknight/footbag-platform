@@ -68,24 +68,62 @@ async function runOne(spec: PersonaSpec): Promise<void> {
   }
 
   if (post.registersFor) {
-    // The organizer persona's event, found by its fixed ids: its public key is
-    // its hashtag without the leading mark, and the singles division is the
-    // one the form offers without a partner.
-    const organizer = post.registersFor.eventOfPersona;
-    const tag = db.prepare(`SELECT tag_normalized FROM tags WHERE id = ?`)
-      .get(personaEventTagId(organizer)) as { tag_normalized: string } | undefined;
-    const singles = db.prepare(
-      `SELECT id FROM event_disciplines WHERE event_id = ? AND team_type = 'singles' ORDER BY sort_order, id LIMIT 1`,
-    ).get(personaEventId(organizer)) as { id: string } | undefined;
-    if (!tag || !singles) throw new Error(`the event of persona '${organizer}' is not seeded`);
-    await eventService.register(memberId, tag.tag_normalized.replace(/^#/, ''), {
+    // The organizer persona's event, found by its fixed ids. Without a named
+    // competition the member enters the first singles one, which the form
+    // offers without a partner.
+    const { eventOfPersona, competition, partner } = post.registersFor;
+    const key = personaEventKey(eventOfPersona);
+    const divisionId = competition
+      ? competitionId(eventOfPersona, competition)
+      : (db.prepare(
+          `SELECT id FROM event_disciplines WHERE event_id = ? AND team_type = 'singles' ORDER BY sort_order, id LIMIT 1`,
+        ).get(personaEventId(eventOfPersona)) as { id: string } | undefined)?.id;
+    if (!divisionId) throw new Error(`the event of persona '${eventOfPersona}' is not seeded`);
+    await eventService.register(memberId, key, {
       type: 'competitor',
-      divisionIds: [singles.id],
+      divisionIds: [divisionId],
       amateurIds: [],
-      partners: [],
+      partners: partner ? [{ divisionId, memberId: memberIdOf(partner) }] : [],
       tshirtSize: '',
     });
   }
+
+  if (post.addsWalkUp) {
+    // The organizer adds a member who turned up at the table, then corrects
+    // the entry into a doubles competition with a member partner, through the
+    // same entries the participant page's Add Entrant and Edit Entry use.
+    const walkUp = post.addsWalkUp;
+    const key = personaEventKey(spec.slug);
+    const first = competitionId(spec.slug, walkUp.firstCompetition);
+    const corrected = competitionId(spec.slug, walkUp.correctedCompetition);
+    const entrantId = memberIdOf(walkUp.persona);
+    const added = eventService.addEntrant(memberId, key, {
+      memberId: entrantId, divisionIds: [first], partners: [], paidAtEvent: walkUp.paidAtEvent,
+    });
+    if (added.branch !== 'added') throw new Error(`the walk-up '${walkUp.persona}' was not added (${added.branch})`);
+    eventService.correctEntry(memberId, key, added.registrationId, {
+      memberId: entrantId,
+      divisionIds: [corrected],
+      partners: [{ divisionId: corrected, memberId: memberIdOf(walkUp.partner) }],
+      paidAtEvent: walkUp.paidAtEvent,
+    });
+  }
+}
+
+/** A persona event's public key: its hashtag without the leading mark. */
+function personaEventKey(organizer: string): string {
+  const tag = db.prepare(`SELECT tag_normalized FROM tags WHERE id = ?`)
+    .get(personaEventTagId(organizer)) as { tag_normalized: string } | undefined;
+  if (!tag) throw new Error(`the event of persona '${organizer}' is not seeded`);
+  return tag.tag_normalized.replace(/^#/, '');
+}
+
+/** The id of a persona event's competition, found by its name. */
+function competitionId(organizer: string, name: string): string {
+  const row = db.prepare(`SELECT id FROM event_disciplines WHERE event_id = ? AND name = ?`)
+    .get(personaEventId(organizer), name) as { id: string } | undefined;
+  if (!row) throw new Error(`the event of persona '${organizer}' has no competition '${name}'`);
+  return row.id;
 }
 
 /**

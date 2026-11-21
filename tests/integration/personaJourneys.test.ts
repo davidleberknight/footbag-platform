@@ -83,11 +83,92 @@ describe('persona journeys', () => {
 
   // Defect caught: the organizer persona's event has no registrants, so every
   // organizer tool shows an empty state and deleting the event is not refused.
-  it('registers two personas in the organizer persona\'s event', () => {
+  it('registers four personas in the organizer persona\'s event', () => {
     const rows = db.prepare(
       `SELECT member_id FROM registrations WHERE event_id = 'event-test-persona-eo_organizer' ORDER BY member_id`,
     ).all() as { member_id: string }[];
-    expect(rows.map((r) => r.member_id)).toEqual([id('ap_active'), id('event_registrant')]);
+    expect(rows.map((r) => r.member_id)).toEqual([
+      id('ap_active'), id('event_mixed_partner'), id('event_registrant'), id('event_undisclosed'),
+    ]);
+  });
+
+  // Defect caught: no persona shows a mixed doubles pair, so the mixed gender
+  // rule and the member partner are never seen on the participant list.
+  it('enters a male persona and a female partner in the mixed doubles competition', () => {
+    const entry = one<{ partner: string | null; gender: string; partnerGender: string; status: string }>(
+      `SELECT s.partner_member_id AS partner, m.gender, p.gender AS partnerGender, r.status
+         FROM registrations r
+         JOIN registration_discipline_selections s ON s.registration_id = r.id
+         JOIN event_disciplines d ON d.id = s.discipline_id
+         JOIN members m ON m.id = r.member_id
+         JOIN members p ON p.id = s.partner_member_id
+        WHERE r.member_id = ? AND d.team_type = 'doubles' AND d.gender_eligibility = 'mixed'`,
+      id('event_mixed_partner'),
+    );
+    expect(entry).toEqual({ partner: id('event_registrant'), gender: 'male', partnerGender: 'female', status: 'confirmed' });
+  });
+
+  // Defect caught: no registrant has an undisclosed gender, so the open-only
+  // entry such a member may make is never seen.
+  it('enters the undisclosed-gender persona in an open competition only', () => {
+    const rows = db.prepare(
+      `SELECT d.gender_eligibility AS gender, m.gender AS memberGender
+         FROM registrations r
+         JOIN registration_discipline_selections s ON s.registration_id = r.id
+         JOIN event_disciplines d ON d.id = s.discipline_id
+         JOIN members m ON m.id = r.member_id
+        WHERE r.member_id = ? AND r.status = 'confirmed'`,
+    ).all(id('event_undisclosed')) as { gender: string; memberGender: string }[];
+    expect(rows).toEqual([{ gender: 'open', memberGender: 'undisclosed' }]);
+  });
+
+  // Defect caught: no persona event is paused, closed or under way, so the
+  // registration-closed badge, the refused form and an upcoming closed event on
+  // a profile are never seen in the seeded site.
+  it('seeds a paused event and an event under way with registration closed', () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const paused = one<{ status: string; registration_status: string; start_date: string }>(
+      `SELECT status, registration_status, start_date FROM events WHERE id = 'event-test-persona-eo_paused_organizer'`,
+    );
+    expect(paused).toMatchObject({ status: 'reg_open', registration_status: 'closed' });
+    expect(paused.start_date > today).toBe(true);
+    const underway = one<{ status: string; start_date: string; end_date: string; registration_deadline: string }>(
+      `SELECT status, start_date, end_date, registration_deadline FROM events WHERE id = 'event-test-persona-eo_underway_organizer'`,
+    );
+    expect(underway.status).toBe('closed');
+    expect(underway.start_date < today && underway.end_date > today).toBe(true);
+    expect(underway.registration_deadline < today).toBe(true);
+  });
+
+  // Defect caught: the organizer correction path is never exercised by the
+  // seed, so no participant list shows a walk-up paid at the table or an entry
+  // the organizer moved into doubles with a member partner.
+  it('adds a walk-up paid at the event to the sanctioned fee event, then corrects it into doubles', () => {
+    const portland = 'event-test-persona-eo_other_organizer';
+    expect(one<{ payment_enabled: number; sanction_status: string; fee: number | null }>(
+      `SELECT payment_enabled, sanction_status, competitor_fee_cents AS fee FROM events WHERE id = ?`, portland,
+    )).toEqual({ payment_enabled: 1, sanction_status: 'approved', fee: 2000 });
+    const reg = one<{ id: string; status: string; paid: string | null; by: string | null; payment_id: string | null }>(
+      `SELECT id, status, paid_at_event_at AS paid, paid_at_event_marked_by_member_id AS by, payment_id
+         FROM registrations WHERE event_id = ? AND member_id = ?`, portland, id('event_walkup'),
+    );
+    expect(reg).toMatchObject({ status: 'confirmed', by: id('eo_other_organizer'), payment_id: null });
+    expect(reg.paid).not.toBeNull();
+    const selections = db.prepare(
+      `SELECT d.team_type AS team, s.partner_member_id AS partner
+         FROM registration_discipline_selections s JOIN event_disciplines d ON d.id = s.discipline_id
+        WHERE s.registration_id = ?`,
+    ).all(reg.id) as { team: string; partner: string | null }[];
+    expect(selections).toEqual([{ team: 'doubles', partner: id('event_registrant') }]);
+    const acts = db.prepare(
+      `SELECT action_type AS act, actor_member_id AS actor FROM audit_entries
+        WHERE entity_id = ? AND json_extract(metadata_json, '$.registration_id') = ? ORDER BY action_type`,
+    ).all(portland, reg.id) as { act: string; actor: string }[];
+    // ordering-is-the-contract: sorted by action name so the pair compares whole.
+    expect(acts).toEqual([
+      { act: 'event.registration_added', actor: id('eo_other_organizer') },
+      { act: 'event.registration_corrected', actor: id('eo_other_organizer') },
+    ]);
   });
 
   // Defect caught: a refresh after the journeys rolls back on a row a journey

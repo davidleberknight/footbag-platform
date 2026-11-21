@@ -300,7 +300,7 @@ export const publicEvents = {
       ON c.id = e.host_club_id
     WHERE
       e.status IN (${PUBLIC_UPCOMING_VISIBLE_STATUS_SQL})
-      AND e.start_date >= date(?)
+      AND e.end_date >= date(?)
       AND t.is_standard = 1
       AND t.standard_type = 'event'
     ORDER BY
@@ -1683,6 +1683,18 @@ export const clubContent = {
         updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ?
   `); },
+
+  // The club's cover photo pointer as stored, whether or not it is honoured.
+  get findCoverMediaId() { return db.prepare(`
+    SELECT cover_media_id FROM clubs WHERE id = ?
+  `); },
+
+  // Points the club at a cover photo, or clears it with NULL.
+  get setCoverMedia() { return db.prepare(`
+    UPDATE clubs SET cover_media_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
 };
 
 export const clubLeaders = {
@@ -1789,9 +1801,11 @@ export const clubLeaders = {
   // the current-leadership view will not see, so the club stays on the
   // needs-leader list while that member's single co-leadership slot is occupied
   // by somebody who cannot act.
-  get findMemberByKeyForAdmin() { return db.prepare(`
-    SELECT id, display_name, slug FROM members_onboarded
-    WHERE (slug = ? OR id = ?) AND is_deceased = 0
+  // The member is the one the administrator chose in the member picker, by id
+  // alone: a slug or profile address is never accepted in its place.
+  get findAppointableMemberById() { return db.prepare(`
+    SELECT id, display_name, slug, city, region, country FROM members_onboarded
+    WHERE id = ? AND is_deceased = 0
   `); },
 
   get findCurrentAffiliation() { return db.prepare(`
@@ -4064,8 +4078,11 @@ export interface MemberResultRow {
 }
 
 export interface MemberSearchRow {
+  id: string;
   slug: string;
   display_name: string;
+  city: string | null;
+  region: string | null;
   country: string | null;
   is_hof: number;
   is_bap: number;
@@ -4254,6 +4271,13 @@ export const account = {
   // onboarding is not a member, so the key resolves to nothing for them.
   get findActiveMemberByKey() { return db.prepare(`
     SELECT id, slug, display_name FROM members_onboarded WHERE slug = ? OR id = ?
+  `); },
+
+  // The member an administrator chose in a member picker, by id alone: a slug
+  // or profile address is never accepted in its place. A registrant still
+  // onboarding is not a member, so the id resolves to nothing for them.
+  get findActiveMemberById() { return db.prepare(`
+    SELECT id, slug, display_name, city, region, country FROM members_onboarded WHERE id = ?
   `); },
 
   // The recorded name parts, for the surname gate. Reads members rather than a
@@ -4532,7 +4556,7 @@ export const account = {
   `); },
 
   get searchMembers() { return db.prepare(`
-    SELECT m.slug, m.display_name, m.country, m.is_hof, m.is_bap, m.is_board,
+    SELECT m.id, m.slug, m.display_name, m.city, m.region, m.country, m.is_hof, m.is_bap, m.is_board,
            m.gender, m.show_gender,
            s.tier_status, s.is_active_player
     FROM members_searchable m
@@ -5258,7 +5282,7 @@ export const auditEntries = {
 // dynamic, so the SQL is assembled per call (the project's dynamic-SQL-helper
 // pattern) rather than as a fixed prepared statement.
 export interface AuditLogFilters {
-  memberId?: string | null;      // matches actor, member-entity, or a row naming the member in metadata
+  memberIds?: string[] | null;   // any of these: actor, member-entity, or a row naming the member in metadata
   entityType?: string | null;    // with entityId: rows on that entity or naming it in metadata
   entityId?: string | null;
   liveOnly?: boolean;            // real business only, no rehearsal or unknown-origin rows
@@ -5294,10 +5318,12 @@ function buildAuditLogWhere(f: AuditLogFilters): { sql: string; params: unknown[
   // A member's history includes the rows about something of theirs (a payment,
   // an affiliation, a gallery), which name the member in metadata rather than
   // as the row's entity.
-  if (f.memberId) {
-    clauses.push(`(a.actor_member_id = ? OR (a.entity_type = 'member' AND a.entity_id = ?)
-      OR json_extract(a.metadata_json, '$.member_id') = ? OR json_extract(a.metadata_json, '$.memberId') = ?)`);
-    params.push(f.memberId, f.memberId, f.memberId, f.memberId);
+  if (f.memberIds && f.memberIds.length > 0) {
+    const ids = f.memberIds;
+    const ph = ids.map(() => '?').join(', ');
+    clauses.push(`(a.actor_member_id IN (${ph}) OR (a.entity_type = 'member' AND a.entity_id IN (${ph}))
+      OR json_extract(a.metadata_json, '$.member_id') IN (${ph}) OR json_extract(a.metadata_json, '$.memberId') IN (${ph}))`);
+    params.push(...ids, ...ids, ...ids, ...ids);
   }
   // An entity's history: the rows on it, and the rows on related entities that
   // name it in metadata the same way (a club's affiliations carry club_id).
@@ -7154,6 +7180,46 @@ export function listGalleryCovers(galleryIds: string[]): GalleryCoverRow[] {
 }
 
 /**
+ * The cover photo of each of a list of events or clubs, in one statement
+ * however many the list holds. A cover is honoured only while it is an active,
+ * non-avatar photo that still carries the event's or club's own hashtag;
+ * otherwise that event or club has no row, and nothing stands in for it.
+ */
+export interface EntityCoverRow {
+  entity_id: string;
+  media_id: string;
+  caption: string | null;
+  s3_key_thumb: string;
+  s3_key_display: string;
+  width_px: number | null;
+  height_px: number | null;
+}
+function listEntityCovers(table: 'events' | 'clubs', entityIds: string[]): EntityCoverRow[] {
+  if (entityIds.length === 0) return [];
+  const ph = entityIds.map(() => '?').join(',');
+  return db.prepare(`
+    SELECT x.id AS entity_id, mi.id AS media_id, mi.caption,
+           mi.s3_key_thumb, mi.s3_key_display, mi.width_px, mi.height_px
+    FROM ${table} x
+    JOIN media_items mi ON mi.id = x.cover_media_id
+    WHERE x.id IN (${ph})
+      AND mi.media_type = 'photo'
+      AND mi.moderation_status = 'active'
+      AND mi.is_avatar = 0
+      AND EXISTS (
+        SELECT 1 FROM media_tags mt
+        WHERE mt.media_id = mi.id AND mt.tag_id = x.hashtag_tag_id
+      )
+  `).all(...entityIds) as EntityCoverRow[];
+}
+export function listEventCovers(eventIds: string[]): EntityCoverRow[] {
+  return listEntityCovers('events', eventIds);
+}
+export function listClubCovers(clubIds: string[]): EntityCoverRow[] {
+  return listEntityCovers('clubs', clubIds);
+}
+
+/**
  * Whether one media item may be chosen as a gallery's cover: an active,
  * non-avatar photo, carrying every criteria tag and
  * none of the exclude tags. Tags are given in their stored lowercase form, as a
@@ -7862,15 +7928,35 @@ export const tagStats = {
     ORDER BY mca.is_primary DESC
   `); },
 
-  get listMemberParticipatedEventTags() { return db.prepare(`
-    SELECT DISTINCT t.tag_normalized, t.tag_display
-    FROM event_result_entry_participants erep
-    JOIN event_result_entries ere ON ere.id = erep.result_entry_id
-    JOIN events e ON e.id = ere.event_id
+  // The hashtags of the member's own events starting inside a window (from, to),
+  // newest first: a public event they placed in or hold a confirmed registration
+  // for, and any event they currently organize that is not canceled, its draft
+  // included, so an organizer can tag media before the event goes public.
+  // Params: memberId (results), memberId (registration), memberId (organizer),
+  // from, to, limit.
+  get listMemberRecentEventTags() { return db.prepare(`
+    SELECT t.tag_normalized, t.tag_display
+    FROM events e
     JOIN tags t ON t.id = e.hashtag_tag_id
-    WHERE erep.member_id = ?
-      AND e.status IN ('reg_open', 'completed')
-    ORDER BY e.start_date DESC
+    WHERE e.start_date >= ? AND e.start_date <= ?
+      AND (
+        (e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL})
+          AND (
+            EXISTS (
+              SELECT 1 FROM event_result_entries ere
+              JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
+              WHERE ere.event_id = e.id AND erep.member_id = ?
+            )
+            OR EXISTS (
+              SELECT 1 FROM registrations r
+              WHERE r.event_id = e.id AND r.member_id = ? AND r.status = 'confirmed'
+            )
+          ))
+        OR (e.status <> 'canceled' AND EXISTS (
+          SELECT 1 FROM event_organizers_current eo WHERE eo.event_id = e.id AND eo.member_id = ?
+        ))
+      )
+    ORDER BY e.start_date DESC, e.id DESC
     LIMIT ?
   `); },
 
@@ -8644,7 +8730,9 @@ export const legacyMembers = {
         OR LOWER(COALESCE(legacy_email2, '')) = ?
         OR LOWER(COALESCE(legacy_email3, '')) = ?
       )
-    ORDER BY COALESCE(display_name, real_name) COLLATE NOCASE
+    -- legacy_members has no id column; legacy_member_id is its primary key, so
+    -- it is the tiebreaker that keeps same-named accounts in a stable order.
+    ORDER BY COALESCE(display_name, real_name) COLLATE NOCASE, legacy_member_id
     LIMIT ?
   `); },
 
@@ -10015,7 +10103,7 @@ export const mailingLists = {
     UPDATE mailing_list_subscriptions
     SET status = ?, status_updated_at = ?,
         updated_at = ?, updated_by = ?, version = version + 1
-    WHERE mailing_list_id = ? AND member_id = ?
+    WHERE mailing_list_id = ? AND member_id = ? AND status != ?
   `); },
 };
 
@@ -10467,6 +10555,39 @@ export const workQueue = {
   `); },
 };
 
+// ── newsItems ───────────────────────────────────────────────────────────────
+//
+// The news feed's items. A hard-delete table: the base table is the only read
+// surface. Automatic items are unique per type and source entity through a
+// partial unique index, which the automatic insert names as its conflict
+// target, so a flow that runs twice leaves its first item standing.
+export const newsItems = {
+  // Writes no author: an automatic item is the platform's voice.
+  // Params: (id, nowIso, actorId, nowIso, actorId, publishedAt, newsType,
+  //          title, body, entityType, entityId).
+  get insertAutomatic() { return db.prepare(`
+    INSERT INTO news_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      published_at, news_type, title, body, entity_type, entity_id, is_public
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 1)
+    ON CONFLICT(news_type, entity_type, entity_id)
+      WHERE news_type NOT IN ('announcement','community_post')
+    DO NOTHING
+  `); },
+
+  // Params: (newsType, entityType, entityId).
+  get findAutomatic() { return db.prepare(`
+    SELECT id FROM news_items
+    WHERE news_type = ? AND entity_type = ? AND entity_id = ?
+  `); },
+
+  // Every item about one entity, whatever its type: deleting an event deletes
+  // its items with it. Params: (entityType, entityId).
+  get deleteForEntity() { return db.prepare(`
+    DELETE FROM news_items WHERE entity_type = ? AND entity_id = ?
+  `); },
+};
+
 // ── memberAnnouncements ─────────────────────────────────────────────────────
 //
 // A member's community announcement held for an administrator's decision. The
@@ -10725,8 +10846,9 @@ export const deceasedMarking = {
     LEFT JOIN members AS m
       ON m.historical_person_id = hp.person_id
     WHERE hp.person_id = ?
+       OR hp.legacy_member_id = ?
        OR LOWER(hp.person_name) LIKE '%' || ? || '%' ESCAPE '\\'
-    ORDER BY hp.person_name COLLATE NOCASE
+    ORDER BY hp.person_name COLLATE NOCASE, hp.person_id
     LIMIT ?
   `); },
 
@@ -11529,6 +11651,13 @@ export const eventOrganizers = {
     SELECT id, title, start_date, status FROM events WHERE id = ?
   `); },
 
+  // The member an administrator chose to organize an event: a live,
+  // onboarded account, by id, whether or not member search lists them.
+  get findMember() { return db.prepare(`
+    SELECT id, display_name, slug, city, region, country FROM members_onboarded
+    WHERE id = ? AND is_deceased = 0
+  `); },
+
   get listForEvent() { return db.prepare(`
     SELECT eo.member_id, eo.added_at, m.display_name, m.slug
     FROM event_organizers_current AS eo
@@ -11588,6 +11717,18 @@ export const eventOrganizers = {
     ORDER BY m.display_name COLLATE NOCASE, eo.member_id
   `); },
 
+  // A member's organizing record, for an administrator reviewing a sanction
+  // request: every other event they organize or organized, newest first,
+  // drafts and canceled ones included, since how an organizer's past events
+  // went is the evidence. Unpaginated; an organizer runs few events.
+  get listHistoryForMember() { return db.prepare(`
+    SELECT e.id, e.title, e.start_date, e.end_date, e.status, e.sanction_status
+    FROM event_organizers AS eo
+    INNER JOIN events AS e ON e.id = eo.event_id
+    WHERE eo.member_id = ? AND e.id <> ?
+    ORDER BY e.start_date DESC, e.id DESC
+  `); },
+
   // The events a member organizes now, for the My Events block on their own
   // profile. Canceled and completed events have nothing left to manage there.
   get listOpenEventsForMember() { return db.prepare(`
@@ -11623,7 +11764,7 @@ export const eventWrites = {
            e.sanction_expected_players, e.sanction_expected_spectators,
            e.sanction_permits, e.sanction_insurance,
            e.prize_money_total_cents, e.prize_money_currency,
-           e.cancel_reason,
+           e.cancel_reason, e.reg_opened_at,
            t.tag_normalized
     FROM events AS e
     INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
@@ -11646,7 +11787,7 @@ export const eventWrites = {
            e.sanction_expected_players, e.sanction_expected_spectators,
            e.sanction_permits, e.sanction_insurance,
            e.prize_money_total_cents, e.prize_money_currency,
-           e.cancel_reason,
+           e.cancel_reason, e.reg_opened_at,
            t.tag_normalized
     FROM events AS e
     INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
@@ -11725,6 +11866,19 @@ export const eventWrites = {
      WHERE id = ?
   `); },
 
+  // The event's cover photo pointer as stored, whether or not it is honoured.
+  get findCoverMediaId() { return db.prepare(`
+    SELECT cover_media_id FROM events WHERE id = ?
+  `); },
+
+  // Points the event at a cover photo, or clears it with NULL.
+  get setCoverMedia() { return db.prepare(`
+    UPDATE events
+       SET cover_media_id = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
   // The organizer's switch that stops or resumes taking registrations without
   // moving the event's status.
   get setRegistrationStatus() { return db.prepare(`
@@ -11735,6 +11889,15 @@ export const eventWrites = {
 
   // The irreversible close of the registration window: the event moves on
   // from taking registrations, which the online-registration switch does not.
+  // Open events whose last registration day is before today: the deadline, or
+  // the start date when none is set. Unpaginated; ordered for a stable run record.
+  get listDueToCloseRegistration() { return db.prepare(`
+    SELECT id, registration_deadline, start_date
+      FROM events
+     WHERE status = 'reg_open'
+       AND COALESCE(registration_deadline, start_date) < date(?)
+     ORDER BY id
+  `); },
   get closeRegistration() { return db.prepare(`
     UPDATE events
        SET status = 'closed', updated_at = ?, updated_by = ?, version = version + 1
@@ -11879,9 +12042,25 @@ export const eventWrites = {
 export const eventRegistrations = {
   // With the status of the payment the registration holds, which decides
   // whether registering again needs no payment because the fee is already paid.
+  // The member's own upcoming events: confirmed registrations on public events
+  // that have not yet ended. Unpaginated, so no id tiebreaker is needed.
+  get listUpcomingConfirmedForMember() { return db.prepare(`
+    SELECT e.title, e.description, e.start_date, e.end_date, e.city, e.region, e.country,
+           c.name AS host_club, e.status, e.registration_status, e.registration_deadline,
+           t.tag_normalized, t.tag_display
+    FROM registrations AS r
+    INNER JOIN events AS e ON e.id = r.event_id
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    LEFT JOIN clubs AS c ON c.id = e.host_club_id
+    WHERE r.member_id = ?
+      AND r.status = 'confirmed'
+      AND e.status IN (${PUBLIC_UPCOMING_VISIBLE_STATUS_SQL})
+      AND e.end_date >= date(?)
+    ORDER BY e.start_date ASC, e.end_date ASC, e.title COLLATE NOCASE ASC
+  `); },
   get findForMember() { return db.prepare(`
     SELECT r.id, r.status, r.registration_type, r.tshirt_size, r.registered_at, r.canceled_at,
-           r.cancel_reason, r.payment_id,
+           r.cancel_reason, r.payment_id, r.paid_at_event_at,
            p.status AS payment_status
     FROM registrations AS r
     LEFT JOIN payments AS p ON p.id = r.payment_id
@@ -11928,12 +12107,20 @@ export const eventRegistrations = {
      WHERE payment_id = ? AND status = 'pending'
   `); },
 
-  // A registrant, or a member named as a doubles partner, by id or profile slug,
-  // with the gender a division's eligibility is checked against.
-  get findMemberByKey() { return db.prepare(`
-    SELECT id, display_name, slug, gender
+  // A registrant by id, with the gender a division's eligibility is checked
+  // against.
+  get findMemberById() { return db.prepare(`
+    SELECT id, display_name, slug, gender, city, region, country
     FROM members_onboarded
-    WHERE (slug = ? OR id = ?) AND is_deceased = 0
+    WHERE id = ? AND is_deceased = 0
+  `); },
+
+  // A member chosen from the member search, as a doubles partner or a
+  // co-organizer, by id: only a member the search can offer is taken.
+  get findSearchableMemberById() { return db.prepare(`
+    SELECT id, display_name, slug, gender, city, region, country
+    FROM members_searchable
+    WHERE id = ?
   `); },
 
   get insert() { return db.prepare(`
@@ -11966,7 +12153,7 @@ export const eventRegistrations = {
   // it: the member, the status and the payment it holds.
   get findForEventById() { return db.prepare(`
     SELECT r.id, r.member_id, r.status, r.registration_type, r.cancel_reason, r.payment_id,
-           r.updated_by,
+           r.updated_by, r.paid_at_event_at, r.tshirt_size,
            p.status AS payment_status,
            m.display_name
     FROM registrations AS r
@@ -11978,7 +12165,7 @@ export const eventRegistrations = {
   // The registrations still standing on an event, with the payment each holds:
   // what an event's cancellation tells and what it ends at checkout.
   get listStandingForEvent() { return db.prepare(`
-    SELECT r.id, r.member_id, r.status, r.payment_id, p.status AS payment_status,
+    SELECT r.id, r.member_id, r.status, r.registration_type, r.payment_id, p.status AS payment_status,
            r.attended_at, m.display_name
     FROM registrations AS r
     INNER JOIN members AS m ON m.id = r.member_id
@@ -11992,7 +12179,7 @@ export const eventRegistrations = {
   // registrations leave the list.
   get listParticipantsForEvent() { return db.prepare(`
     SELECT r.id, r.member_id, r.status, r.registration_type, r.registered_at, r.tshirt_size,
-           r.attended_at,
+           r.attended_at, r.paid_at_event_at,
            m.display_name, m.slug, m.city, m.region, m.country,
            m.email_visibility, m.login_email,
            ms.tier_status, ms.is_active_player,
@@ -12010,7 +12197,7 @@ export const eventRegistrations = {
   get listParticipantEntriesForEvent() { return db.prepare(`
     SELECT rds.registration_id, ed.name AS division_name, ed.sort_order, ed.gender_eligibility,
            ed.discipline_category, ed.offers_prize_money,
-           rds.partner_display_name, rds.enters_as_amateur,
+           rds.enters_as_amateur,
            p.display_name AS partner_member_name
     FROM registration_discipline_selections AS rds
     INNER JOIN registrations AS r ON r.id = rds.registration_id
@@ -12026,9 +12213,21 @@ export const eventRegistrations = {
     SELECT p.status, COUNT(*) AS registrations, COALESCE(SUM(p.amount_cents), 0) AS amount_cents
     FROM registrations AS r
     INNER JOIN payments AS p ON p.id = r.payment_id
-    WHERE r.event_id = ?
+    WHERE r.event_id = ? AND r.status <> 'canceled'
     GROUP BY p.status
     ORDER BY p.status
+  `); },
+
+  // Confirmed registrations entering each competition category, each
+  // registration counted once per category however many of its divisions it
+  // entered. Standings carry no entries and are left out.
+  get countConfirmedByCategory() { return db.prepare(`
+    SELECT ed.discipline_category, COUNT(DISTINCT r.id) AS registered
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    WHERE r.event_id = ? AND r.status = 'confirmed' AND ed.is_aggregate_standing = 0
+    GROUP BY ed.discipline_category
   `); },
 
   // Confirmed registrations per day, from the first to the latest.
@@ -12062,13 +12261,13 @@ export const eventRegistrations = {
   get insertSelection() { return db.prepare(`
     INSERT INTO registration_discipline_selections (
       id, created_at, created_by, updated_at, updated_by, version,
-      registration_id, discipline_id, partner_member_id, partner_display_name, enters_as_amateur
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+      registration_id, discipline_id, partner_member_id, enters_as_amateur
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
   `); },
 
   get listSelectionsForRegistration() { return db.prepare(`
     SELECT rds.discipline_id, ed.name AS division_name, ed.sort_order,
-           rds.partner_member_id, rds.partner_display_name, rds.enters_as_amateur,
+           rds.partner_member_id, rds.enters_as_amateur,
            p.display_name AS partner_member_name, p.slug AS partner_member_slug
     FROM registration_discipline_selections AS rds
     INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
@@ -12089,7 +12288,6 @@ export const eventRegistrations = {
 
   get listConfirmedSelectionsForEvent() { return db.prepare(`
     SELECT rds.registration_id, ed.name AS division_name, ed.sort_order,
-           rds.partner_display_name,
            p.display_name AS partner_member_name, p.slug AS partner_member_slug
     FROM registration_discipline_selections AS rds
     INNER JOIN registrations AS r ON r.id = rds.registration_id
@@ -12148,6 +12346,63 @@ export const eventRegistrations = {
     LEFT JOIN member_membership_status_current AS ms ON ms.member_id = r.member_id
     WHERE r.event_id = ? AND r.status = 'confirmed'
     ORDER BY m.display_name COLLATE NOCASE, r.id
+  `); },
+
+  // The organizers' division groups: every entry of a confirmed registration,
+  // with its division, its entrant, the partner it names, and how the
+  // registration was paid.
+  get listConfirmedEntriesByDivision() { return db.prepare(`
+    SELECT rds.registration_id, rds.discipline_id, rds.partner_member_id,
+           ed.name AS division_name, ed.team_type, ed.sort_order,
+           r.member_id, r.registration_type, r.paid_at_event_at,
+           m.display_name, m.slug,
+           pm.display_name AS partner_member_name, pm.slug AS partner_member_slug,
+           p.status AS payment_status
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    INNER JOIN members_onboarded AS m ON m.id = r.member_id AND m.is_deceased = 0
+    LEFT JOIN members_onboarded AS pm ON pm.id = rds.partner_member_id AND pm.is_deceased = 0
+    LEFT JOIN payments AS p ON p.id = r.payment_id
+    WHERE r.event_id = ? AND r.status = 'confirmed'
+    ORDER BY ed.sort_order, ed.name COLLATE NOCASE, ed.id, m.display_name COLLATE NOCASE, r.id
+  `); },
+
+  // The doubles entries of an event's confirmed registrations that name no
+  // partner, which a results upload refuses to place.
+  get listPartnerlessDoublesEntries() { return db.prepare(`
+    SELECT rds.registration_id, rds.discipline_id
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    WHERE r.event_id = ? AND r.status = 'confirmed'
+      AND ed.team_type = 'doubles' AND rds.partner_member_id IS NULL
+  `); },
+
+  // A partner swap leaves the old partner's own entry naming nobody, where it
+  // named the entrant. Params: (now, actorId, registrationId, disciplineId,
+  // entrantMemberId).
+  get clearPartnerOnEntry() { return db.prepare(`
+    UPDATE registration_discipline_selections
+       SET partner_member_id = NULL, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE registration_id = ? AND discipline_id = ? AND partner_member_id = ?
+  `); },
+
+  // An entry fee an organizer collected at the event, or the mark taken back:
+  // no payment row and no amount. Params: (paidAt, markedBy, now, actorId, id).
+  get setPaidAtEvent() { return db.prepare(`
+    UPDATE registrations
+       SET paid_at_event_at = ?, paid_at_event_marked_by_member_id = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
+  // A registration an organizer or administrator changed: its row's stamps
+  // move with its entries. Params: (now, actorId, id).
+  get touch() { return db.prepare(`
+    UPDATE registrations
+       SET updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
   `); },
 };
 
@@ -12283,7 +12538,7 @@ export const memberExport = {
   // The divisions the member's own registrations entered, with the partner each named.
   get registrationEntries() { return db.prepare(`
     SELECT r.event_id, e.title AS event_title, ed.name AS division_name,
-           rds.partner_member_id, rds.partner_display_name, rds.enters_as_amateur
+           rds.partner_member_id, rds.enters_as_amateur
     FROM registration_discipline_selections AS rds
     INNER JOIN registrations AS r ON r.id = rds.registration_id
     INNER JOIN events AS e ON e.id = r.event_id
@@ -13202,8 +13457,8 @@ const ADMIN_PAYMENT_SORTS: Record<string, string> = {
   status_asc: 'p.status ASC, p.created_at DESC, p.id DESC',
   // A payment with no member sorts last either way rather than leading the
   // ascending page with a block of nulls an administrator has to scroll past.
-  member_desc: 'm.slug IS NULL, m.slug DESC, p.created_at DESC, p.id DESC',
-  member_asc: 'm.slug IS NULL, m.slug ASC, p.created_at DESC, p.id DESC',
+  member_desc: 'm.display_name IS NULL, m.display_name COLLATE NOCASE DESC, p.created_at DESC, p.id DESC',
+  member_asc: 'm.display_name IS NULL, m.display_name COLLATE NOCASE ASC, p.created_at DESC, p.id DESC',
   event_desc: 'ev.title IS NULL, ev.title DESC, p.created_at DESC, p.id DESC',
   event_asc: 'ev.title IS NULL, ev.title ASC, p.created_at DESC, p.id DESC',
   // Ordered on the same value the column displays, which falls back through the
@@ -13267,6 +13522,7 @@ export function queryAdminPayments(
            -- No payer link for a payment with no member, or for a payer still
            -- onboarding, who is never named on an admin page.
            CASE WHEN ${notPendingSql('m')} THEN m.slug END AS member_slug,
+           CASE WHEN ${notPendingSql('m')} THEN m.display_name END AS member_display_name,
            ev.id AS event_id, ev.title AS event_title, evt.tag_normalized AS event_tag
     FROM payments p
     LEFT JOIN members m ON m.id = p.member_id

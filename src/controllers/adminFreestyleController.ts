@@ -34,6 +34,7 @@ import { outcomeNotice } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
 import { z } from 'zod';
 import { parseFormBody, formText, formOptionalText, type FormParse } from '../lib/parseFormBody';
+import { parsePickIntent, type PickIntent } from '../services/memberPicker';
 
 // One schema per form, each label the field's visible label on its page.
 
@@ -46,9 +47,9 @@ const notationAuthorForm = z.object({
 });
 
 const trickPublishForm = z.object({
-  canonicalName:          formText('Canonical name'),
+  canonicalName:          formText('Official name'),
   adds:                   formText('Difficulty (ADD)'),
-  baseTrick:              formText('Base trick slug'),
+  baseTrick:              formText('Base trick, by its page address'),
   category:               formText('Category'),
   familyOverride:         formText('Family override'),
   description:            formText('Description'),
@@ -56,11 +57,11 @@ const trickPublishForm = z.object({
   sourceId:               formText('Source'),
   sourceUrl:              formText('Source URL'),
   sourceAssertedNotation: formText('Notation the source itself wrote'),
-  modifierLinks:          formText('Modifier slugs'),
+  modifierLinks:          formText('Modifiers, by their page addresses'),
 });
 
 const trickEditForm = z.object({
-  canonicalName:             formText('Canonical name'),
+  canonicalName:             formText('Official name'),
   adds:                      formText('ADD'),
   movementNotation:          formText('Movement notation'),
   executionNotation:         formText('Execution notation'),
@@ -122,7 +123,7 @@ const modifierAttachForm = z.object({
 
 const recordForm = z.object({
   recordType:        formText('Record type'),
-  personId:          formText('Linked historical-person id'),
+  personId:          formText('Historical record'),
   displayName:       formText('Display name'),
   trickName:         formText('Trick name'),
   sortName:          formText('Structured sort name'),
@@ -138,7 +139,17 @@ const recordForm = z.object({
   notes:             formText('Notes'),
   curatorReviewNote: formText('Curator review note'),
   supersededBy:      formText('Superseded by'),
+  // The holder picker's controls post the form back under `pick`, with the
+  // search text in `pick_q`; Save posts neither.
+  pick:              formOptionalText('The record picker'),
+  pick_q:            formText('Search'),
 });
+
+/** The holder picker's intent and search text, when one of its controls posted the form. */
+function recordPick(parsed: FormParse<z.output<typeof recordForm>>): { intent: PickIntent | null; query: string } | null {
+  if (!parsed.ok || parsed.data.pick === undefined) return null;
+  return { intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q };
+}
 
 const consecutiveForm = z.object({
   sortOrder:  formText('Display position'),
@@ -779,6 +790,17 @@ export const adminFreestyleController = {
     const input = recordInputFrom(typedFields(parsed));
 
     try {
+      const pick = recordPick(parsed);
+      if (pick) {
+        // A holder picker control: the form again, holding what was typed. Writes nothing.
+        const vm = freestyleRecordCurationService.getRecordEditPage(id, { submitted: input, ...pick });
+        if (!vm) {
+          renderNotFound(res);
+          return;
+        }
+        res.render('admin/freestyle-record-edit', vm);
+        return;
+      }
       refuseShape(parsed);
       freestyleRecordCurationService.updateRecord(id, input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/records/${id}/edit`);
@@ -819,6 +841,12 @@ export const adminFreestyleController = {
     const parsed = parseFormBody(recordForm, req.body);
     const input = recordInputFrom(typedFields(parsed));
     try {
+      const pick = recordPick(parsed);
+      if (pick) {
+        // A holder picker control: the new form again, holding what was typed. Writes nothing.
+        res.render('admin/freestyle-record-edit', freestyleRecordCurationService.getRecordNewPage({ submitted: input, ...pick }));
+        return;
+      }
       refuseShape(parsed);
       const id = freestyleRecordCurationService.createRecord(input, req.user!.userId);
       redirectSaved(req, res, `/admin/freestyle/records/${id}/edit`);

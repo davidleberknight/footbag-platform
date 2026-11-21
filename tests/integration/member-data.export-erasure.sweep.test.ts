@@ -198,6 +198,7 @@ const DECISIONS: Record<string, Decision> = {
     export: { exported: 'memberExport.tierGrantHistory' },
     erasure: { unruled: NO_ERASURE_RULE },
   },
+  'news_items.author_member_id': { export: { noWriter: NO_WRITER }, erasure: { unruled: NO_ERASURE_RULE } },
   'outbox_emails.recipient_member_id': {
     export: { exported: 'memberExport.mailReceived' },
     erasure: { cleared: 'outbox.scrubForMember', on: 'purge' },
@@ -216,6 +217,7 @@ const DECISIONS: Record<string, Decision> = {
   },
   'registration_discipline_selections.partner_member_id': { export: { exported: 'memberExport.partnerEntries' }, erasure: { unruled: NO_ERASURE_RULE } },
   'registrations.attended_marked_by_member_id': ACTOR,
+  'registrations.paid_at_event_marked_by_member_id': ACTOR,
   'registrations.member_id': {
     export: { exported: 'memberExport.registrations' },
     // Upcoming registrations are withdrawn at the deletion request; past ones
@@ -258,6 +260,8 @@ const LINKS: Record<string, Export | Covered> = {
   'ses_events.outbox_email_id': { withheld: 'the mail provider\'s delivery feedback, keyed by its message identifier; its effect on the member is the email status on their own row' },
   'registration_discipline_selections.registration_id': { exported: 'memberExport.registrationEntries' },
   'event_registration_reminder_sent.registration_id': { withheld: OPERATIONAL },
+  'events.cover_media_id': { withheld: 'the event\'s own public record, which points at a photo as its cover; the photo is in the download through its uploader' },
+  'clubs.cover_media_id': { withheld: 'the club\'s own public record, which points at a photo as its cover; the photo is in the download through its uploader' },
 
   // Links between rows that are each in the download through their own member key.
   'active_player_grants.related_club_affiliation_id': { covered: 'active_player_grants.member_id' },

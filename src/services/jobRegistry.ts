@@ -108,6 +108,13 @@ export const JOBS: readonly JobDefinition[] = [
     run: (ctx) => operationsPlatformService.runEventRegistrationReminders(ctx.now),
   },
   {
+    name: 'SYS_Close_Event_Registration',
+    // Hourly, so registration reads as closed within the hour its cutoff day ends.
+    cadence: { kind: 'interval', everyMs: () => HOUR_MS },
+    runRetentionDays: fixedDays(DEFAULT_RUN_RETENTION_DAYS),
+    run: (ctx) => operationsPlatformService.runCloseEventRegistration(ctx.now),
+  },
+  {
     name: 'SYS_Detect_Admin_Loss',
     cadence: { kind: 'daily' },
     runRetentionDays: fixedDays(DEFAULT_RUN_RETENTION_DAYS),
@@ -319,5 +326,5 @@ export function writeJobsHeartbeat(now: Date, workerStartedAt: Date): string[] {
  * out of a recent-runs list; their failures are still listed.
  */
 export function listHighFrequencyJobNames(): string[] {
-  return JOBS.filter((job) => cadenceMs(job) < HOUR_MS).map((job) => job.name);
+  return JOBS.filter((job) => cadenceMs(job) <= HOUR_MS).map((job) => job.name);
 }

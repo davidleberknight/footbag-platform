@@ -53,12 +53,19 @@ async function listPageWith(flash: string): Promise<string> {
   expect(page.status).toBe(200);
   return page.text;
 }
-function grantConfirm(cookie: string, memberKey: string) {
+function grantConfirm(cookie: string, memberId: string) {
   return request(createApp())
     .post('/admin/admin-roles/grant/confirm')
     .set('Cookie', cookie)
     .type('form')
-    .send({ member_key: memberKey, reason: 'Joining the admin team.' });
+    .send({ member_id: memberId, reason: 'Joining the admin team.' });
+}
+function grantForm(fields: Record<string, string>) {
+  return request(createApp())
+    .post('/admin/admin-roles/grant')
+    .set('Cookie', adminCookie())
+    .type('form')
+    .send(fields);
 }
 function revokeConfirm(cookie: string, memberId: string) {
   return request(createApp())
@@ -163,7 +170,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
+      .send({ member_id: T2_ID, reason: 'Joining the admin team.' });
     expect(res.status).toBe(200);
     expect(res.text).toContain('Tess Two');
     expect(res.text).toContain('/admin/admin-roles/grant/confirm');
@@ -176,7 +183,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant/confirm')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
+      .send({ member_id: T2_ID, reason: 'Joining the admin team.' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/admin-roles');
     expect(readMember(T2_ID).is_admin).toBe(1);
@@ -191,7 +198,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant/confirm')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
+      .send({ member_id: T2_ID, reason: 'Joining the admin team.' });
     expect((await send()).status).toBe(303);
     const auditAfterFirst = countAudit('admin.role_granted', T2_ID);
     const outboxAfterFirst = countOutboxFor(T2_ID);
@@ -209,7 +216,7 @@ describe('POST /admin/admin-roles/grant', () => {
     // success they did not cause, for a role someone else already granted.
     const auditBefore = countAudit('admin.role_granted', ADMIN2_ID);
     const outboxBefore = countOutboxFor(ADMIN2_ID);
-    const res = await grantConfirm(adminCookie(), ADMIN2_SLUG);
+    const res = await grantConfirm(adminCookie(), ADMIN2_ID);
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/admin-roles');
     const page = await listPageWith(flashOf(res)!);
@@ -222,12 +229,12 @@ describe('POST /admin/admin-roles/grant', () => {
   it("an admin's earlier grant that another admin since reversed and re-made is not their repeat: it reports the state as already held", async () => {
     // Defect caught: a stale confirm page claims this admin's grant stands when
     // another admin's later grant is the one in force.
-    expect((await grantConfirm(adminCookie(), T2_SLUG)).status).toBe(303);
+    expect((await grantConfirm(adminCookie(), T2_ID)).status).toBe(303);
     expect((await revokeConfirm(admin2Cookie(), T2_ID)).status).toBe(303);
-    expect((await grantConfirm(admin2Cookie(), T2_SLUG)).status).toBe(303);
+    expect((await grantConfirm(admin2Cookie(), T2_ID)).status).toBe(303);
     const auditBefore = countAudit('admin.role_granted', T2_ID);
 
-    const stale = await grantConfirm(adminCookie(), T2_SLUG);
+    const stale = await grantConfirm(adminCookie(), T2_ID);
     expect(stale.status).toBe(303);
     expect(flashOf(stale)).toBeDefined();
     expect(countAudit('admin.role_granted', T2_ID)).toBe(auditBefore);
@@ -238,7 +245,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant/confirm')
       .set('Cookie', memberCookie())
       .type('form')
-      .send({ member_key: T2_SLUG, reason: 'x' });
+      .send({ member_id: T2_ID, reason: 'x' });
     expect(res.status).toBe(403);
     expect(readMember(T2_ID).is_admin).toBe(0);
   });
@@ -252,7 +259,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T1_SLUG, reason: 'Joining the admin team.' });
+      .send({ member_id: T1_ID, reason: 'Joining the admin team.' });
     expect(preview.status).toBe(200);
     expect(readMember(T1_ID).is_admin).toBe(0);
     expect(readTier(T1_ID)).toBe('tier1');
@@ -261,7 +268,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant/confirm')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T1_SLUG, reason: 'Joining the admin team.' });
+      .send({ member_id: T1_ID, reason: 'Joining the admin team.' });
     expect(res.status).toBe(303);
     expect(readMember(T1_ID).is_admin).toBe(1);
     expect(readTier(T1_ID)).toBe('tier2');
@@ -277,7 +284,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant/confirm')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
+      .send({ member_id: T2_ID, reason: 'Joining the admin team.' });
     expect(readMember(T2_ID).is_admin).toBe(1);
     expect(readTier(T2_ID)).toBe('tier2');
     expect(countAudit('admin.bootstrap_grant', T2_ID)).toBe(0);
@@ -288,17 +295,76 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: ADMIN2_SLUG, reason: 'Already admin.' });
+      .send({ member_id: ADMIN2_ID, reason: 'Already admin.' });
     expect(res.status).toBe(422);
   });
 
-  it('unknown member key → 422 (re-render the form with a fixable-input error)', async () => {
-    const res = await request(createApp())
-      .post('/admin/admin-roles/grant')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ member_key: 'no_such_member', reason: 'x' });
-    expect(res.status).toBe(422);
+  // Defect caught: the form still accepts a typed profile handle, so an admin is
+  // asked for something nobody knows instead of choosing the member by name.
+  it('refuses a profile handle posted in place of the chosen member, and an unknown id, writing nothing', async () => {
+    const auditBefore = countAudit('admin.role_granted', T2_ID);
+    for (const memberId of [T2_SLUG, 'no_such_member']) {
+      const res = await grantForm({ member_id: memberId, reason: 'Joining the admin team.' });
+      expect(res.status, memberId).toBe(422);
+      expect(res.text, memberId).not.toContain('/admin/admin-roles/grant/confirm');
+    }
+    const confirm = await grantConfirm(adminCookie(), T2_SLUG);
+    expect(confirm.status).toBe(422);
+    expect(readMember(T2_ID).is_admin).toBe(0);
+    expect(countAudit('admin.role_granted', T2_ID)).toBe(auditBefore);
+  });
+
+  // Defect caught: the first visit shows no way to find a member, so the admin
+  // has nothing to fill in; or the search sits outside the grant form and loses
+  // the reason typed beside it.
+  it('opens the member search on the grant form on first visit', async () => {
+    const res = await request(createApp()).get('/admin/admin-roles').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/<input type="text" id="grant-admin-form-pick-q" name="pick_q" form="grant-admin-form"/);
+    expect(res.text).toMatch(/name="pick" value="search:admin" formaction="\/admin\/admin-roles\/grant#grant-admin-form-pick"/);
+    // Nobody is chosen yet, and no visible field asks for a member.
+    expect(res.text).toContain('<input type="hidden" name="member_id" value="" form="grant-admin-form" />');
+    expect(res.text).not.toMatch(/<input(?![^>]*type="hidden")[^>]*name="member_(?:id|key)"/);
+  });
+
+  // Defect caught: the search offers someone who is already an administrator,
+  // misses a member who opted out of member search (whom an admin must reach),
+  // or a search writes something.
+  it('searches by name, reaching an opted-out member and leaving out current administrators, and writes nothing', async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: 'ar_hidden_001', slug: 'ar_hidden_one', display_name: 'Tessa Hidden', real_name: 'Tessa Hidden', login_email: 'ar-hidden@example.com', searchable: 0 });
+    db.close();
+    const auditBefore = countAudit('admin.role_granted', T2_ID);
+    const res = await grantForm({ pick: 'search:admin', pick_q: 'Tess', reason: 'Joining.' });
+    expect(res.status).toBe(200);
+    expect(res.text).toContain(`value="choose:admin:${T2_ID}"`);
+    expect(res.text).toContain('value="choose:admin:ar_hidden_001"');
+    // The reason typed before searching is still there.
+    expect(res.text).toMatch(/id="grant_reason" name="reason" value="Joining\."/);
+
+    const admins = await grantForm({ pick: 'search:admin', pick_q: 'Admin', reason: '' });
+    expect(admins.status).toBe(200);
+    expect(admins.text).not.toContain(`value="choose:admin:${ADMIN2_ID}"`);
+    expect(admins.text).not.toContain(`value="choose:admin:${ADMIN_ID}"`);
+    expect(readMember(T2_ID).is_admin).toBe(0);
+    expect(countAudit('admin.role_granted', T2_ID)).toBe(auditBefore);
+  });
+
+  // Defect caught: choosing a member does not carry them into the form, or the
+  // confirm page loses the choice, so the grant lands on nobody or someone else.
+  it('carries a chosen member through the form and the confirm page to the grant', async () => {
+    const chose = await grantForm({ pick: `choose:admin:${T2_ID}`, pick_q: 'Tess', reason: 'Joining the admin team.' });
+    expect(chose.status).toBe(200);
+    expect(chose.text).toContain(`<input type="hidden" name="member_id" value="${T2_ID}" form="grant-admin-form" />`);
+    expect(chose.text).toContain('value="change:admin"');
+    expect(readMember(T2_ID).is_admin).toBe(0);
+
+    const preview = await grantForm({ member_id: T2_ID, reason: 'Joining the admin team.' });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain(`<input type="hidden" name="member_id" value="${T2_ID}" />`);
+
+    expect((await grantConfirm(adminCookie(), T2_ID)).status).toBe(303);
+    expect(readMember(T2_ID).is_admin).toBe(1);
   });
 
   it('missing reason → 422', async () => {
@@ -306,7 +372,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: T2_SLUG, reason: '   ' });
+      .send({ member_id: T2_ID, reason: '   ' });
     expect(res.status).toBe(422);
     expect(readMember(T2_ID).is_admin).toBe(0);
   });
@@ -320,7 +386,7 @@ describe('POST /admin/admin-roles/grant', () => {
     for (const path of ['/admin/admin-roles/grant', '/admin/admin-roles/grant/confirm']) {
       const refused = await request(createApp())
         .post(path).set('Cookie', adminCookie())
-        .type('form').send({ member_key: CLEAN_SLUG, reason: markupOnly });
+        .type('form').send({ member_id: CLEAN_ID, reason: markupOnly });
       expect(refused.status, path).toBe(422);
     }
     expect(readMember(CLEAN_ID).is_admin).toBe(0);
@@ -330,13 +396,13 @@ describe('POST /admin/admin-roles/grant', () => {
     const dirty = '<b>Joining</b> the\u0085 admin   team.';
     const preview = await request(createApp())
       .post('/admin/admin-roles/grant').set('Cookie', adminCookie())
-      .type('form').send({ member_key: CLEAN_SLUG, reason: dirty });
+      .type('form').send({ member_id: CLEAN_ID, reason: dirty });
     expect(preview.status).toBe(200);
     expect(preview.text).toContain('name="reason" value="Joining the admin team."');
 
     const res = await request(createApp())
       .post('/admin/admin-roles/grant/confirm').set('Cookie', adminCookie())
-      .type('form').send({ member_key: CLEAN_SLUG, reason: dirty });
+      .type('form').send({ member_id: CLEAN_ID, reason: dirty });
     expect(res.status).toBe(303);
     expect(readMember(CLEAN_ID).is_admin).toBe(1);
     const db = new BetterSqlite3(dbPath);
@@ -352,7 +418,7 @@ describe('POST /admin/admin-roles/grant', () => {
       .post('/admin/admin-roles/grant')
       .set('Cookie', memberCookie())
       .type('form')
-      .send({ member_key: T2_SLUG, reason: 'x' });
+      .send({ member_id: T2_ID, reason: 'x' });
     expect(res.status).toBe(403);
     expect(readMember(T2_ID).is_admin).toBe(0);
   });
@@ -409,7 +475,7 @@ describe('POST /admin/admin-roles/:memberId/revoke', () => {
   it('a revoke confirm for a member another admin already removed says nothing was changed, in the informational tone, and writes nothing', async () => {
     // Defect caught: a revoke from a stale page shows an error, or claims this
     // admin's own success, for a role another admin already took away.
-    expect((await grantConfirm(admin2Cookie(), T1_SLUG)).status).toBe(303);
+    expect((await grantConfirm(admin2Cookie(), T1_ID)).status).toBe(303);
     expect((await revokeConfirm(admin2Cookie(), T1_ID)).status).toBe(303);
     const auditBefore = countAudit('admin.role_revoked', T1_ID);
     const outboxBefore = countOutboxFor(T1_ID);

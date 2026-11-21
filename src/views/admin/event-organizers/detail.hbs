@@ -24,7 +24,7 @@
     {{#each content.organizers}}
       <div class="card">
         <div class="card-title">{{displayName}}</div>
-        <p class="card-meta">Added {{addedAt}}</p>
+        <p class="card-meta">Added {{formatDate addedAt}}</p>
         <form method="POST" action="{{../content.removeHref}}" class="form-block">
           <input type="hidden" name="member_id" value="{{memberId}}" />
           <div class="form-field">
@@ -39,17 +39,15 @@
 
   <section>
     <div class="section-heading"><h2>Assign an Organizer</h2></div>
-    <form method="POST" action="{{content.assignHref}}" class="form-block">
-      <div class="form-field">
-        <label for="assign_member">Member id or slug</label>
-        <input id="assign_member" name="member_key" required maxlength="200" />
-      </div>
+    <form method="POST" action="{{content.assignHref}}" id="{{content.assignFormId}}" class="form-block">
+      {{> member-picker content.organizerPicker}}
       <div class="form-field">
         <label for="assign_reason">Reason (required)</label>
-        <input id="assign_reason" name="reason" required maxlength="500" />
+        <input id="assign_reason" name="reason" value="{{content.reasonValue}}" required maxlength="500" />
       </div>
       <button type="submit" class="btn btn-primary">Assign Organizer</button>
     </form>
+    <script src="{{{asset 'js/member-picker-enter.js'}}}" defer></script>
   </section>
 
   <p class="mt-4"><a href="{{content.queueHref}}">Back to Events Needing an Organizer</a></p>

@@ -20,7 +20,7 @@ export type EmailPiiClass = 'public' | 'internal' | 'confidential' | 'restricted
 type Empty = Record<string, never>;
 
 const TIER_LABEL = {
-  tier0: 'Tier 0',
+  tier0: 'Tier 0 (Registered Member)',
   tier1: 'Tier 1 (IFPA Member)',
   tier2: 'Tier 2 (IFPA Organizer Member)',
   tier3: 'Tier 3 (IFPA Director)',
@@ -44,6 +44,17 @@ function openItemPhrase(n: number): string {
 // count is the bare item count.
 function itemPhrase(n: number): string {
   return `${n} item${n === 1 ? '' : 's'}`;
+}
+
+// Who made a correction to a member's event registration, as its notice names them.
+function correctedBy(byAdministrator: boolean): string {
+  return byAdministrator ? 'an IFPA administrator' : 'its organizers';
+}
+
+// An administrator's reason for a registration correction, as its own
+// paragraph; an organizer's correction carries none, so it resolves to nothing.
+function reasonNote(byAdministrator: boolean, reason: string | null): string {
+  return byAdministrator && reason ? `The reason given:\n\n${reason}\n\n` : '';
 }
 
 // Stored template text is logic-less, so a donation note that may be absent
@@ -155,6 +166,10 @@ export const TEMPLATE_VARIANTS = {
   event_registration_confirmed:    v('confidential', ['eventTitle', 'eventDates', 'registrationSummary']),
   event_registration_reminder:     v('confidential', ['eventTitle', 'eventDates', 'registrationSummary']),
   event_registration_withdrawn:    v('confidential', ['memberName', 'eventTitle', 'eventDates']),
+  // An organizer's or administrator's correction at the event, naming the
+  // member's entries and partners, and an administrator's reason.
+  event_registration_added:        v('confidential', ['memberName', 'eventTitle', 'eventDates', 'changedBy', 'reasonNote', 'registrationSummary']),
+  event_registration_corrected:    v('confidential', ['memberName', 'eventTitle', 'eventDates', 'changedBy', 'whatChanged', 'reasonNote', 'registrationSummary']),
   // Both carry the reason an organizer or administrator typed.
   event_canceled:                  v('confidential', ['memberName', 'eventTitle', 'eventDates', 'canceledBy', 'reason', 'refundNote']),
   event_registration_canceled:     v('confidential', ['memberName', 'eventTitle', 'eventDates', 'canceledBy', 'reason', 'refundNote']),
@@ -510,6 +525,34 @@ const SHAPERS = {
   event_registration_withdrawn: (p: { memberName: string; eventTitle: string; eventDates: string }): ShapedEmail => ({
     variant: 'event_registration_withdrawn',
     merge: { memberName: p.memberName, eventTitle: p.eventTitle, eventDates: p.eventDates },
+  }),
+  // Sent to the member an organizer or administrator registered at the event.
+  // Sent to the member an organizer or administrator registered at the event.
+  // An administrator's reason follows as its own paragraph.
+  event_registration_added: (p: {
+    memberName: string; eventTitle: string; eventDates: string; registrationSummary: string;
+    byAdministrator: boolean; reason: string | null;
+  }): ShapedEmail => ({
+    variant: 'event_registration_added',
+    merge: {
+      memberName: p.memberName, eventTitle: p.eventTitle, eventDates: p.eventDates,
+      changedBy: correctedBy(p.byAdministrator), reasonNote: reasonNote(p.byAdministrator, p.reason),
+      registrationSummary: p.registrationSummary,
+    },
+  }),
+  // Sent to the member whose entry an organizer or administrator changed,
+  // naming what changed and the entry as it now reads, and to a partner whose
+  // own entry the change left with no partner.
+  event_registration_corrected: (p: {
+    memberName: string; eventTitle: string; eventDates: string; whatChanged: string; registrationSummary: string;
+    byAdministrator: boolean; reason: string | null;
+  }): ShapedEmail => ({
+    variant: 'event_registration_corrected',
+    merge: {
+      memberName: p.memberName, eventTitle: p.eventTitle, eventDates: p.eventDates,
+      changedBy: correctedBy(p.byAdministrator), whatChanged: p.whatChanged,
+      reasonNote: reasonNote(p.byAdministrator, p.reason), registrationSummary: p.registrationSummary,
+    },
   }),
   // Sent to every registrant and organizer when the event is canceled. A
   // registrant who paid is told that canceling refunds nobody by itself.

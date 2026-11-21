@@ -2,19 +2,23 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import {
   eventService, resultsDecisionsFromFields,
-  type EventFormValues, type RegistrationInput, type ResultsUploadInput, type SanctionFormValues,
+  type EntryInput, type EventFormValues, type RegistrationInput, type ResultsUploadInput, type SanctionFormValues,
 } from '../services/eventService';
 import { RESULTS_FILE_MAX_BYTES, RESULTS_FILE_MAX_ROWS } from '../services/eventResultsFile';
 import { readMultipart } from '../lib/multipartForm';
+import { COVER_PHOTO_MISSING_MESSAGE, coverNoteAfterCreate, readCoverForm, type CoverForm } from '../lib/coverPhotoForm';
+import { isAdminCaller } from '../lib/routeOwnership';
+import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { ConflictError, ForbiddenError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import {
-  handleControllerError, renderForbidden, renderInvalidRequest, renderNotFound, renderRateLimited,
+  handleControllerError, renderForbidden, renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound, renderRateLimited,
 } from '../lib/controllerErrors';
 import { parseFormBody, formText, formOptionalText, formCheckbox, formList } from '../lib/parseFormBody';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { redirectWithOutcome, type ActionEnding } from '../lib/actionOutcome';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { renderPdf, sendPdfDownload } from '../lib/printableDocument';
+import { parsePickIntent } from '../services/memberPicker';
 
 /**
  * Thin controller layer for the Events routes: the public pages, and an
@@ -39,7 +43,7 @@ const eventForm = z.object({
   country: formText('Country'),
   registration_deadline: formText('Registration deadline'),
   tshirt_size_collected: formCheckbox('Collect t-shirt sizes', '0'),
-  attendee_registration_open: formCheckbox('Accept Attendee/Supporter registrations', '0'),
+  attendee_registration_open: formCheckbox('Let spectators register too', '0'),
   slug: formText('Event hashtag'),
   event_type: formText('Free or sanctioned'),
   competitor_fee: formText('Competitor fee'),
@@ -47,17 +51,21 @@ const eventForm = z.object({
 });
 
 const divisionForm = z.object({
-  division_id: formOptionalText('The division'),
-  game_id: formText('Game'),
+  division_id: formOptionalText('The competition'),
+  game_id: formText('What is played'),
   custom_name: formText('Game name'),
-  custom_discipline: formText('Discipline'),
-  team_type: formText('Entry size'),
+  custom_discipline: formText('Sport'),
+  team_type: formText('Singles or doubles'),
   gender: formText('Who may enter'),
-  division_class: formText('Class'),
+  division_class: formText('Skill level'),
   offers_prize_money: formCheckbox('Offers prize money', '0'),
 });
 
-const organizerForm = z.object({ member_key: formText('Member id or profile URL') });
+const organizerForm = z.object({
+  member_id: formText('The member to add'),
+  pick: formOptionalText('The member picker'),
+  pick_q: formText("New organizer's name"),
+});
 const removeOrganizerForm = z.object({
   member_id: formText('The organizer'),
   confirmed: formOptionalText('The confirmation'),
@@ -65,16 +73,41 @@ const removeOrganizerForm = z.object({
 const confirmForm = z.object({ confirmed: formOptionalText('The confirmation') });
 
 // The partner fields repeat once per doubles division, in the form's order, so
-// the three partner lists line up entry for entry.
+// the two partner lists line up entry for entry: the division, and the member
+// id chosen from the member search (empty while none is chosen).
 const registerForm = z.object({
   registration_type: formText('Registering as'),
-  division: formList('Divisions'),
+  division: formList('Competitions'),
   amateur: formList('Enter as an Amateur'),
-  partner_division: formList('Partner division'),
-  partner_key: formList("Partner's member id or profile URL"),
-  partner_name: formList("Partner's name"),
+  partner_division: formList('Partner competition'),
+  partner: formList('Partner'),
   tshirt_size: formText('T-shirt size'),
+  pick: formOptionalText('The partner picker'),
+  pick_q: formText("Partner's name"),
 });
+
+// Add Entrant and Edit Entry, for an organizer and an administrator alike. The
+// partner fields pair up as the registration form's do; the entrant's id is
+// read on Add Entrant only, and the reason on an administrator's form only.
+export const entryForm = z.object({
+  member_id: formText('Entrant'),
+  division: formList('Competitions'),
+  partner_division: formList('Partner competition'),
+  partner: formList('Partner'),
+  paid_at_event: formCheckbox('Paid at the event', '0'),
+  reason: formText('Reason'),
+  pick: formOptionalText('The member picker'),
+  pick_q: formText("Member's name"),
+});
+
+export function toEntryInput(d: z.output<typeof entryForm>): EntryInput {
+  return {
+    memberId: d.member_id,
+    divisionIds: d.division,
+    partners: d.partner_division.map((divisionId, i) => ({ divisionId, memberId: d.partner[i] ?? '' })),
+    paidAtEvent: d.paid_at_event === '1',
+  };
+}
 
 const registrationStatusForm = z.object({ set_to: formText('Online registration') });
 
@@ -138,11 +171,7 @@ function toRegistrationInput(d: z.output<typeof registerForm>): RegistrationInpu
     type: d.registration_type,
     divisionIds: d.division,
     amateurIds: d.amateur,
-    partners: d.partner_division.map((divisionId, i) => ({
-      divisionId,
-      key: d.partner_key[i] ?? '',
-      name: d.partner_name[i] ?? '',
-    })),
+    partners: d.partner_division.map((divisionId, i) => ({ divisionId, memberId: d.partner[i] ?? '' })),
     tshirtSize: d.tshirt_size,
   };
 }
@@ -199,6 +228,24 @@ function participantsHref(eventKey: string): string {
   return `/events/${encodeURIComponent(eventKey)}/participants`;
 }
 
+// The participant list after a saved correction, naming the entry so its
+// notice carries an Edit Entry link back to it.
+function entryNoticeHref(eventKey: string, registrationId: string): string {
+  return `${participantsHref(eventKey)}?entry=${encodeURIComponent(registrationId)}`;
+}
+
+function registrationIdParam(req: Request): string {
+  return typeof req.params.registrationId === 'string' ? req.params.registrationId : '';
+}
+
+// A correction refused before its form can be drawn (corrections closed, the
+// event canceled) goes back to the participant list with the reason; anything
+// else takes the standard error path.
+function refuseToParticipants(req: Request, res: Response, next: NextFunction, eventKey: string, err: unknown): void {
+  if (err instanceof ValidationError) { flashTo(req, res, participantsHref(eventKey), 'refused', err.message); return; }
+  handleControllerError(err, res, next, 'events controller');
+}
+
 // The results upload's second half, shared by the file upload and the
 // preview's own form: show the preview, or on a commit publish it and move on
 // to attendance. A refused commit shows the preview again with the reason.
@@ -228,6 +275,65 @@ function renderResultsStep(req: Request, res: Response, eventKey: string, input:
 function reasonField(label: string, value: string, err: unknown): { label: string; value: string; error: string | null } {
   const error = err instanceof ValidationError ? (err.fieldErrors?.reason ?? err.message) : null;
   return { label, value, error };
+}
+
+// The create form's text fields and their repeated checkbox parts, with room to spare.
+const CREATE_TEXT_FIELDS = 40;
+
+function coverEnding(branch: 'changed' | 'own_repeat' | 'already_held'): ActionEnding {
+  return branch === 'changed' ? 'advance' : branch;
+}
+
+// The create form, read from either body. The event is created in its own
+// transaction first; a chosen cover photo is uploaded after, and a refusal of
+// the photo is added to the success message rather than undoing the event.
+async function createEventFrom(req: Request, res: Response, form: CoverForm): Promise<void> {
+  const parsed = form.fields ? parseFormBody(eventForm, form.fields) : parseFormBody(eventForm, req.body);
+  const values = toFormValues(parsed.ok ? parsed.data : parsed.submitted);
+  const renderForm = (message: string, fieldErrors?: Record<string, string>, tone: 'no' | 'info' = 'no', kept = values) => {
+    res.status(422).render('events/create', eventService.getCreateEventPage(
+      req.user!.userId, req.user!.slug, { values: kept, fieldErrors, message, tone },
+    ));
+  };
+  if (!parsed.ok) { renderForm(parsed.message, parsed.fieldErrors); return; }
+
+  let result;
+  try {
+    result = eventService.createEvent(req.user!.userId, values);
+  } catch (err) {
+    if (err instanceof ValidationError) { renderForm(err.message, err.fieldErrors); return; }
+    throw err;
+  }
+
+  switch (result.branch) {
+    case 'created':
+    case 'own_repeat': {
+      const eventKey = result.eventKey;
+      const uploader = { memberId: req.user!.userId, slug: req.user!.slug, isAdmin: isAdminCaller(req) };
+      const coverNote = await coverNoteAfterCreate(
+        form, (file) => eventService.uploadCoverPhoto(uploader, eventKey, file), "the event's manage page",
+      );
+      flashTo(req, res, manageHref(eventKey), result.branch === 'created' ? 'advance' : 'own_repeat',
+        `${result.branch === 'created' && !result.isOpen
+          ? 'Event created as a draft. It is not public until its sanction is approved.'
+          : 'Event created. It is open for registration and listed under Upcoming Events.'}`
+          + ` Its hashtag is #${eventKey}: photos and videos carrying it appear in the event's gallery.`
+          + coverNote);
+      return;
+    }
+    case 'tag_conflict':
+      renderForm(
+        `The hashtag ${result.tagNormalized} is already taken.${result.suggestion ? ` Try adding the city, for example ${result.suggestion}.` : ' Try adding something that sets your event apart, such as the city.'}`,
+        { slug: 'Choose a different hashtag.' },
+      );
+      return;
+    case 'slug_folded':
+      renderForm(
+        `Your event hashtag will end in ${result.slug}. A hashtag uses only the letters a to z, digits and underscores, so accented letters became plain ones and other characters became underscores. It is permanent, so check it, then press Create Event again.`,
+        undefined, 'info', { ...values, slug: result.slug },
+      );
+      return;
+  }
 }
 
 export const eventController = {
@@ -294,50 +400,15 @@ export const eventController = {
     }
   },
 
-  /** POST /events/create */
+  /**
+   * POST /events/create. Multipart when it carries a cover photo; the event is
+   * created first, in its own transaction, and the photo uploaded after it, so
+   * a refused photo leaves the event created and the message says so.
+   */
   postCreate(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const parsed = parseFormBody(eventForm, req.body);
-      const values = toFormValues(parsed.ok ? parsed.data : parsed.submitted);
-      const renderForm = (message: string, fieldErrors?: Record<string, string>, tone: 'no' | 'info' = 'no', kept = values) => {
-        res.status(422).render('events/create', eventService.getCreateEventPage(
-          req.user!.userId, req.user!.slug, { values: kept, fieldErrors, message, tone },
-        ));
-      };
-      if (!parsed.ok) { renderForm(parsed.message, parsed.fieldErrors); return; }
-
-      let result;
-      try {
-        result = eventService.createEvent(req.user!.userId, values);
-      } catch (err) {
-        if (err instanceof ValidationError) { renderForm(err.message, err.fieldErrors); return; }
-        throw err;
-      }
-
-      switch (result.branch) {
-        case 'created':
-        case 'own_repeat':
-          flashTo(req, res, manageHref(result.eventKey), result.branch === 'created' ? 'advance' : 'own_repeat',
-            result.branch === 'created' && !result.isOpen
-              ? 'Event created as a draft. It is not public until its sanction is approved.'
-              : 'Event created. It is open for registration and listed under Upcoming Events.');
-          return;
-        case 'tag_conflict':
-          renderForm(
-            `The hashtag ${result.tagNormalized} is already taken.${result.suggestion ? ` Try adding the city, for example ${result.suggestion}.` : ' Try adding something that sets your event apart, such as the city.'}`,
-            { slug: 'Choose a different hashtag.' },
-          );
-          return;
-        case 'slug_folded':
-          renderForm(
-            `Your event hashtag will end in ${result.slug}. A hashtag uses only the letters a to z, digits and underscores, so accented letters became plain ones and other characters became underscores. It is permanent, so check it, then press Create Event again.`,
-            undefined, 'info', { ...values, slug: result.slug },
-          );
-          return;
-      }
-    } catch (err) {
-      handleControllerError(err, res, next, 'events controller');
-    }
+    readCoverForm(req, { isAdmin: isAdminCaller(req), maxTextFields: CREATE_TEXT_FIELDS }, (form) => {
+      createEventFrom(req, res, form).catch((err: unknown) => handleControllerError(err, res, next, 'events controller'));
+    }, (err) => next(err));
   },
 
   /** GET /events/:eventKey/manage */
@@ -351,6 +422,44 @@ export const eventController = {
         editDivision: q('editDivision'),
       }, { notice: takeEventNotice(req, res) });
       res.render('events/manage', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/cover-photo: upload a photo and make it the event's cover. */
+  postCoverPhoto(req: Request, res: Response, next: NextFunction): void {
+    const eventKey = eventKeyParam(req);
+    const uploader = { memberId: req.user!.userId, slug: req.user!.slug, isAdmin: isAdminCaller(req) };
+    readCoverForm(req, { isAdmin: uploader.isAdmin, maxTextFields: 2 }, (form) => {
+      const refuse = (change: { message: string; httpStatus: number; retryAfterSeconds?: number }): void => {
+        if (change.retryAfterSeconds) res.setHeader('Retry-After', String(change.retryAfterSeconds));
+        res.status(change.httpStatus).render('events/manage', eventService.getManageEventPage(
+          eventKey, uploader.memberId, {}, { notice: { text: change.message, tone: 'no' } },
+        ));
+      };
+      (async () => {
+        if (form.tooLargeMessage || !form.file) {
+          refuse({ message: form.tooLargeMessage ?? COVER_PHOTO_MISSING_MESSAGE, httpStatus: 422 });
+          return;
+        }
+        const change = await eventService.uploadCoverPhoto(uploader, eventKey, form.file);
+        if (change.branch === 'refused') { refuse(change); return; }
+        flashTo(req, res, manageHref(eventKey), coverEnding(change.branch), 'Cover photo saved.');
+      })().catch((err: unknown) => {
+        if (err instanceof ImageProcessingError) { renderImageWorkerUnavailable(res, 'event cover photo: image worker unavailable', err); return; }
+        handleControllerError(err, res, next, 'events controller');
+      });
+    }, (err) => next(err));
+  },
+
+  /** POST /events/:eventKey/cover-photo/remove: clear the cover; the photo stays in the gallery. */
+  postRemoveCoverPhoto(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const eventKey = eventKeyParam(req);
+      const change = eventService.removeCoverPhoto(req.user!.userId, eventKey);
+      if (change.branch === 'refused') { flashTo(req, res, manageHref(eventKey), 'refused', change.message); return; }
+      flashTo(req, res, manageHref(eventKey), coverEnding(change.branch), 'Cover photo removed.');
     } catch (err) {
       handleControllerError(err, res, next, 'events controller');
     }
@@ -400,7 +509,7 @@ export const eventController = {
           divisionClass: d.division_class,
           offersPrizeMoney: d.offers_prize_money === '1',
         });
-        const text = result.branch === 'added' ? 'Division added.' : 'Division saved.';
+        const text = result.branch === 'added' ? 'Competition added.' : 'Competition saved.';
         flashTo(req, res, manageHref(eventKey), result.branch === 'unchanged' ? 'own_repeat' : 'advance', text);
       } catch (err) {
         if (err instanceof ValidationError) { flashTo(req, res, manageHref(eventKey), 'refused', err.message); return; }
@@ -430,15 +539,15 @@ export const eventController = {
           title: `Remove ${result.divisionName}`,
           caution: `Removing ${result.divisionName} takes it off ${result.eventTitle}. You can add it again later.`,
           action: `/events/${encodeURIComponent(eventKey)}/divisions/${encodeURIComponent(divisionId)}/remove`,
-          buttonLabel: 'Remove Division',
+          buttonLabel: 'Remove Competition',
           cancelHref: manageHref(eventKey),
         }));
         return;
       }
       const endings: Record<typeof result.branch, [ActionEnding, string]> = {
-        removed: ['advance', 'Division removed.'],
-        own_repeat: ['own_repeat', 'Division removed.'],
-        already_held: ['already_held', 'That division is no longer on this event.'],
+        removed: ['advance', 'Competition removed.'],
+        own_repeat: ['own_repeat', 'Competition removed.'],
+        already_held: ['already_held', 'That competition is no longer on this event.'],
       };
       const [ending, text] = endings[result.branch];
       flashTo(req, res, manageHref(eventKey), ending, text);
@@ -453,8 +562,15 @@ export const eventController = {
       const eventKey = eventKeyParam(req);
       const parsed = parseFormBody(organizerForm, req.body);
       if (!parsed.ok) { flashTo(req, res, manageHref(eventKey), 'refused', parsed.message); return; }
+      // A member picker control draws the manage page again, adding nobody.
+      if (parsed.data.pick !== undefined) {
+        res.render('events/manage', eventService.getManageEventPage(eventKey, req.user!.userId, {}, {
+          organizerPicker: { intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown' },
+        }));
+        return;
+      }
       try {
-        const result = eventService.addOrganizer(req.user!.userId, eventKey, parsed.data.member_key);
+        const result = eventService.addOrganizer(req.user!.userId, eventKey, parsed.data.member_id);
         const endings: Record<typeof result.branch, [ActionEnding, string]> = {
           added: ['advance', `${result.name} is now an organizer of this event.`],
           own_repeat: ['own_repeat', `${result.name} is now an organizer of this event.`],
@@ -570,6 +686,16 @@ export const eventController = {
         return;
       }
       const input = toRegistrationInput(parsed.data);
+      // A partner picker control draws the form again with everything typed,
+      // registering nothing.
+      if (parsed.data.pick !== undefined) {
+        const page = eventService.getRegisterPage(eventKey, req.user!.userId, { input, message: null }, {
+          intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown',
+        });
+        if (page.branch === 'form') { res.render('events/register', page.page); return; }
+        flashTo(req, res, eventHref(eventKey), page.branch === 'already_registered' ? 'already_held' : 'refused', page.message);
+        return;
+      }
       let result;
       try {
         result = await eventService.register(req.user!.userId, eventKey, input);
@@ -825,11 +951,121 @@ export const eventController = {
   getParticipants(req: Request, res: Response, next: NextFunction): void {
     try {
       const sort = typeof req.query.sort === 'string' ? req.query.sort : undefined;
+      const entryId = typeof req.query.entry === 'string' ? req.query.entry : undefined;
       res.render('events/participants', eventService.getParticipantsPage(
-        eventKeyParam(req), req.user!.userId, sort, { notice: takeEventNotice(req, res) },
+        eventKeyParam(req), req.user!.userId, sort, { notice: takeEventNotice(req, res), entryId },
       ));
     } catch (err) {
       handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/participants/add */
+  getAddEntrant(req: Request, res: Response, next: NextFunction): void {
+    const eventKey = eventKeyParam(req);
+    try {
+      res.render('events/participant-add', eventService.getAddEntrantPage(eventKey, req.user!.userId));
+    } catch (err) {
+      refuseToParticipants(req, res, next, eventKey, err);
+    }
+  },
+
+  /** POST /events/:eventKey/participants/add */
+  postAddEntrant(req: Request, res: Response, next: NextFunction): void {
+    const eventKey = eventKeyParam(req);
+    const userId = req.user!.userId;
+    try {
+      const parsed = parseFormBody(entryForm, req.body);
+      const empty = toEntryInput(entryForm.parse({}));
+      if (!parsed.ok) {
+        res.status(422).render('events/participant-add', eventService.getAddEntrantPage(eventKey, userId, { input: empty, message: parsed.message }));
+        return;
+      }
+      const input = toEntryInput(parsed.data);
+      // A picker control draws the form again with everything typed, adding nobody.
+      if (parsed.data.pick !== undefined) {
+        res.render('events/participant-add', eventService.getAddEntrantPage(eventKey, userId, { input, message: null }, {
+          intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown',
+        }));
+        return;
+      }
+      let result;
+      try {
+        result = eventService.addEntrant(userId, eventKey, input);
+      } catch (err) {
+        if (!(err instanceof ValidationError)) throw err;
+        res.status(422).render('events/participant-add', eventService.getAddEntrantPage(eventKey, userId, { input, message: err.message }));
+        return;
+      }
+      if (result.branch === 'already_registered') {
+        res.status(422).render('events/participant-add', eventService.getAddEntrantPage(eventKey, userId, {
+          input,
+          message: `${result.memberName} is already registered for this event. Edit their entry instead.`,
+          link: { label: 'Edit Entry', href: result.editHref },
+        }));
+        return;
+      }
+      const to = entryNoticeHref(eventKey, result.registrationId);
+      if (result.branch === 'already_held') {
+        flashTo(req, res, to, 'already_held', `${result.memberName} is already registered for this event. Edit their entry instead.`);
+        return;
+      }
+      flashTo(req, res, to, result.branch === 'added' ? 'advance' : 'own_repeat',
+        `${result.memberName} added to ${result.divisionNames.join(', ')}.`);
+    } catch (err) {
+      refuseToParticipants(req, res, next, eventKey, err);
+    }
+  },
+
+  /** GET /events/:eventKey/participants/:registrationId/edit */
+  getEditEntry(req: Request, res: Response, next: NextFunction): void {
+    const eventKey = eventKeyParam(req);
+    try {
+      res.render('events/participant-edit', eventService.getEditEntryPage(eventKey, req.user!.userId, registrationIdParam(req)));
+    } catch (err) {
+      refuseToParticipants(req, res, next, eventKey, err);
+    }
+  },
+
+  /** POST /events/:eventKey/participants/:registrationId/edit */
+  postEditEntry(req: Request, res: Response, next: NextFunction): void {
+    const eventKey = eventKeyParam(req);
+    const userId = req.user!.userId;
+    const registrationId = registrationIdParam(req);
+    try {
+      const parsed = parseFormBody(entryForm, req.body);
+      if (!parsed.ok) {
+        res.status(422).render('events/participant-edit', eventService.getEditEntryPage(
+          eventKey, userId, registrationId, { input: toEntryInput(entryForm.parse({})), message: parsed.message },
+        ));
+        return;
+      }
+      const input = toEntryInput(parsed.data);
+      if (parsed.data.pick !== undefined) {
+        res.render('events/participant-edit', eventService.getEditEntryPage(eventKey, userId, registrationId, { input, message: null }, {
+          intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown',
+        }));
+        return;
+      }
+      let result;
+      try {
+        result = eventService.correctEntry(userId, eventKey, registrationId, input);
+      } catch (err) {
+        if (!(err instanceof ValidationError)) throw err;
+        res.status(422).render('events/participant-edit', eventService.getEditEntryPage(
+          eventKey, userId, registrationId, { input, message: err.message },
+        ));
+        return;
+      }
+      const to = entryNoticeHref(eventKey, result.registrationId);
+      if (result.branch === 'already_held') {
+        flashTo(req, res, to, 'already_held', `${result.memberName}'s entry already reads that way, so nothing changed.`);
+        return;
+      }
+      flashTo(req, res, to, result.branch === 'corrected' ? 'advance' : 'own_repeat',
+        `${result.memberName}'s entry updated: ${result.whatChanged}.`);
+    } catch (err) {
+      refuseToParticipants(req, res, next, eventKey, err);
     }
   },
 
@@ -957,7 +1193,7 @@ export const eventController = {
           return;
         }
         const input: ResultsUploadInput = {
-          text: file.buffer.toString('utf8'), filename: file.filename, ties: [], contested: [], acceptUnmatched: false,
+          text: file.buffer.toString('utf8'), filename: file.filename, ties: [], contested: [],
         };
         renderResultsStep(req, res, eventKey, input, false);
       } catch (err) {
@@ -977,7 +1213,6 @@ export const eventController = {
           filename: parsed.fields.filename ?? '',
           ties: decisions.ties,
           contested: decisions.contested,
-          acceptUnmatched: parsed.fields.accept_unmatched === '1',
         };
         renderResultsStep(req, res, eventKey, input, parsed.fields.step === 'commit');
       } catch (err) {

@@ -50,7 +50,7 @@ const SLUG = (id: string) => id.replace(/-/g, '_');
 // Held verbatim here rather than imported, so a silent rewording of the
 // member-facing sentence fails this suite rather than passing with new text.
 const VOUCH_ROUTE_SENTENCE =
-  'You can also vouch for a Tier 0 member to give them Active Player status: find them with '
+  'You can also vouch for a Tier 0 Registered Member to give them Active Player status: find them with '
   + 'the member search below, then use the vouch control on their profile.';
 const FAR_FUTURE_AP = '2099-01-01T00:00:00.000Z';
 
@@ -450,7 +450,7 @@ describe('POST /members/:memberKey/vouch', () => {
       .get(`/members/${SLUG(TARGET_TIER1)}`)
       .set('Cookie', [cookieFor(VOUCHER_TIER1_TARGET), flashCookieIn(res)].join('; '));
     expect(followUp.text).toContain(
-      'No change needed - Active Player status applies only to Tier 0 members.',
+      'No change needed - Active Player status applies only to Tier 0 Registered Members.',
     );
     expect(followUp.text).toContain('class="form-notice" role="status"');
     expect(followUp.text).not.toContain('form-success-banner');

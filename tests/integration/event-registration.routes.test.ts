@@ -9,13 +9,13 @@
  * stopped online registration. A type that carries a fee is not offered until
  * payment is enabled (its checkout is the paid-registration suite's). A free
  * registration is confirmed at once and emailed. A competitor enters at least
- * one division; a doubles entry names one partner, a member or a typed name,
- * never themselves; gender eligibility is checked between member profiles, and
- * a typed partner is left to the organizer at check-in. A member withdraws up to the same cutoff, the
+ * one division; a doubles entry names one partner, a live onboarded member
+ * chosen by member id, never themselves; gender eligibility is checked between
+ * the two member profiles. A member withdraws up to the same cutoff, the
  * organizers are emailed, and the member can register again. Every visitor sees
  * how many are registered in each division; only a signed-in member sees who.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -48,13 +48,22 @@ function cookieFor(memberId: string): string {
 
 type Gender = 'male' | 'female' | 'undisclosed' | null;
 
-function makeMember(id: string, gender: Gender, tier: 'tier0' | 'tier1' = 'tier1'): string {
+function makeMember(
+  id: string, gender: Gender, tier: 'tier0' | 'tier1' = 'tier1',
+  o: { onboarded?: boolean; is_deceased?: 0 | 1; deleted_at?: string; searchable?: 0 | 1; name?: string } = {},
+): string {
   return withDb((db) => {
     createMemberAtTier(db, {
       id, slug: id.replace(/-/g, '_'), tier,
-      memberOverrides: { display_name: `Member ${id}`, login_email: `${id}@example.com`, gender },
+      memberOverrides: {
+        display_name: o.name ?? `Member ${id}`, login_email: `${id}@example.com`, gender,
+        ...(o.searchable !== undefined ? { searchable: o.searchable } : {}),
+        ...(o.is_deceased ? { is_deceased: o.is_deceased } : {}),
+        ...(o.deleted_at ? { deleted_at: o.deleted_at } : {}),
+        ...(o.onboarded === false ? { onboarding: 'none' as const } : {}),
+      },
     });
-    completeOnboarding(db, id);
+    if (o.onboarded !== false) completeOnboarding(db, id);
     return id;
   });
 }
@@ -127,9 +136,9 @@ function registrationOf(eventId: string, memberId: string): RegRow | undefined {
   ).get(eventId, memberId) as RegRow | undefined);
 }
 
-function selectionsOf(registrationId: string): Array<{ discipline_id: string; partner_member_id: string | null; partner_display_name: string | null; enters_as_amateur: number }> {
+function selectionsOf(registrationId: string): Array<{ discipline_id: string; partner_member_id: string | null; enters_as_amateur: number }> {
   return withDb((db) => db.prepare(
-    'SELECT discipline_id, partner_member_id, partner_display_name, enters_as_amateur FROM registration_discipline_selections WHERE registration_id = ? ORDER BY discipline_id',
+    'SELECT discipline_id, partner_member_id, enters_as_amateur FROM registration_discipline_selections WHERE registration_id = ? ORDER BY discipline_id',
   ).all(registrationId) as never);
 }
 
@@ -143,18 +152,21 @@ function auditRows(eventId: string, actionType: string): Array<{ actor_member_id
   ).all(eventId, actionType) as Array<{ actor_member_id: string; metadata_json: string }>);
 }
 
-/** The registration form as a browser posts it, every doubles division's partner fields included. */
+/**
+ * The registration form as a browser posts it, every doubles division's partner
+ * fields included: the division, and the member id chosen from the member
+ * search (empty while none is chosen).
+ */
 function registerBody(ev: SeededEvent, o: {
   type?: string; divisions?: string[]; amateur?: string[];
-  mixedKey?: string; mixedName?: string; womenKey?: string; womenName?: string; tshirt?: string;
+  mixedPartner?: string; womenPartner?: string; tshirt?: string;
 } = {}): Record<string, string | string[]> {
   return {
     registration_type: o.type ?? 'competitor',
     division: o.divisions ?? [],
     amateur: o.amateur ?? [],
     partner_division: [ev.mixed, ev.womenDoubles],
-    partner_key: [o.mixedKey ?? '', o.womenKey ?? ''],
-    partner_name: [o.mixedName ?? '', o.womenName ?? ''],
+    partner: [o.mixedPartner ?? '', o.womenPartner ?? ''],
     tshirt_size: o.tshirt ?? '',
   };
 }
@@ -248,7 +260,7 @@ describe('registering for a free event', () => {
 
   // Defect caught: the attendee type is offered or accepted when the organizers
   // have not turned it on, or refused when they have.
-  it('offers Attendee or Supporter only when the organizers accept it', async () => {
+  it('offers Spectator only when the organizers accept it', async () => {
     const off = seedEvent();
     const offForm = await get(max, `/events/${off.key}/register`);
     expect(offForm.text).not.toContain('value="attendee_supporter"');
@@ -325,17 +337,14 @@ describe('doubles partners and gender eligibility', () => {
     return { status: res.status, reg: registrationOf(ev.id, memberId) };
   }
 
-  // Defect caught: a doubles entry is accepted with no partner, with two
-  // partners at once, with the registrant as their own partner, or with a
-  // partner who is not a member.
-  it('requires exactly one partner who is someone else', async () => {
+  // Defect caught: a doubles entry is accepted with no partner, or with the
+  // registrant as their own partner.
+  it('requires a partner who is someone else', async () => {
     const ev = seedEvent();
     for (const [label, o] of [
       ['no partner', { divisions: [ev.mixed] }],
-      ['both a member and a name', { divisions: [ev.mixed], mixedKey: max, mixedName: 'Pat Partner' }],
       // A women's pair, so only the self check can refuse it.
-      ['themselves', { divisions: [ev.womenDoubles], womenKey: ada }],
-      ['an unknown member', { divisions: [ev.mixed], mixedKey: 'no-such-member' }],
+      ['themselves', { divisions: [ev.womenDoubles], womenPartner: ada }],
     ] as Array<[string, Parameters<typeof registerBody>[1]]>) {
       const r = await attempt(ada, ev, o);
       expect(r.status, label).toBe(422);
@@ -343,34 +352,58 @@ describe('doubles partners and gender eligibility', () => {
     }
   });
 
+  // Defect caught: a doubles entry names someone the partner search would
+  // never offer (a typed name, an unknown id, a profile URL, a member who
+  // opted out of search, an account still onboarding, deceased or deleted),
+  // so the entry credits nobody real or reveals a member who chose not to be found.
+  it('refuses a partner the member search would not offer', async () => {
+    const ev = seedEvent();
+    const onboarding = makeMember('rg-pending', 'female', 'tier1', { onboarded: false });
+    const deceased = makeMember('rg-late', 'female', 'tier1', { is_deceased: 1 });
+    const deleted = makeMember('rg-gone', 'female', 'tier1', { deleted_at: isoDaysAgo(1) });
+    const optedOut = makeMember('rg-unlisted', 'female', 'tier1', { searchable: 0 });
+    for (const [label, partner] of [
+      ['a member who opted out of member search', optedOut],
+      ['an unknown id', 'no-such-member'],
+      ['a profile URL', `https://example.org/members/${wren.replace(/-/g, '_')}`],
+      ['a slug', wren.replace(/-/g, '_')],
+      ['an account still onboarding', onboarding],
+      ['a deceased member', deceased],
+      ['a deleted account', deleted],
+    ] as Array<[string, string]>) {
+      const r = await attempt(ada, ev, { divisions: [ev.womenDoubles], womenPartner: partner });
+      expect(r.status, label).toBe(422);
+      expect(r.reg, label).toBeUndefined();
+    }
+    // A typed name in the field the form no longer has is not a partner either.
+    const typed = await post(ada, `/events/${ev.key}/register`, {
+      ...registerBody(ev, { divisions: [ev.womenDoubles] }), partner_name: ['', 'Pat Partner'],
+    });
+    expect(typed.status).toBe(422);
+    expect(registrationOf(ev.id, ada)).toBeUndefined();
+    // The same live member, chosen by id, is taken.
+    const ok = await attempt(ada, ev, { divisions: [ev.womenDoubles], womenPartner: wren });
+    expect(ok.status).toBe(303);
+    expect(selectionsOf(ok.reg!.id)).toEqual([
+      { discipline_id: ev.womenDoubles, partner_member_id: wren, enters_as_amateur: 0 },
+    ]);
+  });
+
   // Defect caught: a mixed division takes two partners of one gender, or a
   // women's division takes a man, so the draw is not the one advertised.
   it('checks gender between member profiles', async () => {
     const ev = seedEvent();
-    expect((await attempt(ada, ev, { divisions: [ev.mixed], mixedKey: wren })).status).toBe(422);
-    expect((await attempt(ada, ev, { divisions: [ev.womenDoubles], womenKey: max })).status).toBe(422);
-    expect((await attempt(max, ev, { divisions: [ev.womenDoubles], womenKey: ada })).status).toBe(422);
+    expect((await attempt(ada, ev, { divisions: [ev.mixed], mixedPartner: wren })).status).toBe(422);
+    expect((await attempt(ada, ev, { divisions: [ev.womenDoubles], womenPartner: max })).status).toBe(422);
+    expect((await attempt(max, ev, { divisions: [ev.womenDoubles], womenPartner: ada })).status).toBe(422);
     expect(registrationOf(ev.id, ada)).toBeUndefined();
 
-    // A partner given by profile URL resolves as by id.
-    const ok = await attempt(ada, ev, { divisions: [ev.mixed, ev.womenDoubles], mixedKey: `https://example.org/members/${max.replace(/-/g, '_')}`, womenKey: wren });
+    // Each doubles division keeps its own partner.
+    const ok = await attempt(ada, ev, { divisions: [ev.mixed, ev.womenDoubles], mixedPartner: max, womenPartner: wren });
     expect(ok.status).toBe(303);
     const sel = selectionsOf(ok.reg!.id);
     expect(sel.find((s) => s.discipline_id === ev.mixed)!.partner_member_id).toBe(max);
     expect(sel.find((s) => s.discipline_id === ev.womenDoubles)!.partner_member_id).toBe(wren);
-  });
-
-  // Defect caught: a typed partner, whose eligibility the organizer checks at
-  // check-in, is refused, or lets a registrant who has not declared a gender
-  // into a gendered draw.
-  it('accepts a typed partner in a gated division on the registrant own gender', async () => {
-    const ev = seedEvent();
-    expect((await attempt(una, ev, { divisions: [ev.mixed], mixedName: 'Pat Partner' })).status).toBe(422);
-    const ok = await attempt(max, ev, { divisions: [ev.mixed], mixedName: 'Pat Partner' });
-    expect(ok.status).toBe(303);
-    expect(selectionsOf(ok.reg!.id)).toEqual([
-      { discipline_id: ev.mixed, partner_member_id: null, partner_display_name: 'Pat Partner', enters_as_amateur: 0 },
-    ]);
   });
 
   // Defect caught: a member who has not declared a gender enters a gendered
@@ -379,11 +412,117 @@ describe('doubles partners and gender eligibility', () => {
     const ev = seedEvent();
     const form = await get(una, `/events/${ev.key}/register`);
     expect(form.text).toContain(`href="/members/${una.replace(/-/g, '_')}"`);
-    expect((await attempt(una, ev, { divisions: [ev.mixed], mixedKey: max })).status).toBe(422);
-    expect((await attempt(nobody, ev, { divisions: [ev.mixed], mixedKey: max })).status).toBe(422);
+    expect((await attempt(una, ev, { divisions: [ev.mixed], mixedPartner: max })).status).toBe(422);
+    expect((await attempt(nobody, ev, { divisions: [ev.mixed], mixedPartner: max })).status).toBe(422);
     const ok = await attempt(una, ev, { divisions: [ev.singles] });
     expect(ok.status).toBe(303);
     expect(ok.reg!.status).toBe('confirmed');
+  });
+});
+
+describe('choosing a partner in the form', () => {
+  const pathOf = (ev: SeededEvent) => `/events/${ev.key}/register`;
+  const keyOf = (division: string) => `partner-${division}`;
+  const counts = (eventId: string) => withDb((db) => ({
+    registrations: (db.prepare('SELECT COUNT(*) c FROM registrations WHERE event_id = ?').get(eventId) as { c: number }).c,
+    outbox: (db.prepare('SELECT COUNT(*) c FROM outbox_emails').get() as { c: number }).c,
+    audit: (db.prepare('SELECT COUNT(*) c FROM audit_entries').get() as { c: number }).c,
+  }));
+  const partnersOn = (html: string) => [...html.matchAll(/name="partner" value="([^"]*)"/g)].map((m) => m[1]);
+
+  // Defect caught: a picker control registers the member, loses what they had
+  // ticked, or writes anything at all.
+  it('draws the form again with what was typed and writes nothing', async () => {
+    const ev = seedEvent({ is_tshirt_size_collected: 1 });
+    const body = registerBody(ev, { divisions: [ev.singles, ev.mixed], tshirt: 'L' });
+    const before = counts(ev.id);
+    for (const pick of [`open:${keyOf(ev.mixed)}`, `search:${keyOf(ev.mixed)}`, `change:${keyOf(ev.mixed)}`, `choose:${keyOf(ev.mixed)}:${max}`]) {
+      const res = await post(ada, pathOf(ev), { ...body, pick, pick_q: 'rg-max' });
+      expect(res.status, pick).toBe(200);
+      expect(res.text, pick).toContain(`value="${ev.singles}" checked`);
+      expect(res.text, pick).toContain(`value="${ev.mixed}" checked`);
+      expect(res.text, pick).toMatch(/<option value="L"\s+selected/);
+    }
+    expect(counts(ev.id)).toEqual(before);
+    expect(registrationOf(ev.id, ada)).toBeUndefined();
+  });
+
+  // Defect caught: opening, changing or choosing runs a member search, so
+  // the member's search allowance drains without their searching.
+  it('runs the member search only for a Search', async () => {
+    const ev = seedEvent();
+    const body = registerBody(ev, { divisions: [ev.mixed] });
+    const memberServiceModule = await import('../../src/services/memberService');
+    const spy = vi.spyOn(memberServiceModule.memberService, 'searchMembers');
+    try {
+      for (const pick of [`open:${keyOf(ev.mixed)}`, `change:${keyOf(ev.mixed)}`, `choose:${keyOf(ev.mixed)}:${max}`]) {
+        const res = await post(ada, pathOf(ev), { ...body, pick, pick_q: 'rg-max' });
+        expect(res.text, pick).not.toContain(`value="choose:${keyOf(ev.mixed)}:${max}"`);
+      }
+      expect(spy).not.toHaveBeenCalled();
+      const searched = await post(ada, pathOf(ev), { ...body, pick: `search:${keyOf(ev.mixed)}`, pick_q: 'rg-max' });
+      expect(searched.text).toContain(`value="choose:${keyOf(ev.mixed)}:${max}"`);
+      expect(spy).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  // Defect caught: a partner chosen from the search is not carried into the
+  // form, lands on the wrong division, or the form as rendered does not
+  // register with them.
+  it('registers the doubles entry with the partner chosen from the search', async () => {
+    const ev = seedEvent();
+    const body = registerBody(ev, { divisions: [ev.mixed, ev.womenDoubles] });
+    const opened = await post(ada, pathOf(ev), { ...body, pick: `open:${keyOf(ev.mixed)}`, pick_q: '' });
+    expect(opened.text).toContain(`value="search:${keyOf(ev.mixed)}"`);
+    expect(opened.text).not.toContain(`value="search:${keyOf(ev.womenDoubles)}"`);
+    const searched = await post(ada, pathOf(ev), { ...body, pick: `search:${keyOf(ev.mixed)}`, pick_q: 'rg-max' });
+    expect(searched.text).toContain(`value="choose:${keyOf(ev.mixed)}:${max}"`);
+    const chosen = await post(ada, pathOf(ev), { ...body, pick: `choose:${keyOf(ev.mixed)}:${max}`, pick_q: 'rg-max' });
+    expect(partnersOn(chosen.text)).toEqual([max, '']);
+
+    // The second division's partner, chosen the same way from the form as rendered.
+    const second = { ...body, partner: partnersOn(chosen.text) };
+    const chosenWomen = await post(ada, pathOf(ev), { ...second, pick: `choose:${keyOf(ev.womenDoubles)}:${wren}`, pick_q: '' });
+    expect(partnersOn(chosenWomen.text)).toEqual([max, wren]);
+
+    const res = await post(ada, pathOf(ev), { ...body, partner: partnersOn(chosenWomen.text) });
+    expect(res.status).toBe(303);
+    const sel = selectionsOf(registrationOf(ev.id, ada)!.id);
+    expect(sel.find((s) => s.discipline_id === ev.mixed)!.partner_member_id).toBe(max);
+    expect(sel.find((s) => s.discipline_id === ev.womenDoubles)!.partner_member_id).toBe(wren);
+  });
+
+  // Defect caught: the partner search offers the registrant themselves, a
+  // member who opted out of search, or more rows than a picker shows.
+  it('offers only members the registrant can take, five at most', async () => {
+    const ev = seedEvent();
+    const body = registerBody(ev, { divisions: [ev.mixed] });
+    const search = (q: string) => post(ada, pathOf(ev), { ...body, pick: `search:${keyOf(ev.mixed)}`, pick_q: q });
+    const hidden = makeMember('rg-hidden-pick', 'male', 'tier1', { searchable: 0 });
+    expect((await search('rg-ada')).text).not.toContain(`:${ada}"`);
+    const unlisted = await search('rg-hidden-pick');
+    expect(unlisted.text).not.toContain(`:${hidden}"`);
+    expect(unlisted.text).toContain('class="empty-state"');
+    const many = ['a', 'b', 'c', 'd', 'e', 'f'].map((s) => makeMember(`rg-six-${s}`, 'male', 'tier1', { name: `Sixfold Picker ${s}` }));
+    const listed = await search('sixfold picker');
+    const offered = many.filter((id) => listed.text.includes(`value="choose:${keyOf(ev.mixed)}:${id}"`));
+    expect(offered).toHaveLength(5);
+  });
+
+  // Defect caught: a hand-made choose control naming the registrant is
+  // carried back into the form as their own partner, so the form offers a
+  // doubles entry with the registrant on both sides.
+  it('never carries the registrant back as their own partner', async () => {
+    const ev = seedEvent();
+    const body = registerBody(ev, { divisions: [ev.mixed, ev.womenDoubles] });
+    const res = await post(ada, pathOf(ev), { ...body, pick: `choose:${keyOf(ev.mixed)}:${ada}`, pick_q: '' });
+    expect(res.status).toBe(200);
+    expect(partnersOn(res.text)).toEqual(['', '']);
+    // The positive control: a real partner chosen the same way is carried.
+    const real = await post(ada, pathOf(ev), { ...body, pick: `choose:${keyOf(ev.mixed)}:${max}`, pick_q: '' });
+    expect(partnersOn(real.text)).toEqual([max, '']);
   });
 });
 
@@ -392,7 +531,7 @@ describe('withdrawing', () => {
   // registration counted, goes unrecorded, or the organizers are not told.
   it('confirms, cancels the registration, records it and emails every organizer', async () => {
     const ev = seedEvent({ organizers: [olive, oscar] });
-    await post(ada, `/events/${ev.key}/register`, registerBody(ev, { divisions: [ev.mixed], mixedKey: max }));
+    await post(ada, `/events/${ev.key}/register`, registerBody(ev, { divisions: [ev.mixed], mixedPartner: max }));
     const reg = registrationOf(ev.id, ada)!;
 
     const confirm = await post(ada, `/events/${ev.key}/withdraw`);
@@ -527,9 +666,9 @@ describe('the organizers stopping and resuming online registration', () => {
     expect(auditRows(ev.id, 'event.registration_status_changed')).toHaveLength(2);
   });
 
-  // Defect caught: the organizers' Attendee/Supporter setting is not saved, so
+  // Defect caught: the organizers' spectator setting is not saved, so
   // the type can never be offered.
-  it('saves the Attendee/Supporter setting from the details form', async () => {
+  it('saves the spectator setting from the details form', async () => {
     const ev = seedEvent();
     const res = await post(olive, `/events/${ev.key}/edit`, {
       title: 'Attendee Setting', description: '', start_date: day(isoDaysFromNow(30)), end_date: day(isoDaysFromNow(30)),

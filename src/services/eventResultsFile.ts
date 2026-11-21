@@ -6,31 +6,38 @@
  * registrants and acts on the result.
  *
  * The file is CSV with one header row and one row per placed entry:
- * division, category (only for a division the event does not carry), place,
- * player, partner (doubles) and score (optional, kept as written).
+ * competition, sport (only for a competition the event does not carry),
+ * place, player, partner (doubles) and score (optional, kept as written).
+ * A header may also say division for competition and category for sport.
  *
  * The same text is read twice, at preview and at commit, with the organizer's
  * decisions from the preview (which repeated places are ties, which unknown
- * divisions really ran, whether unmatched names are accepted). Nothing is
- * held between the two reads.
+ * divisions really ran). Nothing is held between the two reads.
+ *
+ * Every named competitor must match exactly one of the event's confirmed
+ * registrations: a name that matches none, or several, is a problem naming
+ * its row, so a result is never recorded as a name without its member. A
+ * doubles row naming a competitor whose own entry in that division names no
+ * partner is refused the same way: the organizer adds the partner to the
+ * entry first, so results and registrations agree.
  */
 import { parseCsv, startsLikeFormula } from '../lib/csv';
+import { CURRENT_SPORTS, SPORT_LABELS } from './sportCategories';
 
 export const RESULTS_FILE_MAX_BYTES = 256 * 1024;
 export const RESULTS_FILE_MAX_ROWS = 2000;
 const NAME_MAX = 100;
 const SCORE_MAX = 100;
 
-export const RESULTS_COLUMNS = ['division', 'category', 'place', 'player', 'partner', 'score'] as const;
-const REQUIRED_COLUMNS = ['division', 'place', 'player'] as const;
+export const RESULTS_COLUMNS = ['competition', 'sport', 'place', 'player', 'partner', 'score'] as const;
+const REQUIRED_COLUMNS = ['competition', 'place', 'player'] as const;
+// Header names a file may carry instead, each read as the column it stands for.
+const COLUMN_ALIASES: Record<string, string> = { division: 'competition', category: 'sport' };
 
-const CATEGORY_LABELS: Record<string, string> = {
-  net: 'Net',
-  freestyle: 'Freestyle',
-  golf: 'Golf',
-  consecutives: 'Consecutives',
-  x_square: 'X-Square',
-};
+// The sports an upload may name for a competition the event did not list.
+const CATEGORY_LABELS: Record<string, string> = Object.fromEntries(
+  CURRENT_SPORTS.map((s) => [s, SPORT_LABELS[s]]),
+);
 
 export interface ResultsEventDivision {
   id: string;
@@ -44,6 +51,8 @@ export interface ResultsCandidate {
   memberId: string;
   displayName: string;
   historicalPersonId: string | null;
+  /** The doubles divisions this registration entered without a partner. */
+  partnerlessDivisionIds?: readonly string[];
 }
 
 export interface ResultsDecisions {
@@ -51,7 +60,6 @@ export interface ResultsDecisions {
   ties: ReadonlySet<string>;
   /** Folded names of unknown divisions the organizer confirmed were contested. */
   newDivisions: ReadonlySet<string>;
-  acceptUnmatched: boolean;
 }
 
 export interface ResultsCompetitor {
@@ -90,7 +98,6 @@ export interface ResultsPreview {
   /** Unknown divisions awaiting the organizer's confirmation, by key and name. */
   unknownDivisions: Array<{ key: string; name: string; confirmed: boolean }>;
   rowCount: number;
-  unmatchedCount: number;
   /** The event's advertised divisions the file carries no rows for. */
   missingDivisions: string[];
   /** True when committing would write: no file error and no problem left. */
@@ -115,7 +122,7 @@ export function resultsFileTemplate(): string {
 function emptyPreview(fileErrors: string[]): ResultsPreview {
   return {
     fileErrors, problems: [], groups: [], unknownDivisions: [], rowCount: 0,
-    unmatchedCount: 0, missingDivisions: [], committable: false,
+    missingDivisions: [], committable: false,
   };
 }
 
@@ -138,7 +145,10 @@ export function readResultsFile(
   }
   const [header, ...body] = parsed.rows;
   if (!header) return emptyPreview(['The file is empty.']);
-  const columns = header.map((h) => foldName(h));
+  const columns = header.map((h) => {
+    const folded = foldName(h);
+    return COLUMN_ALIASES[folded] ?? folded;
+  });
   const missing = REQUIRED_COLUMNS.filter((c) => !columns.includes(c));
   if (missing.length > 0) {
     return emptyPreview([`The first row must name the columns. Missing: ${missing.join(', ')}.`]);
@@ -165,8 +175,15 @@ export function readResultsFile(
     const key = foldName(c.displayName);
     byCandidate.set(key, [...(byCandidate.get(key) ?? []), c]);
   }
-  const matchName = (name: string): ResultsCandidate | null => {
+  // Rows naming someone who matches no confirmed registration, or several.
+  const unregistered: string[] = [];
+  const ambiguous: string[] = [];
+  // Rows placing a doubles entry whose registration names no partner.
+  const partnerless: string[] = [];
+  const matchName = (name: string, line: number): ResultsCandidate | null => {
     const found = byCandidate.get(foldName(name)) ?? [];
+    if (found.length === 0) unregistered.push(`row ${line} (${name})`);
+    if (found.length > 1) ambiguous.push(`row ${line} (${name})`);
     return found.length === 1 ? found[0] : null;
   };
 
@@ -174,12 +191,12 @@ export function readResultsFile(
   const groups = new Map<string, ResultsGroup>();
   body.forEach((row, index) => {
     const line = index + 2;
-    const divisionName = col(row, 'division');
+    const divisionName = col(row, 'competition');
     const placeText = col(row, 'place');
     const player = col(row, 'player');
     const partner = col(row, 'partner');
     const score = col(row, 'score');
-    if (divisionName === '') { problems.push(`Row ${line} names no division.`); return; }
+    if (divisionName === '') { problems.push(`Row ${line} names no competition.`); return; }
     if (!/^\d{1,4}$/.test(placeText) || Number(placeText) < 1) {
       problems.push(`Row ${line} needs a place: a whole number from 1.`);
       return;
@@ -197,7 +214,7 @@ export function readResultsFile(
     let group = groups.get(key);
     if (!group) {
       const known = byFold.get(key) ?? null;
-      const category = known ? null : categoryFrom(col(row, 'category'));
+      const category = known ? null : categoryFrom(col(row, 'sport'));
       group = {
         key,
         name: known ? known.name : divisionName,
@@ -214,18 +231,23 @@ export function readResultsFile(
         problems.push(`${known.name} already has results. An IFPA administrator corrects published results.`);
       }
       if (!known && !category) {
-        problems.push(`${divisionName} is not one of this event's divisions, so its category column must say net, freestyle, golf, consecutives or x-square.`);
+        problems.push(`${divisionName} is not one of this event's competitions, so its sport column must say net, freestyle, golf, consecutives or x-square.`);
       }
     }
     if (group.teamType === 'singles' && partner !== '') {
-      problems.push(`Row ${line} names a partner, but ${group.name} is a singles division.`);
+      problems.push(`Row ${line} names a partner, but ${group.name} is a singles competition.`);
       return;
     }
     if (group.teamType === 'doubles' && partner === '') {
-      problems.push(`Row ${line} names no partner, but ${group.name} is a doubles division.`);
+      problems.push(`Row ${line} names no partner, but ${group.name} is a doubles competition.`);
       return;
     }
-    const competitors = [player, ...(partner !== '' ? [partner] : [])].map((name) => ({ name, match: matchName(name) }));
+    const competitors = [player, ...(partner !== '' ? [partner] : [])].map((name) => ({ name, match: matchName(name, line) }));
+    const divisionId = group.divisionId;
+    if (divisionId && group.teamType === 'doubles') {
+      const flagged = competitors.find((c) => c.match?.partnerlessDivisionIds?.includes(divisionId));
+      if (flagged) partnerless.push(`row ${line} (${flagged.name})`);
+    }
     group.placements.push({ place: Number(placeText), competitors, score: score === '' ? null : score, isTie: false });
   });
 
@@ -255,19 +277,19 @@ export function readResultsFile(
     .filter((g) => g.divisionId === null && g.category !== null)
     .map((g) => ({ key: g.key, name: g.name, confirmed: g.isConfirmedNew }));
   for (const u of unknownDivisions) {
-    if (!u.confirmed) problems.push(`${u.name} is not one of this event's divisions. Tick it if it was contested.`);
+    if (!u.confirmed) problems.push(`${u.name} is not one of this event's competitions. Tick it if it was contested.`);
   }
 
-  let unmatchedCount = 0;
   let rowCount = 0;
-  for (const g of groups.values()) {
-    for (const p of g.placements) {
-      rowCount += 1;
-      unmatchedCount += p.competitors.filter((c) => c.match === null).length;
-    }
+  for (const g of groups.values()) rowCount += g.placements.length;
+  if (unregistered.length > 0) {
+    problems.push(`These names match no confirmed registration for this event: ${unregistered.join(', ')}. Correct each name to match the registration, and upload the file again.`);
   }
-  if (unmatchedCount > 0 && !decisions.acceptUnmatched) {
-    problems.push('Some names match no confirmed registration. Correct them in the file, or tick the box to record them by name only.');
+  if (ambiguous.length > 0) {
+    problems.push(`These names match more than one confirmed registration for this event: ${ambiguous.join(', ')}.`);
+  }
+  if (partnerless.length > 0) {
+    problems.push(`Results name a doubles entry with no partner: ${partnerless.join(', ')}. Add the partner to the entry, and upload the file again.`);
   }
   const present = new Set([...groups.values()].map((g) => g.divisionId).filter(Boolean));
   const missingDivisions = divisions.filter((d) => !d.hasResults && !present.has(d.id)).map((d) => d.name);
@@ -279,7 +301,6 @@ export function readResultsFile(
     groups: ordered,
     unknownDivisions,
     rowCount,
-    unmatchedCount,
     missingDivisions,
     committable: problems.length === 0 && ordered.length > 0,
   };
