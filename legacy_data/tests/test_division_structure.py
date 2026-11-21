@@ -132,7 +132,7 @@ def test_one_name_in_two_disciplines_takes_each_disciplines_parts(tmp_path):
     assert result.returncode == 0, result.stderr
     got = _parts(db)
     assert got[("net", "Doubles")][0] == "game_footbag_net"
-    assert got[("freestyle", "Doubles")][0] is None
+    assert got[("freestyle", "Doubles")][0] == "game_routines"
 
 
 @pytest.mark.parametrize("category,name", [

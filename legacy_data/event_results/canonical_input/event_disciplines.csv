@@ -771,9 +771,8 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_footbagjam_helsinki,pro_freestyle,Pro Freestyle,freestyle,singles,5,complete,,0
 1998_footbagjam_helsinki,pro_singles_net,Pro Singles Net,net,singles,6,complete,,0
 1998_footbagjam_wichita,intermediate,Intermediate,golf,singles,1,complete,,0
-1998_footbagjam_wichita,novice,Novice,freestyle,singles,2,partial,,0
+1998_footbagjam_wichita,novice,Novice,golf,singles,2,partial,,0
 1998_footbagjam_wichita,pro,Pro,golf,singles,3,complete,,0
-1998_footbagjam_wichita,unknown,Unknown,golf,singles,4,unresolved,,0
 1998_footbagjam_malta,intermediate_footbag_freestyle,Intermediate Footbag Freestyle,freestyle,singles,1,complete,,0
 1998_footbagjam_malta,intermediate_footbag_golf,Intermediate Footbag Golf,golf,singles,2,complete,,0
 1998_footbagjam_malta,novice_footbag_golf,Novice Footbag Golf,golf,singles,3,complete,,0
@@ -1042,7 +1041,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2000_emeraldcity,womens_doubles_net,Women's Doubles Net,net,doubles,7,complete,,0
 2000_emeraldcity,womens_singles_net,Women's Singles Net,net,singles,8,complete,,0
 2000_eurochamp_paris,european_rankings_for_open_doubles_net,European Rankings For Open Doubles Net,net,doubles,1,complete,,0
-2000_eurochamp_paris,european_rankings_for_open_freestyle,European Rankings For Open Freestyle,freestyle,singles,2,complete,,0
 2000_eurochamp_paris,european_rankings_for_open_singles_net,European Rankings For Open Singles Net,net,singles,3,complete,,0
 2000_eurochamp_paris,intermediate_net,Intermediate Net,net,singles,4,complete,,0
 2000_eurochamp_paris,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,5,complete,,0
@@ -1215,9 +1213,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2001_estonian,footbag_freestyle_overall,Footbag Freestyle Overall,freestyle,singles,1,complete,,0
 2001_estonian,footbag_net_estonia,Footbag Net Estonia,net,doubles,2,complete,,0
 2001_estonian,footbag_net_overall,Footbag Net Overall,net,doubles,3,complete,,0
-2001_eurochamp_prague,european_doubles_freestyle,European Doubles Freestyle,freestyle,doubles,1,complete,,0
 2001_eurochamp_prague,european_doubles_net,European Doubles Net,net,doubles,2,complete,,0
-2001_eurochamp_prague,european_freestyle,European Freestyle,freestyle,singles,3,complete,,0
 2001_eurochamp_prague,european_singles_net,European Singles Net,net,singles,4,complete,,0
 2001_eurochamp_prague,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,5,complete,,0
 2001_eurochamp_prague,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,6,complete,,0
@@ -1579,7 +1575,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2003_funtastik_summer,pro_single_net,Pro Single Net,net,singles,10,complete,,0
 2003_funtastik_summer,singles_net_intermediate,Singles Net- Intermediate,net,singles,11,complete,,0
 2003_funtastik_summer,singles_net_novice,Singles Net- Novice,net,singles,12,complete,,0
-2003_footbagjam_zeil_am_main,german_ranking_open_freestyle,German Ranking Open Freestyle,freestyle,singles,1,complete,,0
 2003_footbagjam_zeil_am_main,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,2,partial,,0
 2003_footbagjam_zeil_am_main,open_doubles_net,Open Doubles Net,net,doubles,3,complete,,0
 2003_footbagjam_zeil_am_main,open_freestyle,Open Freestyle,freestyle,singles,4,complete,,0
@@ -2601,8 +2596,8 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2009_usopen_vancouver,request_competition,Request Competition,freestyle,singles,7,complete,,0
 2009_usopen_vancouver,womens_circle,Women's Circle,freestyle,doubles,8,complete,,0
 2009_usopen_vancouver,womens_performance_routines,Women's Performance Routines,freestyle,singles,9,complete,,0
-2009_windy_city_clck,doubles,Doubles,freestyle,doubles,1,complete,,0
-2009_windy_city_clck,singles,Singles,freestyle,singles,2,complete,,0
+2009_windy_city_clck,doubles,Doubles,net,doubles,1,complete,,0
+2009_windy_city_clck,singles,Singles,net,singles,2,complete,,0
 2009_vancouver,golf,Golf,golf,singles,1,complete,,0
 2009_vancouver,mixed_doubles_net,Mixed Doubles Net,net,doubles,2,complete,,0
 2009_vancouver,open_doubles_net,Open Doubles Net,net,doubles,3,complete,,0
@@ -2851,7 +2846,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2010_worlds_oakland,womens_singles_routines,Women's Singles Routines,freestyle,singles,20,complete,,0
 2010_windy_city,doubles,Doubles,net,doubles,1,complete,,0
 2010_windy_city,singles,Singles,net,singles,2,complete,,0
-2010_windy_city,intermediates_singles,Intermediates Singles,freestyle,singles,3,complete,,0
 2010_nyfa_symposium,inter_routines,Inter Routines,freestyle,singles,1,complete,,0
 2010_nyfa_symposium,intermediate_circle,Intermediate Circle,freestyle,singles,2,complete,,0
 2010_nyfa_symposium,intermediate_singles_net,Intermediate Singles Net,net,singles,3,complete,,0
@@ -3262,7 +3256,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2012_footbagjam_dresden,womens_singles_net,Women's Singles Net,net,singles,10,unresolved,,0
 2012_austrian_champs,footbag_golf,Footbag Golf,golf,singles,1,complete,,0
 2012_austrian_champs,intermediate_circle_contest,Intermediate Circle Contest,freestyle,singles,2,complete,,0
-2012_austrian_champs,open_austrian_freestyle_routines,Open Austrian Freestyle Routines,freestyle,singles,3,mostly_complete,,0
 2012_austrian_champs,open_circle_contest,Open Circle Contest,freestyle,singles,4,partial,,0
 2012_austrian_champs,open_doubles_net,Open Doubles Net,net,doubles,5,complete,,0
 2012_austrian_champs,open_freestyle_routines,Open Freestyle Routines,freestyle,singles,6,mostly_complete,,0
@@ -3714,7 +3707,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2016_akisphere,doubles_net,Doubles Net,net,doubles,1,complete,,0
 2016_akisphere,singles_net,Singles Net,net,singles,2,complete,,0
 2016_austrian,battle,Battle,freestyle,singles,1,complete,,0
-2016_austrian,circle_austria,Circle Austria,freestyle,singles,2,complete,,0
 2016_austrian,freestyle_overall,Freestyle Overall,freestyle,singles,3,mostly_complete,,1
 2016_austrian,open_circle,Open Circle,freestyle,singles,4,complete,,0
 2016_austrian,request_contest,Request Contest,freestyle,singles,5,complete,,0
@@ -3996,10 +3988,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2019_usopen_boston,open_singles_net,Open Singles Net,net,singles,5,complete,,0
 2019_usopen_boston,request,Request,freestyle,singles,6,complete,,0
 2019_usopen_boston,routines,Routines,freestyle,singles,7,complete,,0
-2019_xix_polish_krakow,battle_international,Battle International,freestyle,singles,1,complete,,0
-2019_xix_polish_krakow,battle_polish,Battle Polish,freestyle,singles,2,complete,,0
-2019_xix_polish_krakow,circle_contest_international,Circle Contest International,freestyle,singles,3,mostly_complete,,0
-2019_xix_polish_krakow,circle_contest_polish,Circle Contest Polish,freestyle,singles,4,mostly_complete,,0
 2019_xix_polish_krakow,footbag_golf,Footbag Golf,golf,doubles,5,unresolved,,0
 2019_xix_polish_krakow,last_man_standing,Last Man Standing,freestyle,singles,6,complete,,0
 2019_xix_polish_krakow,open_battles,Open Battles,freestyle,singles,7,complete,,0

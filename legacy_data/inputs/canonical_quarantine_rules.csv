@@ -13,3 +13,15 @@ event_key,discipline_key,quarantine_scope,trigger_pattern,rationale,confidence,a
 2008_memphicago_kick_volley,open_doubles_net,discipline_all,,Not results: the page lists casual pick-up players in order of distance travelled and says no one kept stats,confirmed,1
 2005_championnat_de_france,double_net,discipline_all,,Pool-play block parsed as a placement; the page's doubles ranking names first names only,confirmed,1
 2005_championnat_de_france,simple_net,discipline_all,,Pool-play block parsed as a placement; the page's singles ranking names first names only,confirmed,1
+1998_footbagjam_wichita,unknown,discipline_all,,"The page header (""2. Annual Mountain Dew's"") read as a person; not a result",confirmed,1
+2019_xix_polish_krakow,battle_polish,discipline_all,,Re-ranks the Polish players of the event's Open Battles; not a contest of its own,confirmed,1
+2019_xix_polish_krakow,battle_international,discipline_all,,Re-ranks players of the event's Open Battles; not a contest of its own,confirmed,1
+2019_xix_polish_krakow,circle_contest_polish,discipline_all,,Re-ranks the Polish players of the event's Open Circle Contest; not a contest of its own,confirmed,1
+2019_xix_polish_krakow,circle_contest_international,discipline_all,,Re-ranks players of the event's Open Circle Contest; not a contest of its own,confirmed,1
+2001_eurochamp_prague,european_freestyle,discipline_all,,Re-ranks the European players of the event's Open freestyle; not a contest of its own,confirmed,1
+2001_eurochamp_prague,european_doubles_freestyle,discipline_all,,Re-ranks the European teams of the event's Open doubles freestyle; not a contest of its own,confirmed,1
+2000_eurochamp_paris,european_rankings_for_open_freestyle,discipline_all,,Re-ranks the European players of the event's Open freestyle; not a contest of its own,confirmed,1
+2003_footbagjam_zeil_am_main,german_ranking_open_freestyle,discipline_all,,Re-ranks the German players of the event's Open freestyle in the same order; not a contest of its own,confirmed,1
+2012_austrian_champs,open_austrian_freestyle_routines,discipline_all,,Re-ranks the Austrian players of the event's Open routines; not a contest of its own,confirmed,1
+2016_austrian,circle_austria,discipline_all,,Re-ranks the Austrian players of the event's one circle contest; not a contest of its own,confirmed,1
+2010_windy_city,intermediates_singles,discipline_all,,"An alphabetical list of a net pool whose results were lost (the director says so); not placements. Kept out because a result must carry a placing and none can be given; restore as listed participants if the schema ever records unplaced participation",confirmed,1
