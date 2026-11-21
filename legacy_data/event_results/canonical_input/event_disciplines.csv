@@ -1770,7 +1770,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2004_rnh_contest,doubles_net,Doubles Net,net,doubles,5,complete,,0
 2004_rnh_contest,shred_30,Shred 30,freestyle,singles,6,mostly_complete,,0
 2004_rnh_contest,singles_net,Singles Net,net,singles,7,complete,,0
-2004_russian_1,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,1,unresolved,,0
+2004_russian_1,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,1,complete,,0
 2004_russian_1,unknown,Unknown,freestyle,singles,2,complete,,0
 2004_russian_2,open_doubles_net,Open Doubles Net,net,doubles,1,unresolved,,0
 2004_russian_2,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,2,mostly_complete,,0
