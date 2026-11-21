@@ -73,12 +73,13 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
 4. **Sealed provenance inputs.** `freestyle/inputs/footbag_org_moves_metadata.ndjson`
    is a sealed, immutable archive artifact preserved for provenance and as a
    future description-upgrade source. No loader consumes it.
-5. **Public content derived from the corpus, served from the database.** At
-   cutover the Emerging Vocabulary universe is computed at request time from
-   database rows: the documented names, doctrine questions and decision groups
-   are rows, and rulings are recorded in the app. No TypeScript in the app is
-   generated, and curator data lives in the database, not in code; the generated
-   content modules that exist before go-live are removed before cutover.
+5. **Public content derived from the corpus, served from the database.** The
+   Emerging Vocabulary universe is computed at request time from database rows:
+   the documented names, doctrine questions and decision groups are rows, and
+   rulings are recorded in the app. Until version 2 it is served from the
+   code-side exception module named above. No other TypeScript in the app is
+   generated, and curator data lives in the database, not in code; the other
+   generated content modules that exist before go-live are removed before cutover.
 
 The single-authority rule (tier 2), the alias and slug identity rules, and the
 surface-propagation-by-pointer rule are the invariants every curation edit must
