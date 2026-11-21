@@ -1824,27 +1824,65 @@ p.badge { display: block; width: fit-content; }
   text-underline-offset: 2px;
 }
 
-/* ── Side list ──────────────────────────────────────────────── */
-/* A short index of links (the events landing page's archive years) beside the
-   main content from 1024px up, stacked after it below that. */
-/* The layout owns the gap above it, as a section does: a grid item's margin
-   does not collapse into the hero's, so the first section inside each column
-   gives up its own and the hero-to-content gap stays one gap. */
-.side-list-layout { display: grid; gap: var(--space-2xl); margin-top: var(--space-2xl); }
-.side-list-layout > * { min-width: 0; }
-.side-list-layout > * > section:first-child { margin-top: 0; }
-.side-list > ul {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 var(--space-md);
+/* ── Archive year nav ───────────────────────────────────────── */
+/* The events landing page's archive years, each a pill button. */
+.year-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  margin-top: var(--space-sm);
+}
+.year-pill {
+  display: inline-block;
+  padding: var(--space-sm) var(--space-lg);
+  border-radius: var(--radius-pill);
+  background: var(--bg-light);
+  border: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--text);
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.year-pill:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--white);
+  text-decoration: none;
+}
+
+/* ── Archive event rows ─────────────────────────────────────── */
+/* Completed events on the landing page and the year pages: one ruled row
+   each, the title and description on the left, the date and meta line on the
+   right. The title is the row's link. */
+.event-list { border-top: 1px solid var(--border); }
+.event-list-row {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(4rem, 1fr));
-  gap: var(--space-xs) var(--space-md);
+  grid-template-columns: 1fr auto;
+  gap: var(--space-lg);
+  align-items: center;
+  padding: var(--space-md) 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
 }
-.side-list > ul a { font-weight: 600; }
-@media (min-width: 1024px) {
-  .side-list-layout { grid-template-columns: minmax(0, 1fr) 18rem; align-items: start; }
+.event-list-main { min-width: 0; }
+.event-list-title {
+  display: block;
+  font-weight: 600;
+  font-size: 1rem;
+  color: var(--primary-ink);
+  text-decoration: none;
+  transition: color 0.12s;
 }
+.event-list-title:hover { color: var(--primary-ink-dk); }
+.event-list-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-xs);
+  text-align: right;
+}
+.event-list-date { font-size: 0.9rem; color: var(--text-muted); white-space: nowrap; }
+.event-list-location { font-size: 0.9rem; color: var(--text-muted); white-space: nowrap; }
 
 /* ── Event detail layout ─────────────────────────────────────── */
 .event-detail { max-width: 860px; }
@@ -3388,6 +3426,13 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   .identity-row dt { min-width: 0; }
   .avatar-edit-row { flex-direction: column; align-items: flex-start; gap: var(--space-md); }
 
+  /* Event list: stack title above meta on mobile, and let a long location or
+     hashtag wrap inside the column rather than widening the page. */
+  .event-list-row { grid-template-columns: minmax(0, 1fr); gap: var(--space-xs); }
+  .event-list-meta { flex-direction: row; align-items: center; gap: var(--space-sm); flex-wrap: wrap; text-align: left; }
+  .event-list-meta > * { min-width: 0; }
+  .event-list-location { white-space: normal; overflow-wrap: anywhere; }
+
   /* Hashtag search: one field per row once a row cannot hold two. In the
      column the row's flex-basis would set each field's height, so it is
      dropped here. */
@@ -3577,10 +3622,12 @@ a.hashtag--media:hover {
   gap: var(--space-sm) var(--space-md);
   margin: var(--space-md) 0;
 }
-/* Standing alone or in a card's meta line, a long hashtag (one underscore-
-   joined word) breaks rather than pushing a phone-width page sideways. */
+/* Standing alone or in a card's or archive row's meta line, a long hashtag
+   (one underscore-joined word) breaks rather than pushing a phone-width page
+   sideways. */
 .media-line .hashtag,
-.card-meta .hashtag {
+.card-meta .hashtag,
+.event-list-meta .hashtag {
   white-space: normal;
   overflow-wrap: anywhere;
   flex-shrink: 1;

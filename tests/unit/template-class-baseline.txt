@@ -220,6 +220,13 @@ event-hero-eyebrow
 event-hero-meta
 event-hero-panel
 event-hero-title
+event-list
+event-list-date
+event-list-location
+event-list-main
+event-list-meta
+event-list-row
+event-list-title
 event-meta-row
 family-rung-header
 family-teaching-list
@@ -561,8 +568,6 @@ signal-checklist
 signal-checklist-label
 signal-checklist-mark
 signal-checklist-row
-side-list
-side-list-layout
 site-footer
 site-header
 site-logo
@@ -676,4 +681,6 @@ w-12
 w-20
 work-queue-item
 wrapper
+year-grid
 year-page-nav
+year-pill

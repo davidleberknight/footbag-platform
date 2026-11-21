@@ -41,7 +41,6 @@ let resetRateLimitForTests: () => void;
 
 // Every created event is dated in one future year, so its hashtag is known.
 const YEAR = String(new Date().getUTCFullYear() + 2);
-const CURRENT_YEAR = String(new Date().getUTCFullYear());
 
 const ORGANIZER = 'ecp-organizer';
 const CO_ORGANIZER = 'ecp-co-organizer';
@@ -452,15 +451,6 @@ describe('when a cover is honoured', () => {
     expect(media(mediaId)).toBeUndefined();
     expect(eventByKey(key)!.cover_media_id).toBeNull();
     expect(imgs((await request(createApp()).get(`/events/${key}`)).text, 'cover-photo')).toEqual([]);
-  });
-
-  it('the compact current-year list draws no thumbnail, while the year page draws it for the same event', async () => {
-    // Defect caught: the side-by-side compact list is crowded with thumbnails,
-    // or the year page loses them.
-    const key = `event_${CURRENT_YEAR}_compact_cover`;
-    seedEventWithCover({ key, title: 'Compact Cover', start: `${CURRENT_YEAR}-01-02`, end: `${CURRENT_YEAR}-01-03`, status: 'completed', photo: { tagged: true } });
-    expect(cardFor((await request(createApp()).get('/events')).text, key)).not.toContain('card-thumb');
-    expect(cardFor((await request(createApp()).get(`/events/year/${CURRENT_YEAR}`)).text, key)).toContain('card-thumb');
   });
 
   it('a list of events reads its covers in one statement however many events it holds', async () => {

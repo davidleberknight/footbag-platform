@@ -58,7 +58,7 @@ Compose every public page from one small set: site frame (header / main / footer
 (eyebrow / title / subtitle / notice), content section, compact disclosure card grid,
 discipline tag, result section, year navigation, pager, metadata / summary rows, data table (`.data-table`,
 the one table treatment), queue row, grouped link
-index, dated item, side list, member picker, prominent action link, back link (the `back-link` partial),
+index, dated item, archive row, member picker, prominent action link, back link (the `back-link` partial),
 empty state, notice block, and admin instructions block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
@@ -90,15 +90,13 @@ published on a date, upcoming events and news items alike: its date, a title lin
 an optional status or label badge, an optional meta line whose parts may be links, an optional
 excerpt, and an optional small square thumbnail at the card's top right from the item's cover photo,
 drawn on the card classes; a compact form drops the excerpt and the thumbnail where two lists sit
-side by side. The thumbnail is decorative: the title stays the card's one link. Every page that lists events draws each one as a dated item, upcoming or completed: the page
+side by side. The thumbnail is decorative: the title stays the card's one link. Every page that lists upcoming events draws each one as a dated item; a completed event on the events landing page and the year pages is an **archive row** (the `event-archive-row` partial), a compact ruled row drawn from the same dated-item fields, with the title linking to the event and the description on the left and the date and meta line on the right. Either way the page
 service shapes its date as one preformatted range, its label as the registration status of an
 upcoming event (a completed event carries none), and its meta line as location, host club and its
 hashtag, drawn as the shared hashtag token that links to the event's gallery when content carries
 it and is plain otherwise. A template never lays out an event, compares its two dates or
 derives its status. A dated item whose body is not itself a link is a static card, so it does not
-lift on hover. A **side list** (`.side-list-layout` holding the main column and a `.side-list`) sets a
-short index of links beside a page's main content from 1024px up, and stacks it after the main
-content below that, such as the events landing page's archive years.
+lift on hover.
 
 A **member picker** (the `member-picker` partial) is the one way a form lets a person choose
 another member, by name, because people know names, not member ids, slugs or profile URLs. The
@@ -262,7 +260,7 @@ discipline and the shared classes; per-section classes are in the stylesheet.
   `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`; media line `.media-line` (its hashtag is the shared `.hashtag` token);
   sections `.content-section`, `.section-heading`, `.section-intro` (`.profile-section` on member
   profile pages only); cards and tables `.card`, `.card-static`, `.card-title`, `.card-meta`,
-  `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; side list `.side-list-layout`, `.side-list`; actions `.btn`,
+  `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; actions `.btn`,
   `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`; forms
   `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`;
   text `.text-muted` (metadata only), `.text-center`, `.fs-sm`, `.fw-600`.

@@ -1,6 +1,6 @@
-{{! Events landing page: upcoming events first, then the current year's
-    completed events, with the archive years in a side list. Every event is the
-    shared dated item, the same as on a year page and a member's profile. }}
+{{! Events landing page: upcoming events first, as dated item cards; then the
+    current year's completed events, as archive rows like a year page's; then
+    the archive years as pill buttons. }}
 
 <div class="hero hero-sm">
   <div>
@@ -38,51 +38,47 @@
     </section>
   {{/if}}
 
-  <div class="side-list-layout">
-    <div>
-      {{! ── Upcoming events ─────────────────────────────────────── }}
-      <section id="upcoming-events">
-        <div class="section-heading">
-          <h2>Upcoming Events</h2>
-        </div>
-        <p>Organizing an event? Create it on footbag.org. To have it sanctioned by IFPA, see the <a href="{{siteHref content.organizerLinks.guidelinesHref}}">sanctioning guidelines</a>.</p>
-        {{#if content.upcomingEvents.length}}
-          <div class="card-grid">
-            {{#each content.upcomingEvents}}{{> dated-item this}}{{/each}}
-          </div>
-        {{else}}
-          <p>No upcoming events are listed yet.</p>
-        {{/if}}
-      </section>
-
-      {{! ── This year's completed events ────────────────────────── }}
-      {{#if content.currentYearEvents.length}}
-        <section id="current-year-events">
-          <div class="section-heading">
-            <h2>Completed Events From {{content.currentYear}}</h2>
-          </div>
-          <div class="dated-list">
-            {{#each content.currentYearEvents}}{{> dated-item this compact=true}}{{/each}}
-          </div>
-        </section>
-      {{/if}}
+  {{! ── Upcoming events ─────────────────────────────────────────── }}
+  <section id="upcoming-events">
+    <div class="section-heading">
+      <h2>Upcoming Events</h2>
     </div>
-
-    {{! ── Past events by year ─────────────────────────────────────── }}
-    {{#if content.archiveYears.length}}
-      <aside class="side-list" id="past-events" aria-labelledby="past-events-heading">
-        <div class="section-heading">
-          <h2 id="past-events-heading">Past Events</h2>
-        </div>
-        <p>Browse completed events and results by year.</p>
-        <ul>
-          {{#each content.archiveYears}}
-            <li><a href="/events/year/{{this}}">{{this}}</a></li>
-          {{/each}}
-        </ul>
-        <p class="fs-sm">Results data before 1997 is incomplete.</p>
-      </aside>
+    <p>Organizing an event? Create it on footbag.org. To have it sanctioned by IFPA, see the <a href="{{siteHref content.organizerLinks.guidelinesHref}}">sanctioning guidelines</a>.</p>
+    {{#if content.upcomingEvents.length}}
+      <div class="card-grid">
+        {{#each content.upcomingEvents}}{{> dated-item this}}{{/each}}
+      </div>
+    {{else}}
+      <p>No upcoming events are listed yet.</p>
     {{/if}}
-  </div>
+  </section>
+
+  {{! ── This year's completed events ────────────────────────────── }}
+  {{#if content.currentYearEvents.length}}
+    <section id="current-year-events">
+      <div class="section-heading">
+        <h2>Completed Events From {{content.currentYear}}</h2>
+      </div>
+      <div class="event-list">
+        {{#each content.currentYearEvents}}{{> event-archive-row this}}{{/each}}
+      </div>
+    </section>
+  {{/if}}
+
+  {{! ── Past events by year ─────────────────────────────────────── }}
+  {{#if content.archiveYears.length}}
+  <section id="past-events">
+    <div class="section-heading">
+      <h2>Past Events</h2>
+    </div>
+    <p class="mb-4">Browse completed events and results by year.</p>
+    <div class="year-grid">
+      {{#each content.archiveYears}}
+        <a href="/events/year/{{this}}" class="year-pill">{{this}}</a>
+      {{/each}}
+    </div>
+    <p class="mt-4 fs-sm">Results data before 1997 is incomplete.</p>
+  </section>
+  {{/if}}
 
 </div>

@@ -1,4 +1,4 @@
-{{! Year archive page: every completed event of the year, each the shared dated item }}
+{{! Year archive page: every completed event of the year, each an archive row }}
 
 <div class="hero hero-sm">
   <div>
@@ -25,8 +25,8 @@
     </div>
 
     {{#if content.events.length}}
-      <div class="dated-list" id="year-events">
-        {{#each content.events}}{{> dated-item this}}{{/each}}
+      <div class="event-list" id="year-events">
+        {{#each content.events}}{{> event-archive-row this}}{{/each}}
       </div>
     {{else}}
       <p>No completed events for {{content.year}} yet.</p>

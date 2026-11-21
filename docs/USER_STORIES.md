@@ -475,10 +475,10 @@ Story: As a visitor, I want to browse past events and their results by year, and
 
 Success Criteria: 
 
-- The public events landing page shows archive-year links derived from completed public events, showing all years with events in a side list for easy access to a given year. The default year for the landing page is the current year (for example: 2026). Every year page has navigation between that year and previous or next years when those adjacent years contain completed public events.
+- The public events landing page shows archive-year links derived from completed public events, showing all years with events as a row of year buttons below the upcoming events, for easy access to a given year. The default year for the landing page is the current year (for example: 2026). Every year page has navigation between that year and previous or next years when those adjacent years contain completed public events.
 - All historic events are viewed grouped by year (one page per year), with events sorted by start date. The year page shows the full completed public event list for the selected year even when some events do not have results.
 - The year page at `GET /events/year/:year` is a whole-year archive/results page. It is not paginated. The list of events for any given year is short enough that it does not need UI pagination.
-- Each year-page event block shows the public summary fields required for browsing historic events: title, date, location, host club when known, description when present, the standardized event hashtag / canonical key when available (linked to its gallery when content carries it), and a small thumbnail of the event's cover photo when it has one.
+- Each year-page event block shows the public summary fields required for browsing historic events: title, date, location, host club when known, description when present, and the standardized event hashtag / canonical key when available (linked to its gallery when content carries it).
 - The year page shows event summaries only; results are on the canonical event detail page at `GET /events/:eventKey`.
 - When no result rows exist for a completed public event, the year page still shows the event; the event detail page explicitly indicates that no results are available yet.
 - Each completed public event also has a canonical public page at `GET /events/:eventKey` for event-focused viewing and direct linking.

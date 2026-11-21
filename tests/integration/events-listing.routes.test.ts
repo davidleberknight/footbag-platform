@@ -166,10 +166,10 @@ describe('the events landing page', () => {
     expect(thisYearList).not.toContain(`/events/${pastYearDone.key}`);
   });
 
-  // Defect caught: an archive year is missing from the side list, or a year
+  // Defect caught: an archive year is missing from the year buttons, or a year
   // with no completed public event links to an empty page.
   it('links exactly the years that have completed public events', async () => {
-    const side = region((await request(createApp()).get('/events')).text, 'past-events', '</aside>');
+    const side = region((await request(createApp()).get('/events')).text, 'past-events', '</section>');
     const years = [...side.matchAll(/href="\/events\/year\/(\d{4})"/g)].map((m) => Number(m[1])).sort();
     expect(years).toEqual([thisYear - 3, thisYear].sort());
   });

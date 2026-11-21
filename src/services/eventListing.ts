@@ -1,7 +1,9 @@
 /**
  * How the site lists an event. Every page that lists events, upcoming or
- * completed, draws each one as the same dated item, so an event reads the same
- * on the events landing page, a year page and a member's own profile.
+ * completed, shapes each one as the same dated item, so an event carries the
+ * same fields on the events landing page, a year page and a member's own
+ * profile; an upcoming event is drawn as a card, a completed one as an archive
+ * row.
  *
  * Also the registration cutoff and the registration status every event surface
  * shows. An event whose status is still `reg_open` but whose cutoff has passed,
