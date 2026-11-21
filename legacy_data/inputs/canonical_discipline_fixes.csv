@@ -8,16 +8,14 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 2007_footbagjam_warsaw,four_square,retag_team_type,Four Square,singles,,singles,confirmed,Four square is a sideline contest; team type unchanged.,Discipline order review,1,,sideline
 2007_usopen_portland,intermediate_big_3,retag_team_type,Intermediate Big 3,singles,,singles,confirmed,The page lists each player's three tricks; a Big 3 is a freestyle contest. Team type unchanged.,mirror event 1176318174,1,,freestyle
 1986_worlds_golden,footbag_net_score_keepers_contest,retag_team_type,Footbag Net Score Keeper's Contest,singles,,doubles,confirmed,All 5/5 placements have 2 participants — structurally doubles,Structural analysis,1,
-1997_eastregion,singles_net,retag_team_type,Singles Net,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
-2003_kick_til_youre,open,retag_team_type,Open,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
+2003_kick_til_youre,open,rename_discipline,Open,singles,Open Shred 30,,confirmed,"The page's Shred 30 Open list; the Sick 3 Open list was merged in as second players",mirror event 1058877971,1,,
 2003_shred_zero_summer,intermediate_30_second_shred,retag_team_type,Intermediate 30 Second Shred,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
 2004_seattle_juggling,sick_3,retag_team_type,Sick 3,singles,,doubles,confirmed,6/6 placements have 2 participants — structurally doubles,Structural analysis,1,
-2006_czech,sick_3,retag_team_type,Sick 3,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
+2006_czech,sick_3,retag_team_type,Sick 3,singles,,doubles,confirmed,"Not doubles: the page's sick 3 and big 1 lists were merged; corrected in team_corrections",mirror event 1137937282,0,
 2006_santa_cruz_invitational,shred_30,retag_team_type,Shred 30,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
 2007_championnats_de_france,singles_freestyle,retag_team_type,Singles Freestyle,singles,,doubles,confirmed,5/6 placements have 2 participants — structurally doubles,Structural analysis,1,
 2007_footbagmania_polish,open_golf,retag_team_type,Open Golf,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
 2007_zocha,circle_contest,retag_team_type,Circle Contest,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
-2008_eastregion,singles_net,retag_team_type,Singles Net,singles,,doubles,confirmed,8/9 placements have 2 participants — structurally doubles,Structural analysis,1,
 2009_usopen_vancouver,womens_circle,retag_team_type,Women's Circle,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
 2010_king_hill_aki,open_singles_net,retag_team_type,Open Singles Net,singles,,doubles,confirmed,12/12 placements have 2 participants — structurally doubles,Structural analysis,0,
 2010_wsf_mistrzostwa_pragi,intermediate_circle_contest,retag_team_type,Intermediate Circle Contest,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
@@ -25,7 +23,7 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 2014_polish,sick_3,retag_team_type,Sick 3,singles,,doubles,confirmed,5/6 placements have 2 participants — structurally doubles,Structural analysis,1,
 2015_xv_polish,request_contest,retag_team_type,Request Contest,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
 2015_xv_polish,sick_3,retag_team_type,Sick 3,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
-2019_xix_polish_krakow,footbag_golf,retag_team_type,Footbag Golf,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
+2019_xix_polish_krakow,footbag_golf,retag_team_type,Footbag Golf,singles,,doubles,confirmed,"Not doubles: the page's golf and 2 Squares lists were merged; corrected in team_corrections",mirror event 1567551985,0,
 2008_memphicago_kick_volley,open_doubles_net,retag_team_type,Open Doubles Net,doubles,,singles,confirmed,User confirmed all singles. Locations (New Orleans/Chicago) parsed as partner names.,User report,0,
 2003_canadian,shred_30_champion,retag_team_type,Shred 30 Champion,doubles,,singles,confirmed,Shred 30 is individual event. Location annotations caused false doubles.,User report + structural analysis,1,
 2015_worlds_copenhagen,intermediate_sick_trick,retag_team_type,Intermediate Sick Trick,doubles,,singles,confirmed,User confirmed singles event,User report,1,
@@ -78,7 +76,15 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 2009_eurochamp_strzelin,intermediate_doubles_net,retag_team_type,Intermediate Doubles Net,singles,,doubles,confirmed,"The page lists a pair per place; the partner dash reached the mirror as "" ? "". The pairs are set in team_corrections.csv.",mirror event 1235653935,1,,
 2009_eurochamp_strzelin,womens_doubles_net,retag_team_type,Women's Doubles Net,singles,,doubles,confirmed,"The page lists a pair per place; the partner dash reached the mirror as "" ? "". The pairs are set in team_corrections.csv.",mirror event 1235653935,1,,
 2010_czech,net_doubles,retag_team_type,Net Doubles,singles,,doubles,confirmed,"The page joins each pair with the Czech ""a"" (and). The pairs are split in team_corrections.csv.",mirror event 1286644859,1,,
-2012_suramericano_de,open_doubles_net,retag_team_type,Open Doubles Net,singles,,doubles,confirmed,"The page joins each pair with the Spanish ""Y"" (and). The pairs are split in team_corrections.csv; 6th place is missing from the identity lock.",mirror event 1346947092,1,,
+2012_suramericano_de,open_doubles_net,retag_team_type,Open Doubles Net,singles,,doubles,confirmed,"The page joins each pair with the Spanish ""Y"" (and). The pairs are split in team_corrections.csv.",mirror event 1346947092,1,,
 2009_windy_city_clck,doubles,retag_team_type,Doubles,doubles,,doubles,confirmed,The event offered net only; its doubles results were filed as freestyle. Team type unchanged.,mirror event 1229435305,1,,net
 2009_windy_city_clck,singles,retag_team_type,Singles,singles,,singles,confirmed,The event offered net only; its singles results were filed as freestyle. Team type unchanged.,mirror event 1229435305,1,,net
 1998_footbagjam_wichita,novice,retag_team_type,Novice,singles,,singles,confirmed,The page's Novice list is footbag golf. Team type unchanged.,mirror event 892446131,1,,golf
+2003_kick_til_youre,novice,rename_discipline,Novice,singles,Novice Shred 30,,confirmed,The page's Shred 30 Novice list,mirror event 1058877971,1,,
+2003_kick_til_youre,intermediate,rename_discipline,Intermediate,singles,Intermediate Shred 30,,confirmed,The page's Shred 30 Intermediate list,mirror event 1058877971,1,,
+2006_czech,net,rename_discipline,Net,singles,Singles Net,,confirmed,"The page's jednotlivci (singles) net list; its doubles list was merged in",mirror event 1137937282,1,,
+2019_xix_polish_krakow,sick_3,rename_discipline,Sick 3,singles,Big 1,,confirmed,The stored places are the page's Big 1 list,mirror event 1567551985,1,,
+2003_seapa_nz,unknown,rename_discipline,Unknown,singles,5 Minute Timed Consecutives,,confirmed,The page's 5 Minute Timed Consecutives list under no recognised heading,mirror event 1038895913,1,,sideline
+2007_shred_idaho,unknown,rename_discipline,Unknown,singles,Rippin Run,,confirmed,The page's Rippin Run result,mirror event 1189535136,1,,freestyle
+2007_springjam,unknown,rename_discipline,Unknown,singles,Circle Contest,,confirmed,The page's open Circle contest list,mirror event 1172931308,1,,freestyle
+2018_torneo_nacional_de,doble_leg_over,rename_discipline,Doble Leg Over,singles,Big One,,confirmed,"""DOBLE LEG OVER"" is Carlos Ramirez's trick in the Big One list, read as a heading",mirror event 1537994275,1,,freestyle

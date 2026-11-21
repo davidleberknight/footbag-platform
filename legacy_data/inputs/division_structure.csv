@@ -25,6 +25,7 @@ freestyle,Beginner 60 Sec,game_routines,,open,novice,,0
 freestyle,Beginners Freestyle,game_routines,,open,novice,,0
 freestyle,Best Trick,,Big Trick,open,open,,0
 freestyle,Big 1,,Big Trick,open,open,,0
+freestyle,Big One,,Big Trick,open,open,,0
 freestyle,Big 3,,Big 3,open,open,,0
 freestyle,Big Combo,,Big Combo,open,open,,0
 freestyle,Big One ? Trick Competition,,Big Trick,open,open,,0
@@ -205,6 +206,7 @@ freestyle,Novice Freestyle,game_routines,,open,novice,,0
 freestyle,Novice Freestyle Circle,game_circle,,open,novice,,0
 freestyle,Novice Judged Style,game_routines,,open,novice,,0
 freestyle,Novice Routines,game_routines,,open,novice,,0
+freestyle,Novice Shred 30,game_30_second_shred,,open,novice,,0
 freestyle,Novice Sick 1,game_sick_trick,,open,novice,,0
 freestyle,Novice Sick 3,game_sick_3,,open,novice,,0
 freestyle,Open,,,,,"two singles contests (Shred 30 Open, Sick 3 Open) stored as one doubles list; split before mapping",0
@@ -458,7 +460,7 @@ golf,Golf Jam,game_footbag_golf,,open,open,,0
 golf,Golf Results Currently Not Available,game_footbag_golf,,open,open,,0
 golf,Golf Singles Advanced,game_footbag_golf,,open,open,,0
 golf,Golf Singles Open,game_footbag_golf,,open,open,,0
-golf,Intermediate,,,,,the stored places come from other contests; re-transcribe the event,0
+golf,Intermediate,game_footbag_golf,,open,intermediate,,0
 golf,Intermediate Footbag Golf,game_footbag_golf,,open,intermediate,,0
 golf,Intermediate Golf,game_footbag_golf,,open,intermediate,,0
 golf,Intermediate Singles Golf,game_footbag_golf,,open,intermediate,,0
@@ -472,7 +474,7 @@ golf,Open Footbag Golf,game_footbag_golf,,open,open,,0
 golf,Open Footbag Golf 3 Rounds,game_footbag_golf,,open,open,,0
 golf,Open Golf,game_footbag_golf,,open,open,,0
 golf,Open Singles Golf,game_footbag_golf,,open,open,,0
-golf,Pro,,,,,the stored places come from other contests; re-transcribe the event,0
+golf,Pro,game_footbag_golf,,open,open,,0
 golf,Pro Footbag Golf,game_footbag_golf,,open,open,,0
 golf,Pro Golf,game_footbag_golf,,open,open,,0
 golf,Results Pro Image Cash Golf,game_footbag_golf,,open,open,,0
@@ -787,6 +789,7 @@ sideline,2-Square,game_2_square,,open,open,,0
 sideline,4-Square,game_4_square,,open,open,,0
 sideline,4-Square Tournament,game_4_square,,open,open,,0
 sideline,5 Minute Consecutive Kicks,game_timed_consecutives,,open,open,,0
+sideline,5 Minute Timed Consecutives,game_timed_consecutives,,open,open,,0
 sideline,Advanced 5 Minute Timed Footbag Consecutive,game_timed_consecutives,,open,open,,0
 sideline,Advanced Consecutives:,,Consecutives,open,open,,0
 sideline,Amateur One Pass Consecutive,,One-Pass,open,intermediate,,0
