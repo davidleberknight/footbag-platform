@@ -8,12 +8,13 @@
  * Rendering contract:
  *   - getXSquarePage() returns PageViewModel<XSquareContent>.
  *   - Static hero carrying the 2-Square artwork as its mascot, an explainer, then 2-Square and
- *     4-Square, each with its cartoon icon beside the heading, an optional demo .webm clip and
+ *     4-Square, each with its cartoon icon beside the heading, an optional curated demo clip and
  *     internal "More info" links (its rules page under /rules/x-square/, the court setup section of
  *     the equipment page).
  */
 import { PageViewModel } from '../types/page';
 import { SportSectionContent, SportSectionGame } from '../types/sportSection';
+import { loadSiteVideo } from './siteMediaService';
 
 export type XSquareContent = SportSectionContent;
 
@@ -48,10 +49,8 @@ const FOUR_SQUARE: SportSectionGame = {
   paragraphs: [
     '4-Square is the four-player variant of the same idea: four squares, four players, score points by landing the footbag in someone else\'s square without letting it land in your own. Fast, social, and easy to set up on any flat surface.',
   ],
-  demoVideo: {
-    webmUrl: '/video/sideline/foursquare.webm',
-    caption: '4-Square demo',
-  },
+  // Filled per request from the curated 4-Square demo slot.
+  demoVideo: null,
   moreInfo: [
     {
       label: '4-Square Rules',
@@ -84,7 +83,7 @@ export const xSquareService = {
             [{ text: 'X-Square covers 2-Square, 4-Square and 5-Square. Each player defends a square and scores by making the footbag drop in another player\'s square. All three are sideline games. A tournament director may offer X-Square, and each of its games, either for fun or as a competition.' }],
           ],
         },
-        games: [TWO_SQUARE, FOUR_SQUARE],
+        games: [TWO_SQUARE, { ...FOUR_SQUARE, demoVideo: loadSiteVideo('four_square_demo') }],
       },
     };
   },

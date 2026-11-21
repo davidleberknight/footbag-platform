@@ -29,9 +29,11 @@
       <div class="card format-card">
         <div class="card-title">{{title}}</div>
         <p>{{paragraph}}</p>
+        {{#if media}}
         <div class="video-embed">
           {{> video-facade media=media}}
         </div>
+        {{/if}}
       </div>
       {{/each}}
     </div>

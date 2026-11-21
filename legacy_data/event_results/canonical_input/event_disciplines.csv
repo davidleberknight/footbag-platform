@@ -4344,6 +4344,10 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2026_worlds_ibaraki,last_man_standing,Last Man Standing,freestyle,singles,24,partial,,0
 2026_worlds_ibaraki,2_square,2 Square,sideline,singles,25,partial,,0
 2026_worlds_ibaraki,footbag_golf,Footbag Golf,golf,singles,26,partial,,0
+2026_copa_venezuela,open_singles_femenino,*Open Singles Femenino:*,net,singles,1,partial,,0
+2026_copa_venezuela,open_singles_masculino,*Open Singles Masculino*,net,singles,2,partial,,0
+2026_copa_venezuela,open_doubles_masculinos,*Open Doubles Masculinos*,net,doubles,3,partial,,0
+2026_copa_venezuela,open_mixtos,*Open Mixtos*,net,doubles,4,partial,,0
 2026_akisphere,double_doubles,Double  Doubles,net,doubles,1,partial,,0
 2026_akisphere,simple_singles,Simple  Singles,net,singles,2,partial,,0
 2026_akisphere,double_mixte_mixed_doubles,Double Mixte  Mixed Doubles,net,doubles,3,partial,,0
@@ -4358,16 +4362,20 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2026_eugene_spring_golf,intermediate_singles_net,Intermediate Singles Net,net,singles,7,partial,,0
 2026_eugene_spring_golf,womens_golf,Women's Golf,golf,singles,8,partial,,0
 2026_eugene_spring_golf,open_golf,Open Golf,golf,singles,9,partial,,0
-2026_footbagjam,open_doubles_net,Open Doubles Net,net,doubles,1,partial,,0
-2026_footbagjam,open_singles_net,Open Singles Net,net,singles,2,partial,,0
-2026_footbagjam,mixed_doubles_net,Mixed Doubles Net,net,doubles,3,partial,,0
-2026_footbagjam,2_square,2-Square,sideline,singles,4,partial,,0
-2026_footbagjam,freestyle_overall,Freestyle Overall,freestyle,singles,5,partial,,0
+2026_footbagjam_berlin,open_doubles_net,Open Doubles Net,net,doubles,1,partial,,0
+2026_footbagjam_berlin,open_singles_net,Open Singles Net,net,singles,2,partial,,0
+2026_footbagjam_berlin,mixed_doubles_net,Mixed Doubles Net,net,doubles,3,partial,,0
+2026_footbagjam_berlin,2_square,2-Square,sideline,singles,4,partial,,0
+2026_footbagjam_berlin,freestyle_overall,Freestyle Overall,freestyle,singles,5,partial,,0
 2026_bilbao_individual,open_singles_net,Open Singles Net,net,singles,1,partial,,0
 2026_de_france_de,singles_net,Singles Net,net,singles,1,partial,,0
 2026_de_france_de,doubles_net,Doubles Net,net,doubles,2,partial,,0
 2026_rnh_contest,singles_net,Singles Net,net,singles,1,partial,,0
 2026_rnh_contest,doubles_net,Doubles Net,net,doubles,2,partial,,0
+2026_footbagjam_lausanne,womens_singles_net,Womens Singles Net,net,singles,1,partial,,0
+2026_footbagjam_lausanne,open_singles_net,Open Singles Net,net,singles,2,partial,,0
+2026_footbagjam_lausanne,mixed_doubles_net,Mixed Doubles Net,net,doubles,3,partial,,0
+2026_footbagjam_lausanne,open_doubles_net,Open Doubles Net,net,doubles,4,partial,,0
 2026_basque_bilbao_2,open_doubles_net,Open Doubles Net,net,doubles,1,partial,,0
 2026_basque_bilbao,open_singles_net,Open Singles Net,net,singles,1,complete,,0
 2002_montreal_hivernal,open_singles_net,Open Singles Net,net,singles,1,complete,,0

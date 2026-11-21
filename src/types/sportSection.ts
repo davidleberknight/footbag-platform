@@ -3,6 +3,7 @@
  * list of games (X-Square, Golf, Sideline), all rendered through the
  * `sport-section` partial.
  */
+import type { SiteVideo } from '../services/siteMediaService';
 
 export interface SportSectionMoreInfoLink {
   label: string;
@@ -10,10 +11,9 @@ export interface SportSectionMoreInfoLink {
   external: boolean;
 }
 
-export interface SportSectionDemoVideo {
-  webmUrl: string;
-  caption: string;
-}
+// A game's demo clip is a curated site-media slot, so it carries hashtags and
+// is found by browsing media like any other video.
+export type SportSectionDemoVideo = SiteVideo;
 
 export interface SportSectionGame {
   slug: string;

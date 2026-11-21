@@ -6090,6 +6090,23 @@ export const media = {
     LIMIT 1
   `); },
 
+  // A site-content slot hosted on YouTube or Vimeo, resolved by the identity a
+  // URL-reference curator sidecar seeds: its platform and watch URL. Scoped to
+  // the system member, so a member's upload of the same video never fills a
+  // fixed page spot.
+  get getCuratorMediaByVideoUrl() { return db.prepare(`
+    SELECT mi.id, mi.media_type, mi.video_platform, mi.video_id, mi.video_url,
+           mi.thumbnail_url, mi.caption, mi.s3_key_thumb, mi.s3_key_display
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE mi.video_platform = ?
+      AND mi.video_url = ?
+      AND m.is_system = 1
+      AND mi.moderation_status = 'active'
+    ORDER BY mi.id
+    LIMIT 1
+  `); },
+
   // Public curator gallery: paginated reverse-chrono list of all FH-owned
   // (system member) active media. Excludes avatars (is_avatar=1) defense-in-
   // depth, even though avatars cannot also be curator uploads under current

@@ -8,13 +8,14 @@
  * Rendering contract:
  *   - getSidelinePage() returns PageViewModel<SidelineContent>.
  *   - Static hero with the hacky sack mascot, an explainer whose last paragraph links the X-Square
- *     games (also played as open play), then circle kicking with its cartoon icon, demo .webm clip
- *     and a "More info" link to the footbags section of the equipment page.
+ *     games (also played as open play), then circle kicking with its cartoon icon, curated demo
+ *     clip (absent until the curator seed stores it) and a "More info" link to the footbags section of the equipment page.
  *   - Explainer paragraphs are prose segments; a segment carrying `href` renders as an internal
  *     link inside the sentence.
  */
 import { PageViewModel } from '../types/page';
 import { SportSectionContent, SportSectionGame } from '../types/sportSection';
+import { loadSiteVideo } from './siteMediaService';
 
 export type SidelineContent = SportSectionContent;
 
@@ -26,10 +27,8 @@ const CIRCLE_KICKING: SportSectionGame = {
   paragraphs: [
     'Circle kicking, more commonly known as "hacky sack," is the original and most well-known footbag game. A group stands in a circle and keeps the footbag off the ground without using their hands, passing to other players, and trying to get everyone to kick the bag before it drops, known as a "hack." Simple tricks are encouraged, but the focus stays on the group and the flow.',
   ],
-  demoVideo: {
-    webmUrl: '/video/sideline/hackysack.webm',
-    caption: 'Circle kicking demo',
-  },
+  // Filled per request from the curated circle kicking demo slot.
+  demoVideo: null,
   moreInfo: [
     {
       label: 'Footbag Equipment',
@@ -62,7 +61,7 @@ export const sidelineService = {
             ],
           ],
         },
-        games: [CIRCLE_KICKING],
+        games: [{ ...CIRCLE_KICKING, demoVideo: loadSiteVideo('circle_kicking_demo') }],
       },
     };
   },

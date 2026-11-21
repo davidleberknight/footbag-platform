@@ -23,9 +23,23 @@ import {
   insertFreestyleRecord,
   insertFreestyleTrick,
   insertCuratorVideo,
+  insertCuratorUrlReference,
 } from '../fixtures/factories';
+import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
+import { SITE_MEDIA_SLOTS } from '../../src/content/siteMedia';
 
 const { dbPath } = setTestEnv('3111');
+
+let curatedRoot: string;
+const FEATURED_YOUTUBE_SLOTS = [
+  SITE_MEDIA_SLOTS.freestyle_circle,
+  SITE_MEDIA_SLOTS.freestyle_sick_3,
+  SITE_MEDIA_SLOTS.freestyle_shred_30,
+  SITE_MEDIA_SLOTS.freestyle_reese_1988,
+  SITE_MEDIA_SLOTS.freestyle_conlon_1998,
+  SITE_MEDIA_SLOTS.freestyle_worlds_2023_team,
+  SITE_MEDIA_SLOTS.freestyle_san_marino_2026,
+];
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -137,11 +151,31 @@ beforeAll(async () => {
     confidence: 'probable',
   });
 
+  // The featured strip's YouTube videos, stored as curated media under the
+  // slots the strip reads.
+  curatedRoot = createScratchDir('freestyle-portal-curated');
+  const curatorId = insertMember(db, { is_system: 1, slug: 'fh-freestyle' });
+  for (const slot of FEATURED_YOUTUBE_SLOTS) {
+    insertCuratorUrlReference(db, {
+      uploaderMemberId: curatorId,
+      curatedRoot,
+      category: 'site_videos',
+      primarySlug: 'featured',
+      videoUrl: slot.videoUrl,
+      videoPlatform: 'youtube',
+      videoId: new URL(slot.videoUrl).searchParams.get('v')!,
+      tags: ['#freestyle'],
+    });
+  }
+
   db.close();
   createApp = await importApp();
 });
 
-afterAll(() => cleanupTestDb(dbPath));
+afterAll(() => {
+  cleanupTestDb(dbPath);
+  removeScratch(curatedRoot);
+});
 
 // ---------------------------------------------------------------------------
 
@@ -473,7 +507,7 @@ describe('GET /freestyle — two-band landing', () => {
   it('renders the curator demo video when an FH-owned #demo_freestyle item is seeded', async () => {
     const seedDb = new BetterSqlite3(dbPath);
     try {
-      const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-freestyle' });
+      const fhId = (seedDb.prepare('SELECT id FROM members WHERE is_system = 1 LIMIT 1').get() as { id: string }).id;
       insertCuratorVideo(seedDb, {
         uploaderMemberId: fhId,
         sourceFilename: 'demo-freestyle.mp4',

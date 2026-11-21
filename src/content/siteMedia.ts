@@ -5,17 +5,21 @@ import { TRICKS_MOSAIC, mosaicClipFilename } from './freestyleTricksMosaic';
  * is featured in a developer-chosen spot on a page (a landing hero, an event
  * promo image, the foundations mosaic) rather than browsed through a gallery.
  *
- * Each slot binds a stable `sourceFilename` (the slot identity the seeder writes
- * and `getCuratorMediaByFilename` resolves) to its kind and its expected tag
- * stack. The binaries live under `curated/site/`; the seeder loads them like any
- * file-paired curator item and auto-applies `#curated`. The integrity check
- * asserts every slot here resolves to a stored media row, so a renamed or
- * un-seeded asset fails loudly instead of rendering an empty feature.
+ * A slot is identified one of two ways. A stored slot binds a stable
+ * `sourceFilename` (the identity the seeder writes and `getCuratorMediaByFilename`
+ * resolves); its binary lives under `curated/site/` and is loaded like any
+ * file-paired curator item. A linked slot is a video hosted on YouTube, bound by
+ * its watch URL (the identity a URL-reference sidecar under
+ * `curated/site_videos/` seeds and `getCuratorMediaByVideoUrl` resolves). Either
+ * way the page renders the seeded media row, so every video a page plays carries
+ * hashtags and is found by browsing media like any other item; the seeder
+ * auto-applies `#curated`. The integrity check asserts every slot here resolves
+ * to a seeded row with its expected tags, so a renamed or un-seeded asset fails
+ * loudly instead of rendering an empty feature.
  */
 export type SiteMediaKind = 'photo' | 'video';
 
-export interface SiteMediaSlot {
-  sourceFilename: string;
+interface SiteMediaSlotBase {
   kind: SiteMediaKind;
   // A video shot upright; its frame keeps the clip's own shape instead of the
   // landscape frame the other featured clips fill.
@@ -25,28 +29,135 @@ export interface SiteMediaSlot {
   expectedTags: readonly string[];
 }
 
+export interface StoredSiteMediaSlot extends SiteMediaSlotBase {
+  sourceFilename: string;
+  videoUrl?: never;
+}
+
+export interface LinkedSiteVideoSlot extends SiteMediaSlotBase {
+  kind: 'video';
+  videoPlatform: 'youtube';
+  videoUrl: string;
+  sourceFilename?: never;
+}
+
+export type SiteMediaSlot = StoredSiteMediaSlot | LinkedSiteVideoSlot;
+
+/** The identity a slot is resolved by, for naming it in a failure. */
+export function siteMediaSlotIdentity(slot: SiteMediaSlot): string {
+  return slot.sourceFilename ?? slot.videoUrl;
+}
+
+const youtube = (id: string): string => `https://www.youtube.com/watch?v=${id}`;
+
 // The named, one-off site slots.
 export const SITE_MEDIA_SLOTS = {
+  // The demo loops. No tag names the slot: the file name already says which
+  // spot a clip fills, so the tags say only what the clip shows.
   net_demo: {
     sourceFilename: 'demo-net.mp4',
     kind: 'video',
-    expectedTags: ['#curated', '#demo_net'],
+    expectedTags: ['#curated', '#net', '#demo'],
   },
   freestyle_demo: {
     sourceFilename: 'demo-freestyle.mp4',
     kind: 'video',
-    expectedTags: ['#curated', '#demo_freestyle', '#freestyle'],
+    expectedTags: ['#curated', '#freestyle', '#demo'],
   },
   consecutives_demo: {
     sourceFilename: 'demo-consecutives.mp4',
     kind: 'video',
     portrait: true,
-    expectedTags: ['#curated', '#demo_consecutives'],
+    expectedTags: ['#curated', '#consecutives', '#demo', '#player_kenny_shults'],
+  },
+  golf_demo: {
+    sourceFilename: 'demo-golf.webm',
+    kind: 'video',
+    expectedTags: ['#curated', '#golf', '#demo'],
+  },
+  circle_kicking_demo: {
+    sourceFilename: 'demo-circle-kicking.webm',
+    kind: 'video',
+    expectedTags: ['#curated', '#sideline', '#demo'],
+  },
+  four_square_demo: {
+    sourceFilename: 'demo-four-square.webm',
+    kind: 'video',
+    expectedTags: ['#curated', '#x_square', '#demo'],
   },
   fountain_shred: {
     sourceFilename: 'fountain-shred.mp4',
     kind: 'video',
-    expectedTags: ['#curated', '#demo_fountain_shred', '#freestyle'],
+    expectedTags: ['#curated', '#freestyle', '#event_2017_worlds_united_states'],
+  },
+  // The net competition-format videos.
+  net_singles: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('Rep-1rQbX-o'),
+    expectedTags: [
+      '#curated', '#net', '#event_2019_worlds_poland',
+      '#player_walt_houston', '#player_sebastien_maillet',
+    ],
+  },
+  net_doubles: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('lcDP3JGvkP0'),
+    expectedTags: [
+      '#curated', '#net', '#event_2019_worlds_poland',
+      '#player_francois_pelletier', '#player_genevieve_bousquet',
+      '#player_florian_goetze', '#player_kerstin_adineh',
+    ],
+  },
+  // The freestyle landing's featured videos.
+  freestyle_circle: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('aMr5e5wlgeE'),
+    expectedTags: ['#curated', '#freestyle', '#circle', '#event_2017_worlds_united_states'],
+  },
+  freestyle_sick_3: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('h6F0aPIpC1o'),
+    expectedTags: ['#curated', '#freestyle', '#sick_3', '#event_2022_worlds_poland'],
+  },
+  freestyle_shred_30: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('wb75xzvAs68'),
+    expectedTags: ['#curated', '#freestyle', '#shred_30', '#player_taishi_ishida'],
+  },
+  freestyle_reese_1988: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('Zdplm0_RaNY'),
+    expectedTags: ['#curated', '#freestyle', '#event_1988_worlds_united_states', '#player_rick_reese'],
+  },
+  freestyle_conlon_1998: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('2URvZFuxBls'),
+    expectedTags: [
+      '#curated', '#freestyle', '#event_1998_worlds_canada',
+      '#player_samantha_conlon', '#player_carol_wedemeyer',
+    ],
+  },
+  freestyle_worlds_2023_team: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('xoDEvsbQDYk'),
+    expectedTags: [
+      '#curated', '#freestyle', '#event_2023_worlds_colombia',
+      '#player_scott_davidson', '#player_tuan_vu',
+    ],
+  },
+  freestyle_san_marino_2026: {
+    kind: 'video',
+    videoPlatform: 'youtube',
+    videoUrl: youtube('U6J2LXxUWro'),
+    expectedTags: ['#curated', '#freestyle', '#player_jim_penske'],
   },
   japan_worlds_promo: {
     sourceFilename: 'japan-worlds-2026.jpg',
@@ -86,7 +197,7 @@ export function mosaicSlotExpectedTags(atomSlug: string): readonly string[] {
  */
 export function allSiteMediaSlots(): SiteMediaSlot[] {
   const named = Object.values(SITE_MEDIA_SLOTS) as SiteMediaSlot[];
-  const mosaic: SiteMediaSlot[] = TRICKS_MOSAIC.map((atom) => ({
+  const mosaic: SiteMediaSlot[] = TRICKS_MOSAIC.map((atom): StoredSiteMediaSlot => ({
     sourceFilename: mosaicClipFilename(atom.slug),
     kind: 'video',
     expectedTags: mosaicSlotExpectedTags(atom.slug),

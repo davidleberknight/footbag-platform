@@ -1,0 +1,47 @@
+# Swiss Footbag Open 2026, Lausanne
+# Source: mirror HTML results block
+# Fix 1: "Americano Pool A" and "Americano Pool B" are dropped. They are the pool
+#         stage of the padel Americano doubles format, where players rotate
+#         partners and the pool ranking only decides the knockout teams; they
+#         list first names with win counts and are not contests of their own.
+#         Read as plain text they were folded into Mixed Doubles Net.
+# Fix 2: "Open Doubles Net Finals" is dropped. It is the score line of the
+#         Open Doubles Net final, whose result is already 1st and 2nd above.
+
+Womens Singles Net
+1. Shirine Daouk
+2. Audrey Tumelin
+3. Sophie Andrey
+
+Open Singles Net
+1. Karim Daouk
+2. Pawel Rozek
+3. Grischa Tellenbach
+4. Eduardo Martinez
+5. Santeri Karvinen
+6. Shirine Daouk
+7. Audrey Tumelin
+8. David Rambaud (scratch)
+9. Julien Apollonio
+10. Baptiste Martin
+11. Francois Stierli
+12. Dang Liu
+13. Marius Corpinot
+14. Sophie Andrey (scratch)
+15. André Calado Coroado (scratch)
+
+Mixed Doubles Net
+1. Shirine Daouk / Karim Daouk
+2. Sophie Andrey / Pawel Rozek
+3. Audrey Tumelin / Grischa Tellenbach
+
+Open Doubles Net
+1. Pawel Rozek / Eduardo Martinez
+2. Karim Daouk / Santeri Karvinen
+3. Grischa Tellenbach / David Rambaud
+4. Audrey Tumelin / Baptiste Martin
+5. Jean-Marie Letort / Silwan Daouk
+6. Shirine Daouk / Dang Liu
+7. Marius Corpinot / Francois Stierli
+8. Julien Apollonio / Tim Heun
+9. Sophie Andrey / André Calado Coroado

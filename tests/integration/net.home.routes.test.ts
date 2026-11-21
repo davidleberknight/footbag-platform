@@ -22,19 +22,26 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertMember, insertCuratorVideo } from '../fixtures/factories';
+import { insertMember, insertCuratorVideo, insertCuratorUrlReference } from '../fixtures/factories';
+import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
+import { SITE_MEDIA_SLOTS } from '../../src/content/siteMedia';
 
 const { dbPath } = setTestEnv('3098');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
+let curatedRoot: string;
 
 beforeAll(async () => {
   createTestDb(dbPath).close();
+  curatedRoot = createScratchDir('net-home-curated');
   createApp = await importApp();
 });
 
-afterAll(() => cleanupTestDb(dbPath));
+afterAll(() => {
+  cleanupTestDb(dbPath);
+  removeScratch(curatedRoot);
+});
 
 // ---------------------------------------------------------------------------
 
@@ -79,6 +86,14 @@ describe('GET /net — portal landing sections', () => {
     expect(res.text).not.toContain('class="demo-video"');
   });
 
+  // Defect caught: a format card whose video is not stored yet disappears, or
+  // renders an empty player, instead of keeping its text without a video.
+  it('keeps both format cards, without a video, while their videos are unstored', async () => {
+    const res = await request(createApp()).get('/net');
+    expect(res.text.match(/class="card format-card"/g)).toHaveLength(2);
+    expect(res.text).not.toContain('class="video-facade"');
+  });
+
   it('renders the curator-owned demo video when an FH-owned #demo_net item is seeded', async () => {
     const seedDb = new BetterSqlite3(dbPath);
     try {
@@ -114,6 +129,26 @@ describe('GET /net — portal landing sections', () => {
   });
 
   it('lazy-loads YouTube videos in competition-format cards via the video-facade partial', async () => {
+    const seedDb = new BetterSqlite3(dbPath);
+    try {
+      const system = seedDb.prepare('SELECT id FROM members WHERE is_system = 1 LIMIT 1').get() as { id: string } | undefined;
+      const fhId = system?.id ?? insertMember(seedDb, { is_system: 1, slug: 'fh-net-formats' });
+      for (const slot of [SITE_MEDIA_SLOTS.net_singles, SITE_MEDIA_SLOTS.net_doubles]) {
+        insertCuratorUrlReference(seedDb, {
+          uploaderMemberId: fhId,
+          curatedRoot,
+          category: 'site_videos',
+          primarySlug: 'net_format',
+          videoUrl: slot.videoUrl,
+          videoPlatform: 'youtube',
+          videoId: new URL(slot.videoUrl).searchParams.get('v')!,
+          tags: ['#net'],
+        });
+      }
+    } finally {
+      seedDb.close();
+    }
+
     const app = createApp();
     const res = await request(app).get('/net');
 

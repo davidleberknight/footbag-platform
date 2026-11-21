@@ -22,6 +22,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { SITE_MEDIA_SLOTS } from '../../src/content/siteMedia';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
@@ -69,6 +70,9 @@ describe('check-media-integrity.sh exit contract', () => {
     expect(res.status, res.stdout + res.stderr).toBe(1);
     expect(res.stderr).toContain('no active FH media row');
     expect(res.stderr).toContain('check-media-integrity: FAIL');
+    // A slot hosted on YouTube is checked too, named by its watch URL; skipping
+    // it would let a page lose a featured video with the deploy gate green.
+    expect(res.stderr).toContain(`SLOT ${SITE_MEDIA_SLOTS.net_singles.videoUrl}: no active FH media row`);
   });
 
   it('exits 2 when it cannot open the database at all', () => {

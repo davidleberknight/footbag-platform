@@ -27,7 +27,7 @@
 // import time, so this must come first).
 import 'dotenv/config';
 import BetterSqlite3 from 'better-sqlite3';
-import { allSiteMediaSlots } from '../src/content/siteMedia';
+import { allSiteMediaSlots, siteMediaSlotIdentity } from '../src/content/siteMedia';
 
 const DB = process.env.FOOTBAG_DB_PATH ?? './database/footbag.db';
 
@@ -53,12 +53,22 @@ async function main(): Promise<void> {
   `).all() as KeyRow[];
 
   // Site-content slot resolution: each registry slot must resolve to one active
-  // FH-owned (system member) media row by its stable source filename.
+  // FH-owned (system member) media row, a stored slot by its stable source
+  // filename and a linked slot by its platform and watch URL.
   const slotStmt = db.prepare(`
     SELECT mi.id, mi.media_type, mi.video_id, mi.s3_key_display
     FROM media_items mi
     JOIN members m ON m.id = mi.uploader_member_id
     WHERE mi.source_filename = ? AND m.is_system = 1 AND mi.moderation_status = 'active'
+    LIMIT 1
+  `);
+  const linkedSlotStmt = db.prepare(`
+    SELECT mi.id, mi.media_type, mi.video_id, mi.s3_key_display
+    FROM media_items mi
+    JOIN members m ON m.id = mi.uploader_member_id
+    WHERE mi.video_platform = ? AND mi.video_url = ?
+      AND m.is_system = 1 AND mi.moderation_status = 'active'
+    ORDER BY mi.id
     LIMIT 1
   `);
   const tagStmt = db.prepare(`
@@ -67,7 +77,9 @@ async function main(): Promise<void> {
     WHERE mt.media_id = ?
   `);
   const slotChecks = allSiteMediaSlots().map((slot) => {
-    const row = slotStmt.get(slot.sourceFilename) as SlotRow | undefined;
+    const row = (slot.videoUrl !== undefined
+      ? linkedSlotStmt.get(slot.videoPlatform, slot.videoUrl)
+      : slotStmt.get(slot.sourceFilename)) as SlotRow | undefined;
     const tags = row ? (tagStmt.all(row.id) as { tag: string }[]).map((r) => r.tag) : [];
     return { slot, row, tags };
   });
@@ -94,22 +106,25 @@ async function main(): Promise<void> {
 
   const slotFailures: string[] = [];
   for (const { slot, row, tags } of slotChecks) {
-    if (!row) { slotFailures.push(`  SLOT ${slot.sourceFilename}: no active FH media row`); continue; }
+    const label = siteMediaSlotIdentity(slot);
+    if (!row) { slotFailures.push(`  SLOT ${label}: no active FH media row`); continue; }
     if (row.media_type !== slot.kind) {
-      slotFailures.push(`  SLOT ${slot.sourceFilename}: expected ${slot.kind}, got ${row.media_type}`);
+      slotFailures.push(`  SLOT ${label}: expected ${slot.kind}, got ${row.media_type}`);
       continue;
     }
     const missingTags = slot.expectedTags.filter((t) => !tags.includes(t.toLowerCase()));
     if (missingTags.length > 0) {
-      slotFailures.push(`  SLOT ${slot.sourceFilename}: missing tags ${missingTags.join(' ')}`);
+      slotFailures.push(`  SLOT ${label}: missing tags ${missingTags.join(' ')}`);
     }
+    // A linked slot's video lives on its platform, so it has no stored bytes.
+    if (slot.videoUrl !== undefined) continue;
     const key = slot.kind === 'video' ? row.video_id : row.s3_key_display;
     if (!key) {
-      slotFailures.push(`  SLOT ${slot.sourceFilename}: row has no stored-bytes key`);
+      slotFailures.push(`  SLOT ${label}: row has no stored-bytes key`);
       continue;
     }
     if (!(await adapter.exists(key))) {
-      slotFailures.push(`  SLOT ${slot.sourceFilename}: bytes absent (${key})`);
+      slotFailures.push(`  SLOT ${label}: bytes absent (${key})`);
     }
   }
 

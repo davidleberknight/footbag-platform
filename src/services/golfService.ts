@@ -7,11 +7,12 @@
  * Rendering contract:
  *   - getGolfPage() returns PageViewModel<GolfContent>.
  *   - Static hero carrying the golf artwork as its mascot, then the Footbag Golf section with its
- *     demo .webm clip and internal "More info" links (the golf rules, the golf section of the
+ *     curated demo clip (absent until the curator seed stores it) and internal "More info" links (the golf rules, the golf section of the
  *     equipment page). The section repeats no icon, since the hero carries the artwork.
  */
 import { PageViewModel } from '../types/page';
 import { SportSectionContent, SportSectionGame } from '../types/sportSection';
+import { loadSiteVideo } from './siteMediaService';
 
 export type GolfContent = SportSectionContent;
 
@@ -23,10 +24,8 @@ const FOOTBAG_GOLF: SportSectionGame = {
   paragraphs: [
     'In the same way disc golf combines traditional golf with disc throwing, footbag golf combines it with kicking. Set up a small course with obstacles and trees, pick a target hole, and try to kick the footbag into it in as few shots as possible.',
   ],
-  demoVideo: {
-    webmUrl: '/video/sideline/golf.webm',
-    caption: 'Footbag golf demo',
-  },
+  // Filled per request from the curated golf demo slot.
+  demoVideo: null,
   moreInfo: [
     {
       label: 'IFPA Footbag Golf Rules (Article IV)',
@@ -54,7 +53,7 @@ export const golfService = {
       content: {
         mascot: { src: '/img/sideline-icon-golf.svg', alt: 'Footbag flying toward a golf flag' },
         explainer: null,
-        games: [FOOTBAG_GOLF],
+        games: [{ ...FOOTBAG_GOLF, demoVideo: loadSiteVideo('golf_demo') }],
       },
     };
   },

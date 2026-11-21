@@ -3315,6 +3315,7 @@ Success Criteria, Category creation (before go-live, on a developer machine):
 - Admin enters a new category name during upload (e.g. `tutorials`, `news`); the seeder creates `/curated/{name}/` on next deploy.
 - Filesystem is the source of truth for category existence; no code-side whitelist of valid categories. Category names follow a slug convention (lowercase letters, digits and underscores).
 - The `#curated` marker is auto-applied to every FH upload regardless of category. A category adds no hashtags of its own; every item gets `#curated` plus the admin-selected hashtags.
+- Every curated video also carries at least one hashtag naming what it shows (its sport, trick, event or player), so browsing media finds it.
 
 Audit:
 

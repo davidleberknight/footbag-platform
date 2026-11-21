@@ -1,14 +1,33 @@
-import { describe, it, expect } from 'vitest';
-import { xSquareService } from '../../src/services/xSquareService';
-import { golfService } from '../../src/services/golfService';
-import { sidelineService } from '../../src/services/sidelineService';
-import { getRulePage } from '../../src/lib/rulesLoader';
+/**
+ * The game section landing pages (X-Square, Golf, Sideline): each page's
+ * section, its games, and its "More info" links. The pages read their demo
+ * clips from the stored curated media, so they are shaped against a test
+ * database; a schema-only one is enough here, since no case reads a clip.
+ */
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
-const pages = {
-  'x-square': xSquareService.getXSquarePage(),
-  golf: golfService.getGolfPage(),
-  sideline: sidelineService.getSidelinePage(),
-};
+import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+
+const { dbPath } = setTestEnv('3964');
+
+type Page = ReturnType<typeof import('../../src/services/golfService').golfService.getGolfPage>;
+let pages: Record<'x-square' | 'golf' | 'sideline', Page>;
+let getRulePage: typeof import('../../src/lib/rulesLoader').getRulePage;
+
+beforeAll(async () => {
+  createTestDb(dbPath).close();
+  const { xSquareService } = await import('../../src/services/xSquareService');
+  const { golfService } = await import('../../src/services/golfService');
+  const { sidelineService } = await import('../../src/services/sidelineService');
+  ({ getRulePage } = await import('../../src/lib/rulesLoader'));
+  pages = {
+    'x-square': xSquareService.getXSquarePage(),
+    golf: golfService.getGolfPage(),
+    sideline: sidelineService.getSidelinePage(),
+  };
+});
+
+afterAll(() => cleanupTestDb(dbPath));
 
 describe('game section landing pages (X-Square, Golf, Sideline)', () => {
   // Defect caught: a page carries the wrong section key, so analytics and the

@@ -65,7 +65,7 @@ import { NotFoundError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { personHref } from './personLink';
 import { PLAYER_TAG_PREFIX } from './slugify';
-import { VideoMedia, expandYouTubeVideo, expandVideoFromMediaItem } from './videoMedia';
+import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 import { shapePartnershipPair } from './playerShaping';
 import {
   FreestyleRecordViewModel,
@@ -7942,9 +7942,65 @@ export const freestyleService = {
 
     const totalRecords = typeCounts.reduce((sum, r) => sum + r.n, 0);
 
-    // The one self-hosted featured clip; absent until the curator seed has
-    // stored it, in which case the strip shows the YouTube seven alone.
-    const fountainShred = loadSiteVideoMedia('fountain_shred', 'Fountain Shred');
+    // Merged Featured strip: competition formats and demonstrations in one
+    // compact curated grid. Formats lead because they're conceptual anchors
+    // of the vocabulary; demonstrations follow as exemplars.
+    // No prose paragraphs; captions are one-line context max.
+    // Every featured clip is a curated media row; a card whose row the curator
+    // seed has not stored yet is left out of the strip rather than shown empty.
+    const featuredCards: Array<Omit<FreestyleFeaturedItem, 'media'> & { media: VideoMedia | null }> = [
+      {
+        key:     'circle',
+        title:   'Circle',
+        caption: 'Turn-based show-off format.',
+        media:   loadSiteVideoMedia('freestyle_circle', 'Worlds 2017 Open Circle Finals'),
+      },
+      {
+        key:     'sick3',
+        title:   'Sick 3',
+        caption: 'Best-trick chain of three.',
+        media:   loadSiteVideoMedia('freestyle_sick_3', 'World Footbag Championships 2022: Sick 3'),
+      },
+      {
+        key:     'shred30',
+        title:   'Shred 30',
+        caption: 'Thirty-second technical scoring.',
+        media:   loadSiteVideoMedia('freestyle_shred_30', 'Taishi Ishida, World Footbag Championships 2020 Shred 30'),
+      },
+      {
+        key:     'reese-1988',
+        title:   '1988 World Footbag Championships: Freestyle Routine',
+        caption: 'Featuring Rick Reese (a representative of early freestyle).',
+        media:   loadSiteVideoMedia('freestyle_reese_1988', 'Rick Reese, Worlds 1988 Freestyle Routine'),
+      },
+      {
+        key:     'conlon-1998',
+        title:   "1998 World Footbag Championships Women's Freestyle Finals",
+        caption: 'Samantha Conlon and Carol Wedemeyer.',
+        media:   loadSiteVideoMedia('freestyle_conlon_1998', "1998 Worlds Women's Freestyle Finals"),
+      },
+      {
+        key:     'worlds-2023-team',
+        title:   'World Footbag Championships 2023: Team Freestyle Finals (1st Place)',
+        caption: 'Scott Davidson and Tuan Vu. Medellín, Colombia.',
+        media:   loadSiteVideoMedia('freestyle_worlds_2023_team', 'Worlds 2023 Team Freestyle Finals, 1st Place'),
+      },
+      {
+        key:     'san-marino-2026',
+        title:   'Footbag 2026: San Marino',
+        caption: 'Featuring Jim Penske; footage by jay7bah.',
+        media:   loadSiteVideoMedia('freestyle_san_marino_2026', 'Footbag 2026: San Marino'),
+      },
+      {
+        key:     'fountain-shred',
+        title:   'Fountain Shred',
+        caption: 'Worlds 2017 Portland sideline shred at the fountain temple.',
+        media:   loadSiteVideoMedia('fountain_shred', 'Fountain Shred'),
+      },
+    ];
+    const featured = featuredCards.filter(
+      (card): card is FreestyleFeaturedItem => card.media !== null,
+    );
 
     return {
       seo: {
@@ -7970,60 +8026,7 @@ export const freestyleService = {
           ],
         },
         demoVideo: loadSiteVideo('freestyle_demo'),
-        // Merged Featured strip: competition formats and demonstrations in one
-        // compact curated grid. Formats lead because they're conceptual anchors
-        // of the vocabulary; demonstrations follow as exemplars.
-        // No prose paragraphs — captions are one-line context max.
-        featured: [
-          {
-            key:     'circle',
-            title:   'Circle',
-            caption: 'Turn-based show-off format.',
-            media:   expandYouTubeVideo('aMr5e5wlgeE', 'Worlds 2017 Open Circle Finals'),
-          },
-          {
-            key:     'sick3',
-            title:   'Sick 3',
-            caption: 'Best-trick chain of three.',
-            media:   expandYouTubeVideo('h6F0aPIpC1o', 'World Footbag Championships 2022: Sick 3'),
-          },
-          {
-            key:     'shred30',
-            title:   'Shred 30',
-            caption: 'Thirty-second technical scoring.',
-            media:   expandYouTubeVideo('wb75xzvAs68', 'Taishi Ishida, World Footbag Championships 2020 Shred 30'),
-          },
-          {
-            key:     'reese-1988',
-            title:   '1988 World Footbag Championships: Freestyle Routine',
-            caption: 'Featuring Rick Reese (a representative of early freestyle).',
-            media:   expandYouTubeVideo('Zdplm0_RaNY', 'Rick Reese, Worlds 1988 Freestyle Routine'),
-          },
-          {
-            key:     'conlon-1998',
-            title:   "1998 World Footbag Championships Women's Freestyle Finals",
-            caption: 'Samantha Conlon and Carol Wedemeyer.',
-            media:   expandYouTubeVideo('2URvZFuxBls', "1998 Worlds Women's Freestyle Finals"),
-          },
-          {
-            key:     'worlds-2023-team',
-            title:   'World Footbag Championships 2023: Team Freestyle Finals (1st Place)',
-            caption: 'Scott Davidson and Tuan Vu. Medellín, Colombia.',
-            media:   expandYouTubeVideo('xoDEvsbQDYk', 'Worlds 2023 Team Freestyle Finals, 1st Place'),
-          },
-          {
-            key:     'san-marino-2026',
-            title:   'Footbag 2026: San Marino',
-            caption: 'Featuring Jim Penske; footage by jay7bah.',
-            media:   expandYouTubeVideo('U6J2LXxUWro', 'Footbag 2026: San Marino'),
-          },
-          ...(fountainShred ? [{
-            key:     'fountain-shred',
-            title:   'Fountain Shred',
-            caption: 'Worlds 2017 Portland sideline shred at the fountain temple.',
-            media:   fountainShred,
-          }] : []),
-        ],
+        featured,
         totalTricks:  trickRows.length,
         totalRecords,
       },

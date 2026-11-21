@@ -33,10 +33,15 @@ import {
   insertFreestyleTrickAlias,
   insertFreestyleTrickModifierLink,
   insertTtLesson,
+  insertCuratorUrlReference,
 } from '../fixtures/factories';
+import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { FREESTYLE_ADD_ANALYSIS_CONTENT } from '../../src/content/freestyleAddAnalysisContent';
+import { SITE_MEDIA_SLOTS } from '../../src/content/siteMedia';
 
 const { dbPath } = setTestEnv('3080');
+
+let curatedRoot: string;
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -242,11 +247,39 @@ beforeAll(async () => {
   seedStagedOperatorsAndModifiers(db);
   // paradox-mirage uses paradox, so Paradox has a page in the modifier view.
   insertFreestyleTrickModifierLink(db, 'paradox-mirage', 'paradox');
+
+  // The landing's featured YouTube videos, stored as curated media under the
+  // slots the featured strip reads.
+  curatedRoot = createScratchDir('freestyle-routes-curated');
+  const curatorId = insertMember(db, { is_system: 1, slug: 'fh-freestyle-routes' });
+  for (const slot of [
+    SITE_MEDIA_SLOTS.freestyle_circle,
+    SITE_MEDIA_SLOTS.freestyle_sick_3,
+    SITE_MEDIA_SLOTS.freestyle_shred_30,
+    SITE_MEDIA_SLOTS.freestyle_reese_1988,
+    SITE_MEDIA_SLOTS.freestyle_conlon_1998,
+    SITE_MEDIA_SLOTS.freestyle_worlds_2023_team,
+    SITE_MEDIA_SLOTS.freestyle_san_marino_2026,
+  ]) {
+    insertCuratorUrlReference(db, {
+      uploaderMemberId: curatorId,
+      curatedRoot,
+      category: 'site_videos',
+      primarySlug: 'featured',
+      videoUrl: slot.videoUrl,
+      videoPlatform: 'youtube',
+      videoId: new URL(slot.videoUrl).searchParams.get('v')!,
+      tags: ['#freestyle'],
+    });
+  }
   db.close();
   createApp = await importApp();
 });
 
-afterAll(() => cleanupTestDb(dbPath));
+afterAll(() => {
+  cleanupTestDb(dbPath);
+  removeScratch(curatedRoot);
+});
 
 // ---------------------------------------------------------------------------
 

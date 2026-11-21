@@ -1,9 +1,10 @@
 /**
  * Shared loader for fixed site-content media (the registry in
  * `src/content/siteMedia.ts`). Resolves a slot to its seeded curator
- * media_items row by stable source filename and shapes the playable URL through
- * the storage adapter, so the net/freestyle/event landing surfaces share one
- * loader instead of three near-identical copies.
+ * media_items row, a stored slot by its stable source filename and a linked
+ * YouTube slot by its watch URL, and shapes the playable media, so every page
+ * that features a video plays the tagged media row rather than a file or link
+ * of its own.
  *
  * Returns null/undefined when the slot's row is absent (e.g. before the curator
  * seed has run), so a surface degrades to its empty state rather than erroring.
@@ -29,6 +30,14 @@ function rowForFilename(sourceFilename: string): CuratorSlotMediaRow | undefined
   return media.getCuratorMediaByFilename.get(sourceFilename) as CuratorSlotMediaRow | undefined;
 }
 
+function rowForSlot(slot: SiteMediaSlot): CuratorSlotMediaRow | undefined {
+  if (slot.videoUrl !== undefined) {
+    return media.getCuratorMediaByVideoUrl.get(slot.videoPlatform, slot.videoUrl) as
+      CuratorSlotMediaRow | undefined;
+  }
+  return rowForFilename(slot.sourceFilename);
+}
+
 function shapeVideo(row: CuratorSlotMediaRow | undefined, isPortrait = false): SiteVideo | null {
   if (!row || row.media_type !== 'video' || !row.video_id) return null;
   const adapter = getMediaStorageAdapter();
@@ -49,15 +58,16 @@ function shapePhotoUrl(row: CuratorSlotMediaRow | undefined): string | undefined
 /** Load a named video slot (e.g. `net_demo`, `freestyle_demo`). */
 export function loadSiteVideo(slot: SiteMediaSlotKey): SiteVideo | null {
   const entry: SiteMediaSlot = SITE_MEDIA_SLOTS[slot];
-  return shapeVideo(rowForFilename(entry.sourceFilename), entry.portrait === true);
+  return shapeVideo(rowForSlot(entry), entry.portrait === true);
 }
 
 /**
  * Load a named video slot as click-to-play facade media, for a slot shown among
- * other featured videos rather than as a looping demo.
+ * other featured videos rather than as a looping demo. A stored slot plays from
+ * the media store; a linked slot embeds its YouTube video.
  */
 export function loadSiteVideoMedia(slot: SiteMediaSlotKey, videoTitle: string): VideoMedia | null {
-  const row = rowForFilename(SITE_MEDIA_SLOTS[slot].sourceFilename);
+  const row = rowForSlot(SITE_MEDIA_SLOTS[slot]);
   if (!row || row.media_type !== 'video') return null;
   const adapter = getMediaStorageAdapter();
   return expandVideoFromMediaItem(row, {
@@ -68,7 +78,7 @@ export function loadSiteVideoMedia(slot: SiteMediaSlotKey, videoTitle: string): 
 
 /** Load a named photo slot's display URL (e.g. `japan_worlds_promo`). */
 export function loadSitePhotoUrl(slot: SiteMediaSlotKey): string | undefined {
-  return shapePhotoUrl(rowForFilename(SITE_MEDIA_SLOTS[slot].sourceFilename));
+  return shapePhotoUrl(rowForSlot(SITE_MEDIA_SLOTS[slot]));
 }
 
 /** Load one foundations-mosaic clip by its core-atom slug. */

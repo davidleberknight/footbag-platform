@@ -24,7 +24,9 @@ import {
   insertResultParticipant,
   insertHistoricalPerson,
   insertClub,
+  insertCuratorVideo,
 } from '../fixtures/factories';
+import { SITE_MEDIA_SLOTS } from '../../src/content/siteMedia';
 
 // ── Event keys (derived from tag_normalized, minus the leading #) ──────────────
 const SPRING_CLASSIC_KEY = 'event_2026_spring_classic';
@@ -248,8 +250,27 @@ async function buildTestDatabase(): Promise<void> {
     }),
   });
 
+  // The game sections' demo clips, stored as curated media under the slot
+  // each section plays.
+  const curatorId = insertMember(db, { is_system: 1, slug: 'fh-app-routes' });
+  for (const [path, slot] of [
+    ['/golf', SITE_MEDIA_SLOTS.golf_demo],
+    ['/sideline', SITE_MEDIA_SLOTS.circle_kicking_demo],
+    ['/x-square', SITE_MEDIA_SLOTS.four_square_demo],
+  ] as const) {
+    const mediaId = insertCuratorVideo(db, {
+      uploaderMemberId: curatorId,
+      sourceFilename: slot.sourceFilename,
+      slotTag: slot.expectedTags[1],
+    });
+    GAME_CLIPS[path] = `${mediaId}-video.mp4`;
+  }
+
   db.close();
 }
+
+// The stored clip each game section plays, by page.
+const GAME_CLIPS: Record<string, string> = {};
 
 beforeAll(async () => {
   await buildTestDatabase();
@@ -605,18 +626,18 @@ describe('GET /', () => {
 
 describe('game section pages (X-Square, Golf, Sideline)', () => {
   const GAME_PAGES = [
-    { path: '/x-square', label: 'X-Square', clips: ['/video/sideline/foursquare.webm'] },
-    { path: '/golf',     label: 'Golf',     clips: ['/video/sideline/golf.webm'] },
-    { path: '/sideline', label: 'Sideline', clips: ['/video/sideline/hackysack.webm'] },
+    { path: '/x-square', label: 'X-Square' },
+    { path: '/golf',     label: 'Golf' },
+    { path: '/sideline', label: 'Sideline' },
   ];
 
   // Defect caught: a section's page renders without its own demo clip, or its
   // nav entry never shows as the one the visitor is on.
   it('renders each section with its own clip and its nav entry active', async () => {
-    for (const { path, label, clips } of GAME_PAGES) {
+    for (const { path, label } of GAME_PAGES) {
       const res = await page(path);
       expect(res.status, path).toBe(200);
-      for (const clip of clips) expect(res.text, `${path} ${clip}`).toContain(clip);
+      expect(res.text, `${path} clip`).toContain(GAME_CLIPS[path]);
       expect(res.text, path).toMatch(new RegExp(`<a href="${path}" class="active">${label}</a>`));
     }
   });
@@ -677,8 +698,8 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
     const res = await page('/sideline');
     expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
     expect(res.text).toContain('<a href="/x-square">X-Square games</a>');
-    expect(res.text).not.toContain('/video/sideline/foursquare.webm');
-    expect(res.text).not.toContain('/video/sideline/golf.webm');
+    expect(res.text).not.toContain(GAME_CLIPS['/x-square']);
+    expect(res.text).not.toContain(GAME_CLIPS['/golf']);
     expect(res.text).not.toContain('href="/rules/');
   });
 

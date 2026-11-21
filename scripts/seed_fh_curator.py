@@ -1227,7 +1227,10 @@ def ensure_fh_named_galleries(
     print(f"  → Ensured {len(galleries)} FH-owned named gallery row(s).")
 
 
-URL_REF_SIDECAR_SUBDIRS = ("freestyle_tricks", "freestyle_tutorials", "individual_shred")
+# site_videos/ holds the YouTube videos a page features in a fixed spot (the
+# net format videos, the freestyle landing's featured strip); the site-media
+# registry finds each one by its watch URL.
+URL_REF_SIDECAR_SUBDIRS = ("freestyle_tricks", "freestyle_tutorials", "individual_shred", "site_videos")
 
 
 def seed_freestyle_tricks_sidecars(
