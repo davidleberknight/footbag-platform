@@ -1049,8 +1049,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2000_emeraldcity,open_singles_net,Open Singles Net,net,singles,6,complete,,0
 2000_emeraldcity,womens_doubles_net,Women's Doubles Net,net,doubles,7,complete,,0
 2000_emeraldcity,womens_singles_net,Women's Singles Net,net,singles,8,complete,,0
-2000_eurochamp_paris,european_rankings_for_open_doubles_net,European Rankings For Open Doubles Net,net,doubles,1,complete,,0
-2000_eurochamp_paris,european_rankings_for_open_singles_net,European Rankings For Open Singles Net,net,singles,3,complete,,0
 2000_eurochamp_paris,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,5,complete,,0
 2000_eurochamp_paris,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,6,complete,,0
 2000_eurochamp_paris,intermediate_singles_net,Intermediate Singles Net,net,singles,7,complete,,0
@@ -1716,7 +1714,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2004_drunken_masters,drunken_masters,Drunken Masters,net,doubles,1,complete,,0
 2004_finnish_naantali,open_singles_net,Open Singles Net,net,singles,1,mostly_complete,,0
 2004_footbagjam_frankfurt_2,open_double_net,Open Double Net,net,doubles,1,complete,,0
-2004_footbagjam_frankfurt_2,open_fives_net,Open Fives Net,net,singles,2,mostly_complete,,0
 2004_footbagjam_frankfurt_2,open_freestyle,Open Freestyle,freestyle,singles,3,partial,,0
 2004_footbagjam_frankfurt_2,open_golf,Open Golf,golf,singles,4,complete,,0
 2004_footbagjam_frankfurt_2,open_net_fives,Open Net Fives,net,singles,5,unresolved,,0

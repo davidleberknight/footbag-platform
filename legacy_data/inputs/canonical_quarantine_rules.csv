@@ -61,4 +61,7 @@ event_key,discipline_key,quarantine_scope,trigger_pattern,rationale,confidence,a
 1998_vancouver,unknown,discipline_all,,"The page title (""12th Annual Vancouver Open"") read as a 12th place with no name; not a result",confirmed,1
 1999_vancouver,unknown,discipline_all,,"The page title (""13th Annual Vancouver Open"") read as a 13th place with no name; not a result",confirmed,1
 2011_usopen_portland,unknown,discipline_all,,"Duplicate of the event's Mixed Doubles list, the same ten teams in the same order; the Mixed Doubles list is kept",confirmed,1
+2000_eurochamp_paris,european_rankings_for_open_singles_net,discipline_all,,Re-ranks the European players of the event's Open singles net; not a contest of its own,confirmed,1
+2000_eurochamp_paris,european_rankings_for_open_doubles_net,discipline_all,,Re-ranks the European teams of the event's Open doubles net; not a contest of its own,confirmed,1
+2004_footbagjam_frankfurt_2,open_fives,discipline_all,,"Duplicate of the event's Open Net Fives list, missing its 3rd place; the full list is kept",confirmed,1
 2004_russian_1,unknown,discipline_all,,"The page's Open Doubles Net lists team names only (Footcraft, Team Spirit) and no players; a result must name its competitors, and team names never become persons",confirmed,1
