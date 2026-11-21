@@ -7,7 +7,7 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 1998_worlds_montreal,womens_open_doubles_distance_one_pass,retag_team_type,Women's Open Doubles Distance One-Pass,doubles,,doubles,confirmed,Distance one-pass is a sideline contest; team type unchanged.,Discipline order review,1,,sideline
 2007_footbagjam_warsaw,four_square,retag_team_type,Four Square,singles,,singles,confirmed,Four square is a sideline contest; team type unchanged.,Discipline order review,1,,sideline
 2007_usopen_portland,intermediate_big_3,retag_team_type,Intermediate Big 3,singles,,singles,confirmed,The page lists each player's three tricks; a Big 3 is a freestyle contest. Team type unchanged.,mirror event 1176318174,1,,freestyle
-1986_worlds_golden,footbag_net_score_keepers_contest,retag_team_type,Footbag Net Score Keeper's Contest,singles,,doubles,confirmed,All 5/5 placements have 2 participants — structurally doubles,Structural analysis,1,
+1986_worlds_golden,footbag_net_score_keepers_contest,rename_and_retag,Footbag Net Score Keeper's Contest,singles,Net Score Keeper's Contest,doubles,confirmed,All 5/5 placements have 2 participants — structurally doubles; category names drop the word Footbag,Structural analysis,1,
 2003_kick_til_youre,open,rename_discipline,Open,singles,Open Shred 30,,confirmed,"The page's Shred 30 Open list; the Sick 3 Open list was merged in as second players",mirror event 1058877971,1,,
 2003_shred_zero_summer,intermediate_30_second_shred,retag_team_type,Intermediate 30 Second Shred,singles,,doubles,confirmed,3/3 placements have 2 participants — structurally doubles,Structural analysis,1,
 2004_seattle_juggling,sick_3,retag_team_type,Sick 3,singles,,doubles,confirmed,6/6 placements have 2 participants — structurally doubles,Structural analysis,1,
@@ -101,3 +101,6 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 2008_eastregion,singles_routines,rename_discipline,Singles Routines,singles,Intermediate Singles Routines,,confirmed,"The page's intermediate column, beside the open one",mirror event 1220466807,1,,
 2018_xviii_polish_krakow,footbag_freestyle,rename_discipline,Footbag Freestyle,singles,Overall Polish Freestyle,,confirmed,"The page's ""Overall Polish Freestyle (summary of all freestyle events)""",mirror event 1531284609,1,,
 1993_louisiana_state,singles_footbag_net,rename_discipline,Singles Footbag Net,singles,Singles Net (Level Not Stated),,confirmed,"A second singles net contest, beside Open, whose level the source does not print",curated fbw_1993_louisiana_state.csv,1,,
+2012_usopen_net_portland,unknown,rename_discipline,Unknown,doubles,Mixed Doubles Net,,confirmed,"The page's ""Mixed Doubles: (12 teams!)"" heading did not parse; the event has no other mixed list",mirror event 1320803601,1,,
+2001_estonian,footbag_freestyle_overall,rename_discipline,Footbag Freestyle Overall,singles,Freestyle Overall,,confirmed,Category names drop the word Footbag,ruling,1,,
+2001_estonian,footbag_net_overall,rename_discipline,Footbag Net Overall,doubles,Net Overall,,confirmed,Category names drop the word Footbag,ruling,1,,

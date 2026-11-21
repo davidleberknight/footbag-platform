@@ -57,3 +57,7 @@ event_key,discipline_key,quarantine_scope,trigger_pattern,rationale,confidence,a
 2001_eurochamp_prague,european_doubles_net,discipline_all,,Re-ranks the European teams of the event's Open doubles net; not a contest of its own,confirmed,1
 2001_first_eugene_freekout,45_second_shred,discipline_all,,"A leftover piece of the event's Intermediate 45 Second Shred list (its 5th place), stored again; the full list is kept",confirmed,1
 2001_first_eugene_freekout,sick_10_trick,discipline_all,,"A leftover piece of the event's Intermediate Sick 10 Trick list (its tie at 4th), stored again; the full list is kept",confirmed,1
+1998_emeraldcity,unknown,discipline_all,,"The page title (""15th Annual Emerald City Open"") read as a 15th place with no name; not a result",confirmed,1
+1998_vancouver,unknown,discipline_all,,"The page title (""12th Annual Vancouver Open"") read as a 12th place with no name; not a result",confirmed,1
+1999_vancouver,unknown,discipline_all,,"The page title (""13th Annual Vancouver Open"") read as a 13th place with no name; not a result",confirmed,1
+2011_usopen_portland,unknown,discipline_all,,"Duplicate of the event's Mixed Doubles list, the same ten teams in the same order; the Mixed Doubles list is kept",confirmed,1

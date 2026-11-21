@@ -229,7 +229,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1986_worlds_golden,intermediate_doubles_footbag_net,Intermediate Doubles Footbag Net,net,doubles,18,partial,,0
 1986_worlds_golden,open_overall_standings,Open Overall Standings,,singles,19,partial,,1
 1986_worlds_golden,womens_overall_standings,Women's Overall Standings,,singles,20,partial,,1
-1986_worlds_golden,footbag_net_score_keepers_contest,Footbag Net Score Keeper's Contest,net,singles,21,partial,,0
+1986_worlds_golden,footbag_net_score_keepers_contest,Net Score Keeper's Contest,net,singles,21,partial,,0
 1986_worlds_golden,footbag_consecutive_counters_contest,Footbag Consecutive Counter's Contest,sideline,singles,22,partial,,0
 1986_eastregion_long_branch,advanced_doubles_net,Advanced Doubles Net,net,doubles,1,complete,,0
 1986_eastregion_long_branch,advanced_singles_net,Advanced Singles Net,net,singles,2,complete,,0
@@ -690,7 +690,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_vancouver,open_doubles_net,Open Doubles Net,net,doubles,7,unresolved,,0
 1998_vancouver,open_singles_golf,Open Singles Golf,golf,singles,8,complete,,0
 1998_vancouver,open_singles_net,Open Singles Net,net,singles,9,complete,,0
-1998_vancouver,unknown,Unknown,net,singles,10,complete,,0
 1998_vancouver,womens_doubles_net,Women's Doubles Net,net,doubles,11,partial,,0
 1998_vancouver,womens_singles_net,Women's Singles Net,net,singles,12,complete,,0
 1998_funtastik_summer,amateur_freestyle,Amateur Freestyle,freestyle,singles,1,complete,,0
@@ -716,7 +715,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_emeraldcity,open_doubles_footbag_net,Open Doubles Footbag Net,net,doubles,9,complete,,0
 1998_emeraldcity,open_footbag_golf,Open Footbag Golf,golf,singles,10,complete,,0
 1998_emeraldcity,open_singles_footbag_net,Open Singles Footbag Net,net,singles,11,complete,,0
-1998_emeraldcity,unknown,Unknown,net,singles,12,complete,,0
 1998_emeraldcity,womens_singles_footbag_net,Women's Singles Footbag Net,net,singles,13,complete,,0
 1998_beaver_open,draw_partners_net,Draw Partners Net,net,doubles,1,complete,,0
 1998_beaver_open,juggle_golf,Juggle Golf,golf,singles,2,partial,,0
@@ -854,7 +852,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1999_vancouver,open_doubles_golf,Open Doubles Golf,golf,doubles,6,complete,,0
 1999_vancouver,open_singles_net,Open Singles Net,net,singles,7,partial,,0
 1999_vancouver,open_singles_golf,Open Singles Golf,golf,singles,8,complete,,0
-1999_vancouver,unknown,Unknown,net,singles,9,complete,,0
 1999_funtastik_summer,amateur_golf,Amateur Golf,golf,singles,1,complete,,0
 1999_funtastik_summer,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,2,complete,,0
 1999_funtastik_summer,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,3,complete,,0
@@ -1219,9 +1216,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2001_eastregion,open_freestyle,Open Freestyle,freestyle,singles,10,mostly_complete,,0
 2001_eastregion,open_golf,Open Golf,golf,singles,11,complete,,0
 2001_eastregion,open_singles_net,Open Singles Net,net,singles,12,complete,,0
-2001_estonian,footbag_freestyle_overall,Footbag Freestyle Overall,freestyle,singles,1,complete,,0
+2001_estonian,footbag_freestyle_overall,Freestyle Overall,freestyle,singles,1,complete,,0
 2001_estonian,footbag_net_estonia,Footbag Net Estonia,net,doubles,2,complete,,0
-2001_estonian,footbag_net_overall,Footbag Net Overall,net,doubles,3,complete,,0
+2001_estonian,footbag_net_overall,Net Overall,net,doubles,3,complete,,0
 2001_eurochamp_prague,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,5,complete,,0
 2001_eurochamp_prague,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,6,complete,,0
 2001_eurochamp_prague,intermediate_singles_net,Intermediate Singles Net,net,singles,7,complete,,0
@@ -3123,7 +3120,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2011_usopen_portland,mixed_doubles,Mixed Doubles,net,doubles,3,complete,,0
 2011_usopen_portland,open_doubles_net,Open Doubles Net,net,doubles,4,complete,,0
 2011_usopen_portland,open_singles,Open Singles,net,singles,5,complete,,0
-2011_usopen_portland,unknown,Unknown,net,doubles,6,unresolved,,0
 2011_usopen_portland,womens_doubles,Women's Doubles,net,doubles,7,complete,,0
 2011_usopen_portland,womens_singles,Women's Singles,net,singles,8,complete,,0
 2011_usopen_boise,intermediate_circle_contest,Intermediate Circle Contest,freestyle,singles,1,complete,,0
@@ -3286,7 +3282,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2012_usopen_net_portland,intermediate_singles,Intermediate Singles,net,singles,2,complete,,0
 2012_usopen_net_portland,open_doubles_net,Open Doubles Net,net,doubles,3,complete,,0
 2012_usopen_net_portland,open_singles,Open Singles,net,singles,4,complete,,0
-2012_usopen_net_portland,unknown,Unknown,net,doubles,5,complete,,0
+2012_usopen_net_portland,unknown,Mixed Doubles Net,net,doubles,5,complete,,0
 2012_usopen_net_portland,womens_doubles,Women's Doubles,net,doubles,6,complete,,0
 2012_usopen_net_portland,womens_singles,Women's Singles,net,singles,7,complete,,0
 2012_footbagjam_warsaw,open_doubles_net,Open Doubles Net,net,doubles,1,complete,,0
