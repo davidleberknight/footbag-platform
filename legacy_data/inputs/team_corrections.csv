@@ -253,3 +253,5 @@ event_key,discipline_key,placement,original_display,corrected_player_a,corrected
 2022_eastregion,open_singles_net,5,Mark Hunsburger,Mark Hunsburger,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 5th,1,source_verified,,HIGH
 2022_eastregion,open_singles_net,6,Unknown,Tony Ritz,Kevin Fura,SPLIT_PARSING_ERROR,Mirror page lists a tie at 6th (games rained out),1,source_verified,,HIGH
 2022_eastregion,open_singles_net,8,Theodore Fritsch,Theodore Fritsch,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 8th (scratch),1,source_verified,,HIGH
+2022_eastregion,open_doubles_net,3,* / Josh Gayhart,Chris Siebert,Josh Gayhart,MISSING_PARTNER,"Mirror page lists ""3*- Chris Seibert/Josh Gayhart, Chris Cleaver/Kevin Fura"" (games rained out); the first of the two tied teams",1,source_verified,,HIGH
+2022_eastregion,open_doubles_net,3,,Chris Cleaver,Kevin Fura,TIED_TEAM,"Mirror page lists ""3*- Chris Seibert/Josh Gayhart, Chris Cleaver/Kevin Fura"" (games rained out); the second team tied at 3rd",1,source_verified,,HIGH

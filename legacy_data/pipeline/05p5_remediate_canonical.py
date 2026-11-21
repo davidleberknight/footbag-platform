@@ -844,8 +844,13 @@ else:
 
 # ── Team corrections: fix missing/corrupted partner data ──────────────────────
 # Applies manual corrections from team_corrections.csv.
-# Each row replaces participant data for a specific (event_key, discipline_key, placement).
+# Each row replaces participant data for a specific (event_key, discipline_key, placement),
+# except a TIED_TEAM row, which adds a further doubles team tied at that place.
 TEAM_CORRECTIONS = ROOT / "inputs" / "team_corrections.csv"
+# Marks each player of a doubles team tied at an occupied place: "tied_team:2" for
+# the second team there, ":3" for a third. The unmarked players are the first team.
+TIED_TEAM_NOTE = "tied_team"
+_TIED_TEAM_RE = re.compile(rf"\b{TIED_TEAM_NOTE}:(\d+)\b")
 _tc_applied = 0
 if TEAM_CORRECTIONS.exists():
     print("\n[Team corrections] Loading team_corrections.csv...")
@@ -872,6 +877,30 @@ if TEAM_CORRECTIONS.exists():
         ]
         if not matching:
             print(f"  WARN  ({ek}, {dk}, P{pl}) not found in participants — skipping")
+            continue
+
+        # A tie in a doubles division: a further team shares this place. It is
+        # added beside the team already there, never in its place, and each of its
+        # players is marked with the tied group it belongs to, so the slot stays two
+        # teams of two and loads as one result entry per team at the same place.
+        if ctype == "TIED_TEAM":
+            if not pa or not pb:
+                raise SystemExit(
+                    f"05p5 aborted: team_corrections.csv ({ek}, {dk}, P{pl}) is a TIED_TEAM "
+                    "row without two players; a tied doubles team names both partners.")
+            groups = {m.group(1) for p in matching
+                      for m in [_TIED_TEAM_RE.search(p.get("notes") or "")] if m}
+            group = str(2 + len(groups))
+            next_order = max(int(p["participant_order"]) for p in matching) + 1
+            for offset, name in enumerate((pa, pb)):
+                tied = dict(matching[0])
+                tied["participant_order"] = str(next_order + offset)
+                tied["display_name"] = name
+                tied["person_id"] = ""
+                tied["notes"] = f"{TIED_TEAM_NOTE}:{group}"
+                participants.append(tied)
+            _tc_applied += 1
+            print(f"  APPLIED  ({ek}, {dk}, P{pl})  {pa} / {pb}  [TIED_TEAM, group {group}]")
             continue
 
         # Replace participant rows for this placement
@@ -1172,11 +1201,20 @@ for (ek, dk), place_groups in disc_slots.items():
         has_violation = False
     else:
         # A curated team of three or more (two players plus members the export
-        # marked as additional) is one valid team, not a slot to re-pair.
-        has_violation = any(
-            len(rows) - sum("additional_team_member" in (r.get("notes") or "") for r in rows) != 2
-            for _, rows in place_groups
-        )
+        # marked as additional) is one valid team, not a slot to re-pair. So is a
+        # place two or more teams tied at: every tied group, like the unmarked
+        # team, is exactly two players.
+        def _slot_ok(rows: list) -> bool:
+            tied: dict = _dd(int)
+            for r in rows:
+                m = _TIED_TEAM_RE.search(r.get("notes") or "")
+                if m:
+                    tied[m.group(1)] += 1
+            unmarked = [r for r in rows if not _TIED_TEAM_RE.search(r.get("notes") or "")]
+            extra = sum("additional_team_member" in (r.get("notes") or "") for r in unmarked)
+            return len(unmarked) - extra == 2 and all(n == 2 for n in tied.values())
+
+        has_violation = any(not _slot_ok(rows) for _, rows in place_groups)
 
     if not has_violation:
         # No change — copy all rows verbatim

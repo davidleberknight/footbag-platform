@@ -34322,8 +34322,10 @@ event_key,discipline_key,placement,participant_order,display_name,person_id,team
 2022_eastregion,open_doubles_net,1,2,Mark Hunsburger,6f08080b-9aad-54de-afc5-1c6e553f6a6e,,
 2022_eastregion,open_doubles_net,2,1,Jim Hankins,61656316-f92f-5235-a6fd-e3218d5601f8,,
 2022_eastregion,open_doubles_net,2,2,Tony Ritz,68096dad-ee3a-5325-9083-13e66c962bd3,,
-2022_eastregion,open_doubles_net,3,1,Unknown,,,
+2022_eastregion,open_doubles_net,3,1,Chris Siebert,bd1ac97c-6c20-5bcd-9fbd-f5279f4c22bf,,
 2022_eastregion,open_doubles_net,3,2,Josh Gayhart,9dea6e25-e6ab-5aeb-9f47-1f36fcf88d94,,
+2022_eastregion,open_doubles_net,3,3,Chris Cleaver,ae007583-9bf0-520a-ba7c-b2e6f52b12ef,,tied_team:2
+2022_eastregion,open_doubles_net,3,4,Kevin Fura,b1ea8da1-6ee8-52a3-8d9f-137d6ced1521,,tied_team:2
 2022_eastregion,open_freestyle_circle_contest,1,1,Josh Gayhart,9dea6e25-e6ab-5aeb-9f47-1f36fcf88d94,,
 2022_eastregion,open_freestyle_circle_contest,2,1,Jonathan Schneider,2c16c43d-6111-5231-b813-23f20f6ba7a3,,
 2022_eastregion,open_freestyle_circle_contest,3,1,Ben Barrows,cb2f5aeb-165a-5e47-96a0-b80622a0d252,,

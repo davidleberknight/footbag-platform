@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import re
 import shutil
 import sys
 from collections import defaultdict
@@ -73,6 +74,11 @@ _CLASSES = {"novice", "intermediate", "open", "masters"}
 STRUCTURED_CATEGORIES = ("net", "freestyle", "golf", "sideline")
 
 DivisionKey = tuple[str, str]   # (discipline_category, discipline_name)
+
+# A doubles team tied at a place another team holds carries this note on each of
+# its players ("tied_team:2" for the second team there), set upstream by a
+# TIED_TEAM team correction.
+TIED_TEAM_RE = re.compile(r"\btied_team:(\d+)\b")
 
 
 def read_division_structure(path: Path) -> dict[DivisionKey, dict[str, str | None]]:
@@ -1040,6 +1046,11 @@ def main() -> None:
         # from canonical output that has passed QC, so any count here is history
         # that would not load; the run stops on it rather than report success.
         unloaded: dict[str, list[str]] = defaultdict(list)
+        # Each place's entry, kept so a doubles team tied at that place can be given
+        # an entry of its own at the same place: a tie is one entry per team, the
+        # shape an uploaded results file stores, never one entry of four players.
+        result_meta: dict[str, tuple] = {}
+        tied_entry_orders: dict[str, int] = {}
 
         for row in seed_results:
             event_key = row["event_key"].strip()
@@ -1062,6 +1073,7 @@ def main() -> None:
             result_id_map[(event_key, discipline_key, placement)] = result_id
 
             score_text = (row.get("score_text") or "").strip() or None
+            result_meta[result_id] = (event_id, discipline_id, placement_int, score_text)
 
             conn.execute(
                 """
@@ -1111,6 +1123,25 @@ def main() -> None:
             participant_id = (
                 f"participant_{event_key}_{discipline_key}_{placement}_{participant_order}"
             )
+
+            tied = TIED_TEAM_RE.search(row.get("notes") or "")
+            if tied:
+                tied_id = f"{result_id}_tie{tied.group(1)}"
+                if tied_id not in tied_entry_orders:
+                    event_id_t, discipline_id_t, placement_t, score_t = result_meta[result_id]
+                    conn.execute(
+                        """
+                        INSERT INTO event_result_entries (
+                          id, created_at, created_by, updated_at, updated_by, version,
+                          event_id, discipline_id, results_upload_id, placement, score_text
+                        ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, NULL, ?, ?)
+                        """,
+                        (tied_id, ts, system_user, ts, system_user,
+                         event_id_t, discipline_id_t, placement_t, score_t),
+                    )
+                    tied_entry_orders[tied_id] = 0
+                tied_entry_orders[tied_id] += 1
+                result_id, participant_order = tied_id, tied_entry_orders[tied_id]
 
             conn.execute(
                 """
