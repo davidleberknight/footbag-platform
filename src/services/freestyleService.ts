@@ -2546,30 +2546,33 @@ export interface EmergingEvidenceRowVM {
 }
 
 // Page organization: four sections derived from the six-dimension lifecycle
-// model stamped on the generated universe (publicSection field). Ready for a
-// decision, waiting on a ruling (grouped by question), needs evidence, and the
-// documented vocabulary archive. Malformed and rejected rows never render;
-// duplicate identities render once. The curation mechanics behind each section
-// (recommendations, owners, confidence) show on the admin workbench only.
+// model stamped on the generated universe (publicSection field): waiting on a
+// curator decision, waiting on a rules question (grouped by question), needs
+// evidence, and the names already resolved. Malformed and rejected rows never
+// render; duplicate identities render once. The curation mechanics behind each
+// section (recommendations, owners, confidence, the working question text) show
+// on the admin workbench only.
 export interface FreestyleObservationalContent {
   layerNote:           string;
-  /** Section 1 — Ready for a decision: names with sufficient evidence. */
+  /** Section 1 — Waiting on a curator decision: names understood well enough to decide. */
   decideClusters:      readonly EmergingDecisionClusterVM[];
   decideTotal:         number;
-  /** Section 2 — Waiting on a named ruling: grouped by open question. */
+  /** Section 2 — Waiting on a rules question: grouped by open question. */
   questions:           readonly EmergingQuestionVM[];
   rulingTotal:         number;
-  openQuestionCount:   number;
   /** Section 3 — Needs evidence: identity unrecoverable without new sources. */
   evidenceRows:        readonly EmergingEvidenceRowVM[];
-  /** Section 4 — Documented vocabulary archive (history, not work). */
+  /** Section 4 — Already resolved: aliases, kept community names, and non-trick terms. */
   archiveRepresented:  ObservationalSummarySection;
   archiveObservational: ObservationalSummarySection;
   archiveTerms:        ObservationalSummarySection;
   archiveTotal:        number;
-  /** Database-tracked pending rows with no ledger adjudication yet. */
+  /** Database rows the dictionary holds out with no ledger adjudication; listed in Section 2. */
   externalUnadjudicated: readonly ObservationalSummaryRow[];
-  canonicalReferences: readonly { label: string; href: string }[];
+  /** The footer's three links: the dictionary, then the two reference pages. */
+  dictionaryLink:      { label: string; href: string };
+  operatorsLink:       { label: string; href: string };
+  addAnalysisLink:     { label: string; href: string };
   isEmpty:             boolean;
 }
 
@@ -2603,12 +2606,19 @@ function observedSourceLabel(badge: string): string {
   return OBSERVED_SOURCE_LABELS[badge] ?? badge;
 }
 
+// A source as the public page names it: in words, never the internal code. A
+// row the dictionary itself holds out of its pages has no outside source, so it
+// carries no source tag.
+function publicSourceLabel(code: string): string {
+  return code === 'external' ? '' : observedSourceLabel(code);
+}
+
 function shapeObservationalCard(
   row: ObservationalUniverseRow,
   curatorNotes: ReadonlyMap<string, string>,
 ): ObservationalCard {
   const note = curatorNotes.get(row.slug) ?? null;
-  const addLabel = row.provisionalAdd ? `ADD ${row.provisionalAdd} (extrapolated)` : null;
+  const addLabel = row.provisionalAdd ? `ADD ${row.provisionalAdd} (provisional)` : null;
   const decomposition = row.decomposition || null;
   return {
     name:               row.name,
@@ -6888,7 +6898,7 @@ export const freestyleService = {
         total:       sorted.length,
         intro,
         sampleCards: sorted.slice(0, 6).map(shape),
-        fullList:    sorted.map(r => ({ name: r.name, source: r.source })),
+        fullList:    sorted.map(r => ({ name: r.name, source: publicSourceLabel(r.source) })),
       };
     };
 
@@ -6909,7 +6919,7 @@ export const freestyleService = {
     for (const x of externalRows) {
       const adj = EXTERNAL_ADJUDICATIONS[x.slug];
       if (!adj) {
-        externalUnadjudicated.push({ name: x.canonical_name, source: 'external' });
+        externalUnadjudicated.push({ name: x.canonical_name, source: publicSourceLabel('external') });
         continue;
       }
       const list = externalBySection.get(adj.publicSection) ?? [];
@@ -6919,9 +6929,9 @@ export const freestyleService = {
     externalUnadjudicated.sort((a, b) => a.name.localeCompare(b.name));
     const externalWithBlocker = (blockerId: string) =>
       [...externalBySection.values()].flat().filter(x => x.blockerId === blockerId)
-        .map(x => ({ name: x.name, source: x.source }));
+        .map(x => ({ name: x.name, source: publicSourceLabel(x.source) }));
 
-    // Section 1 — Decide now: the compact curator decision clusters. Meta from
+    // Section 1 — Waiting on a curator decision: the decision clusters. Meta from
     // the generated decision-group registry; members live-filtered. Empty
     // clusters vanish (a fully answered group leaves the page on regen).
     const decideClusters: EmergingDecisionClusterVM[] = EMERGING_DECISION_GROUPS
@@ -6929,7 +6939,7 @@ export const freestyleService = {
         const memberRows = inSection('decide').filter(r => r.blockerId === g.id);
         const externalNames = externalWithBlocker(g.id);
         return {
-          id: g.id, title: g.title, question: g.question,
+          id: g.id, title: g.title, question: g.publicQuestion,
           recommendation: g.recommendation, alternatives: g.alternatives,
           evidence: g.evidence, consequences: g.consequences,
           count: memberRows.length + externalNames.length,
@@ -6940,7 +6950,7 @@ export const freestyleService = {
       .filter(c => c.count > 0);
     const decideTotal = decideClusters.reduce((n, c) => n + c.count, 0);
 
-    // Section 2 — Waiting on a named ruling: one card per open question from
+    // Section 2 — Waiting on a rules question: one card per open question from
     // the committed question registry, unlock counts recomputed live. A row
     // renders here ONLY via its ledger blocker referencing a registered
     // question; a published identity whose name form rides a question carries
@@ -6949,14 +6959,17 @@ export const freestyleService = {
       .map((q: EmergingQuestion) => {
         const gated = inSection('ruling').filter(r => r.blockerId === q.id);
         const externalNames = externalWithBlocker(q.id);
+        // The public page shows the question's plain title and sentence from the
+        // registry; the working question text stays on the admin workbench.
         return {
-          id: q.id, title: q.title, question: q.question, status: q.status,
+          id: q.id, title: q.publicTitle, question: q.publicSummary, status: q.status,
           owner: q.owner, vehicle: q.vehicle,
           unlockCount: gated.length + externalNames.length,
           names: [
             ...gated.map(r => ({
-              name: r.name, source: r.source,
-              publishedTarget: r.resolvedTarget.replace(/^(canonical|alias|ledger):/, '').split(';')[0] ?? '',
+              name: r.name, source: publicSourceLabel(r.source),
+              publishedTarget: (r.resolvedTarget.replace(/^(canonical|alias|ledger):/, '').split(';')[0] ?? '')
+                .replace(/_/g, ' '),
             })),
             ...externalNames.map(x => ({ name: x.name, source: x.source, publishedTarget: '' })),
           ],
@@ -6969,74 +6982,67 @@ export const freestyleService = {
     // sources; state exactly what would suffice.
     const missingFor = (r: ObservationalUniverseRow): string =>
       r.evidenceState === 'none'
-        ? 'No recoverable evidence yet: footage or notation of the movement itself.'
-        : 'No canonical mirror sibling to derive from: footage, notation, or a stronger source for this form.';
+        ? 'Needed: video or notation of the movement.'
+        : 'Needed: video, notation, or a clearer source for this form.';
     const evidenceRows: EmergingEvidenceRowVM[] = [
-      ...inSection('evidence').map(r => ({ name: r.name, source: r.source, missing: missingFor(r) })),
+      ...inSection('evidence').map(r => ({ name: r.name, source: publicSourceLabel(r.source), missing: missingFor(r) })),
       ...(externalBySection.get('evidence') ?? []).map(x => ({
-        name: x.name, source: x.source,
-        missing: 'No recoverable structure yet: footage, notation, or a stronger source.',
+        name: x.name, source: publicSourceLabel(x.source),
+        missing: 'Needed: video, notation, or a clearer source.',
       })),
     ];
 
-    // Section 4 — Documented vocabulary archive: history, never active work.
+    // Section 4 — Already resolved: history, never active work.
     // Already-represented names (published canonicals, aliases, duplicates),
     // observational folk names, and non-trick terms. Malformed fragments were
     // excluded from `visible` above and never render.
     const archiveRepresented = summarizeRows(
       inSection('archive').filter(r => r.publicationState === 'already-represented'),
-      'Documented names that resolve to a published canonical trick or a registered ' +
-      'alias, including wording and source duplicates. Kept for lookup; never active ' +
-      'publication candidates.');
+      'Other names and spellings for tricks that are already in the dictionary.');
     const archiveObservational = summarizeRows(
       inSection('archive').filter(r => r.publicationState === 'observational'),
-      'Community names preserved as documented vocabulary: the name is recorded, but ' +
-      'no structure has been recovered and no publication action is planned. History, ' +
-      'not backlog.');
+      'Community names kept on record. Nothing more is known about the movement behind them.');
     const archiveTerms = summarizeRows(
       inSection('archive').filter(r => r.publicationState === 'not-a-trick'),
-      'Operator, set, and notation terms recorded by the sources as if they were trick ' +
-      'names. Their home is the operator reference and glossary, not the trick backlog.');
+      'Words some sources list as tricks that are really sets, modifiers or notation ' +
+      'terms. They are explained on the Operators & Modifiers page and in the glossary.');
     const archiveTotal = archiveRepresented.total + archiveObservational.total + archiveTerms.total;
 
     return {
       seo: {
         title: 'Emerging Vocabulary',
         description:
-          'The frontier of the freestyle movement language: community-documented trick ' +
-          'names organized by what each one actually waits on.',
+          'Freestyle trick names and movement ideas being reviewed, with evidence and ' +
+          'decisions still needed. Established tricks are in the Trick Dictionary.',
       },
       page: {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_observational',
         title:      'Emerging Vocabulary',
-        // Orientation first: this page is the not-yet-official side of the
-        // canonical line, organized by what each name actually waits on.
-        intro:      'The waiting room of the freestyle dictionary. Nothing on this page is an official trick yet: these are community-documented names on their way toward the canonical dictionary, organized by what each one actually waits on. The official vocabulary lives in the Trick Dictionary.',
+        // Orientation first: what the page holds, that the active entries say
+        // what remains, and where the established tricks are.
+        intro:      'Explore freestyle trick names and movement ideas still being worked out, plus resolved names kept for reference. Active entries show what remains to be settled. Established tricks are in the Trick Dictionary.',
       },
       navigation: {
         contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
         layerNote:
-          'None of these is an official trick yet. Any ADD or reading shown is ' +
-          'provisional, and a name gets its own page only when it joins the dictionary.',
+          'Any ADD or breakdown shown here is provisional. Only tricks accepted as ' +
+          'canonical get their own Trick Dictionary page.',
         decideClusters,
         decideTotal,
         questions: questionVMs,
         rulingTotal,
-        openQuestionCount: questionVMs.length,
         evidenceRows,
         archiveRepresented,
         archiveObservational,
         archiveTerms,
         archiveTotal,
         externalUnadjudicated,
-        canonicalReferences: [
-          { label: 'Trick Dictionary (canonical)', href: '/freestyle/tricks' },
-          { label: 'Operators & Modifiers',         href: '/freestyle/operators' },
-          { label: 'ADD Analysis',                  href: '/freestyle/add-analysis' },
-        ],
+        dictionaryLink:  { label: 'Trick Dictionary',      href: '/freestyle/tricks' },
+        operatorsLink:   { label: 'Operators & Modifiers', href: '/freestyle/operators' },
+        addAnalysisLink: { label: 'ADD Analysis',          href: '/freestyle/add-analysis' },
         isEmpty:     visible.length === 0,
       },
     };

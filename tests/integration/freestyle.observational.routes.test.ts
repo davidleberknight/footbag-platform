@@ -9,9 +9,12 @@
  * identity render once; malformed and rejected rows never render; every count
  * derives from the generated data plus the live publication filter.
  *
- * Layer-separation contract (asserted below): observational entries carry a
- * tracked tag, NOT a canonical hashtag; they NEVER link to a canonical trick
- * detail page; provisional ADD is labelled "extrapolated", never canonical.
+ * Layer-separation contract (asserted below): observational entries name their
+ * source in words, never a canonical hashtag; they NEVER link to a canonical
+ * trick detail page; a provisional ADD is labelled provisional, never canonical.
+ * Each open question shows its plain title and sentence, never the working
+ * doctrine text. Page wording itself is never asserted: entries are found by
+ * section anchor, element class and the data they render.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -63,17 +66,21 @@ const primaries = OBSERVATIONAL_UNIVERSE.filter(r => r.groupPrimary);
 const inSection = (s: string) => primaries.filter(r => r.publicSection === s);
 
 describe('GET /freestyle/observational — four-section lifecycle surface', () => {
-  it('opens with the orientation line: this is the not-yet-official side of the canonical line', async () => {
-    expect((await getPage('/freestyle/observational')).status).toBe(200);
+  // Defect caught: a visitor lands on a list of names with no orientation
+  // saying what the page is and where the established tricks are.
+  it('opens with an orientation line and the provisional note above the sections', async () => {
     const html = await page();
-    expect(html).toContain('waiting room of the freestyle dictionary');
-    expect(html).toContain('Nothing on this page is an official trick yet');
-    expect(html).toMatch(/organized by what each one actually waits on/);
+    expect(html).toMatch(/class="hero-subtitle">\s*\S/);
+    expect(html).toMatch(/class="observational-layer-note">\s*\S/);
   });
 
-  it('shows a visible source-key legend so the per-card badges are not tooltip-only', async () => {
+  // Defect caught: an entry shows an internal source code (PB, FM, SG) a
+  // visitor cannot decode.
+  it('names every source in words, never by its internal code', async () => {
     const html = await page();
-    expect(html).toContain('Source key: PB is PassBack, FM is FootbagMoves, SG is Stanford shorthand.');
+    const codes = 'PB|FM|SG|FB|FF|MULTI|external';
+    expect(html).not.toMatch(new RegExp(`observed-card-source-badge[^>]*>(${codes})<`));
+    expect(html).not.toMatch(new RegExp(`class="tracked-tag">(${codes})<`));
   });
 
   it('renders the four sections and no others, in order', async () => {
@@ -106,7 +113,6 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
 
   it('ready-for-a-decision renders each group with its question, without the curator workbench, unpromoted', async () => {
     const html = await page();
-    expect(html).toContain('Ready for a decision');
     // A populated decision group renders; an answered (empty) group vanishes.
     expect(html).toMatch(/id="decision-(D\d|A0)"/);
     // The recommendation, alternatives, evidence and consequence a curator
@@ -118,22 +124,42 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/[a-z]/);
   });
 
-  it('waiting-on-a-ruling groups rows by question with exact text and unlock counts, without ownership metadata', async () => {
+  it('waiting-on-a-rules-question groups rows by question with a name count, without ownership metadata', async () => {
     const html = await page();
-    expect(html).toContain('Waiting on a ruling');
     // Every rendered question card is one of the registered questions and
-    // shows an unlock count; no undifferentiated wall of names.
+    // shows how many names it holds; no undifferentiated wall of names.
     for (const q of EMERGING_QUESTIONS) {
       if (html.includes(`id="question-${q.id}"`)) {
-        expect(html).toContain(q.title);
-        expect(html).toMatch(new RegExp(`id="question-${q.id}"[\\s\\S]{0,400}unlocks \\d+`));
+        expect(html).toMatch(new RegExp(`id="question-${q.id}"[\\s\\S]{0,400}\\(\\d+ names\\)`));
       }
     }
     // Who owns a question and how it travels is curation detail.
     expect(html).not.toMatch(/Status: (drafted|sent)/);
     expect(html).not.toMatch(/Owner: |Vehicle: /);
-    // A published identity riding the name-form question carries its target.
-    expect(html).toMatch(/published as [a-z_]+; name form only/);
+  });
+
+  // Defect caught: a visitor reads the rules expert's working question text,
+  // with its bracket codes and internal references, instead of the plain
+  // sentence the registry carries for the public page.
+  it('shows each question by its plain title and sentence, never the working text', async () => {
+    const html = await page();
+    const rendered = EMERGING_QUESTIONS.filter(q => html.includes(`id="question-${q.id}"`));
+    expect(rendered.length).toBeGreaterThan(0);
+    for (const q of rendered) {
+      const card = html.split(`id="question-${q.id}"`)[1]!.split('</details>')[0]!;
+      expect(q.publicTitle, `${q.id} has no public title`).not.toBe('');
+      expect(card, `${q.id} title`).toContain(q.publicTitle.replace(/'/g, '&#x27;'));
+      expect(card, `${q.id} sentence`).toContain(q.publicSummary.replace(/'/g, '&#x27;').replace(/"/g, '&quot;'));
+      expect(card, `${q.id} shows its working text`).not.toContain(q.question.slice(0, 40));
+    }
+  });
+
+  // Defect caught: a name already in the dictionary under another spelling
+  // shows that trick's internal slug instead of its name.
+  it('names a published target in words, never by its slug', async () => {
+    const html = await page();
+    const section = html.split('id="waiting-on-a-ruling"')[1]!.split('id="needs-evidence"')[0]!;
+    expect(section).not.toMatch(/class="text-muted">[^<]*[a-z]_[a-z][^<]*</);
   });
 
   it('every actionable entry states what still separates it from the dictionary', async () => {
@@ -161,42 +187,29 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
       const rows = evidence.match(/<li>[\s\S]*?<\/li>/g) ?? [];
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        expect(row, 'an evidence row without the missing evidence').toMatch(/tracked-tag">[^<]*<\/span>\s*<span>\s*[^<\s]/);
+        expect(row, 'an evidence row without the missing evidence').toMatch(/(tracked-tag">[^<]*<\/span>\s*)?<span>\s*[^<\s]/);
       }
     }
   });
 
   it('keeps tracked names unmistakably apart from official tricks', async () => {
     const html = await page();
-    // Said plainly twice: in the page lede and in the note above the sections.
-    expect(html).toContain('Nothing on this page is an official trick yet');
-    expect(html).toContain('None of these is an official trick yet.');
-    expect(html).toContain('a name gets its own page only when it joins the dictionary');
-    // Every entry carries a tracked tag, never a canonical hashtag or detail link.
+    // Entries carry a source tag, never a canonical hashtag or detail link.
     expect(html).toContain('tracked-tag');
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/[a-z]/);
     // The curation confidence chips stay off the public cards.
     expect(html).not.toMatch(/>parser: |>doctrine: /);
   });
 
-  it('needs-evidence states the precise missing evidence per row', async () => {
+  it('the resolved block holds aliases and terms; review-held observational names are suppressed', async () => {
     const html = await page();
-    if (inSection('evidence').length > 0) {
-      expect(html).toContain('Needs evidence');
-      expect(html).toMatch(/footage, notation, or a stronger source|footage or notation of the movement/);
-    }
-  });
-
-  it('the documented archive holds resolved and term vocabulary; review-held observational names are suppressed', async () => {
-    const html = await page();
-    expect(html).toContain('Documented vocabulary archive');
-    expect(html).toContain('Already represented');
+    expect(html).toContain('id="documented-archive"');
+    expect(html).toContain('id="archive-represented"');
     // Observational (folk / documented) names are held off the public surface while
     // the synonym / historical-vocabulary reconciliation runs (the publication gate),
-    // so the observational-names archive sub-section does not render publicly.
-    expect(html).not.toContain('Observational names');
-    expect(html).toContain('Recorded terms (not tricks)');
-    expect(html).toContain('not active publication candidates');
+    // so that sub-section does not render publicly.
+    expect(html).not.toContain('id="archive-observational"');
+    expect(html).toContain('id="archive-terms"');
   });
 
   it('malformed source fragments never render', async () => {
@@ -235,19 +248,25 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/[a-z]/);
   });
 
-  it('provisional ADD stays labelled extrapolated, never canonical', async () => {
+  it('provisional ADD stays labelled provisional, never canonical', async () => {
     const html = await page();
     if (/ADD \d+/.test(html)) {
-      expect(html).toMatch(/ADD \d+ \(extrapolated\)/);
+      expect(html).toMatch(/ADD \d+ \(provisional\)/);
     }
   });
 
   // ── Database-tracked pending names ──
-  it('unadjudicated database-tracked rows surface in the archive, never double-counted', async () => {
+  // Defect caught: a trick the dictionary holds out on an open question is
+  // filed among resolved names, as if nothing about it were left to settle.
+  it('held-out database rows sit with the open questions, never in the resolved block', async () => {
     const html = await page();
-    expect(html).toContain('Tracked, not yet reviewed');
-    expect(html).toContain('pending zorblax');
-    expect(html).toContain('pending quasar');
+    const heldOut = html.split('id="held-out"')[1]?.split('</details>')[0] ?? '';
+    expect(heldOut).toContain('pending zorblax');
+    expect(heldOut).toContain('pending quasar');
+    const open = html.split('id="waiting-on-a-ruling"')[1]!.split('id="needs-evidence"')[0]!;
+    expect(open).toContain('id="held-out"');
+    const resolved = html.split('id="documented-archive"')[1] ?? '';
+    expect(resolved).not.toContain('pending zorblax');
     expect(html).not.toMatch(/href="\/freestyle\/tricks\/pending-zorblax"/);
     expect(OBSERVATIONAL_UNIVERSE.some(r => r.slug === 'pending-zorblax')).toBe(false);
   });

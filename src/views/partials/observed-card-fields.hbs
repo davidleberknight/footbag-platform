@@ -1,22 +1,21 @@
 {{!--
   Observational confidence card (v2). Renders an ObservationalCard.
 
-  Layer-separation contract: visually distinct from canonical cards — a tracked
-  tag (bare slug, NOT a canonical hashtag), no canonical ADD chip, no
-  trick-detail link, no media. Provisional ADD + decomposition are
-  observationally extrapolated and labelled as such. Parser and doctrine
-  confidence are curation detail and show on the admin workbench, not here.
+  Layer-separation contract: visually distinct from canonical cards. The
+  source is named in words; no canonical hashtag, no canonical ADD chip, no
+  trick-detail link, no media. A provisional ADD and breakdown are labelled as
+  provisional. Parser and doctrine confidence are curation detail and show on
+  the admin workbench, not here.
 --}}
 <article class="observed-card" data-ecosystem="{{ecosystem}}">
   <header class="observed-card-head">
-    <span class="observed-card-source-badge observed-card-source-badge--{{sourceBadge}}" title="{{sourceLabel}}">{{sourceBadge}}</span>
+    <span class="observed-card-source-badge observed-card-source-badge--{{sourceBadge}}">{{sourceLabel}}</span>
     <h3 class="observed-card-name">{{name}}</h3>
-    <span class="tracked-tag" title="Seen in other sources: not a confirmed trick">{{slug}}</span>
   </header>
   {{#if addLabel}}<p class="observed-card-meta"><span class="observed-add">{{addLabel}}</span></p>{{/if}}
   {{#if hasDetails}}
   <details class="observed-card-details">
-    <summary class="observed-card-details-summary">Reading</summary>
+    <summary class="observed-card-details-summary">How It Might Break Down</summary>
     {{#if decomposition}}<p class="observed-card-detail-formula"><span class="observed-card-equiv-sigil" aria-hidden="true">&equiv;</span> <code>{{decomposition}}</code> <span class="text-muted">(worked out, not confirmed)</span></p>{{/if}}
     {{#if curatorNote}}<p class="observed-card-detail-note"><em>Curator note:</em> {{curatorNote}}</p>{{/if}}
   </details>

@@ -84,16 +84,21 @@ describe('Emerging Vocabulary section totals reconcile to the generated surface'
   it('renders the documented-archive disclosures with live-derived totals', async () => {
     const res = await page('/freestyle/observational');
     expect(res.status).toBe(200);
-    // The archive subsections carry numeric counts computed from the
+    // The resolved subsections carry numeric counts computed from the
     // runtime-filtered rows (never hard-coded census figures).
-    expect(res.text).toMatch(/Already represented <span class="text-muted">\(\d+\)/);
-    // The observational-names archive sub-section is empty while its members are held
-    // for review (publication gate), so its disclosure does not render.
-    expect(res.text).not.toContain('Observational names');
+    const resolved = res.text.split('id="documented-archive"')[1] ?? '';
+    expect(resolved).toMatch(/observed-disclosure-summary">[^<]*<span class="text-muted">\(\d+\)/);
+    // The observational-names sub-section is empty while its members are held
+    // for review (publication gate), so it does not render.
+    expect(res.text).not.toContain('id="archive-observational"');
   });
 
-  it('keeps the archive apart from the names still in play', async () => {
+  // Defect caught: an open question's names, or a held-out trick, filed among
+  // the resolved names, so a visitor reads them as settled.
+  it('keeps the resolved block apart from the names still in play', async () => {
     const res = await page('/freestyle/observational');
-    expect(res.text).toContain('not active publication candidates');
+    const resolved = res.text.split('id="documented-archive"')[1] ?? '';
+    expect(resolved).not.toContain('id="question-');
+    expect(resolved).not.toContain('id="held-out"');
   });
 });

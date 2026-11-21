@@ -22,7 +22,7 @@
     <summary class="observed-fulllist-summary">Show all {{section.total}} names</summary>
     <ul class="observational-tracked-list observed-fulllist-grid">
       {{#each section.fullList}}
-      <li>{{name}} <span class="tracked-tag">{{source}}</span></li>
+      <li>{{name}}{{#if source}} <span class="tracked-tag">{{source}}</span>{{/if}}</li>
       {{/each}}
     </ul>
   </details>

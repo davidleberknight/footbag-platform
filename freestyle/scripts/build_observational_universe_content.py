@@ -855,6 +855,16 @@ def main() -> None:
     if not QUESTION_REGISTRY_CSV.exists():
         raise SystemExit(f"question registry missing: {QUESTION_REGISTRY_CSV} — doctrine blockers cannot be validated")
     questions = {(q.get("question_id") or "").strip(): q for q in read(QUESTION_REGISTRY_CSV)}
+    # Each question's public wording sits on its own registry row, so a new
+    # question cannot reach the public page without the plain title and sentence
+    # a visitor reads in place of the working question text.
+    unworded = sorted(qid for qid, q in questions.items()
+                      if not (q.get("public_title") or "").strip()
+                      or not (q.get("public_summary") or "").strip())
+    if unworded:
+        raise SystemExit(
+            "question registry: every question needs a public_title and a public_summary; "
+            f"missing on {', '.join(unworded)}")
     ruling_rows, ruling_links = read_rulings()
     ledger = {(L.get("normalized_name") or "").strip(): L for L in ruling_rows}
     alias_targets = _alias_name_targets()
@@ -1206,6 +1216,8 @@ def main() -> None:
             "id": qid,
             "title": (q.get("title") or "").strip(),
             "question": (q.get("exact_question") or "").strip(),
+            "publicTitle": (q.get("public_title") or "").strip(),
+            "publicSummary": (q.get("public_summary") or "").strip(),
             "status": (q.get("status") or "").strip(),
             "owner": (q.get("owner") or "").strip(),
             "vehicle": (q.get("vehicle") or "").strip(),
@@ -1216,7 +1228,12 @@ def main() -> None:
     for g in DECISION_GROUPS:
         members = sorted(r["name"] for r in primaries if r["blockerId"] == g["id"])
         members += sorted(x["name"] for x in externals_only.values() if x["blockerId"] == g["id"])
-        decision_groups.append({**g, "memberCount": len(members), "members": members})
+        # The question's closing instruction ("Confirm each match.") is addressed
+        # to the curator on the admin workbench; the public page shows the
+        # description without it.
+        public_question = re.sub(r"\s*Confirm [^.]*\.\s*$", "", g["question"]).strip()
+        decision_groups.append({**g, "publicQuestion": public_question,
+                                "memberCount": len(members), "members": members})
 
     classified_total = len(classified)
     stats = {
@@ -1354,6 +1371,10 @@ def main() -> None:
         "  title: string;\n"
         "  /** The exact unresolved issue, in full. */\n"
         "  question: string;\n"
+        "  /** The question's plain title, as the public page shows it. */\n"
+        "  publicTitle: string;\n"
+        "  /** One plain sentence saying what the question settles, for the public page. */\n"
+        "  publicSummary: string;\n"
         "  /** drafted | sent | answered (answered never gates a row). */\n"
         "  status: string;\n"
         "  owner: string;\n"
@@ -1367,6 +1388,8 @@ def main() -> None:
         "  title: string;\n"
         "  /** The smallest exact decision. */\n"
         "  question: string;\n"
+        "  /** The same description without its closing instruction to the curator, for the public page. */\n"
+        "  publicQuestion: string;\n"
         "  recommendation: string;\n"
         "  alternatives: string;\n"
         "  evidence: string;\n"

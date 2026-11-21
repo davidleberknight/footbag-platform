@@ -575,18 +575,18 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     }
   });
 
-  it('every card carries a two-letter source badge with tooltip attribution', async () => {
-    // Compact-card pattern: each card carries a 2-letter source badge
-    // with title/aria-label carrying the full source citation, rather
-    // than verbose "observational · {sourceLabel}" prose. Badge
-    // variants are PB / FM / SG / FF / FB / OTHER
-    // (FB covers the footbag.org /newmoves source).
+  // Defect caught: a card names its source by an internal code a visitor
+  // cannot decode, or loses the per-source colour that tells sources apart.
+  it('every card names its source in words and keeps its per-source badge class', async () => {
     const res = await page('/freestyle/observational');
-    const badgeMatches = res.text.match(
-      /class="observed-card-source-badge observed-card-source-badge--(PB|FM|SG|FF|FB|OTHER)"[^>]*title="[^"]+"[^>]*>(PB|FM|SG|FF|FB|OTHER)</g,
-    ) ?? [];
-    // At least one PB badge present (PassBack is the dominant source).
-    expect(badgeMatches.length).toBeGreaterThanOrEqual(1);
+    const badges = [...res.text.matchAll(
+      /class="observed-card-source-badge observed-card-source-badge--(PB|FM|SG|FF|FB|MULTI|IFPA)"[^>]*>([^<]*)</g,
+    )];
+    expect(badges.length).toBeGreaterThanOrEqual(1);
+    for (const [, code, text] of badges) {
+      expect(text, `badge for ${code} shows the code`).not.toBe(code);
+      expect(text!.trim().length, `badge for ${code} is empty`).toBeGreaterThan(2);
+    }
     expect(res.text).toMatch(/observed-card-source-badge--PB/);
   });
 

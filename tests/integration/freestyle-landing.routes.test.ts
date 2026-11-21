@@ -93,7 +93,6 @@ describe('freestyle landing destinations', () => {
     const reachedFrom: Array<[string, string]> = [
       ['/freestyle/start', '/freestyle/about'],
       ['/freestyle/competition', '/freestyle/partnerships'],
-      ['/freestyle/tricks', '/freestyle/observational'],
     ];
     const landing = await page('/freestyle');
     for (const [from, to] of reachedFrom) {
@@ -102,6 +101,15 @@ describe('freestyle landing destinations', () => {
       expect(res.status).toBe(200);
       expect(res.text, `${from} links ${to}`).toContain(`href="${to}"`);
     }
+  });
+
+  // Defect caught: Emerging Vocabulary reachable only through one sentence on
+  // the dictionary page, so a visitor who never opens the dictionary never
+  // finds it.
+  it('links Emerging Vocabulary from its own tile on the Explore Freestyle row', async () => {
+    const landing = await page('/freestyle');
+    const explore = landing.text.split('<h2>Explore Freestyle</h2>')[1] ?? '';
+    expect(explore).toContain('href="/freestyle/observational"');
   });
 });
 

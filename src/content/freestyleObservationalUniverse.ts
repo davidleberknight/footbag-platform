@@ -86,6 +86,10 @@ export interface EmergingQuestion {
   title: string;
   /** The exact unresolved issue, in full. */
   question: string;
+  /** The question's plain title, as the public page shows it. */
+  publicTitle: string;
+  /** One plain sentence saying what the question settles, for the public page. */
+  publicSummary: string;
   /** drafted | sent | answered (answered never gates a row). */
   status: string;
   owner: string;
@@ -100,6 +104,8 @@ export interface EmergingDecisionGroup {
   title: string;
   /** The smallest exact decision. */
   question: string;
+  /** The same description without its closing instruction to the curator, for the public page. */
+  publicQuestion: string;
   recommendation: string;
   alternatives: string;
   evidence: string;
@@ -1255,6 +1261,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q01",
       "title": "Blurry expansion predicate",
       "question": "When does a blurry-named trick carry the paradox term? Footbag.org JOBs carry [PDX] where PassBack's stepping-only technical names omit it; is the paradox term physical content one source records and the other elides, or a notation convention? Either answer also settles whether each blurry-form spelling of a live canonical is an alias or a distinct paradox-bearing variant.",
+      "publicTitle": "What a Blurry Set Adds",
+      "publicSummary": "Whether a trick named blurry includes a paradox movement or only the stepping set.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Scoring paper",
@@ -1264,6 +1272,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q02",
       "title": "Undefined-operator definitions",
       "question": "Define the structure and weight of each recognized-but-undefined folk operator: symple, slapping, frantic, fusing, phasing, slaying, sonic, twinspinning, frootie, fyro, leaning, twisted, twisting, wonton, wrecking, snapping, zipper, arctic, neutron, slicing, and symp. Defining one operator unblocks every name that uses it.",
+      "publicTitle": "Prefixes With No Agreed Meaning",
+      "publicSummary": "What each of these less common prefixes means and how much it adds.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Scoring paper; email of 2026-11-20",
@@ -1273,6 +1283,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q03",
       "title": "Count-quantifier disposition",
       "question": "How does a bare double/triple count prefix score, and are the count-quantifier names (double-dex X, triple-dex X, Double Guay and kin) dictionary rows at all? The drafted disposition routes them to internal renderer and parser cleanup rather than new trick rows.",
+      "publicTitle": "Names That Count Repetitions",
+      "publicSummary": "How names like double and triple are scored, and whether each gets its own dictionary entry.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Scoring paper",
@@ -1282,6 +1294,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q04",
       "title": "Repeated same-operator scoring",
       "question": "When the same scored operator appears twice in one compound (miraging ... miraging, illusioning ... illusioning), does the second occurrence add again?",
+      "publicTitle": "The Same Set Used Twice",
+      "publicSummary": "Whether a set scores again when a trick uses it a second time.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Scoring paper",
@@ -1291,6 +1305,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q05",
       "title": "Terraging chain arithmetic",
       "question": "The registry's +3, the shipped two-dex clipper notations, footbag.org's 3-bracket terrage, and Red's ruled 4 cannot all be reconciled; which value is authoritative for the terraging chain?",
+      "publicTitle": "How Terraging Is Scored",
+      "publicSummary": "The sources disagree on what a terraging set adds.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Scoring paper",
@@ -1300,6 +1316,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q06",
       "title": "Cross-body rake base",
       "question": "What is the crossbody-rake (XBD rake) base structurally: a terminal contact posture like clipper, or a raking path? One contract; every rake compound composes defined operators onto it.",
+      "publicTitle": "The Cross-Body Rake",
+      "publicSummary": "What the cross-body rake is as a base movement.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Notation paper; email of 2026-11-20",
@@ -1309,6 +1327,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q07",
       "title": "Path/catch terminal-encoding standard",
       "question": "How is a path/catch terminal encoded in operational notation (the ambiguous-terminal framing)? A framing standard, not per-row rulings; it decides how the ambiguous-terminal formula names read.",
+      "publicTitle": "How an Unusual Finish Is Written",
+      "publicSummary": "How notation records a trick that ends in something other than a standard stall.",
       "status": "drafted",
       "owner": "james+red",
       "vehicle": "Notation paper",
@@ -1318,6 +1338,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q08",
       "title": "Directional-syntax tokens",
       "question": "Are the unresolved directional tokens in folk names (the alpine rows' inward/outward-style syntax) sanctioned path vocabulary, and how do they map onto the ratified IN/OUT terms?",
+      "publicTitle": "Direction Words in Older Names",
+      "publicSummary": "How the inward and outward wording in some older names maps onto today's terms.",
       "status": "drafted",
       "owner": "james+red",
       "vehicle": "Notation paper",
@@ -1327,6 +1349,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q09",
       "title": "Inward-on-a-gyro direction semantics",
       "question": "What does an inward qualifier denote on a gyro, where the base carries its own OUT direction? Decides the withdrawn Inward Gyro batch.",
+      "publicTitle": "Inward on a Gyro",
+      "publicSummary": "What \"inward\" means when the trick includes a gyro.",
       "status": "drafted",
       "owner": "james+red",
       "vehicle": "Notation paper",
@@ -1336,6 +1360,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q10",
       "title": "Osis spin-to-catch relationship",
       "question": "What is the structural relationship between the osis spin and its catch (the Butterfly near Osis hold)?",
+      "publicTitle": "How an Osis Lands",
+      "publicSummary": "How the spin in an osis relates to the side it is caught on.",
       "status": "drafted",
       "owner": "james+red",
       "vehicle": "Notation paper",
@@ -1345,6 +1371,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q11",
       "title": "Sumo implicit-paradox X-Dex rider",
       "question": "Does sumo's provisional [XDEX] stand (the implicit-paradox hypothesis)? Decides Nuclear Ducking Mirage and its Sumo Thong twin, whose ADD is 5 without X-Dex and 6 with it.",
+      "publicTitle": "Sumo's Extra Point",
+      "publicSummary": "Whether sumo's cross-body dexterity bonus stands.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Rider list; email of 2026-11-20",
@@ -1354,6 +1382,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q12",
       "title": "Pogo-clipper terminal",
       "question": "Is the pogo-clipper terminal a kick or a stall? Row-specific to Pogo Clipper and its same-side form; pogo's +1 operator contract is registry-settled.",
+      "publicTitle": "How a Pogo Clipper Ends",
+      "publicSummary": "Whether a pogo clipper ends in a kick or a stall.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Rider list; email of 2026-11-20",
@@ -1363,6 +1393,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q13",
       "title": "Jani-walker structure",
       "question": "What is the jani-walker structure? Also decides Sidewinder (= fairy gyro jani-walker).",
+      "publicTitle": "The Jani Walker",
+      "publicSummary": "How the jani walker is built.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Rider list; email of 2026-11-20",
@@ -1372,6 +1404,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q14",
       "title": "Twisting exemplar and spyro prefix",
       "question": "Twisting is a degenerate structure with no exemplar (Toe Spinning Toe and the What!? name hang on it); and what does a spyro prefix mean given spyro is ruled a trick, not a general modifier?",
+      "publicTitle": "Twisting and Spyro",
+      "publicSummary": "What the twisting and spyro prefixes mean.",
       "status": "sent",
       "owner": "james+red",
       "vehicle": "Rider list; email of 2026-11-20",
@@ -1381,6 +1415,8 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
       "id": "Q15",
       "title": "Bubba prefix contribution",
       "question": "Bubba is a settled standalone trick (the canonical bubba row is 2 ADD and symposium bubba is 3 ADD), so this is not a define-the-movement question: what does bubba contribute when it prefixes another base? The answer authors the bubba-prefixed band off the settled bubba structure.",
+      "publicTitle": "The Bubba Prefix",
+      "publicSummary": "What the bubba prefix adds.",
       "status": "drafted",
       "owner": "james+red",
       "vehicle": "Rider list",
@@ -1398,6 +1434,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Send the individual name back for a separate rules ruling. The audit does not recommend this because the underlying Down-family structure is already settled.",
       "evidence": "The four Down-family variants are already established in the dictionary, and the available set and side information is enough to distinguish between them.",
       "consequences": "Once confirmed, the name can be recorded as another name or positional form of the appropriate existing trick. Its ADD does not change.",
+      "publicQuestion": "This name appears to describe one of the four already-established Down-family variants. Its set direction and side information should identify which existing trick it belongs to.",
       "memberCount": 1,
       "members": [
         "Pixie near Double Down"
@@ -1411,6 +1448,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Treat the ledger tags as authoritative and re-ask the definitions (rejected: it would re-open settled registry contracts).",
       "consequences": "Eleven compounds become mechanically authorable in a later promotion batch; nothing authors in this phase.",
       "evidence": "trick_modifiers.csv rows for railing/surfing/splicing/floating with worked examples; live canonicals rail_warrior, big_papa_smurf, liquifier, floatation.",
+      "publicQuestion": "",
       "memberCount": 0,
       "members": []
     },
@@ -1422,6 +1460,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Hold for per-row footage (rejected: positional configuration is derivable and positional change never alters ADD).",
       "consequences": "Eight rows become mechanically authorable in a later promotion batch.",
       "evidence": "Live sailing_butterfly / _double_leg_over / _illusion / _legover / _mirage / _pickup and inspinning_illusion / inspinning_mirage; the ratified distributive same-side ruling.",
+      "publicQuestion": "",
       "memberCount": 0,
       "members": []
     },
@@ -1433,6 +1472,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Introduce a new dedicated token class for posture catches (heavier; no second exemplar yet).",
       "consequences": "Five dragon rows become authorable, and Miraging Dragon follows mechanically.",
       "evidence": "The 2026-07-13 identity rulings (single-form Firefly / Spitfire) and the ledger formulas (dex + dragon catch with bracket parity).",
+      "publicQuestion": "Name the operational-notation token for the dragon catch (the ruled terminal contact behind the five dragon compounds).",
       "memberCount": 0,
       "members": []
     },
@@ -1444,6 +1484,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Alias to nuclear_guay_same_side (catch-targeted reading), or retire the name as redundant.",
       "consequences": "One row leaves the surface as an alias; no new dictionary row under any answer.",
       "evidence": "Both candidate notations are live and character-identical to the two readings; recorded at the stopped promotion.",
+      "publicQuestion": "Decide which live identity the name denotes: the plain nuclear_rev_guay (distributive reading restates it verbatim) or nuclear_guay_same_side (catch-targeted reading restates it), or retire the name.",
       "memberCount": 0,
       "members": []
     },
@@ -1455,6 +1496,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Keep it as an independent folk name (rejected: no distinguishing evidence).",
       "consequences": "One row leaves the decide pile and joins the fyro rows under the operator-definitions question.",
       "evidence": "FootbagMoves carries Fyro Torque and Pyro Torque with no structural difference recorded.",
+      "publicQuestion": "",
       "memberCount": 0,
       "members": []
     },
@@ -1466,6 +1508,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Send them to the rules expert instead. The audit does not recommend this, because none of these names ends in the kind of catch or landing the open notation question is about.",
       "evidence": "For each name, the trick it ends with is already in the dictionary, and each modifier in front of it adds the same amount whether or not the trick spins.",
       "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. Nothing is published by this decision, and no scores change.",
+      "publicQuestion": "Each of these names is an existing trick with one or more familiar modifiers in front of it, like stepping, paradox or pixie. Both parts are already in the dictionary, so the name's difficulty score follows from adding them together.",
       "memberCount": 35,
       "members": [
         "Atomic DSO",
@@ -1513,6 +1556,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Hold each name until the older trick's history is settled. The audit does not recommend this, because the same reasoning would hold up every name built on any trick with an open question behind it.",
       "evidence": "Each of these names ends in a trick that is already published with its own score. The open question concerns how that older trick was originally derived, not whether it can be built on.",
       "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. If the older trick is ever renamed or rescored, these names follow it. Nothing here settles that older question.",
+      "publicQuestion": "Each of these names adds a familiar modifier to a trick that is already in the dictionary. Those tricks carry older names whose history is still being settled, but that does not change what these names describe.",
       "memberCount": 7,
       "members": [
         "Gyro Baroque",
@@ -1532,6 +1576,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Send them to the rules expert instead. The audit does not recommend this, because the four published examples already show how this ending works and nothing about these names is new.",
       "evidence": "Four tricks in the dictionary are built this way and all four behave identically. The one point the older written description left vague, which foot the added movement uses, is now settled by the same leg-tracking rule the dictionary already uses elsewhere.",
       "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. Nothing is published by this decision, and no existing scores change.",
+      "publicQuestion": "Each of these names takes an existing trick and finishes it in a swirl instead of its usual catch. Four tricks already in the dictionary are built exactly this way, so both the score and the movement follow from the trick each name starts with.",
       "memberCount": 0,
       "members": []
     },
@@ -1543,6 +1588,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "Send them to the rules expert instead. The audit does not recommend this: every source writes the flapper as a catch at the end of a trick, never as something that changes the trick in front of it.",
       "evidence": "Both source traditions place the flapper last and describe it the same way, as a sole delay held across the body. The dictionary already publishes three tricks that end on it. Butterfly Flapper and Symposium Whirling Flapper are recorded elsewhere as Buttersole and Singularity, each with its movement written out and its difficulty given.",
       "consequences": "Once confirmed, each name can be written up later as an ordinary dictionary entry. Nothing is published by this decision, and no existing scores change.",
+      "publicQuestion": "Each of these names is a familiar trick that finishes on a flapper, the cross-body sole delay, instead of its usual catch. That catch is already in the dictionary and three published tricks already end on it, so what each name describes is known.",
       "memberCount": 1,
       "members": [
         "Spinning Flapper"
@@ -1556,6 +1602,7 @@ export const EMERGING_DECISION_GROUPS: readonly EmergingDecisionGroup[] =
       "alternatives": "None: the identity ruling is recorded; only the clerical authoring remains.",
       "consequences": "One canonical row per name; full surface propagation per the standing rule.",
       "evidence": "The POD footage ruling (setting leg performs the pixie dex and returns for the second downtime dex).",
+      "publicQuestion": "Author the rows whose identity is already adjudicated and whose notation is derivable (currently POD, ruled from footage).",
       "memberCount": 0,
       "members": []
     }
