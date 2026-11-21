@@ -65,56 +65,75 @@ def read_csv(path: Path) -> list[dict[str, str]]:
         return [{k: (v if v is not None else "") for k, v in row.items()} for row in reader]
 
 
-NET_DIVISION_STRUCTURE = Path(__file__).resolve().parents[2] / "inputs" / "net_division_structure.csv"
+DIVISION_STRUCTURE = Path(__file__).resolve().parents[2] / "inputs" / "division_structure.csv"
 _GENDERS = {"open", "women", "mixed"}
 _CLASSES = {"novice", "intermediate", "open", "masters"}
+# Every contested discipline the history holds; each of its division names must
+# be listed in the structure before it loads.
+STRUCTURED_CATEGORIES = ("net", "freestyle", "golf", "sideline")
+
+DivisionKey = tuple[str, str]   # (discipline_category, discipline_name)
 
 
-def read_net_division_structure(path: Path) -> dict[str, dict[str, str | None]]:
-    """The structured parts of every historical net division, keyed by its name.
+def read_division_structure(path: Path) -> dict[DivisionKey, dict[str, str | None]]:
+    """The structured parts of every historical division, keyed by its
+    discipline and name.
 
     Historical names are far from consistent ("Open Doubles Net", "Open Double
     Net", "Net Doubles"), so the game, gender and class each name stands for are
-    curated once, here, rather than guessed at load. A row carries exactly one of
-    a listed game, a custom game name, or the reason it is left unmapped.
+    curated once, here, rather than guessed at load. The discipline is part of the
+    key because one name ("Doubles", "Unknown") recurs across disciplines. A row
+    carries exactly one of a listed game, a custom game name, or the reason it is
+    left unmapped. A row marked withhold is a division the schema cannot yet
+    record truthfully, so it is not loaded at all rather than loaded wrong.
     """
     if not path.exists():
         raise SystemExit(
             f"08 aborted: {path} is missing. It is a committed curated input; restore it "
             "from git, then rerun run_pipeline.sh."
         )
-    structure: dict[str, dict[str, str | None]] = {}
+    structure: dict[DivisionKey, dict[str, str | None]] = {}
     for lineno, row in enumerate(read_csv(path), start=2):
-        name = row["discipline_name"]
+        category, name = row["discipline_category"].strip(), row["discipline_name"]
         game, custom, reason = (row["game_id"].strip(), row["custom_game_name"].strip(),
                                 row["unmapped_reason"].strip())
         gender, klass = row["gender_eligibility"].strip(), row["division_class"].strip()
+        withhold = row["withhold"].strip()
         problem = None
-        if name in structure:
-            problem = "the name is listed twice"
+        if category not in STRUCTURED_CATEGORIES:
+            problem = f"discipline_category {category!r} is not one of {list(STRUCTURED_CATEGORIES)}"
+        elif (category, name) in structure:
+            problem = "the name is listed twice in its discipline"
         elif sum(bool(v) for v in (game, custom, reason)) != 1:
             problem = "give exactly one of game_id, custom_game_name or unmapped_reason"
         elif gender and gender not in _GENDERS:
             problem = f"gender_eligibility {gender!r} is not one of {sorted(_GENDERS)}"
         elif klass and klass not in _CLASSES:
             problem = f"division_class {klass!r} is not one of {sorted(_CLASSES)}"
+        elif withhold not in ("", "0", "1"):
+            problem = f"withhold {withhold!r} must be 0, 1 or empty"
+        elif withhold == "1" and not reason:
+            problem = "a withheld division must give its unmapped_reason"
         if problem:
-            raise SystemExit(f"08 aborted: {path.name} line {lineno} ({name!r}): {problem}.")
-        structure[name] = {
+            raise SystemExit(f"08 aborted: {path.name} line {lineno} ({category}, {name!r}): {problem}.")
+        structure[(category, name)] = {
             "game_id": game or None, "custom_game_name": custom or None,
             "gender_eligibility": gender or None, "division_class": klass or None,
+            "withhold": withhold == "1",
         }
     return structure
 
 
-def unmapped_net_names(seed_disciplines: list[dict[str, str]],
-                       structure: dict[str, dict[str, str | None]]) -> list[str]:
-    """Net division names the curated structure does not list: a new variant
-    the source introduced, which must be mapped before it loads."""
+def unmapped_division_names(seed_disciplines: list[dict[str, str]],
+                            structure: dict[DivisionKey, dict[str, str | None]]) -> list[str]:
+    """Division names the curated structure does not list, in any contested
+    discipline: a new variant the source introduced, which must be mapped before
+    it loads."""
     return sorted({
-        row.get("discipline_name", "").strip() for row in seed_disciplines
-        if (row.get("discipline_category") or "").strip() == "net"
-        and row.get("discipline_name", "").strip() not in structure
+        f"{cat}: {name}" for row in seed_disciplines
+        for cat, name in [((row.get("discipline_category") or "").strip(),
+                           row.get("discipline_name", "").strip())]
+        if cat in STRUCTURED_CATEGORIES and (cat, name) not in structure
     })
 
 
@@ -466,12 +485,12 @@ def main() -> None:
     seed_participants = read_csv(seed_dir / "seed_event_result_participants.csv")
     seed_persons = read_csv(seed_dir / "seed_persons.csv")
 
-    net_structure = read_net_division_structure(NET_DIVISION_STRUCTURE)
-    new_net_names = unmapped_net_names(seed_disciplines, net_structure)
+    division_structure = read_division_structure(DIVISION_STRUCTURE)
+    new_net_names = unmapped_division_names(seed_disciplines, division_structure)
     if new_net_names:
         raise SystemExit(
-            f"08 aborted: {len(new_net_names)} net division name(s) are not in "
-            f"{NET_DIVISION_STRUCTURE.name}, so their game, gender and class are unknown. "
+            f"08 aborted: {len(new_net_names)} division name(s) are not in "
+            f"{DIVISION_STRUCTURE.name}, so their game, gender and class are unknown. "
             "Nothing was changed. Add each to that file (a game, a custom game name, or "
             "the reason it stays unmapped), then rerun run_pipeline.sh:\n"
             + "\n".join(f"  {n!r}" for n in new_net_names)
@@ -954,15 +973,24 @@ def main() -> None:
         # ------------------------------------------------------------------
         print("Loading event disciplines...")
         discipline_id_map: dict[tuple[str, str], str] = {}
+        # Divisions the schema cannot yet record truthfully (a team contest has no
+        # entry size to carry): left out whole, with their places and players,
+        # rather than loaded under an entry size they never had.
+        withheld: set[tuple[str, str]] = set()
 
         for row in seed_disciplines:
             event_key = row["event_key"].strip()
             event_id = event_id_map[event_key]
             discipline_key = row["discipline_key"].strip()
             discipline_id = f"disc_{event_key}_{discipline_key}"
-            discipline_id_map[(event_key, discipline_key)] = discipline_id
 
             name = row.get("discipline_name", "").strip()
+            category_key = (row.get("discipline_category") or "").strip()
+            structured = division_structure.get((category_key, name))
+            if structured is not None and structured["withhold"]:
+                withheld.add((event_key, discipline_key))
+                continue
+            discipline_id_map[(event_key, discipline_key)] = discipline_id
             # An aggregate standing over several sports carries no sport family; a
             # contested discipline always carries one.
             is_aggregate = 1 if (row.get("is_aggregate_standing") or "").strip() == "1" else 0
@@ -975,7 +1003,7 @@ def main() -> None:
                     "./run_pipeline.sh full."
                 )
             team_type = normalize_team_type(row.get("team_type", ""), name)
-            parts = (net_structure[name] if discipline_category == "net"
+            parts = (structured if structured is not None
                      else dict.fromkeys(("game_id", "custom_game_name",
                                          "gender_eligibility", "division_class")))
 
@@ -1017,6 +1045,8 @@ def main() -> None:
             event_key = row["event_key"].strip()
             discipline_key = row["discipline_key"].strip()
             placement = row["placement"].strip()
+            if (event_key, discipline_key) in withheld:
+                continue
 
             event_id = event_id_map[event_key]
             discipline_id = discipline_id_map.get((event_key, discipline_key))
@@ -1056,6 +1086,8 @@ def main() -> None:
             discipline_key = row["discipline_key"].strip()
             placement = row["placement"].strip()
 
+            if (event_key, discipline_key) in withheld:
+                continue
             slot = f"{event_key}/{discipline_key}/{placement}"
             result_id = result_id_map.get((event_key, discipline_key, placement))
             if not result_id:
@@ -1096,6 +1128,9 @@ def main() -> None:
             )
 
         refuse_unloaded(unloaded)
+        if withheld:
+            print(f"  divisions withheld until the schema can record them: {len(withheld):,} "
+                  f"(see the withhold column of {DIVISION_STRUCTURE.name})")
 
         # ------------------------------------------------------------------
         # Permanent showcase event and its Hall-of-Fame persona. This is the

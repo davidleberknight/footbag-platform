@@ -1,0 +1,901 @@
+discipline_category,discipline_name,game_id,custom_game_name,gender_eligibility,division_class,unmapped_reason,withhold
+freestyle,***Intermediate Freestyle,game_routines,,open,intermediate,,0
+freestyle,***Junior Freestyle,game_routines,,open,open,,0
+freestyle,***Open Freestyle,game_routines,,open,open,,0
+freestyle,***Women's Freestyle,game_routines,,women,open,,0
+freestyle,1 Minute Intermediate Freestyle,game_timed_consecutives,,open,intermediate,,0
+freestyle,2 Min Final Routine,game_routines,,open,open,,0
+freestyle,2 Minute Open Freestyle,game_timed_consecutives,,open,open,,0
+freestyle,30 Second Shred,game_30_second_shred,,open,open,,0
+freestyle,30 Second Shred - Intermediate,game_30_second_shred,,open,intermediate,,0
+freestyle,30 Second Shred ? Open,game_30_second_shred,,open,open,,0
+freestyle,30Sec Shred,game_30_second_shred,,open,open,,0
+freestyle,45 Second Shred,,45 Second Shred,open,open,,0
+freestyle,45 Second Shred Contest,,45 Second Shred,open,open,,0
+freestyle,45-Second Shred,,45 Second Shred,open,open,,0
+freestyle,Advanced Freestyle,game_routines,,open,open,,0
+freestyle,Amateur Freestyle,game_routines,,open,intermediate,,0
+freestyle,Amateur Freestyle-Prizes,game_routines,,open,intermediate,,0
+freestyle,Battle,game_battle,,open,open,,0
+freestyle,Battle Contest,game_battle,,open,open,,0
+freestyle,Battle International,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Battle Polish,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Battles,game_battle,,open,open,,0
+freestyle,Beginner 60 Sec,,,,,not yet traced to its source page,0
+freestyle,Beginners Freestyle,game_routines,,open,novice,,0
+freestyle,Best Trick,,,,,not yet traced to its source page,0
+freestyle,Big 1,,Big Trick,open,open,,0
+freestyle,Big 3,,Big 3,open,open,,0
+freestyle,Big Combo,,,,,not yet traced to its source page,0
+freestyle,Big One ? Trick Competition,,Big Trick,open,open,,0
+freestyle,Big Trick,,Big Trick,open,open,,0
+freestyle,Big1,,Big Trick,open,open,,0
+freestyle,By Request Contest,game_request,,open,open,,0
+freestyle,Cfa Shred,,Shred,open,open,,0
+freestyle,Circle,game_circle,,open,open,,0
+freestyle,Circle Austria,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Circle Comp,game_circle,,open,open,,0
+freestyle,Circle Competition,game_circle,,open,open,,0
+freestyle,Circle Contest,game_circle,,open,open,,0
+freestyle,Circle Contest Final,game_circle,,open,open,,0
+freestyle,Circle Contest International,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Circle Contest Polish,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Circle Contest:,game_circle,,open,open,,0
+freestyle,Circle Freestyle,game_circle,,open,open,,0
+freestyle,Circle Jam,game_circle,,open,open,,0
+freestyle,Creative Sick 3,game_sick_3,,open,open,,0
+freestyle,Doble Leg Over,,,,,not yet traced to its source page,0
+freestyle,Double Battles Contest,game_battle,,open,open,,0
+freestyle,Doubles,,,,,not yet traced to its source page,0
+freestyle,Doubles Battle,game_battle,,open,open,,0
+freestyle,Doubles Battles,game_battle,,open,open,,0
+freestyle,Doubles Freestyle,game_routines,,open,open,,0
+freestyle,Doubles Freestyle Battles,game_battle,,open,open,,0
+freestyle,Doubles Freestyle Routines,game_routines,,open,open,,0
+freestyle,Doubles Routines,game_routines,,open,open,,0
+freestyle,En Single Freestyle,game_routines,,open,open,,0
+freestyle,European Doubles Freestyle,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,European Freestyle,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,European Rankings For Open Freestyle,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Final Circle,game_circle,,open,open,,0
+freestyle,Footbag Freestyle,game_routines,,open,open,,0
+freestyle,Footbag Freestyle Overall,,,,,"an overall standing across the event, not one contest",0
+freestyle,Footbag Freestyle.,game_routines,,open,open,,0
+freestyle,Footbag Shred,,Shred,open,open,,0
+freestyle,Footbag-Freestyle 30Sec Shred,game_30_second_shred,,open,open,,0
+freestyle,Footbag-Freestyle Men,game_routines,,open,open,,0
+freestyle,Footbag-Freestyle Women,game_routines,,women,open,,0
+freestyle,Freestyle,game_routines,,open,open,,0
+freestyle,Freestyle - 30 Second Shred,game_30_second_shred,,open,open,,0
+freestyle,Freestyle - Open,game_routines,,open,open,,0
+freestyle,Freestyle 1M Routines,game_routines,,open,open,,0
+freestyle,Freestyle 2-Min,game_routines,,open,open,,0
+freestyle,Freestyle ? Intermediate,game_routines,,open,intermediate,,0
+freestyle,Freestyle ? Novice,game_routines,,open,novice,,0
+freestyle,Freestyle Battle,game_battle,,open,open,,0
+freestyle,Freestyle Battles,game_battle,,open,open,,0
+freestyle,Freestyle Best 3,game_routines,,open,open,,0
+freestyle,Freestyle Big 1,,Big Trick,open,open,,0
+freestyle,Freestyle Big 3,,Big 3,open,open,,0
+freestyle,Freestyle Big One,,Big Trick,open,open,,0
+freestyle,Freestyle Circle,game_circle,,open,open,,0
+freestyle,Freestyle Circle Competition,game_circle,,open,open,,0
+freestyle,Freestyle Doubles Routine,game_routines,,open,open,,0
+freestyle,Freestyle Dvojice,game_routines,,open,open,,0
+freestyle,Freestyle Dívky,game_routines,,women,open,,0
+freestyle,Freestyle Jam,game_routines,,open,open,,0
+freestyle,Freestyle Most Rippin' Run,game_routines,,open,open,,0
+freestyle,Freestyle Open,game_routines,,open,open,,0
+freestyle,Freestyle Open Big One,,Big Trick,open,open,,0
+freestyle,Freestyle Open Circle Contest,game_circle,,open,open,,0
+freestyle,Freestyle Open Círculo,game_routines,,open,open,,0
+freestyle,Freestyle Open Mens Singles,game_routines,,open,open,,0
+freestyle,Freestyle Open Routines,game_routines,,open,open,,0
+freestyle,Freestyle Open Rutina,game_routines,,open,open,,0
+freestyle,Freestyle Open Sick Tree,game_routines,,open,open,,0
+freestyle,Freestyle Overall,,,,,"an overall standing across the event, not one contest",0
+freestyle,Freestyle Players,game_routines,,open,open,,0
+freestyle,Freestyle Request,game_request,,open,open,,0
+freestyle,Freestyle Request Contest,game_request,,open,open,,0
+freestyle,Freestyle Routines,game_routines,,open,open,,0
+freestyle,Freestyle Routines Finals,game_routines,,open,open,,0
+freestyle,Freestyle Shed Contest Winner,game_routines,,open,open,,0
+freestyle,Freestyle Shred,,Shred,open,open,,0
+freestyle,Freestyle Shred 30,game_30_second_shred,,open,open,,0
+freestyle,Freestyle Sick 3,game_sick_3,,open,open,,0
+freestyle,Freestyle Sideline Last Man Standing,game_last_man_standing,,open,open,,0
+freestyle,Freestyle Singles,game_routines,,open,open,,0
+freestyle,Freestyle Under 13 Boys,game_routines,,open,open,,0
+freestyle,Freestyle – Novice,game_routines,,open,novice,,0
+freestyle,Freestyle-,game_routines,,open,open,,0
+freestyle,Freestyle-Amateur,game_routines,,open,intermediate,,0
+freestyle,Freestyle-Amateur/Intermediate,game_routines,,open,intermediate,,0
+freestyle,Freesytle Routine,game_routines,,open,open,,0
+freestyle,Gents Open Freestyle,game_routines,,open,open,,0
+freestyle,German Circle,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,German Ranking Open Freestyle,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Girl's Freestyle,game_routines,,women,open,,0
+freestyle,Girls Freestyle,game_routines,,women,open,,0
+freestyle,Guiltless Ironman,,Ironman,open,open,,0
+freestyle,Impromptu Sick 3,game_sick_3,,open,open,,0
+freestyle,Int Circle,game_circle,,open,intermediate,,0
+freestyle,Int Request,game_request,,open,intermediate,,0
+freestyle,Inter Circle,game_circle,,open,intermediate,,0
+freestyle,Inter Routines,game_routines,,open,intermediate,,0
+freestyle,Inter Sick1,game_sick_trick,,open,intermediate,,0
+freestyle,Interm. Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate,,,,,not yet traced to its source page,0
+freestyle,Intermediate 1Min 30 Sec,,,,,not yet traced to its source page,0
+freestyle,Intermediate 30 Second Shred,game_30_second_shred,,open,intermediate,,0
+freestyle,Intermediate 45 Second Shred,,45 Second Shred,open,intermediate,,0
+freestyle,Intermediate Battle,game_battle,,open,intermediate,,0
+freestyle,Intermediate Battle Royal,game_battle,,open,intermediate,,0
+freestyle,Intermediate Best 3,,,,,not yet traced to its source page,0
+freestyle,Intermediate Big 3,,Big 3,open,intermediate,,0
+freestyle,Intermediate Big Trick,,Big Trick,open,intermediate,,0
+freestyle,Intermediate Circle,game_circle,,open,intermediate,,0
+freestyle,Intermediate Circle Contest,game_circle,,open,intermediate,,0
+freestyle,Intermediate Flow Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate Footbag Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate Footbag Freestyle Routines,game_routines,,open,intermediate,,0
+freestyle,Intermediate Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate Freestyle - Routines,game_routines,,open,intermediate,,0
+freestyle,Intermediate Freestyle Battle,game_battle,,open,intermediate,,0
+freestyle,Intermediate Freestyle Battles,game_battle,,open,intermediate,,0
+freestyle,Intermediate Freestyle Circle Contest,game_circle,,open,intermediate,,0
+freestyle,Intermediate Freestyle Man,game_routines,,open,intermediate,,0
+freestyle,Intermediate Freestyle Performance,game_routines,,open,intermediate,,0
+freestyle,Intermediate Freestyle Routine,game_routines,,open,intermediate,,0
+freestyle,Intermediate Freestyle Routines,game_routines,,open,intermediate,,0
+freestyle,Intermediate Freestyle Shred,,Shred,open,intermediate,,0
+freestyle,Intermediate Judged Style,,,,,not yet traced to its source page,0
+freestyle,Intermediate Most Rippin' Run,,,,,not yet traced to its source page,0
+freestyle,Intermediate Request Contest,game_request,,open,intermediate,,0
+freestyle,Intermediate Rippin Run,,,,,not yet traced to its source page,0
+freestyle,Intermediate Rippin Run All Around,,,,,not yet traced to its source page,0
+freestyle,Intermediate Rippin' Run,,,,,not yet traced to its source page,0
+freestyle,Intermediate Routine,game_routines,,open,intermediate,,0
+freestyle,Intermediate Routines,game_routines,,open,intermediate,,0
+freestyle,Intermediate Shred,,Shred,open,intermediate,,0
+freestyle,Intermediate Shred 30,game_30_second_shred,,open,intermediate,,0
+freestyle,Intermediate Shred :30,game_30_second_shred,,open,intermediate,,0
+freestyle,Intermediate Shred :30 Contest,game_30_second_shred,,open,intermediate,,0
+freestyle,Intermediate Shred Off,,Shred,open,intermediate,,0
+freestyle,Intermediate Shred30,game_30_second_shred,,open,intermediate,,0
+freestyle,Intermediate Shred:30,game_30_second_shred,,open,intermediate,,0
+freestyle,Intermediate Sick 1,game_sick_trick,,open,intermediate,,0
+freestyle,Intermediate Sick 10 Trick,,Sick 10,open,intermediate,,0
+freestyle,Intermediate Sick 3,game_sick_3,,open,intermediate,,0
+freestyle,Intermediate Sick 3-Trick,game_sick_3,,open,intermediate,,0
+freestyle,Intermediate Sick Trick,game_sick_trick,,open,intermediate,,0
+freestyle,Intermediate Sick3,game_sick_3,,open,intermediate,,0
+freestyle,Intermediate Single & Double Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate Single Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate Singles Footbag Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate Singles Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermediate Singles Freestyle 33 Player,game_routines,,open,intermediate,,0
+freestyle,Intermediate Singles Routines,game_routines,,open,intermediate,,0
+freestyle,Intermediates Singles,,,,,not yet traced to its source page,0
+freestyle,Intermédiaire Freestyle,game_routines,,open,intermediate,,0
+freestyle,Intermédiaire Shred,,Shred,open,intermediate,,0
+freestyle,Ironman,,Ironman,open,open,,0
+freestyle,Ironman- Greg Nelson,,Ironman,open,open,,0
+freestyle,Ladies Freestyle,game_routines,,women,open,,0
+freestyle,Ladies Open Freestyle,game_routines,,women,open,,0
+freestyle,Last Kicker Standing,,,,,not yet traced to its source page,0
+freestyle,Last Man Standing,game_last_man_standing,,open,open,,0
+freestyle,Man's Single,,,,,not yet traced to its source page,0
+freestyle,Men: Intermediate Singles Freestyle,game_routines,,open,intermediate,,0
+freestyle,Men: Open Singles Freestyle,game_routines,,open,open,,0
+freestyle,Mens Open Freestyle,game_routines,,open,open,,0
+freestyle,Mens Open Freestyle Swiss Ranking,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Mens Open Singles Freestyle,game_routines,,open,open,,0
+freestyle,Mixed Doubles Freestyle,game_routines,,mixed,open,,0
+freestyle,Mixed Doubles Freestyle Non-Official Event,game_routines,,mixed,open,,0
+freestyle,Mixed Doubles Routines,game_routines,,mixed,open,,0
+freestyle,Mixed Team Footbag Freestyle Demonstration Round,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Most Rippin Run,,,,,not yet traced to its source page,0
+freestyle,Most Rippin' Run,,,,,not yet traced to its source page,0
+freestyle,Novice,,,,,not yet traced to its source page,0
+freestyle,"Novice ""Circle Jamz"" Competition",game_circle,,open,novice,,0
+freestyle,Novice Circle Jamz,game_circle,,open,novice,,0
+freestyle,Novice Circle Shred Contest,,,,,not yet traced to its source page,0
+freestyle,Novice Freeestyle,,,,,not yet traced to its source page,0
+freestyle,Novice Freestyle,game_routines,,open,novice,,0
+freestyle,Novice Freestyle Circle,game_circle,,open,novice,,0
+freestyle,Novice Judged Style,,,,,not yet traced to its source page,0
+freestyle,Novice Routines,game_routines,,open,novice,,0
+freestyle,Novice Sick 1,game_sick_trick,,open,novice,,0
+freestyle,Novice Sick 3,game_sick_3,,open,novice,,0
+freestyle,Open,,,,,not yet traced to its source page,0
+freestyle,Open 2 Minute Routines,game_routines,,open,open,,0
+freestyle,Open 30 Second Shred,game_30_second_shred,,open,open,,0
+freestyle,Open 30-Second Shred,game_30_second_shred,,open,open,,0
+freestyle,Open 30S Shred,game_30_second_shred,,open,open,,0
+freestyle,Open 35 Sec. Shred,,35 Second Shred,open,open,,0
+freestyle,Open 45 Second Shred,,45 Second Shred,open,open,,0
+freestyle,Open Animation Freestyle,game_routines,,open,open,,0
+freestyle,Open Austrian Freestyle Routines,,,,,a national or regional list beside the open contest; not yet checked against its page,0
+freestyle,Open Battle,game_battle,,open,open,,0
+freestyle,Open Battle Royal,game_battle,,open,open,,0
+freestyle,Open Battles,game_battle,,open,open,,0
+freestyle,Open Best 3,,,,,not yet traced to its source page,0
+freestyle,Open Big 1,,Big Trick,open,open,,0
+freestyle,Open Big 3,,Big 3,open,open,,0
+freestyle,Open Big 3 Tricks,,Big 3,open,open,,0
+freestyle,Open Big One,,Big Trick,open,open,,0
+freestyle,Open Big Trick,,Big Trick,open,open,,0
+freestyle,Open Circle,game_circle,,open,open,,0
+freestyle,Open Circle Contest,game_circle,,open,open,,0
+freestyle,Open Circle Freestyle,game_circle,,open,open,,0
+freestyle,Open Double Freestyle,game_routines,,open,open,,0
+freestyle,Open Doubles Choreographed Routines,game_routines,,open,open,,0
+freestyle,Open Doubles Footbag Freestyle,game_routines,,open,open,,0
+freestyle,Open Doubles Freestyle,game_routines,,open,open,,0
+freestyle,Open Doubles Freestyle 6 Teams,game_routines,,open,open,,0
+freestyle,Open Doubles Routines,game_routines,,open,open,,0
+freestyle,Open Footbag Freestyle,game_routines,,open,open,,0
+freestyle,Open Freestyle,game_routines,,open,open,,0
+freestyle,Open Freestyle - Routines,game_routines,,open,open,,0
+freestyle,Open Freestyle - Shred 30 Sec.,game_30_second_shred,,open,open,,0
+freestyle,Open Freestyle Battle,game_battle,,open,open,,0
+freestyle,Open Freestyle Battles,game_battle,,open,open,,0
+freestyle,Open Freestyle Challenge,game_routines,,open,open,,0
+freestyle,Open Freestyle Circle,game_circle,,open,open,,0
+freestyle,Open Freestyle Circle Contest,game_circle,,open,open,,0
+freestyle,Open Freestyle Combo,game_routines,,open,open,,0
+freestyle,Open Freestyle Doubles,game_routines,,open,open,,0
+freestyle,Open Freestyle Golf,game_footbag_golf,,open,open,,0
+freestyle,Open Freestyle Head To Head Battle,game_battle,,open,open,,0
+freestyle,Open Freestyle Performance,game_routines,,open,open,,0
+freestyle,Open Freestyle Pro,game_routines,,open,open,,0
+freestyle,Open Freestyle Routine,game_routines,,open,open,,0
+freestyle,Open Freestyle Routines,game_routines,,open,open,,0
+freestyle,Open Freestyle Shred,,Shred,open,open,,0
+freestyle,Open Freestyle Shred Contest,,Shred,open,open,,0
+freestyle,Open Freestyle Singles,game_routines,,open,open,,0
+freestyle,Open Freesytle Routines,game_routines,,open,open,,0
+freestyle,Open Freetyle,,,,,not yet traced to its source page,0
+freestyle,Open Huge Combo,,,,,not yet traced to its source page,0
+freestyle,Open Ironman,,Ironman,open,open,,0
+freestyle,Open Judged Style,,,,,not yet traced to its source page,0
+freestyle,Open Man Freestyle,game_routines,,open,open,,0
+freestyle,Open Men Freestyle,game_routines,,open,open,,0
+freestyle,Open Men Freestyle Routines,game_routines,,open,open,,0
+freestyle,Open Mixed Double Freestyle,game_routines,,mixed,open,,0
+freestyle,Open Mixed Doubles Freestyle,game_routines,,mixed,open,,0
+freestyle,Open Mixed Doubles Routines,game_routines,,mixed,open,,0
+freestyle,Open Most Rippin' Run,,,,,not yet traced to its source page,0
+freestyle,Open Performance Routines,game_routines,,open,open,,0
+freestyle,Open Phat Trick Contest,,,,,not yet traced to its source page,0
+freestyle,Open Request,game_request,,open,open,,0
+freestyle,Open Request Combo,game_request,,open,open,,0
+freestyle,Open Request Contest,game_request,,open,open,,0
+freestyle,Open Rippen Run,,,,,not yet traced to its source page,0
+freestyle,Open Rippin Run,,,,,not yet traced to its source page,0
+freestyle,Open Rippin' Run,,,,,not yet traced to its source page,0
+freestyle,Open Routine,game_routines,,open,open,,0
+freestyle,Open Routines,game_routines,,open,open,,0
+freestyle,Open Short Technical Program,,,,,not yet traced to its source page,0
+freestyle,Open Shred,,Shred,open,open,,0
+freestyle,Open Shred 30,game_30_second_shred,,open,open,,0
+freestyle,Open Shred :30,game_30_second_shred,,open,open,,0
+freestyle,Open Shred :30 Contest,game_30_second_shred,,open,open,,0
+freestyle,Open Shred Off,,Shred,open,open,,0
+freestyle,Open Shred30,game_30_second_shred,,open,open,,0
+freestyle,Open Shred30 Freestyle,game_30_second_shred,,open,open,,0
+freestyle,Open Shred:30,game_30_second_shred,,open,open,,0
+freestyle,Open Shred:30 Final,game_30_second_shred,,open,open,,0
+freestyle,Open Shred:30 Freestyle,game_30_second_shred,,open,open,,0
+freestyle,Open Sick 1,game_sick_trick,,open,open,,0
+freestyle,Open Sick 10,,Sick 10,open,open,,0
+freestyle,Open Sick 10 Trick,,Sick 10,open,open,,0
+freestyle,Open Sick 3,game_sick_3,,open,open,,0
+freestyle,Open Sick 3-Trick,game_sick_3,,open,open,,0
+freestyle,Open Sick 3-Trick Combo,game_sick_3,,open,open,,0
+freestyle,Open Sick 3-Trick Contest,game_sick_3,,open,open,,0
+freestyle,Open Sick 3-Trick Final,game_sick_3,,open,open,,0
+freestyle,Open Sick One,game_sick_trick,,open,open,,0
+freestyle,Open Sick Three,game_sick_3,,open,open,,0
+freestyle,Open Sick Three Contest,game_sick_3,,open,open,,0
+freestyle,Open Sick Trick,game_sick_trick,,open,open,,0
+freestyle,Open Sick1,game_sick_trick,,open,open,,0
+freestyle,Open Sick3,game_sick_3,,open,open,,0
+freestyle,Open Sick3-Trick,game_sick_3,,open,open,,0
+freestyle,Open Single Freestyle,game_routines,,open,open,,0
+freestyle,Open Single Freestyle Women,game_routines,,women,open,,0
+freestyle,Open Singles Choreographed Routines,game_routines,,open,open,,0
+freestyle,Open Singles Footbag Freestyle,game_routines,,open,open,,0
+freestyle,Open Singles Footbag Freestyle Routines,game_routines,,open,open,,0
+freestyle,Open Singles Freestyle,game_routines,,open,open,,0
+freestyle,Open Singles Freestyle 38 Player,game_routines,,open,open,,0
+freestyle,Open Singles Freestyle Women 15 Player,game_routines,,women,open,,0
+freestyle,Open Singles Routine,game_routines,,open,open,,0
+freestyle,Open Singles Routines,game_routines,,open,open,,0
+freestyle,Open Team Footbag Freestyle,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Open Team Freestyle,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Open Team Routines,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Open Woman Freestyle,game_routines,,women,open,,0
+freestyle,Open Women Freestyle,game_routines,,women,open,,0
+freestyle,Open Women Freestyle Routines,game_routines,,women,open,,0
+freestyle,Open Women Single Freestyle,game_routines,,women,open,,0
+freestyle,Open Women's Circle Contest,game_circle,,women,open,,0
+freestyle,Open Women's Doubles Freestyle,game_routines,,women,open,,0
+freestyle,Open Women's Freestyle,game_routines,,women,open,,0
+freestyle,Open Women's Shred:30,game_30_second_shred,,women,open,,0
+freestyle,Open Women's Singles Freestyle,game_routines,,women,open,,0
+freestyle,Other Circle Participants,game_circle,,open,open,,0
+freestyle,Phat Combo Contest,,,,,not yet traced to its source page,0
+freestyle,Phat Trick,,,,,not yet traced to its source page,0
+freestyle,Phat Trick Contest Winner,,,,,not yet traced to its source page,0
+freestyle,Pro Doubles Freestyle,game_routines,,open,open,,0
+freestyle,Pro Flow Freestyle,game_routines,,open,open,,0
+freestyle,Pro Freestyle,game_routines,,open,open,,0
+freestyle,Pro Freestyle- Single,game_routines,,open,open,,0
+freestyle,Pro Routines,game_routines,,open,open,,0
+freestyle,Pro Shred :30 Contest,game_30_second_shred,,open,open,,0
+freestyle,Pro Shred30,game_30_second_shred,,open,open,,0
+freestyle,Pro Sick 3,game_sick_3,,open,open,,0
+freestyle,Pro Single Freestyle,game_routines,,open,open,,0
+freestyle,Pro Singles Freestyle,game_routines,,open,open,,0
+freestyle,Request,game_request,,open,open,,0
+freestyle,Request 10%,game_request,,open,open,,0
+freestyle,Request Competition,game_request,,open,open,,0
+freestyle,Request Contest,game_request,,open,open,,0
+freestyle,Request Contest - Drills,game_request,,open,open,,0
+freestyle,Request Contest - Links,game_request,,open,open,,0
+freestyle,Results Freestyle Man,game_routines,,open,open,,0
+freestyle,Results Open Circle,game_circle,,open,open,,0
+freestyle,Rippin Run,,,,,not yet traced to its source page,0
+freestyle,Rippinest Run,,,,,not yet traced to its source page,0
+freestyle,Routine,game_routines,,open,open,,0
+freestyle,Routines,game_routines,,open,open,,0
+freestyle,Routines Intermediate Freestyle,game_routines,,open,intermediate,,0
+freestyle,Routines Open Freestyle,game_routines,,open,open,,0
+freestyle,Rutina Intermediate,,,,,not yet traced to its source page,0
+freestyle,Rutina Open,,,,,not yet traced to its source page,0
+freestyle,Short Technical Program,,,,,not yet traced to its source page,0
+freestyle,Shred,,Shred,open,open,,0
+freestyle,Shred 30,game_30_second_shred,,open,open,,0
+freestyle,Shred 30 Champion,game_30_second_shred,,open,open,,0
+freestyle,Shred 30 Sec,game_30_second_shred,,open,open,,0
+freestyle,Shred 30 Sec.,game_30_second_shred,,open,open,,0
+freestyle,Shred 30?,game_30_second_shred,,open,open,,0
+freestyle,Shred 30S,game_30_second_shred,,open,open,,0
+freestyle,Shred 30Sec,game_30_second_shred,,open,open,,0
+freestyle,Shred Contest,,Shred,open,open,,0
+freestyle,Shred Contest 12 Player,,Shred,open,open,,0
+freestyle,Shred Contest Open,,Shred,open,open,,0
+freestyle,Shred Heads,,Shred,open,open,,0
+freestyle,Shred Skills Contest,,Shred,open,open,,0
+freestyle,Shred30,game_30_second_shred,,open,open,,0
+freestyle,Shred:30,game_30_second_shred,,open,open,,0
+freestyle,Shred:30Sec,game_30_second_shred,,open,open,,0
+freestyle,Sick 1,game_sick_trick,,open,open,,0
+freestyle,Sick 10 Trick,,Sick 10,open,open,,0
+freestyle,Sick 2 Big Combo,,,,,not yet traced to its source page,0
+freestyle,Sick 3,game_sick_3,,open,open,,0
+freestyle,Sick 3 - Intermediate,game_sick_3,,open,intermediate,,0
+freestyle,Sick 3 - Open,game_sick_3,,open,open,,0
+freestyle,Sick 3 At 3Am In The Bar,game_sick_3,,open,open,,0
+freestyle,Sick 3 Contest,game_sick_3,,open,open,,0
+freestyle,Sick 3-Trick,game_sick_3,,open,open,,0
+freestyle,Sick 4,,,,,not yet traced to its source page,0
+freestyle,Sick 5,,,,,not yet traced to its source page,0
+freestyle,Sick Three,game_sick_3,,open,open,,0
+freestyle,Sick Trick,game_sick_trick,,open,open,,0
+freestyle,Sick-3,game_sick_3,,open,open,,0
+freestyle,Sick-3 Contest,game_sick_3,,open,open,,0
+freestyle,Sick1,game_sick_trick,,open,open,,0
+freestyle,Sick3,game_sick_3,,open,open,,0
+freestyle,Singles,,,,,not yet traced to its source page,0
+freestyle,Singles Freestyle,game_routines,,open,open,,0
+freestyle,Singles Freestyle Open,game_routines,,open,open,,0
+freestyle,Singles Routines,game_routines,,open,open,,0
+freestyle,Singles Routines Freestyle,game_routines,,open,open,,0
+freestyle,Team Freestyle,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Tiltless Ironman,,Ironman,open,open,,0
+freestyle,Trojkombinace Triků,,,,,not yet traced to its source page,0
+freestyle,Unknown,,,,,not yet traced to its source page,0
+freestyle,Woman Circle,game_circle,,women,open,,0
+freestyle,Woman Freestyle,game_routines,,women,open,,0
+freestyle,Woman Freestyle Routines,game_routines,,women,open,,0
+freestyle,Woman Routine,game_routines,,women,open,,0
+freestyle,Women Circle Contest,game_circle,,women,open,,0
+freestyle,Women Freestyle,game_routines,,women,open,,0
+freestyle,Women Freestyle Routines,game_routines,,women,open,,0
+freestyle,Women Routines,game_routines,,women,open,,0
+freestyle,Women Single Freestyle,game_routines,,women,open,,0
+freestyle,Women Singles Freestyle,game_routines,,women,open,,0
+freestyle,Women Singles Routines,game_routines,,women,open,,0
+freestyle,Women's Battle,game_battle,,women,open,,0
+freestyle,Women's Battles,game_battle,,women,open,,0
+freestyle,Women's Best 3,,,,,not yet traced to its source page,0
+freestyle,Women's Big Trick,,Big Trick,women,open,,0
+freestyle,Women's Choreographed Routines,game_routines,,women,open,,0
+freestyle,Women's Circle,game_circle,,women,open,,0
+freestyle,Women's Circle Contest,game_circle,,women,open,,0
+freestyle,Women's Footbag Freestyle,game_routines,,women,open,,0
+freestyle,Women's Freestyle,game_routines,,women,open,,0
+freestyle,Women's Freestyle - Routines,game_routines,,women,open,,0
+freestyle,Women's Freestyle Routines,game_routines,,women,open,,0
+freestyle,Women's Open Doubles Freestyle,game_routines,,women,open,,0
+freestyle,Women's Open Frestyle,,,,,not yet traced to its source page,0
+freestyle,Women's Open Shred:30,game_30_second_shred,,women,open,,0
+freestyle,Women's Open Singles Freestyle,game_routines,,women,open,,0
+freestyle,Women's Open Singles Routines,game_routines,,women,open,,0
+freestyle,Women's Open Team Routines,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Women's Performance Routines,game_routines,,women,open,,0
+freestyle,Women's Routines,game_routines,,women,open,,0
+freestyle,Women's Shred,,Shred,women,open,,0
+freestyle,Women's Shred 30,game_30_second_shred,,women,open,,0
+freestyle,Women's Shred :30,game_30_second_shred,,women,open,,0
+freestyle,Women's Shred Off,,Shred,women,open,,0
+freestyle,Women's Shred30,game_30_second_shred,,women,open,,0
+freestyle,Women's Shred:30,game_30_second_shred,,women,open,,0
+freestyle,Women's Sick 3,game_sick_3,,women,open,,0
+freestyle,Women's Sick Trick,game_sick_trick,,women,open,,0
+freestyle,Women's Single,,,,,not yet traced to its source page,0
+freestyle,Women's Singles Footbag Freestyle,game_routines,,women,open,,0
+freestyle,Women's Singles Freestyle,game_routines,,women,open,,0
+freestyle,"Women's Singles Freestyle [Very, Very Close (1-4)]",game_routines,,women,open,,0
+freestyle,Women's Singles Routines,game_routines,,women,open,,0
+freestyle,Women's Team Footbag Freestyle,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Women's Team Freestyle,,,,,team entry: awaiting schema support for team entry size,1
+freestyle,Women: Open Singles Freestyle,game_routines,,women,open,,0
+freestyle,Wyniki Freestyle,game_routines,,open,open,,0
+freestyle,[U]Open Circle Competition[/U],game_circle,,open,open,,0
+freestyle,[U]Sick One[/U],game_sick_trick,,open,open,,0
+golf,Advanced Footbag Golf,game_footbag_golf,,open,open,,0
+golf,Amateur Footbag Golf,game_footbag_golf,,open,intermediate,,0
+golf,Amateur Golf,game_footbag_golf,,open,intermediate,,0
+golf,Best Bag Golf-,game_footbag_golf,,open,open,,0
+golf,Doubles Golf,game_footbag_golf,,open,open,,0
+golf,Footbag Golf,game_footbag_golf,,open,open,,0
+golf,Golf,game_footbag_golf,,open,open,,0
+golf,Golf -Amateur,game_footbag_golf,,open,intermediate,,0
+golf,Golf Doubles Open,game_footbag_golf,,open,open,,0
+golf,Golf Jam,game_footbag_golf,,open,open,,0
+golf,Golf Results Currently Not Available,game_footbag_golf,,open,open,,0
+golf,Golf Singles Advanced,game_footbag_golf,,open,open,,0
+golf,Golf Singles Open,game_footbag_golf,,open,open,,0
+golf,Intermediate,,,,,not yet traced to its source page,0
+golf,Intermediate Footbag Golf,game_footbag_golf,,open,intermediate,,0
+golf,Intermediate Golf,game_footbag_golf,,open,intermediate,,0
+golf,Intermediate Singles Golf,game_footbag_golf,,open,intermediate,,0
+golf,Juggle Golf,game_footbag_golf,,open,open,,0
+golf,Novice Footbag Golf,game_footbag_golf,,open,novice,,0
+golf,Novice Golf,game_footbag_golf,,open,novice,,0
+golf,Open Cash Game Golf,game_footbag_golf,,open,open,,0
+golf,Open Doubles Golf,game_footbag_golf,,open,open,,0
+golf,Open Footbag Golf,game_footbag_golf,,open,open,,0
+golf,Open Footbag Golf 3 Rounds,game_footbag_golf,,open,open,,0
+golf,Open Golf,game_footbag_golf,,open,open,,0
+golf,Open Singles Golf,game_footbag_golf,,open,open,,0
+golf,Pro,,,,,not yet traced to its source page,0
+golf,Pro Footbag Golf,game_footbag_golf,,open,open,,0
+golf,Pro Golf,game_footbag_golf,,open,open,,0
+golf,Results Pro Image Cash Golf,game_footbag_golf,,open,open,,0
+golf,Singles Golf,game_footbag_golf,,open,open,,0
+golf,Unknown,,,,,not yet traced to its source page,0
+golf,Women's Champagne Golf,game_footbag_golf,,women,open,,0
+golf,Women's Footbag Golf,game_footbag_golf,,women,open,,0
+golf,Women's Footbag Golf 3 Rounds,game_footbag_golf,,women,open,,0
+golf,Women's Golf,game_footbag_golf,,women,open,,0
+net,"""B"" Division Doubles Net",game_footbag_net,,open,intermediate,,0
+net,"""B"" Division Singles Net",game_footbag_net,,open,intermediate,,0
+net,Advance Doubles -,game_footbag_net,,open,open,,0
+net,Advanced Doubles,game_footbag_net,,open,open,,0
+net,Advanced Doubles Footbag Net,game_footbag_net,,open,open,,0
+net,Advanced Doubles Net,game_footbag_net,,open,open,,0
+net,Advanced Singles,game_footbag_net,,open,open,,0
+net,Advanced Singles Footbag Net,game_footbag_net,,open,open,,0
+net,Advanced Singles Net,game_footbag_net,,open,open,,0
+net,Amateur Doubles Net,game_footbag_net,,open,intermediate,,0
+net,Amateur Doubles Net - Prizes,game_footbag_net,,open,intermediate,,0
+net,Amateur Singles Net,game_footbag_net,,open,intermediate,,0
+net,Amateur Singles Net -Prizes,game_footbag_net,,open,intermediate,,0
+net,Americano Doubles Net,game_footbag_net,,open,open,,0
+net,Beginner Doubles Net (Sunday) 6 Teams,game_footbag_net,,open,novice,,0
+net,Beginner Singles Net,game_footbag_net,,open,novice,,0
+net,Beginner Singles Net (Saturday) 11 Entrants,game_footbag_net,,open,novice,,0
+net,Beginners Doubles Net,game_footbag_net,,open,novice,,0
+net,Beginners Singles Net,game_footbag_net,,open,novice,,0
+net,Beginners Singls Net,game_footbag_net,,open,novice,,0
+net,Categoría Intermedio Net Individual,game_footbag_net,,open,intermediate,,0
+net,Categoría Novatos Net Indivudual,game_footbag_net,,open,novice,,0
+net,Danish Championships Net,game_footbag_net,,open,open,,0
+net,Double,game_footbag_net,,open,open,,0
+net,Double Mixte - Mixed Doubles,game_footbag_net,,mixed,open,,0
+net,Double Mixte  Mixed Doubles,game_footbag_net,,mixed,open,,0
+net,Double Net,game_footbag_net,,open,open,,0
+net,Double Net Intermédiaire,game_footbag_net,,open,intermediate,,0
+net,Double Net Mixte / Mixed Doubles Net,game_footbag_net,,mixed,open,,0
+net,Double Net Open,game_footbag_net,,open,open,,0
+net,Double Net Open / Open Doubles Net,game_footbag_net,,open,open,,0
+net,Double Open,game_footbag_net,,open,open,,0
+net,Double Open - Open Doubles,game_footbag_net,,open,open,,0
+net,Double Open Net,game_footbag_net,,open,open,,0
+net,Double  Doubles,game_footbag_net,,open,open,,0
+net,Doubles,game_footbag_net,,open,open,,0
+net,Doubles Footbag Net,game_footbag_net,,open,open,,0
+net,Doubles Kicking Net,,,,,a kicking contest; the game is not stated,0
+net,Doubles Mixed Net,game_footbag_net,,mixed,open,,0
+net,Doubles Net,game_footbag_net,,open,open,,0
+net,Doubles Net 20.5.2006,game_footbag_net,,open,open,,0
+net,Doubles Net Open,game_footbag_net,,open,open,,0
+net,Doubles Net Women,game_footbag_net,,women,open,,0
+net,"Doubles Net, Initial Seedings",game_footbag_net,,open,open,,0
+net,Doubles Net- Intermediate,game_footbag_net,,open,intermediate,,0
+net,Doubles Net- Novice,game_footbag_net,,open,novice,,0
+net,Doubles Ultra Footbag Net,game_footbag_net,,open,open,,0
+net,Draw Partners Net,game_footbag_net,,open,open,,0
+net,Drunken Masters,game_footbag_net,,open,masters,,0
+net,En Double Net,game_footbag_net,,open,open,,0
+net,En Single Net,game_footbag_net,,open,open,,0
+net,European Doubles Net,game_footbag_net,,open,open,,0
+net,European Rankings For Open Doubles Net,,,,,"a ranking list, not a contest",0
+net,European Rankings For Open Singles Net,,,,,"a ranking list, not a contest",0
+net,European Singles Net,game_footbag_net,,open,open,,0
+net,Final Results Doubles,game_footbag_net,,open,open,,0
+net,Final Results Open Doubles,game_footbag_net,,open,open,,0
+net,Final Results Open Single.,game_footbag_net,,open,open,,0
+net,Finals Open Doubles Net,game_footbag_net,,open,open,,0
+net,Footbag Net (Doubles) In April Of 2020.,game_footbag_net,,open,open,,0
+net,Footbag Net Double,game_footbag_net,,open,open,,0
+net,Footbag Net Doubles,game_footbag_net,,open,open,,0
+net,Footbag Net Estonia,game_footbag_net,,open,open,,0
+net,Footbag Net Novice Doubles,game_footbag_net,,open,novice,,0
+net,Footbag Net Open Doubles,game_footbag_net,,open,open,,0
+net,Footbag Net Open Singles,game_footbag_net,,open,open,,0
+net,Footbag Net Overall,,,,,"an overall standing across the event, not one contest",0
+net,Footbag Net Score Keeper's Contest,,,,,a side contest for score keepers; the game is not stated,0
+net,Footbag Net Single,game_footbag_net,,open,open,,0
+net,Footbag Net: Doubles,game_footbag_net,,open,open,,0
+net,Footbag Net: Singles,game_footbag_net,,open,open,,0
+net,Footbag Open Men Net,game_footbag_net,,open,open,,0
+net,Footbag Open Women Net,game_footbag_net,,women,open,,0
+net,Footbag-Net Doubles,game_footbag_net,,open,open,,0
+net,Footbag-Net Singles,game_footbag_net,,open,open,,0
+net,Grand Masters Division: :-) Net,game_footbag_net,,open,masters,,0
+net,I. Basque Tournament Of Footbag Net,game_footbag_net,,open,open,,0
+net,I. Ereaga Footbag Net Tournament,game_footbag_net,,open,open,,0
+net,Interm. Double Net,game_footbag_net,,open,intermediate,,0
+net,Interm. Single Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate,game_footbag_net,,open,intermediate,,0
+net,Intermediate Division Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Double Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Doubles,game_footbag_net,,open,intermediate,,0
+net,Intermediate Doubles - 2 Competing,game_footbag_net,,open,intermediate,,0
+net,Intermediate Doubles Footbag Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Doubles Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Doubles Net 6 Entrants,game_footbag_net,,open,intermediate,,0
+net,Intermediate Doubles Net Results,game_footbag_net,,open,intermediate,,0
+net,Intermediate Doubles Net: 4 Teams,game_footbag_net,,open,intermediate,,0
+net,Intermediate Endurance Net,,,,,an endurance contest; the game is not stated,0
+net,Intermediate Footbag Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Single Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Singles,game_footbag_net,,open,intermediate,,0
+net,Intermediate Singles - 6 Competing,game_footbag_net,,open,intermediate,,0
+net,Intermediate Singles Footbag Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Singles Net,game_footbag_net,,open,intermediate,,0
+net,Intermediate Singles Net 10 Entrants,game_footbag_net,,open,intermediate,,0
+net,Intermediate Singles Net: 6 Players,game_footbag_net,,open,intermediate,,0
+net,Intermediate Women's Singles Footbag Net,game_footbag_net,,women,intermediate,,0
+net,Intermediate Women's Singles Net,game_footbag_net,,women,intermediate,,0
+net,Intermédiaire - Double Net,game_footbag_net,,open,intermediate,,0
+net,Intermédiaire - Simple Net,game_footbag_net,,open,intermediate,,0
+net,Intermédiate Doubles,game_footbag_net,,open,intermediate,,0
+net,Kick Volley 03,,,,,the source does not say what was contested,0
+net,King Of The Hill,game_footbag_net,,open,open,,0
+net,Last Classification,,,,,"a ranking list, not a contest",0
+net,Master Doubles Net,game_footbag_net,,open,masters,,0
+net,Master Singles Net,game_footbag_net,,open,masters,,0
+net,Master's Division Singles Net,game_footbag_net,,open,masters,,0
+net,Master's Doubles Net,game_footbag_net,,open,masters,,0
+net,Master's Singles Net,game_footbag_net,,open,masters,,0
+net,Masters Doubles Net,game_footbag_net,,open,masters,,0
+net,Masters Net,game_footbag_net,,open,masters,,0
+net,Masters Singles Net,game_footbag_net,,open,masters,,0
+net,Masters Singles Net-,game_footbag_net,,open,masters,,0
+net,Masters Singles Net- Prizes,game_footbag_net,,open,masters,,0
+net,Master’S Singles Net,game_footbag_net,,open,masters,,0
+net,Men's Open Doubles Footbag Net,game_footbag_net,,open,open,,0
+net,Men's Singles,game_footbag_net,,open,open,,0
+net,Men: Open Doubles Net,game_footbag_net,,open,open,,0
+net,Mini Net,,Mini Net,open,open,,0
+net,Mini-Net / Foot-C,,Mini Net,open,open,,0
+net,Mixed,game_footbag_net,,mixed,open,,0
+net,Mixed Double Net,game_footbag_net,,mixed,open,,0
+net,Mixed Doubles,game_footbag_net,,mixed,open,,0
+net,Mixed Doubles Footbag Net,game_footbag_net,,mixed,open,,0
+net,Mixed Doubles Net,game_footbag_net,,mixed,open,,0
+net,Mixed Doubles Net - 3 Teams,game_footbag_net,,mixed,open,,0
+net,Mixed Doubles Net 12 Teams,game_footbag_net,,mixed,open,,0
+net,Mixed Doubles Net 9 Teams,game_footbag_net,,mixed,open,,0
+net,Mixed Doubles Net: 10 Teams,game_footbag_net,,mixed,open,,0
+net,Mixed Net,game_footbag_net,,mixed,open,,0
+net,Mixte Double Net,game_footbag_net,,mixed,open,,0
+net,Net,game_footbag_net,,open,open,,0
+net,Net Doubles,game_footbag_net,,open,open,,0
+net,Net Doubles Advanced,game_footbag_net,,open,open,,0
+net,Net Doubles Mixed,game_footbag_net,,mixed,open,,0
+net,Net Doubles Open,game_footbag_net,,open,open,,0
+net,Net Doubles Results For Rnh Contest,game_footbag_net,,open,open,,0
+net,Net Intermediate Doubles,game_footbag_net,,open,intermediate,,0
+net,Net Intermediate Singles,game_footbag_net,,open,intermediate,,0
+net,Net Jam,game_footbag_net,,open,open,,0
+net,Net Open Doubles,game_footbag_net,,open,open,,0
+net,Net Open Mens Doubles,game_footbag_net,,open,open,,0
+net,Net Open Mens Singles,game_footbag_net,,open,open,,0
+net,Net Open Singles,game_footbag_net,,open,open,,0
+net,Net Open Women's Doubles,game_footbag_net,,women,open,,0
+net,Net Singles,game_footbag_net,,open,open,,0
+net,Net Singles Advanced,game_footbag_net,,open,open,,0
+net,Net Singles Open,game_footbag_net,,open,open,,0
+net,Net Singles Women,game_footbag_net,,women,open,,0
+net,Net Under 13 Doubles,game_footbag_net,,open,,,0
+net,Novice Doubles - 4 Competing,game_footbag_net,,open,novice,,0
+net,Novice Doubles Footbag Net,game_footbag_net,,open,novice,,0
+net,Novice Doubles Net,game_footbag_net,,open,novice,,0
+net,Novice Doubles Net (Monday),game_footbag_net,,open,novice,,0
+net,Novice Doubles Net (Saturday),game_footbag_net,,open,novice,,0
+net,Novice Doubles Net (Sunday),game_footbag_net,,open,novice,,0
+net,Novice Doubles-Saturday Net,game_footbag_net,,open,novice,,0
+net,Novice Net,game_footbag_net,,open,novice,,0
+net,Novice Singles,game_footbag_net,,open,novice,,0
+net,Novice Singles - 8 Competing,game_footbag_net,,open,novice,,0
+net,Novice Singles Footbag Net,game_footbag_net,,open,novice,,0
+net,Novice Singles Net,game_footbag_net,,open,novice,,0
+net,Open - Double Net,game_footbag_net,,open,open,,0
+net,Open - Simple Net,game_footbag_net,,open,open,,0
+net,Open 1St & 2Nd Net,game_footbag_net,,open,open,,0
+net,Open Double Mixte Net,game_footbag_net,,mixed,open,,0
+net,Open Double Net,game_footbag_net,,open,open,,0
+net,Open Doubles - Division A,game_footbag_net,,open,open,,0
+net,Open Doubles - Division B,game_footbag_net,,open,open,,0
+net,Open Doubles - For The Green Cup,game_footbag_net,,open,open,,0
+net,Open Doubles Footbag Net,game_footbag_net,,open,open,,0
+net,Open Doubles Net,game_footbag_net,,open,open,,0
+net,Open Doubles Net - 7 Teams,game_footbag_net,,open,open,,0
+net,Open Doubles Net 10 Teams,game_footbag_net,,open,open,,0
+net,Open Doubles Net 12 Teams,game_footbag_net,,open,open,,0
+net,Open Doubles Net 26.5.2007,game_footbag_net,,open,open,,0
+net,Open Doubles Net Finals,game_footbag_net,,open,open,,0
+net,Open Doubles Net:,game_footbag_net,,open,open,,0
+net,Open Doubles Net: 7 Teams,game_footbag_net,,open,open,,0
+net,Open Doubles Rankings,,,,,"a ranking list, not a contest",0
+net,Open Doubles [The Green Cup],game_footbag_net,,open,open,,0
+net,Open Elimination Net,game_footbag_net,,open,open,,0
+net,Open Endurance Net,,,,,an endurance contest; the game is not stated,0
+net,Open Fives Net,,,,,a five-player format; the game is not stated,0
+net,Open Individual Net,game_footbag_net,,open,open,,0
+net,Open Mix Doubles Net,game_footbag_net,,mixed,open,,0
+net,Open Mixed,game_footbag_net,,mixed,open,,0
+net,Open Mixed Double,game_footbag_net,,mixed,open,,0
+net,Open Mixed Doubles,game_footbag_net,,mixed,open,,0
+net,Open Mixed Doubles Footbag Net,game_footbag_net,,mixed,open,,0
+net,Open Mixed Doubles Net,game_footbag_net,,mixed,open,,0
+net,Open Mixed Doubles Net (15 Teams),game_footbag_net,,mixed,open,,0
+net,Open Mixte Doubles Net,game_footbag_net,,mixed,open,,0
+net,Open Net,game_footbag_net,,open,open,,0
+net,Open Net Doubles,game_footbag_net,,open,open,,0
+net,Open Net Fives,,,,,a five-player format; the game is not stated,0
+net,Open Net Individual,game_footbag_net,,open,open,,0
+net,Open Net Singles,game_footbag_net,,open,open,,0
+net,Open Single,game_footbag_net,,open,open,,0
+net,Open Single Net,game_footbag_net,,open,open,,0
+net,Open Singles,game_footbag_net,,open,open,,0
+net,Open Singles - Division A,game_footbag_net,,open,open,,0
+net,Open Singles - Division B,game_footbag_net,,open,open,,0
+net,Open Singles Bowling Net,,,,,a bowling contest; the game is not stated,0
+net,Open Singles Footbag Net,game_footbag_net,,open,open,,0
+net,Open Singles Net,game_footbag_net,,open,open,,0
+net,Open Singles Net - 6 Competitors,game_footbag_net,,open,open,,0
+net,Open Singles Net 16 Entrants,game_footbag_net,,open,open,,0
+net,Open Singles Net 17 Entrants,game_footbag_net,,open,open,,0
+net,Open Singles Net Finals,game_footbag_net,,open,open,,0
+net,Open Singles Net:,game_footbag_net,,open,open,,0
+net,Open Singles Net: 8 Players,game_footbag_net,,open,open,,0
+net,Open Singles Rankings,,,,,"a ranking list, not a contest",0
+net,Open Women Singles Net,game_footbag_net,,women,open,,0
+net,Open Women's Doubles Net,game_footbag_net,,women,open,,0
+net,Open Women's Singles Net,game_footbag_net,,women,open,,0
+net,People's Choice Awards Net,,,,,"an award vote, not a contest",0
+net,Pro,game_footbag_net,,open,open,,0
+net,Pro Division Net,game_footbag_net,,open,open,,0
+net,Pro Doubles Net,game_footbag_net,,open,open,,0
+net,Pro Doubles Net Listing,game_footbag_net,,open,open,,0
+net,Pro Single Net,game_footbag_net,,open,open,,0
+net,Pro Singles Net,game_footbag_net,,open,open,,0
+net,Pro/Am Net,game_footbag_net,,open,open,,0
+net,Random Doubles Net,game_footbag_net,,open,open,,0
+net,Results Double Net,game_footbag_net,,open,open,,0
+net,Results Mixed Doubles Net,game_footbag_net,,mixed,open,,0
+net,Results Mixed Net,game_footbag_net,,mixed,open,,0
+net,Results Open Double Net,game_footbag_net,,open,open,,0
+net,Results Open Doubles Net,game_footbag_net,,open,open,,0
+net,Results Open Singles Net,game_footbag_net,,open,open,,0
+net,Results Single Net,game_footbag_net,,open,open,,0
+net,Seeding Double Net,game_footbag_net,,open,open,,0
+net,Seeding Mixed Net,game_footbag_net,,mixed,open,,0
+net,Seeding Single Net,game_footbag_net,,open,open,,0
+net,Simple,game_footbag_net,,open,open,,0
+net,Simple Net,game_footbag_net,,open,open,,0
+net,Simple Net - Singles Net,game_footbag_net,,open,open,,0
+net,Simple Net Open,game_footbag_net,,open,open,,0
+net,Simple Open - Open Singles,game_footbag_net,,open,open,,0
+net,Simple  Singles,game_footbag_net,,open,open,,0
+net,Single,game_footbag_net,,open,open,,0
+net,Single Net,game_footbag_net,,open,open,,0
+net,Single Net Competition,game_footbag_net,,open,open,,0
+net,Single Net Women,game_footbag_net,,women,open,,0
+net,Single Open,game_footbag_net,,open,open,,0
+net,Singles,game_footbag_net,,open,open,,0
+net,Singles 5 Minute Timed Kicking Net,,,,,a timed kicking contest; the game is not stated,0
+net,Singles Footbag Net,game_footbag_net,,open,open,,0
+net,Singles Net,game_footbag_net,,open,open,,0
+net,Singles Net 19.5.2006,game_footbag_net,,open,open,,0
+net,Singles Net 27.5.2007,game_footbag_net,,open,open,,0
+net,Singles Net Open,game_footbag_net,,open,open,,0
+net,Singles Net- Intermediate,game_footbag_net,,open,intermediate,,0
+net,Singles Net- Novice,game_footbag_net,,open,novice,,0
+net,Singles Result,game_footbag_net,,open,open,,0
+net,Singles Ultra Footbag Net,game_footbag_net,,open,open,,0
+net,Spinning Simple Swirl Net,,,,,the source does not say what was contested,0
+net,Supreme Exhalted Ruler of the Court,game_footbag_net,,open,open,,0
+net,Ten Net,,,,,the source does not say what was contested,0
+net,Tournament Of Footbag Net,game_footbag_net,,open,open,,0
+net,Ultra Doubles,game_footbag_net,,open,open,,0
+net,Ultra Doubles Net,game_footbag_net,,open,open,,0
+net,Ultra Singles Net,game_footbag_net,,open,open,,0
+net,Unknown,,,,,the source names no division,0
+net,Unsanctioned Late-Night Fire-Bag Net,,,,,a novelty contest; the game is not stated,0
+net,Woman Single Net,game_footbag_net,,women,open,,0
+net,Women Double Net,game_footbag_net,,women,open,,0
+net,Women Doubles Net,game_footbag_net,,women,open,,0
+net,Women Net,game_footbag_net,,women,open,,0
+net,Women Open Doubles Net,game_footbag_net,,women,open,,0
+net,Women Open Singles Net,game_footbag_net,,women,open,,0
+net,Women Single Net,game_footbag_net,,women,open,,0
+net,Women Singles Net,game_footbag_net,,women,open,,0
+net,Women's Doubles,game_footbag_net,,women,open,,0
+net,Women's Doubles Footbag Net,game_footbag_net,,women,open,,0
+net,Women's Doubles Net,game_footbag_net,,women,open,,0
+net,Women's Doubles Net: 4 Teams,game_footbag_net,,women,open,,0
+net,Women's Intermediate Singles Footbag Net,game_footbag_net,,women,intermediate,,0
+net,Women's Intermediate Singles Net,game_footbag_net,,women,intermediate,,0
+net,Women's Intermediate Singles Net (6 Competitors),game_footbag_net,,women,intermediate,,0
+net,Women's Open Doubles Footbag Net,game_footbag_net,,women,open,,0
+net,Women's Open Doubles Net,game_footbag_net,,women,open,,0
+net,Women's Open Singles Footbag Net,game_footbag_net,,women,open,,0
+net,Women's Open Singles Net,game_footbag_net,,women,open,,0
+net,Women's Performance Net,,,,,the source does not say what was contested,0
+net,Women's Singles,game_footbag_net,,women,open,,0
+net,Women's Singles Footbag Net,game_footbag_net,,women,open,,0
+net,Women's Singles Net,game_footbag_net,,women,open,,0
+net,Women's Singles Net 9 Entrants,game_footbag_net,,women,open,,0
+net,Women's Ultra Singles Net,game_footbag_net,,women,open,,0
+net,Womens Open Singles,game_footbag_net,,women,open,,0
+net,Womens Open Singles Net,game_footbag_net,,women,open,,0
+net,Womens Singles Net,game_footbag_net,,women,open,,0
+net,Women’S Doubles Net,game_footbag_net,,women,open,,0
+net,Women’S Singles Net,game_footbag_net,,women,open,,0
+sideline,2 Square,game_2_square,,open,open,,0
+sideline,2-Square,game_2_square,,open,open,,0
+sideline,4-Square,game_4_square,,open,open,,0
+sideline,4-Square Tournament,game_4_square,,open,open,,0
+sideline,5 Minute Consecutive Kicks,game_timed_consecutives,,open,open,,0
+sideline,Advanced 5 Minute Timed Footbag Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Advanced Consecutives:,,Consecutives,open,open,,0
+sideline,Amateur One Pass Consecutive,,One-Pass,open,intermediate,,0
+sideline,Amateur Singles Timed Consecutive,game_timed_consecutives,,open,intermediate,,0
+sideline,Beginner Singles Consecutive,,Consecutives,open,novice,,0
+sideline,Beginners Consecutives:,,Consecutives,open,novice,,0
+sideline,Consecutive Kicks,,Consecutives,open,open,,0
+sideline,Consecutive Kicks Open,,Consecutives,open,open,,0
+sideline,Consecutive Open Mens Doubles,,Consecutives,open,open,,0
+sideline,Consecutive Open Mens Singles,,Consecutives,open,open,,0
+sideline,Consecutive Open Women's Doubles,,Consecutives,women,open,,0
+sideline,Consecutive Under 13 Doubles,,Consecutives,open,open,,0
+sideline,Consecutive Under 13 Singles,,Consecutives,open,open,,0
+sideline,Distance One-Step,,,,,not yet traced to its source page,0
+sideline,Doubles Consecutive,,Consecutives,open,open,,0
+sideline,Doubles Consecutive Kicks,,Consecutives,open,open,,0
+sideline,Doubles One Pass Consecutive,,One-Pass,open,open,,0
+sideline,Doubles One-Pass Consecutive Kicks,,One-Pass,open,open,,0
+sideline,Five Minute Consecutive Timed Kick,game_timed_consecutives,,open,open,,0
+sideline,Footbag Consecutive Counter's Contest,,Consecutives,open,open,,0
+sideline,Four Square,game_4_square,,open,open,,0
+sideline,Intermediate 5 Minute Timed Consecutive,game_timed_consecutives,,open,intermediate,,0
+sideline,Intermediate 5-Min Timed Consecutives,game_timed_consecutives,,open,intermediate,,0
+sideline,Intermediate 5-Minute Timed Consecutives,game_timed_consecutives,,open,intermediate,,0
+sideline,Intermediate Consecutive Kicks,,Consecutives,open,intermediate,,0
+sideline,Intermediate One Minute Consecutives,,Consecutives,open,intermediate,,0
+sideline,Intermediate One Pass Consecutive,,One-Pass,open,intermediate,,0
+sideline,Intermediate Singles Consecutive Kicks,,Consecutives,open,intermediate,,0
+sideline,Intermediate Timed 3 Minute Consecutives,game_timed_consecutives,,open,intermediate,,0
+sideline,Intermediate Timed 5-Minute Consecutives,game_timed_consecutives,,open,intermediate,,0
+sideline,Intermediate Timed Consecs,,,,,not yet traced to its source page,0
+sideline,Intermediate Timed Consecutives,game_timed_consecutives,,open,intermediate,,0
+sideline,Junior Consecutive Kicks,,Consecutives,open,open,,0
+sideline,Novice 3 Minute Consecutives,game_timed_consecutives,,open,novice,,0
+sideline,Novice 4 Square,game_4_square,,open,novice,,0
+sideline,Novice 5 Minute Timed Footbag Consecutive,game_timed_consecutives,,open,novice,,0
+sideline,Novice 5-Minute Timed Consecutives,game_timed_consecutives,,open,novice,,0
+sideline,Novice Consecutive Kicks,,Consecutives,open,novice,,0
+sideline,Novice Consecutives,,Consecutives,open,novice,,0
+sideline,Novice Consecutives - Teen,,Consecutives,open,novice,,0
+sideline,Novice Consecutives - Youth Boys,,Consecutives,open,novice,,0
+sideline,Novice Consecutives - Youth Girls,,Consecutives,women,novice,,0
+sideline,Novice Consecutives Competition,,Consecutives,open,novice,,0
+sideline,Novice Four Square,game_4_square,,open,novice,,0
+sideline,Novice Singles 5 Min. Timed Consecutives,game_timed_consecutives,,open,novice,,0
+sideline,Novice Singles Consecutive,,Consecutives,open,novice,,0
+sideline,Novice Timed 3 Minute Consecutives,game_timed_consecutives,,open,novice,,0
+sideline,Open 10-Minute Timed One-Pass Consecutive,,One-Pass,open,open,,0
+sideline,Open 2 Square,game_2_square,,open,open,,0
+sideline,Open 2 Squares,game_2_square,,open,open,,0
+sideline,Open 2-Square,game_2_square,,open,open,,0
+sideline,Open 5 Minute Timed Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Open 5 Minute Timed Footbag Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Open 5 Minutes Timed Consecutives,game_timed_consecutives,,open,open,,0
+sideline,Open 5-Minute Timed Consecutives,game_timed_consecutives,,open,open,,0
+sideline,Open 5-Minute Timed Footbag Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Open Consecutive Kicks,,Consecutives,open,open,,0
+sideline,Open Consecutives,,Consecutives,open,open,,0
+sideline,Open Distance One Pass,,One-Pass,open,open,,0
+sideline,Open Doubles 1-Pass Consecutive,,One-Pass,open,open,,0
+sideline,Open Doubles 5-Minute Timed Consecutives,game_timed_consecutives,,open,open,,0
+sideline,Open Doubles Consecutive,,Consecutives,open,open,,0
+sideline,Open Doubles Distance 1-Pass Consecutive,,One-Pass,open,open,,0
+sideline,Open Doubles Distance One Pass,,One-Pass,open,open,,0
+sideline,Open Doubles Distance One-Pass,,One-Pass,open,open,,0
+sideline,Open Doubles Footbag Consecutive,,Consecutives,open,open,,0
+sideline,Open Glow Four Square,game_4_square,,open,open,,0
+sideline,Open Men Speed Consecutive 100,,Speed Consecutives,open,open,,0
+sideline,Open Men Speed Consecutive 50,,Speed Consecutives,open,open,,0
+sideline,Open One Pass Consecutive,,One-Pass,open,open,,0
+sideline,Open Singles 5-Minute Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Open Singles 5-Minute Timed Footbag Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Open Singles Consecutive,,Consecutives,open,open,,0
+sideline,Open Singles Footbag Consecutive,,Consecutives,open,open,,0
+sideline,Open Singles Timed Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Open Team Consecutive,,,,,team entry: awaiting schema support for team entry size,1
+sideline,Open Timed Consecs,,,,,not yet traced to its source page,0
+sideline,Open Timed Consecutive,game_timed_consecutives,,open,open,,0
+sideline,Open Timed Consecutives,game_timed_consecutives,,open,open,,0
+sideline,Open Women Speed Consecutive 100,,Speed Consecutives,women,open,,0
+sideline,Open Women Speed Consecutive 50,,Speed Consecutives,women,open,,0
+sideline,Open Women's Timed Consecutive,game_timed_consecutives,,women,open,,0
+sideline,Pro One Minute Consecutives,,Consecutives,open,open,,0
+sideline,Singles Consecutive,,Consecutives,open,open,,0
+sideline,Singles Consecutive Kicks,,Consecutives,open,open,,0
+sideline,Solo Consec's,,,,,not yet traced to its source page,0
+sideline,Team Consec's,,,,,team entry: awaiting schema support for team entry size,1
+sideline,Team Consecutive Kicks,,,,,team entry: awaiting schema support for team entry size,1
+sideline,Team Distance Pass,,,,,team entry: awaiting schema support for team entry size,1
+sideline,The Top 4-Square Finalists,game_4_square,,open,open,,0
+sideline,Two Square,,,,,not yet traced to its source page,0
+sideline,Women's 5-Minute Timed Consecutives,game_timed_consecutives,,women,open,,0
+sideline,Women's Consecutive Kicks,,Consecutives,women,open,,0
+sideline,Women's Distance One Pass,,One-Pass,women,open,,0
+sideline,Women's Doubles 1-Pass Consecutive,,One-Pass,women,open,,0
+sideline,Women's Doubles Consecutive,,Consecutives,women,open,,0
+sideline,Women's Doubles Consecutive Kicks,,Consecutives,women,open,,0
+sideline,Women's Doubles Distance 1-Pass Consecutive,,One-Pass,women,open,,0
+sideline,Women's Doubles Distance One Pass,,One-Pass,women,open,,0
+sideline,Women's Doubles Distance One-Pass,,One-Pass,women,open,,0
+sideline,Women's Doubles Footbag Consecutive,,Consecutives,women,open,,0
+sideline,Women's Doubles One-Pass Consecutive Kicks,,One-Pass,women,open,,0
+sideline,Women's Novice Consecutives,,Consecutives,women,novice,,0
+sideline,Women's Open 5 Minutes Timed Consecutives,game_timed_consecutives,,women,open,,0
+sideline,Women's Open 5-Minute Timed Consecutives,game_timed_consecutives,,women,open,,0
+sideline,Women's Open Doubles Distance One-Pass,,One-Pass,women,open,,0
+sideline,Women's Open Singles Consecutives,,Consecutives,women,open,,0
+sideline,Women's Singles 5-Minute Consecutive,game_timed_consecutives,,women,open,,0
+sideline,Women's Singles Consecutive,,Consecutives,women,open,,0
+sideline,Women's Singles Consecutive Kicks,,Consecutives,women,open,,0
+sideline,Women's Singles Footbag Consecutive,,Consecutives,women,open,,0
+sideline,Women's Timed Consecutives,game_timed_consecutives,,women,open,,0
