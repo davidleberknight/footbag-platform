@@ -136,6 +136,7 @@ freestyle,Intermediate Big 3,,Big 3,open,intermediate,,0
 freestyle,Intermediate Big Trick,,Big Trick,open,intermediate,,0
 freestyle,Intermediate Circle,game_circle,,open,intermediate,,0
 freestyle,Intermediate Circle Contest,game_circle,,open,intermediate,,0
+freestyle,Intermediate Doubles Freestyle,game_routines,,open,intermediate,,0
 freestyle,Intermediate Flow Freestyle,game_routines,,open,intermediate,,0
 freestyle,Intermediate Footbag Freestyle,game_routines,,open,intermediate,,0
 freestyle,Intermediate Footbag Freestyle Routines,game_routines,,open,intermediate,,0
@@ -785,6 +786,7 @@ net,Womens Singles Net,game_footbag_net,,women,open,,0
 net,Women’S Doubles Net,game_footbag_net,,women,open,,0
 net,Women’S Singles Net,game_footbag_net,,women,open,,0
 sideline,2 Square,game_2_square,,open,open,,0
+sideline,2 Squares,game_2_square,,open,open,,0
 sideline,2-Square,game_2_square,,open,open,,0
 sideline,4-Square,game_4_square,,open,open,,0
 sideline,4-Square Tournament,game_4_square,,open,open,,0
@@ -814,6 +816,7 @@ sideline,Four Square,game_4_square,,open,open,,0
 sideline,Intermediate 5 Minute Timed Consecutive,game_timed_consecutives,,open,intermediate,,0
 sideline,Intermediate 5-Min Timed Consecutives,game_timed_consecutives,,open,intermediate,,0
 sideline,Intermediate 5-Minute Timed Consecutives,game_timed_consecutives,,open,intermediate,,0
+sideline,Intermediate Doubles 10-Minute Timed Consecutives,game_timed_consecutives,,open,intermediate,,0
 sideline,Intermediate Consecutive Kicks,,Consecutives,open,intermediate,,0
 sideline,Intermediate One Minute Consecutives,,Consecutives,open,intermediate,,0
 sideline,Intermediate One Pass Consecutive,,One-Pass,open,intermediate,,0
@@ -872,6 +875,8 @@ sideline,Open Timed Consecutives,game_timed_consecutives,,open,open,,0
 sideline,Open Women Speed Consecutive 100,,Speed Consecutives,women,open,,0
 sideline,Open Women Speed Consecutive 50,,Speed Consecutives,women,open,,0
 sideline,Open Women's Timed Consecutive,game_timed_consecutives,,women,open,,0
+sideline,Pro 5-Minute Timed Consecutives,game_timed_consecutives,,open,open,,0
+sideline,Pro Doubles 10-Minute Timed Consecutives,game_timed_consecutives,,open,open,,0
 sideline,Pro One Minute Consecutives,,Consecutives,open,open,,0
 sideline,Singles Consecutive,,Consecutives,open,open,,0
 sideline,Singles Consecutive Kicks,,Consecutives,open,open,,0

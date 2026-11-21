@@ -79,11 +79,12 @@ event_key,discipline_key,fix_type,original_name,original_team_type,new_name,new_
 2012_suramericano_de,open_doubles_net,retag_team_type,Open Doubles Net,singles,,doubles,confirmed,"The page joins each pair with the Spanish ""Y"" (and). The pairs are split in team_corrections.csv.",mirror event 1346947092,1,,
 2009_windy_city_clck,doubles,retag_team_type,Doubles,doubles,,doubles,confirmed,The event offered net only; its doubles results were filed as freestyle. Team type unchanged.,mirror event 1229435305,1,,net
 2009_windy_city_clck,singles,retag_team_type,Singles,singles,,singles,confirmed,The event offered net only; its singles results were filed as freestyle. Team type unchanged.,mirror event 1229435305,1,,net
-1998_footbagjam_wichita,novice,retag_team_type,Novice,singles,,singles,confirmed,The page's Novice list is footbag golf. Team type unchanged.,mirror event 892446131,1,,golf
+1998_footbagjam_wichita,novice,rename_discipline,Novice,singles,Novice Golf,,confirmed,"The page's ""Foot Bag Golf"" Novice list; named for its game so the net-sibling rename leaves it golf",mirror event 892446131,1,,golf
+1998_footbagjam_wichita,intermediate,rename_discipline,Intermediate,singles,Intermediate Golf,,confirmed,"The page's ""Foot Bag Golf"" Intermediate list; named for its game so the net-sibling rename leaves it golf",mirror event 892446131,1,,golf
+1998_footbagjam_wichita,pro,rename_discipline,Pro,singles,Pro Golf,,confirmed,"The page's ""Foot Bag Golf"" Pro list; named for its game so the net-sibling rename leaves it golf",mirror event 892446131,1,,golf
 2003_kick_til_youre,novice,rename_discipline,Novice,singles,Novice Shred 30,,confirmed,The page's Shred 30 Novice list,mirror event 1058877971,1,,
 2003_kick_til_youre,intermediate,rename_discipline,Intermediate,singles,Intermediate Shred 30,,confirmed,The page's Shred 30 Intermediate list,mirror event 1058877971,1,,
 2006_czech,net,rename_discipline,Net,singles,Singles Net,,confirmed,"The page's jednotlivci (singles) net list; its doubles list was merged in",mirror event 1137937282,1,,
-2019_xix_polish_krakow,sick_3,rename_discipline,Sick 3,singles,Big 1,,confirmed,The stored places are the page's Big 1 list,mirror event 1567551985,1,,
 2003_seapa_nz,unknown,rename_discipline,Unknown,singles,5 Minute Timed Consecutives,,confirmed,The page's 5 Minute Timed Consecutives list under no recognised heading,mirror event 1038895913,1,,sideline
 2007_shred_idaho,unknown,rename_discipline,Unknown,singles,Rippin Run,,confirmed,The page's Rippin Run result,mirror event 1189535136,1,,freestyle
 2007_springjam,unknown,rename_discipline,Unknown,singles,Circle Contest,,confirmed,The page's open Circle contest list,mirror event 1172931308,1,,freestyle

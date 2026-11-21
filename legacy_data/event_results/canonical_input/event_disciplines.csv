@@ -772,9 +772,21 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_footbagjam_helsinki,pro_doubles_net,Pro Doubles Net,net,doubles,4,complete,,0
 1998_footbagjam_helsinki,pro_freestyle,Pro Freestyle,freestyle,singles,5,complete,,0
 1998_footbagjam_helsinki,pro_singles_net,Pro Singles Net,net,singles,6,complete,,0
-1998_footbagjam_wichita,intermediate,Intermediate,golf,singles,1,complete,,0
-1998_footbagjam_wichita,novice,Novice,golf,singles,2,partial,,0
-1998_footbagjam_wichita,pro,Pro,golf,singles,3,complete,,0
+1998_footbagjam_wichita,novice_5_minute_timed_consecutives,Novice 5-Minute Timed Consecutives,sideline,singles,1,complete,,0
+1998_footbagjam_wichita,intermediate_5_minute_timed_consecutives,Intermediate 5-Minute Timed Consecutives,sideline,singles,2,complete,,0
+1998_footbagjam_wichita,pro_5_minute_timed_consecutives,Pro 5-Minute Timed Consecutives,sideline,singles,3,complete,,0
+1998_footbagjam_wichita,intermediate_doubles_10_minute_timed_consecutives,Intermediate Doubles 10-Minute Timed Consecutives,sideline,doubles,4,complete,,0
+1998_footbagjam_wichita,pro_doubles_10_minute_timed_consecutives,Pro Doubles 10-Minute Timed Consecutives,sideline,doubles,5,complete,,0
+1998_footbagjam_wichita,intermediate_singles_net,Intermediate Singles Net,net,singles,6,complete,,0
+1998_footbagjam_wichita,pro_singles_net,Pro Singles Net,net,singles,7,complete,,0
+1998_footbagjam_wichita,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,8,complete,,0
+1998_footbagjam_wichita,pro_doubles_net,Pro Doubles Net,net,doubles,9,complete,,0
+1998_footbagjam_wichita,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,10,complete,,0
+1998_footbagjam_wichita,pro_freestyle,Pro Freestyle,freestyle,singles,11,complete,,0
+1998_footbagjam_wichita,intermediate_doubles_freestyle,Intermediate Doubles Freestyle,freestyle,doubles,12,complete,,0
+1998_footbagjam_wichita,novice,Novice Golf,golf,singles,13,complete,,0
+1998_footbagjam_wichita,intermediate,Intermediate Golf,golf,singles,14,complete,,0
+1998_footbagjam_wichita,pro,Pro Golf,golf,singles,15,complete,,0
 1998_footbagjam_malta,intermediate_footbag_freestyle,Intermediate Footbag Freestyle,freestyle,singles,1,complete,,0
 1998_footbagjam_malta,intermediate_footbag_golf,Intermediate Footbag Golf,golf,singles,2,complete,,0
 1998_footbagjam_malta,novice_footbag_golf,Novice Footbag Golf,golf,singles,3,complete,,0
@@ -1454,6 +1466,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2003_kick_til_youre,intermediate,Intermediate Shred 30,freestyle,singles,1,complete,,0
 2003_kick_til_youre,novice,Novice Shred 30,freestyle,singles,2,complete,,0
 2003_kick_til_youre,open,Open Shred 30,freestyle,singles,3,complete,,0
+2003_kick_til_youre,open_sick_3,Open Sick 3,freestyle,singles,4,complete,,0
 2003_midwest_exhibition,intermediate_shred_30_contest,Intermediate Shred :30 Contest,freestyle,singles,1,complete,,0
 2003_midwest_exhibition,intermediate_singles_freestyle,Intermediate Singles Freestyle,freestyle,singles,2,complete,,0
 2003_midwest_exhibition,novice_circle_jamz_competition,"Novice ""Circle Jamz"" Competition",freestyle,singles,3,complete,,0
@@ -1978,9 +1991,10 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2006_steel_city_shred,intermediate_big_3,Intermediate Big 3,freestyle,singles,1,complete,,0
 2006_steel_city_shred,intermediate_sick_1,Intermediate Sick 1,freestyle,singles,2,complete,,0
 2006_steel_city_shred,open_rippin_run,Open Rippin' Run,freestyle,singles,3,complete,,0
-2006_steel_city_shred,open_shred_30,Open Shred 30,freestyle,singles,4,complete,,0
-2006_steel_city_shred,open_sick_1,Open Sick 1,freestyle,singles,5,unresolved,,0
-2006_steel_city_shred,open_sick_3,Open Sick 3,freestyle,singles,6,complete,,0
+2006_steel_city_shred,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,4,complete,,0
+2006_steel_city_shred,open_shred_30,Open Shred 30,freestyle,singles,5,complete,,0
+2006_steel_city_shred,open_sick_1,Open Sick 1,freestyle,singles,6,unresolved,,0
+2006_steel_city_shred,open_sick_3,Open Sick 3,freestyle,singles,7,complete,,0
 2006_worlds_frankfurt,circle_contest,Circle Contest:,freestyle,singles,1,complete,,0
 2006_worlds_frankfurt,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,2,mostly_complete,,0
 2006_worlds_frankfurt,intermediate_singles_freestyle,Intermediate Singles Freestyle,freestyle,singles,3,mostly_complete,,0
@@ -2045,11 +2059,15 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2006_footbagjam,u_open_circle_competition_u,[U]Open Circle Competition[/U],freestyle,singles,1,complete,,0
 2006_footbagjam,u_sick_one_u,[U]Sick One[/U],freestyle,singles,2,complete,,0
 2006_czech,golf,Golf,golf,singles,1,complete,,0
-2006_czech,net,Singles Net,net,singles,2,complete,,0
-2006_czech,rutina_intermediate,Rutina Intermediate,freestyle,singles,3,complete,,0
-2006_czech,rutina_open,Rutina Open,freestyle,singles,4,complete,,0
-2006_czech,shred_30s,Shred 30S,freestyle,singles,5,complete,,0
-2006_czech,sick_3,Sick 3,freestyle,singles,6,complete,,0
+2006_czech,rutina_intermediate,Rutina Intermediate,freestyle,singles,2,complete,,0
+2006_czech,womens_routines,Women's Routines,freestyle,singles,3,complete,,0
+2006_czech,doubles_routines,Doubles Routines,freestyle,doubles,4,complete,,0
+2006_czech,sick_3,Sick 3,freestyle,singles,5,complete,,0
+2006_czech,big_1,Big 1,freestyle,singles,6,complete,,0
+2006_czech,net,Singles Net,net,singles,7,complete,,0
+2006_czech,doubles_net,Doubles Net,net,doubles,8,complete,,0
+2006_czech,rutina_open,Rutina Open,freestyle,singles,9,complete,,0
+2006_czech,shred_30s,Shred 30S,freestyle,singles,10,complete,,0
 2006_danish,circle_competition,Circle Competition,freestyle,singles,1,complete,,0
 2006_danish,intermediate_routines,Intermediate Routines,freestyle,singles,2,complete,,0
 2006_danish,open_routines,Open Routines,freestyle,singles,3,complete,,0
@@ -3833,7 +3851,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2018_eurochamp_kranj,sick_3,Sick 3,freestyle,singles,8,complete,,0
 2018_eurochamp_kranj,women_doubles_net,Women Doubles Net,net,doubles,9,complete,,0
 2018_eurochamp_kranj,women_singles_net,Women Singles Net,net,singles,10,complete,,0
-2018_torneo_nacional_de,doble_leg_over,Big One,freestyle,singles,1,partial,,0
+2018_torneo_nacional_de,doble_leg_over,Big One,freestyle,singles,1,complete,,0
 2018_torneo_nacional_de,open_doubles_net,Open Doubles Net,net,doubles,2,complete,,0
 2018_torneo_nacional_de,open_singles_net,Open Singles Net,net,singles,3,complete,,0
 2018_torneo_nacional_de,sick_3,Sick 3,freestyle,singles,4,complete,,0
@@ -3992,15 +4010,17 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2019_usopen_boston,open_singles_net,Open Singles Net,net,singles,5,complete,,0
 2019_usopen_boston,request,Request,freestyle,singles,6,complete,,0
 2019_usopen_boston,routines,Routines,freestyle,singles,7,complete,,0
-2019_xix_polish_krakow,footbag_golf,Footbag Golf,golf,singles,5,unresolved,,0
-2019_xix_polish_krakow,last_man_standing,Last Man Standing,freestyle,singles,6,complete,,0
-2019_xix_polish_krakow,open_battles,Open Battles,freestyle,singles,7,complete,,0
-2019_xix_polish_krakow,open_circle_contest,Open Circle Contest,freestyle,singles,8,complete,,0
-2019_xix_polish_krakow,open_doubles_net,Open Doubles Net,net,doubles,9,complete,,0
-2019_xix_polish_krakow,open_singles_net,Open Singles Net,net,singles,10,complete,,0
-2019_xix_polish_krakow,request_contest,Request Contest,freestyle,singles,11,mostly_complete,,0
-2019_xix_polish_krakow,routines,Routines,freestyle,singles,12,complete,,0
-2019_xix_polish_krakow,sick_3,Big 1,freestyle,singles,13,complete,,0
+2019_xix_polish_krakow,sick_3,Sick 3,freestyle,singles,5,complete,,0
+2019_xix_polish_krakow,big_1,Big 1,freestyle,singles,6,complete,,0
+2019_xix_polish_krakow,footbag_golf,Footbag Golf,golf,singles,7,complete,,0
+2019_xix_polish_krakow,2_squares,2 Squares,sideline,singles,8,complete,,0
+2019_xix_polish_krakow,open_battles,Open Battles,freestyle,singles,9,complete,,0
+2019_xix_polish_krakow,open_circle_contest,Open Circle Contest,freestyle,singles,10,complete,,0
+2019_xix_polish_krakow,last_man_standing,Last Man Standing,freestyle,singles,11,complete,,0
+2019_xix_polish_krakow,open_doubles_net,Open Doubles Net,net,doubles,12,complete,,0
+2019_xix_polish_krakow,open_singles_net,Open Singles Net,net,singles,13,complete,,0
+2019_xix_polish_krakow,request_contest,Request Contest,freestyle,singles,14,mostly_complete,,0
+2019_xix_polish_krakow,routines,Routines,freestyle,singles,15,complete,,0
 2020_eastregion,intermediate_singles,Intermediate Singles,net,singles,1,complete,,0
 2020_eastregion,intermediate_singles_net,Intermediate Singles Net,net,singles,2,complete,,0
 2020_eastregion,open_circle,Open Circle,freestyle,singles,3,complete,,0
