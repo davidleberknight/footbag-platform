@@ -10,3 +10,6 @@ event_key,discipline_key,quarantine_scope,trigger_pattern,rationale,confidence,a
 2000_new_zealand,unknown,discipline_all,,Empty discipline with no results and no division heading,confirmed,1
 2008_funtastik_summer,unknown,discipline_all,,Empty discipline with no results and no division heading,confirmed,1
 2015_eastregion,unknown,discipline_all,,Empty discipline with no results and no division heading,confirmed,1
+2008_memphicago_kick_volley,open_doubles_net,discipline_all,,Not results: the page lists casual pick-up players in order of distance travelled and says no one kept stats,confirmed,1
+2005_championnat_de_france,double_net,discipline_all,,Pool-play block parsed as a placement; the page's doubles ranking names first names only,confirmed,1
+2005_championnat_de_france,simple_net,discipline_all,,Pool-play block parsed as a placement; the page's singles ranking names first names only,confirmed,1

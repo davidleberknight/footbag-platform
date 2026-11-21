@@ -210,3 +210,46 @@ event_key,discipline_key,placement,original_display,corrected_player_a,corrected
 2009_eurochamp_strzelin,open_mixed_doubles_net,4,Kerstin Anhuth ? Chris Löw,Kerstin Anhuth,Chris Löw,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
 2009_eurochamp_strzelin,open_mixed_doubles_net,5,Ninni Liukko ? Yassin Khateeb,Ninni Liukko,Yassin Khateeb,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
 2009_eurochamp_strzelin,open_mixed_doubles_net,6,Piia Tantarimäki ? Uli Haase,Piia Tantarimäki,Uli Haase,SPLIT_PARSING_ERROR,The partner dash reached the mirror as " ? " and was not split,1,source_verified,,HIGH
+2001_hungarian,doubles,1,Kiss + Gyáni,Kiss,Gyáni,SPLIT_PARSING_ERROR,Mirror page joins the surname pair with a plus sign,1,source_verified,,HIGH
+2001_hungarian,doubles,2,Homola + Halász,Homola,Halász,SPLIT_PARSING_ERROR,Mirror page joins the surname pair with a plus sign,1,source_verified,,HIGH
+2001_hungarian,doubles,3,Jazz + Juz,Jazz,Juz,SPLIT_PARSING_ERROR,Mirror page joins the surname pair with a plus sign,1,source_verified,,HIGH
+2001_hungarian,doubles,4,Szolosi + Horváth,Szolosi,Horváth,SPLIT_PARSING_ERROR,Mirror page joins the surname pair with a plus sign,1,source_verified,,HIGH
+2007_championnats_de_france,doubles_net,2,Unknown,Nicolas De Zeeuw,Miquel Clemente,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2007_championnats_de_france,doubles_net,3,Unknown,Lino Landau,Marc Brunet,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2007_championnats_de_france,doubles_net,4,Team S. Thomas Sustrac ? Robinson Sustrac,Thomas Sustrac,Robinson Sustrac,SPLIT_PARSING_ERROR,"Team label ""Team S."" and the "" ? "" partner dash were not split",1,source_verified,,HIGH
+2007_championnats_de_france,doubles_net,6,Arnaud Saniez,Arnaud Saniez,Mouss Kabbal,MISSING_PARTNER,"The partner dash reached the mirror as "" ? ""; the page lists Mouss Kabbal",1,source_verified,,HIGH
+2007_championnats_de_france,doubles_net,7,Unknown,Ludovic Lacaze,Eric Fonteneau,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2007_championnats_de_france,doubles_net,8,Jules Meneboo,Jules Meneboo,Thierry Gonelle,MISSING_PARTNER,"The partner dash reached the mirror as "" ? ""; the page lists Thierry Gonelle",1,source_verified,,HIGH
+2009_eurochamp_strzelin,intermediate_doubles_net,1,Unknown,Michal Rog,Michal Klimczak,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2009_eurochamp_strzelin,intermediate_doubles_net,2,Unknown,Petr Stejskal,Pavel Cerveny,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2009_eurochamp_strzelin,intermediate_doubles_net,3,Maciej Pietrzycki,Maciej Pietrzycki,Przemysław Pietrzycki,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2009_eurochamp_strzelin,womens_doubles_net,1,Oxana Prikhodko,Yulia Tikhomirova,Oxana Prikhodko,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2009_eurochamp_strzelin,womens_doubles_net,2,Unknown,Lisa Uebele,Kerstin Anhuth,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2009_eurochamp_strzelin,womens_doubles_net,3,Unknown,Ninni Liukko,Piia Tantarimäki,SPLIT_PARSING_ERROR,"The partner dash reached the mirror as "" ? "" and was not split",1,source_verified,,HIGH
+2010_czech,net_doubles,1,Unknown,Dexter,Pavel Cerveny,SPLIT_PARSING_ERROR,"The Czech ""a"" (and) between partners was not split; Dexter is a bare nickname",1,source_verified,,HIGH
+2010_czech,net_doubles,2,Unknown,Pavel Hejra,Petr Stejskal,SPLIT_PARSING_ERROR,"The Czech ""a"" (and) between partners was not split",1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,1,Francois Pelletier / Gilles Demers,Francois Pelletier,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 1st,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,2,Benjamin Rochon / Luc Legeault,Benjamin Rochon,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 2nd,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,3,Francois Pelletier / Yves Archambault,Yves Archambault,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 3rd,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,4,Luc Legeault / Martin Cote,Luc Legeault,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 4th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,5,Martin Cote / Yves Archambault,Martin Cote,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 5th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,6,Dominic O'Brien / Gilles Demers,Gilles Demers,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 6th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,7,Benjamin Rochon / Geneviève Bousquet,Geneviève Bousquet,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 7th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,8,Dominic O'Brien / Philippe Lessard,Dominic O'Brien,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 8th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,9,Geneviève Bousquet / Jean François Bélanger,Jean François Bélanger,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 9th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,10,Mathieu Payant / Thibault Rehn,Thibault Rehn,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 10th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,11,Jean François Bélanger / Mathieu Payant,Mathieu Payant,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 11th,1,source_verified,,HIGH
+2010_king_hill_aki,open_singles_net,12,Philippe Lessard / Thibault Rehn,Philippe Lessard,,DUPLICATE_PARTICIPANT,The original seeding list merged into the final results by place; the page lists one player at 12th,1,source_verified,,HIGH
+2012_suramericano_de,open_doubles_net,1,Unknown,Antonio Linero Castro,Alberto Perez,SPLIT_PARSING_ERROR,"The Spanish ""Y"" (and) between partners was not split",1,source_verified,,HIGH
+2012_suramericano_de,open_doubles_net,2,Unknown,Sebastian Ceballos,Andrés Zapata,SPLIT_PARSING_ERROR,"The Spanish ""Y"" (and) between partners was not split",1,source_verified,,HIGH
+2012_suramericano_de,open_doubles_net,3,Unknown,Edisson Duque,Giany,SPLIT_PARSING_ERROR,"The Spanish ""Y"" (and) between partners was not split; the partner is named by one word only",1,source_verified,,HIGH
+2012_suramericano_de,open_doubles_net,4,Unknown,Andres Arce,Bernardo Palacios,SPLIT_PARSING_ERROR,"The Spanish ""Y"" (and) between partners was not split",1,source_verified,,HIGH
+2012_suramericano_de,open_doubles_net,5,Unknown,Alex Lopez,Gabriel Bohórquez,SPLIT_PARSING_ERROR,"The Spanish ""Y"" (and) between partners was not split",1,source_verified,,HIGH
+2012_suramericano_de,open_doubles_net,7,Unknown,Yeison Ocampo,Andres Gallego,SPLIT_PARSING_ERROR,"The Spanish ""Y"" (and) between partners was not split",1,source_verified,,HIGH
+2022_eastregion,open_singles_net,1,Chris Siebert,Chris Siebert,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 1st; the doubles retag added a ghost partner,1,source_verified,,HIGH
+2022_eastregion,open_singles_net,2,Dan Greer,Dan Greer,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 2nd,1,source_verified,,HIGH
+2022_eastregion,open_singles_net,3,Chris Cleaver,Chris Cleaver,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 3rd,1,source_verified,,HIGH
+2022_eastregion,open_singles_net,4,Jim Hankins,Jim Hankins,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 4th,1,source_verified,,HIGH
+2022_eastregion,open_singles_net,5,Mark Hunsburger,Mark Hunsburger,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 5th,1,source_verified,,HIGH
+2022_eastregion,open_singles_net,6,Unknown,Tony Ritz,Kevin Fura,SPLIT_PARSING_ERROR,Mirror page lists a tie at 6th (games rained out),1,source_verified,,HIGH
+2022_eastregion,open_singles_net,8,Theodore Fritsch,Theodore Fritsch,,DUPLICATE_PARTICIPANT,Mirror page lists one player at 8th (scratch),1,source_verified,,HIGH
