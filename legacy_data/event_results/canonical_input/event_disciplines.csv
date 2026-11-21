@@ -392,7 +392,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1993_louisiana_state,open_doubles_footbag_net,Open Doubles Footbag Net,net,doubles,2,partial,,0
 1993_louisiana_state,mixed_doubles_footbag_net,Mixed Doubles Footbag Net,net,doubles,3,partial,,0
 1993_louisiana_state,womens_doubles_footbag_net,Women's Doubles Footbag Net,net,doubles,4,partial,,0
-1993_louisiana_state,singles_footbag_net,Singles Footbag Net (Level Not Stated),net,singles,5,partial,,0
+1993_louisiana_state,singles_footbag_net,Singles Net (Level Not Stated),net,singles,5,partial,,0
 1993_california_state,open_singles_footbag_net,Open Singles Footbag Net,net,singles,1,partial,,0
 1993_california_state,open_doubles_footbag_net,Open Doubles Footbag Net,net,doubles,2,partial,,0
 1993_california_state,womens_singles_footbag_net,Women's Singles Footbag Net,net,singles,3,partial,,0
