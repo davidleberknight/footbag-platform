@@ -857,14 +857,17 @@ def main() -> None:
     questions = {(q.get("question_id") or "").strip(): q for q in read(QUESTION_REGISTRY_CSV)}
     # Each question's public wording sits on its own registry row, so a new
     # question cannot reach the public page without the plain title and sentence
-    # a visitor reads in place of the working question text.
+    # a visitor reads in place of the working question text, nor without the
+    # line saying what is open, so a scoring or notation question never reads
+    # as if the movement itself were unknown.
     unworded = sorted(qid for qid, q in questions.items()
                       if not (q.get("public_title") or "").strip()
-                      or not (q.get("public_summary") or "").strip())
+                      or not (q.get("public_summary") or "").strip()
+                      or not (q.get("public_open") or "").strip())
     if unworded:
         raise SystemExit(
-            "question registry: every question needs a public_title and a public_summary; "
-            f"missing on {', '.join(unworded)}")
+            "question registry: every question needs a public_title, a public_summary "
+            f"and a public_open; missing on {', '.join(unworded)}")
     ruling_rows, ruling_links = read_rulings()
     ledger = {(L.get("normalized_name") or "").strip(): L for L in ruling_rows}
     alias_targets = _alias_name_targets()
@@ -1218,6 +1221,7 @@ def main() -> None:
             "question": (q.get("exact_question") or "").strip(),
             "publicTitle": (q.get("public_title") or "").strip(),
             "publicSummary": (q.get("public_summary") or "").strip(),
+            "publicOpen": (q.get("public_open") or "").strip(),
             "status": (q.get("status") or "").strip(),
             "owner": (q.get("owner") or "").strip(),
             "vehicle": (q.get("vehicle") or "").strip(),
@@ -1375,6 +1379,8 @@ def main() -> None:
         "  publicTitle: string;\n"
         "  /** One plain sentence saying what the question settles, for the public page. */\n"
         "  publicSummary: string;\n"
+        "  /** What the question leaves open (scoring, notation, naming or the movement), for the public page. */\n"
+        "  publicOpen: string;\n"
         "  /** drafted | sent | answered (answered never gates a row). */\n"
         "  status: string;\n"
         "  owner: string;\n"

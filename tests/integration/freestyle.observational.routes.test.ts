@@ -150,8 +150,27 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
       expect(q.publicTitle, `${q.id} has no public title`).not.toBe('');
       expect(card, `${q.id} title`).toContain(q.publicTitle.replace(/'/g, '&#x27;'));
       expect(card, `${q.id} sentence`).toContain(q.publicSummary.replace(/'/g, '&#x27;').replace(/"/g, '&quot;'));
+      // A scoring or notation question that never says so reads as if the
+      // movement itself were unknown.
+      expect(q.publicOpen, `${q.id} has no open line`).not.toBe('');
+      expect(card, `${q.id} open line`).toContain(q.publicOpen.replace(/'/g, '&#x27;').replace(/"/g, '&quot;'));
       expect(card, `${q.id} shows its working text`).not.toContain(q.question.slice(0, 40));
     }
+  });
+
+  // Defect caught: a newcomer cannot find how a trick qualifies, where to
+  // suggest one, or what a source label stands for.
+  it('carries the joining, help and source sections, with the forum and source links', async () => {
+    const html = await page();
+    const section = (id: string) => html.split(`id="${id}"`)[1]?.split('</section>')[0] ?? '';
+    expect(section('how-a-trick-joins')).toMatch(/observed-section-intro">\s*\S/);
+    expect(section('help-document')).toContain('href="/forum"');
+    const sources = section('sources');
+    // Outside links go through the site's external-link treatment.
+    expect(sources).toMatch(/href="https:\/\/www\.passbackfootbag\.com\/"[^>]*rel="[^"]*noopener/);
+    expect(sources).toMatch(/href="https:\/\/theory\.stanford\.edu\/~blynn\/footbag"[^>]*rel="[^"]*noopener/);
+    // The newcomer sections sit ahead of the first worked section.
+    expect(html.indexOf('id="help-document"')).toBeLessThan(html.indexOf('id="decide-now"'));
   });
 
   // Defect caught: a name already in the dictionary under another spelling
@@ -188,6 +207,10 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
         expect(row, 'an evidence row without the missing evidence').toMatch(/(tracked-tag">[^<]*<\/span>\s*)?<span>\s*[^<\s]/);
+        // A row must say what part of the movement is missing as well as what
+        // would help, or every row reads as "nothing is known".
+        const plain = row.match(/<span>\s*[^<\s][^<]*<\/span>/g) ?? [];
+        expect(plain.length, `evidence row lacks its reason: ${row}`).toBe(2);
       }
     }
   });

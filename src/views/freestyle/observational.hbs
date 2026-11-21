@@ -7,8 +7,11 @@
   detail-page link and no media. Four sections derived from the lifecycle
   model the generator stamps on every row (publicSection): waiting on a curator
   decision, waiting on a rules question (grouped by open question, each shown
-  by its plain title and sentence, then the dictionary's own held-out tricks),
-  needs evidence, and the names already resolved. Duplicate spellings of one
+  by its plain title, its sentence and what it leaves open, then the
+  dictionary's own held-out tricks), needs evidence (each row saying what the
+  record lacks), and the names already resolved. Two newcomer sections open
+  the page (how a trick joins, how to help) and one closes it (what the
+  source labels mean). Duplicate spellings of one
   identity render once; malformed and rejected rows never render. Every count
   comes from the generated data plus the live publication filter; the
   template computes nothing.
@@ -39,6 +42,36 @@
 
     <p class="observational-layer-note">{{content.layerNote}}</p>
 
+    {{! ── For a newcomer: what it takes to join the dictionary, and how to help.
+        The forum is the route until a submission form exists. ── }}
+    <section class="observed-section" id="how-a-trick-joins" aria-label="How a Trick Joins the Dictionary">
+      <div class="section-heading">
+        <h2>How a Trick Joins the Dictionary</h2>
+      </div>
+      <p class="observed-section-intro">
+        Curators check that evidence supports a distinct movement, that its structure can
+        be described and notated, and that it is not already in the Dictionary under
+        another name. They work out its ADD and flag any unresolved scoring or rules
+        question.
+      </p>
+      <p class="observed-section-intro">
+        If the movement and identity are clear, a narrow question may remain under review
+        on the Dictionary page. If the movement or identity itself is unsettled, the
+        candidate stays here.
+      </p>
+    </section>
+
+    <section class="observed-section" id="help-document" aria-label="Help Document a Trick">
+      <div class="section-heading">
+        <h2>Help Document a Trick</h2>
+      </div>
+      <p class="observed-section-intro">
+        To suggest a trick or share evidence, use the <a href="/forum">community forum</a>
+        for now. Include the name and, if possible, a video, notation, or source.
+        Discussion helps the curators evaluate it; a forum post does not make it canonical.
+      </p>
+    </section>
+
     {{! ── Section 1 — Waiting on a curator decision. Each group keeps its
         description, which states what still separates its names from the
         dictionary; the curator's recommendation and evidence live on the admin
@@ -50,8 +83,8 @@
         <span class="section-count">{{content.decideTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        These names are understood well enough to decide. Each waits for a curator to
-        confirm it or set it aside.
+        The movement and its ADD already follow from tricks in the dictionary. What is
+        open is only whether each name is the trick it appears to be.
       </p>
       {{#each content.decideClusters}}
       <div class="observed-eco-group" id="decision-{{id}}">
@@ -83,13 +116,15 @@
         <span class="section-count">{{content.rulingTotal}}</span>
       </div>
       <p class="observed-section-intro">
-        Each of these names depends on an open question about how a movement is defined
-        or scored. Open a question to see the names its answer would settle.
+        Each of these names waits on one open rules question. Most are about scoring,
+        notation or naming; only a few leave part of the movement itself open. Each
+        question says what is open.
       </p>
       {{#each content.questions}}
       <details class="observed-disclosure" id="question-{{id}}">
         <summary class="observed-disclosure-summary">{{title}} <span class="text-muted">({{unlockCount}} names)</span></summary>
         <p class="observed-question-text">{{question}}</p>
+        <p class="observed-question-text"><strong>What is open:</strong> {{open}}</p>
         <ul class="observational-tracked-list observed-fulllist-grid">
           {{#each names}}
           <li>{{name}}{{#if source}} <span class="tracked-tag">{{source}}</span>{{/if}}{{#if publishedTarget}} <span class="text-muted">already in the dictionary as {{publishedTarget}}; only this spelling is open</span>{{/if}}</li>
@@ -118,12 +153,12 @@
         <span class="section-count">{{content.evidenceRows.length}}</span>
       </div>
       <p class="observed-section-intro">
-        We cannot yet tell what movement these names describe. Each one says what would
-        help.
+        These names are on record, but not enough of each movement is written down to
+        describe it. Each one says what is missing and what would help.
       </p>
       <ul class="observational-tracked-list">
         {{#each content.evidenceRows}}
-        <li>{{name}}{{#if source}} <span class="tracked-tag">{{source}}</span>{{/if}} <span>{{missing}}</span></li>
+        <li>{{name}}{{#if source}} <span class="tracked-tag">{{source}}</span>{{/if}} <span>{{reason}}</span> <span>{{missing}}</span></li>
         {{/each}}
       </ul>
     </section>
@@ -157,6 +192,25 @@
         {{> observed-summary-section section=content.archiveTerms title="Sets and Terms, Not Tricks" anchor="archive-terms"}}
       </details>
       {{/if}}
+    </section>
+
+    {{! ── What the source labels mean. Named as sites, never as people. ── }}
+    <section class="observed-section" id="sources" aria-label="Where These Names Come From">
+      <div class="section-heading">
+        <h2>Where These Names Come From</h2>
+      </div>
+      {{! Paragraphs, not list items: an outside link carries its own class,
+          and only running paragraph text underlines a classed link at rest. }}
+      <p class="observed-section-intro"><strong>PassBack</strong>: a freestyle footbag
+        website with tricks, records, tutorials and videos
+        ({{{externalLink "https://www.passbackfootbag.com/" label="passbackfootbag.com"}}}).
+        It counts the dexterities in each trick, so its numbers can differ from ADD.</p>
+      <p class="observed-section-intro"><strong>FootbagMoves</strong>: a published list of
+        freestyle tricks with its own difficulty scores.</p>
+      <p class="observed-section-intro"><strong>Stanford shorthand</strong>: a compact way to
+        write tricks, one character per part, built on Jobs notation and published on a
+        Stanford University web page with a move list written in it
+        ({{{externalLink "https://theory.stanford.edu/~blynn/footbag" label="theory.stanford.edu/~blynn/footbag"}}}).</p>
     </section>
 
     {{/if}}

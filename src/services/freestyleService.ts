@@ -2532,6 +2532,8 @@ export interface EmergingQuestionVM {
   id:          string;
   title:       string;
   question:    string;
+  /** What the question leaves open: scoring, notation, naming or the movement. */
+  open:        string;
   status:      string;
   owner:       string;
   vehicle:     string;
@@ -2542,6 +2544,8 @@ export interface EmergingQuestionVM {
 export interface EmergingEvidenceRowVM {
   name:    string;
   source:  string;
+  /** What part of the movement the record lacks. */
+  reason:  string;
   missing: string;
 }
 
@@ -6962,7 +6966,8 @@ export const freestyleService = {
         // The public page shows the question's plain title and sentence from the
         // registry; the working question text stays on the admin workbench.
         return {
-          id: q.id, title: q.publicTitle, question: q.publicSummary, status: q.status,
+          id: q.id, title: q.publicTitle, question: q.publicSummary, open: q.publicOpen,
+          status: q.status,
           owner: q.owner, vehicle: q.vehicle,
           unlockCount: gated.length + externalNames.length,
           names: [
@@ -6979,15 +6984,27 @@ export const freestyleService = {
     const rulingTotal = questionVMs.reduce((n, q) => n + q.unlockCount, 0);
 
     // Section 3 — Needs evidence: the identity is unrecoverable without new
-    // sources; state exactly what would suffice.
+    // sources; say which part of the movement the record lacks, from the
+    // reason the generator recorded, then what would suffice.
+    const EVIDENCE_REASONS: Record<string, string> = {
+      'ambiguous-terminal-mechanic': 'How the trick finishes is not on record.',
+      'unknown-modifier-token':      'One word in the name has no known meaning.',
+      'folk-name-opacity':           'The name does not say what the movement is.',
+    };
+    const GENERIC_EVIDENCE_REASON = 'The record does not show enough of the movement to write it down.';
+    const reasonFor = (r: ObservationalUniverseRow): string =>
+      EVIDENCE_REASONS[r.failureClass] ?? GENERIC_EVIDENCE_REASON;
     const missingFor = (r: ObservationalUniverseRow): string =>
       r.evidenceState === 'none'
         ? 'Needed: video or notation of the movement.'
         : 'Needed: video, notation, or a clearer source for this form.';
     const evidenceRows: EmergingEvidenceRowVM[] = [
-      ...inSection('evidence').map(r => ({ name: r.name, source: publicSourceLabel(r.source), missing: missingFor(r) })),
+      ...inSection('evidence').map(r => ({
+        name: r.name, source: publicSourceLabel(r.source), reason: reasonFor(r), missing: missingFor(r),
+      })),
       ...(externalBySection.get('evidence') ?? []).map(x => ({
         name: x.name, source: publicSourceLabel(x.source),
+        reason: GENERIC_EVIDENCE_REASON,
         missing: 'Needed: video, notation, or a clearer source.',
       })),
     ];
