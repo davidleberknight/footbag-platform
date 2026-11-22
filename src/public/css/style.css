@@ -3898,16 +3898,16 @@ a.hashtag--media:hover {
   border-radius: var(--radius-2xs);
 }
 /* Primary four: color-saturated, load-bearing semantic distinctions. */
-.notation-core-family       { color: var(--sec-dev); font-weight: bold; }
+.notation-core-family       { color: var(--primary-ink); font-weight: bold; }
 .notation-set               { color: var(--sky-800); }
-.notation-rotation          { color: var(--warn-strong); }
+.notation-rotation          { color: var(--warn-deep); }
 .notation-modifier          { color: var(--notation-gold); }
 /* Secondary: muted, low-saturation; visible but recede. */
 .notation-delay-surface     { color: var(--gray-700); }
 .notation-unusual-surface   { color: var(--gray-700); }
-.notation-directionality    { color: var(--gray-600); font-style: italic; }
+.notation-directionality    { color: var(--text-muted); font-style: italic; }
 .notation-body-component    { color: var(--text-muted); }
-.notation-footedness        { color: var(--gray-600); font-style: italic; }
+.notation-footedness        { color: var(--text-muted); font-style: italic; }
 .notation-multiplicity      { color: var(--gray-700); font-weight: 600; }
 .notation-suffix            { color: var(--text-muted); }
 /* Unresolved: soft amber dashed; "evolving" not "error". */

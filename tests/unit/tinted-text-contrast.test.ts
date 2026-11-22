@@ -14,6 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { composite, contrastRatio, parseColor, type Rgba } from '../e2e/helpers/renderedStyle';
+import type { NotationRole } from '../../src/services/notationRendering';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const STYLESHEET = path.join(REPO_ROOT, 'src', 'public', 'css', 'style.css');
@@ -48,11 +49,38 @@ const PAIRINGS = [
   { what: 'an unresolved notation token on the trick notation panel', text: '.notation-unresolved', panel: '.notation-display .notation-display-tokens' },
 ];
 
+// The class suffix each notation role is drawn with on the trick notation
+// panel. Keyed by the role type, so a role added to the renderer fails to
+// compile here until its colour is judged too.
+const NOTATION_ROLE_CLASSES: Record<NotationRole, string> = {
+  core_family: 'core-family', set: 'set', rotation: 'rotation', modifier: 'modifier',
+  delay_surface: 'delay-surface', unusual_surface: 'unusual-surface',
+  directionality: 'directionality', body_component: 'body-component',
+  footedness: 'footedness', multiplicity: 'multiplicity', suffix: 'suffix',
+  unresolved: 'unresolved',
+};
+
+function ratioOn(text: string, panel: string): number {
+  const background = composite(ruleValue(panel, 'background'), WHITE);
+  return contrastRatio(composite(ruleValue(text, 'color'), background), background);
+}
+
 describe('text on a tinted panel', () => {
   it.each(PAIRINGS)('$what is readable at 4.5:1', ({ text, panel }) => {
-    const background = composite(ruleValue(panel, 'background'), WHITE);
-    const ratio = contrastRatio(composite(ruleValue(text, 'color'), background), background);
+    const ratio = ratioOn(text, panel);
     // Below 4.5:1 a reader with low vision cannot reliably read this text.
     expect(ratio, `${text} on ${panel}: ${ratio.toFixed(2)}:1`).toBeGreaterThanOrEqual(AA_BODY_TEXT);
+  });
+
+  // Defect caught: a notation token the seeded pages never draw (a footedness,
+  // direction or rotation word) set in a colour too faint to read on the
+  // notation panel.
+  it('every notation role is readable at 4.5:1 on the trick notation panel', () => {
+    const panel = '.notation-display .notation-display-tokens';
+    const faint = Object.values(NOTATION_ROLE_CLASSES)
+      .map((suffix) => ({ text: `.notation-${suffix}`, ratio: ratioOn(`.notation-${suffix}`, panel) }))
+      .filter(({ ratio }) => ratio < AA_BODY_TEXT)
+      .map(({ text, ratio }) => `${text} ${ratio.toFixed(2)}:1`);
+    expect(faint).toEqual([]);
   });
 });
