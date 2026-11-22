@@ -3836,15 +3836,15 @@
 "sort_order": 1268
 },
 {
-"slug": "stepping_ducking_butterfly",
-"canonical_name": "stepping ducking butterfly",
+"slug": "stepping_ducking_butterfly_same_side",
+"canonical_name": "stepping ducking butterfly same side",
 "adds": "5",
 "base_trick": "ducking_butterfly",
 "trick_family": "butterfly",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "STEPPING DUCKING BUTTERFLY",
+"notation": "STEPPING DUCKING BUTTERFLY SAME SIDE",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1269
 },

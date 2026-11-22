@@ -771,26 +771,6 @@ in the maintainers' private tracker.
   stays canonical; if it does not, the slug-preserving correction plus
   display-name-exception mechanism is the one the reverse whirl rename used.
 
-- **Mind Bender and Ducking Paradox Blender.** Both are active 6-ADD blender
-  compounds with the same parts in the same order: a duck off the clipper set, a
-  paradox dexterity, the blender's spin and a same-side clipper catch. Mind Bender
-  stores `CLIP >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`,
-  Ducking Paradox Blender
-  `CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`;
-  they differ only in how the dexterity is written. The curator rules whether Mind
-  Bender is the community name for Ducking Paradox Blender, to be folded into one
-  row, or a distinct trick. Mind Bender's opening stays held until then.
-
-- **Ripped Warrior and Stepping Ducking Butterfly.** Ripped Warrior's recorded
-  technical name is Stepping Ducking Far Butterfly, and the far butterfly is the
-  butterfly by the curator's butterfly-implies-far ruling. Its notation
-  `CLIP > OP IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]` differs from
-  Stepping Ducking Butterfly's
-  `CLIP > OP IN [DEX] > DUCK [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]` only in the
-  side of the butterfly dexterity. The curator rules whether the two are one trick or
-  a far and near pair, and if a pair, which name carries which side. Ripped Warrior's
-  opening stays held until then.
-
 - **Blurrier's base.** Blurrier (`blurrier`, 5 ADD) is filed on mirage with no
   modifier links, but its footbag.org notation
   `CLIP > OP IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`

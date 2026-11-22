@@ -71,6 +71,12 @@ silently reshaping either side.
   its footbag.org source and the toe-set sibling; names, clipper terminal, and 4 ADD
   unchanged. Home: the high-plains-drifter operational-notation correction, regression
   in `tests/unit/freestyle-drifter-paradon-doctrine.test.ts`.
+- **Mind Bender is Ducking Paradox Blender** (curator ruling). FootbagMoves gives
+  Ducking Paradox Blender as Mind Bender's technical name and the Stanford list
+  writes "Ducking Paradox Blender (Mind Bender)"; the second row had no source of
+  its own. The two are folded into Mind Bender, which takes the `OP IN` dexterity
+  footbag.org's Stepping Ducking Paradox Blender writes, and shows Ducking Paradox
+  Blender as its structural name. Home: the identity-folds sweep.
 - **Pixie Paradon is a paradon** (maintainer ruling). It is a pixie set into a paradon:
   footbag.org's move page gives it 5 ADD and
   `TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, the
@@ -251,6 +257,14 @@ ruling batches.
   butterfly name is therefore the base trick under a spelling that states what the
   base already means, not a variant of it. Infinity names the clipper-set
   butterfly; the set is what distinguishes it, not the side.
+- **Ripped Warrior is the far form; Stepping Ducking Butterfly Same Side is its
+  pair** (curator ruling). FootbagMoves gives Ripped Warrior the technical name
+  Stepping Ducking Far Butterfly and `CLIP > OP IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [XBD] [DEL]`,
+  PassBack records it as the opposite-side form, and FootbagMoves lists the
+  same-side form separately. By butterfly-implies-far the plain name Stepping
+  Ducking Butterfly is Ripped Warrior's, shown as its structural name; the
+  same-side form is the row Stepping Ducking Butterfly Same Side. Home: the two
+  rows' corrections, regression in `tests/unit/freestyle-ripped-warrior-pair.test.ts`.
 - **Surging = spinning + stepping**: not a primitive modifier and never a
   `trick_modifiers` row; the standalone `surging` dictionary row keeps its
   named-trick identity while compounds decompose.
