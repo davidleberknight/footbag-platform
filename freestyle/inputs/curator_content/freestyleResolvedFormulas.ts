@@ -139,6 +139,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'matador', derivation: 'nuclear(+2) + butterfly(3) = 5 ADD', operator: 'nuclear' },
   { slug: 'merkon', derivation: 'spinning(+1) + legover(2) = 3 ADD', operator: 'spinning' },
   { slug: 'mind_bender', derivation: 'ducking(+1) + paradox(+1) + blender(4) = 6 ADD', operator: 'ducking + paradox' },
+  { slug: 'miraging_dragon', derivation: 'leading dexterity(+1) + dragon(2) = 3 ADD', operator: 'leading dexterity' },
   { slug: 'miraging_dyno', derivation: 'leading dexterity(+1) + dyno(4) = 5 ADD', operator: 'leading dexterity' },
   { slug: 'miraging_eclipse', derivation: 'leading dexterity(+1) + eclipse(3) = 4 ADD', operator: 'leading dexterity' },
   { slug: 'miraging_flail', derivation: 'leading dexterity(+1) + flail(3) = 4 ADD', operator: 'leading dexterity' },
