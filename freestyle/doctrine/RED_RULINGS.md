@@ -77,6 +77,14 @@ silently reshaping either side.
   its own. The two are folded into Mind Bender, which takes the `OP IN` dexterity
   footbag.org's Stepping Ducking Paradox Blender writes, and shows Ducking Paradox
   Blender as its structural name. Home: the identity-folds sweep.
+- **A scored lead no operator names is a leading dexterity** (curator ruling).
+  Where a trick's notation scores an inward dexterity in front of its chassis
+  that no registered operator names (the "miraging" lead, which carries no
+  registry weight), its breakdown writes it as "leading dexterity(+1)":
+  Armageddon, Big Apple Sauce, Mofly, Paratoxic, Spinning Miraging Symposium
+  Torque. A trailing swirl dexterity is written "out dex(1)", as Double Over
+  Down Swirl and Pixie Quantum Double Over Down Swirl do. Home: the curated
+  formulas, regression in `tests/unit/freestyle-resolved-formula-arithmetic.test.ts`.
 - **Blurrier is Stepping Barfly** (curator ruling). footbag.org's Blurrier notation is
   one stepping dexterity on the clipper-set Down cell, which the ratified grid makes
   Barfly; the 5 ADD is stepping plus barfly. The unsourced Stepping Barfly row is
