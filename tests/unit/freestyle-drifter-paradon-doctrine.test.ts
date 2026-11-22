@@ -5,9 +5,9 @@
  * same-side inward dex onto a clipper, and only the set surface differs. The lead
  * must not flatten to the same side.
  *
- * Pixie Paradon is not a paradon: the paradon family is defined by its clipper
- * terminal, but Pixie Paradon resolves on a toe delay, so its paradon family
- * assignment is cleared and left blank pending a separate identity/name question.
+ * Pixie Paradon is a pixie set into a paradon: footbag.org's move page gives it
+ * the paradon's double dexterity ending in a clipper delay, so it keeps the
+ * paradon family that its base gives it and the paradon's clipper terminal.
  *
  * These pin the curator rulings in the committed correction source.
  */
@@ -48,10 +48,16 @@ describe('the two double-drifter cells preserve the drifter lead relationship', 
   });
 });
 
-describe('Pixie Paradon is not a paradon', () => {
-  it('clears its paradon family assignment via a null-clear correction', () => {
-    // The loader nulls a relationship column when the correction value is the
-    // backslash-N sentinel; blank would be skipped.
-    expect(correctionValue('pixie_paradon', 'trick_family')).toBe('\\N');
+describe('Pixie Paradon is a paradon', () => {
+  // Defect caught: the trick shown ending on a toe delay and outside the
+  // paradon family, against the source page that defines it.
+  it('ends on the paradon clipper delay, as the source page writes it', () => {
+    expect(correctionValue('pixie_paradon', 'operational_notation'))
+      .toBe('TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]');
+  });
+
+  // Defect caught: a correction clearing the family its paradon base gives it.
+  it('carries no correction clearing its family', () => {
+    expect(() => correctionValue('pixie_paradon', 'trick_family')).toThrow(/no trick_family correction/);
   });
 });

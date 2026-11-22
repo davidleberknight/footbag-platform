@@ -3047,8 +3047,7 @@ paradon_swirl,operational_notation,,TOE > OP OUT [DEX] > OP OUT [DEX] > OP OUT [
 paradox_whirling_swirl,operational_notation,,CLIP > SAME IN [PDX] [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL],Matrix migration: BACK SWIRL retired; re-derived from base cell; side relationships preserved; brackets and ADD unchanged.
 pixie_butterfly_swirl,operational_notation,,TOE > SAME IN [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL],Matrix migration: BACK SWIRL retired; re-derived from base cell; side relationships preserved; brackets and ADD unchanged.
 pixie_ducking_butterfly_swirl,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL],Matrix migration: BACK SWIRL retired; re-derived from base cell; side relationships preserved; brackets and ADD unchanged.
-pixie_paradon,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Matrix migration: BACK SWIRL retired; re-derived from base cell; side relationships preserved; brackets and ADD unchanged.
-pixie_paradon,trick_family,paradon,\N,Curator ruling: pixie_paradon is not a paradon. The paradon family is defined by its clipper terminal (OP CLIP); every other paradon member terminates on OP CLIP while this row resolves on a toe stall (SAME TOE). Clear the paradon family assignment and leave the replacement family blank. Its positive identity/name is a separate open evidence residual (its source form ended in a back swirl onto toe that a later notation pass flattened); do not rename merge or alias it here.
+pixie_paradon,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL],Curator ruling: Pixie Paradon is a pixie set into a paradon. footbag.org newmoves showmove 171 gives this notation at 5 ADD and describes a pixie then the paradon's double dexterity ending in a clipper delay; the toe-terminal form it replaces cited that page but the page does not support it.
 pixie_reverse_swirl,operational_notation,,TOE > SAME IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL],Matrix migration: BACK SWIRL retired; re-derived from base cell; side relationships preserved; brackets and ADD unchanged.
 pixie_swirl,operational_notation,,TOE > SAME IN [DEX] > SAME/OP OUT [DEX] > SAME CLIP [XBD] [DEL],Matrix migration: BACK SWIRL retired; re-derived from base cell; side relationships preserved; brackets and ADD unchanged.
 pixie_symposium_whirling_swirl,operational_notation,,TOE > SAME IN [DEX] >> OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > SAME CLIP [XBD] [DEL],Matrix migration: BACK SWIRL retired; re-derived from base cell; side relationships preserved; brackets and ADD unchanged.
@@ -4196,7 +4195,6 @@ paratoxic,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_eggbeater,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_opposite_clipper,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_over_down,review_aspect,,add,Open question still pending; clear once ruled.
-pixie_paradon,review_aspect,,identity,Open question still pending; clear once ruled.
 pixie_quantum_double_over_down_swirl,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
 pixie_same_clipper,review_aspect,,add,Open question still pending; clear once ruled.

@@ -756,12 +756,6 @@ in the maintainers' private tracker.
 
 ## With the curator
 
-- **Pixie Paradon positive identity.** The family question is ruled (not a paradon;
-  the paradon family assignment is cleared, per `RED_RULINGS.md`). What remains is an
-  evidence residual: its correct positive identity and name, given that its source
-  form ended in a back swirl onto a toe that a later notation pass flattened. Held for
-  source evidence; it is not renamed, merged, or aliased until that evidence lands.
-
 - **Orbit canonical name.** Direction is structural, so orbit and around-the-world
   are separate tricks; that is settled and not at issue. What is open is which name
   the orbit row carries as canonical. The dictionary names it by the folk name

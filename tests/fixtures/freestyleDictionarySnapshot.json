@@ -2683,12 +2683,12 @@
 "canonical_name": "pixie paradon",
 "adds": "5",
 "base_trick": "paradon",
-"trick_family": null,
+"trick_family": "paradon",
 "category": "compound",
 "description": null,
 "aliases_json": null,
 "notation": "PIXIE PARADON",
-"operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
+"operational_notation": "TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1180
 },
 {

@@ -71,12 +71,13 @@ silently reshaping either side.
   its footbag.org source and the toe-set sibling; names, clipper terminal, and 4 ADD
   unchanged. Home: the high-plains-drifter operational-notation correction, regression
   in `tests/unit/freestyle-drifter-paradon-doctrine.test.ts`.
-- **Pixie Paradon is not a paradon** (maintainer ruling). The paradon family is defined
-  by its clipper terminal, but Pixie Paradon resolves on a toe delay, so its paradon
-  family assignment is cleared and left blank. Its positive identity/name is a separate
-  open evidence question (its source form ended in a back swirl onto toe that a later
-  pass flattened); it is not renamed, merged, or aliased. Home: a null-clear family
-  correction on the row.
+- **Pixie Paradon is a paradon** (maintainer ruling). It is a pixie set into a paradon:
+  footbag.org's move page gives it 5 ADD and
+  `TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, the
+  paradon's double dexterity ending in a clipper delay. It keeps its name and the
+  paradon family its base gives it. "Pixie Paradon (Dimmiest)" stays separate until
+  evidence shows it is the same movement. Home: the pixie_paradon operational-notation
+  correction, regression in `tests/unit/freestyle-drifter-paradon-doctrine.test.ts`.
 - **Clipper Symposium Whirl is a symposium whirl** (curator; answered by shipped
   structure). `CLIP > SAME SYMP [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL]`, whirl family,
   4 ADD (symposium +1 on whirl); no data change.
