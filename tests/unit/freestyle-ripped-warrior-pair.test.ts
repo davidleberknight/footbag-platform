@@ -41,7 +41,7 @@ describe('Ripped Warrior is the far form', () => {
   // searching Stepping Ducking Butterfly lands on the wrong side.
   it('carries the plain name and shows it as a structural name', () => {
     const row = additions.find(l => l.startsWith('ripped warrior,'));
-    expect(row?.split(',')[4]).toBe('stepping ducking butterfly');
+    expect(row?.split(',')[4].split('|')).toContain('stepping ducking butterfly');
     const ov = overrides.find(l => l.startsWith('stepping_ducking_butterfly,'));
     expect(ov?.split(',').slice(1, 4)).toEqual(['retype', 'structural', '1']);
   });
@@ -53,6 +53,15 @@ describe('the same-side form is its own row', () => {
     expect(additions.some(l => l.startsWith('stepping ducking butterfly same side,'))).toBe(true);
     expect(additions.some(l => l.startsWith('stepping ducking butterfly,'))).toBe(false);
     expect(corrections.filter(l => /^stepping[-_]ducking[-_]butterfly,/.test(l))).toEqual([]);
+  });
+
+  // Defect caught: Alpine Ripwalk, which the alpine derivation reads as Stepping
+  // Ducking Butterfly (the far form), resolving to the same-side row.
+  it('sends Alpine Ripwalk to Ripped Warrior, not to the same-side row', () => {
+    const rw = additions.find(l => l.startsWith('ripped warrior,'));
+    const ss = additions.find(l => l.startsWith('stepping ducking butterfly same side,'));
+    expect(rw?.split(',')[4].split('|')).toContain('alpine ripwalk');
+    expect(ss?.split(',')[4].split('|') ?? []).not.toContain('alpine ripwalk');
   });
 
   // Defect caught: the rename carrying the far notation onto the same-side row.
