@@ -34,7 +34,7 @@ describe('GET /ifpa — IFPA governance hub', () => {
   // this link a would-be host has no way to find it.
   it('links to the Worlds host-bid template', async () => {
     const res = await page('/ifpa');
-    expect(res.text).toMatch(/<a href="https:\/\/docs\.google\.com\/document\/d\/[^"]+"[^>]*class="external-link btn btn-outline">Worlds Host-bid Template<\/a>/);
+    expect(res.text).toMatch(/<a href="https:\/\/docs\.google\.com\/document\/d\/[^"]+"[^>]*class="external-link btn btn-outline card-link">Worlds Host-bid Template<\/a>/);
   });
 
   it('highlights the IFPA nav entry as active', async () => {

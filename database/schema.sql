@@ -295,8 +295,11 @@ CREATE TABLE event_disciplines (
   -- carry; never both.
   game_id          TEXT REFERENCES discipline_games(id),
   custom_game_name TEXT,
+  -- Entry size. An organizer chooses singles or doubles; team is the size of a
+  -- historical team contest of more than two players, which only the historical
+  -- load writes, so the schema refuses it on any row that load did not write.
   team_type TEXT NOT NULL DEFAULT 'singles'
-    CHECK (team_type IN ('singles', 'doubles')),
+    CHECK (team_type IN ('singles', 'doubles', 'team')),
   -- Enforced at registration: women requires every member on the entry to have
   -- declared female, mixed requires one male and one female member partner.
   gender_eligibility TEXT CHECK (gender_eligibility IN ('open','women','mixed')),
@@ -312,7 +315,8 @@ CREATE TABLE event_disciplines (
     CHECK (is_aggregate_standing IN (0, 1)),
   CHECK (discipline_category IS NOT NULL OR is_aggregate_standing = 1),
   CHECK (game_id IS NULL OR custom_game_name IS NULL),
-  CHECK (gender_eligibility IS NOT 'mixed' OR team_type = 'doubles')
+  CHECK (gender_eligibility IS NOT 'mixed' OR team_type IN ('doubles', 'team')),
+  CHECK (team_type <> 'team' OR created_by = 'seed_loader')
 );
 
 -- idx_event_disciplines_event dropped (left-prefix redundant with ux_event_discipline_name)

@@ -80,7 +80,7 @@ describe('public club directory excludes test fixtures', () => {
     // What a fixture must not reach is the listing itself.
     const res = await request(createApp()).get('/clubs/usa');
     expect(res.status).toBe(200);
-    expect(res.text.match(/class="club-entry"/g) ?? []).toHaveLength(2);
+    expect(res.text.match(/data-club-id="/g) ?? []).toHaveLength(2);
   });
 
   it('the club index reaches only real clubs, ignoring every fixture marker', async () => {

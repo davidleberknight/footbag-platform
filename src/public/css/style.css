@@ -431,7 +431,7 @@ main :where(legend) { margin-bottom: var(--space-xs); }
 /* Classed lists that stack their items one under another take the same
    list-item step; a list laid out as a row or a grid spaces items by gap. */
 :is(.dev-persona-coverage, .dict-trick-row-stack, .glossary-equivalence-worked-example,
-  .profile-account-list, .glossary-family-tree-members, .club-list,
+  .profile-account-list, .glossary-family-tree-members,
   .cross-base-list, .related-modifiers-list) > li + li,
 .register-form .card > ul > li + li {
   margin-top: var(--space-xs);
@@ -868,15 +868,35 @@ section { margin-top: var(--space-2xl); }
 /* Cards stacked straight in the page flow sit one card gap apart, the same as
    in a grid; a grid or list spaces its own cards with gap. */
 :is(.wrapper, section, .content-section) > .card + .card { margin-top: var(--space-lg); }
-.card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
-.card-static:hover { transform: none; box-shadow: var(--shadow-sm); }
+/* A card that leads to one place opens from a click anywhere on it: its one
+   link, the title or else its one button, is stretched over the card, and any
+   other link inside sits above that and keeps its own target. Only such a
+   card lifts, so a lift always means the card can be clicked, and keyboard
+   focus on its link rings the whole card. No script is involved. */
+.card:has(.card-link) { position: relative; }
+.card-link::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+.card:has(.card-link) a:not(.card-link):not(.card-thumb) { position: relative; z-index: 1; }
+.card:has(.card-link):hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+/* Hovering anywhere on the card hovers its stretched button too, and a
+   button's own nudge would shrink the stretched area back to the button. */
+.card .btn.card-link:hover { transform: none; }
+.card:has(.card-link:focus-visible) { outline: 2px solid var(--secondary); outline-offset: 2px; }
+.card-link:focus-visible { outline: none; }
 
 .card-title { margin-bottom: var(--space-sm); font-weight: 600; font-size: 1rem; }
 /* A card title that is a real heading takes the card-title step of the ramp,
    so it outranks the body text under it. */
 :is(h2, h3).card-title { font-size: 1.25rem; }
-.card-title a { color: var(--text); font-weight: 600; font-size: 1rem; }
-.card-title a:hover { color: var(--primary-ink); text-decoration: none; }
+.card-title a { color: var(--primary-ink); font-weight: 600; font-size: 1rem; }
+.card-title a:hover { color: var(--primary-ink-dk); text-decoration: underline; }
+/* A title link that is not the card's stretched link sits in a line of text
+   (a name beside its slug), so it keeps the underline a link in text needs. */
+.card-title a:not(.card-link) { text-decoration: underline; }
 
 .card-actions { display: flex; flex-wrap: wrap; gap: var(--space-sm); margin-top: auto; }
 /* The actions sit at the card's foot, pushed down by an automatic margin so
@@ -2254,45 +2274,12 @@ p.badge { display: block; width: fit-content; }
   padding: var(--space-2xl) 0;
   border-top: 1px solid var(--border);
 }
-.club-list {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 var(--space-sm);
-}
-.club-entry {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--gray-150);
-  flex-wrap: wrap;
-}
-.club-name {
-  font-weight: 500;
-  color: var(--primary-ink);
-  text-decoration: none;
-}
-.club-name:hover { text-decoration: underline; }
-.club-location {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.club-hashtag {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-family: var(--font-body);
-  background: var(--bg-light);
-  border-radius: var(--radius-sm);
-  padding: var(--space-xs) var(--space-sm);
-  font-weight: 500;
-}
 .club-external-link {
   font-size: 0.9rem;
   color: var(--primary-ink);
   margin-left: auto;
 }
 .club-leaders-summary {
-  flex-basis: 100%;
   font-size: 0.9rem;
   color: var(--text-muted);
   margin-top: var(--space-xs);
@@ -2311,7 +2298,6 @@ p.badge { display: block; width: fit-content; }
   font-style: italic;
 }
 .club-meta-row {
-  flex-basis: 100%;
   font-size: 0.9rem;
   color: var(--text-muted);
   margin-top: 1px;

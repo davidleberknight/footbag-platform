@@ -56,6 +56,28 @@ describe('event division structure', () => {
     })).not.toThrow();
   });
 
+  it('accepts the team entry size only on a division the historical load wrote', () => {
+    // A team division an organizer or the testkit could write would offer a
+    // registration no partner rule enforces, so the schema keeps team to the
+    // historical record.
+    expect(() => insertDiscipline(db, eventId, {
+      name: 'Team Freestyle', team_type: 'team', created_by: 'seed_loader',
+    })).not.toThrow();
+    expect(() => insertDiscipline(db, eventId, {
+      name: 'Organizer Team Freestyle', team_type: 'team', created_by: 'member-organizer-1',
+    })).toThrow(/CHECK constraint failed/);
+    expect(() => insertDiscipline(db, eventId, { name: 'System Team Freestyle', team_type: 'team' }))
+      .toThrow(/CHECK constraint failed/);
+  });
+
+  it('accepts mixed gender on a historical team division', () => {
+    // A historical mixed team contest would otherwise have to be dropped or
+    // filed under an entry size it never had.
+    expect(() => insertDiscipline(db, eventId, {
+      name: 'Mixed Team Footbag Freestyle', team_type: 'team', gender_eligibility: 'mixed', created_by: 'seed_loader',
+    })).not.toThrow();
+  });
+
   it('refuses an unknown discipline and accepts the historical sideline family', () => {
     // A typo'd family files the division under no discipline section at all.
     expect(() => insertDiscipline(db, eventId, { name: 'Odd One', discipline_category: 'other' }))

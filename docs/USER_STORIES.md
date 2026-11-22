@@ -448,7 +448,7 @@ Story: As a visitor, I want to browse the clubs directory by country, then by st
 
 Success Criteria:
 
-- The system provides a clubs landing view with geographic drill-down navigation from country to a country page, which groups clubs by state or province wherever those are recorded, with club names, city labels, and member counts. City is a label on the club row, not a navigation level.
+- The system provides a clubs landing view with geographic drill-down navigation from country to a country page, which groups clubs by state or province wherever those are recorded, with club names, city labels, and member counts. City is a label on the club card, not a navigation level.
 - Only members can view club member rosters and contact details.
 
 ### V_Browse_Upcoming_Events
@@ -2342,7 +2342,9 @@ Success Criteria:
   Amateur is never a class, and no event offers an Amateur division: Amateur is the entrant's
   own status choice in a division that offers prize money (see `M_Register_For_Event`).
   The older names in the historical record are superseded aliases for these, stay exactly as they
-  were run, and carry the structured parts where those can be inferred confidently. An event
+  were run, and carry the structured parts where those can be inferred confidently. A historical
+  team contest carries a third entry size, team, which only the historical record holds; an
+  organizer chooses singles or doubles. An event
   carries as many divisions as it contests, and a competitor may enter more than one.
 - A division carries its scoring system, from the approved set its discipline publishes. For net
   those are classic side-out scoring, rally scoring, and game-set-match, where games run to four

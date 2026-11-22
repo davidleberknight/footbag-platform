@@ -32,7 +32,7 @@
       {{/if}}
 
       {{#if content.card.isDisambiguation}}
-        <div class="card card-static">
+        <div class="card">
           <form method="POST" action="{{content.submitHref}}" class="mt-6">
             <input type="hidden" name="kind" value="disambiguation" />
             {{#each content.card.clubs}}
@@ -64,7 +64,7 @@
           <p class="audit-notice text-muted fs-sm mt-4">This decision is recorded.</p>
         </div>
       {{else}}
-        <div class="card card-static">
+        <div class="card">
           <div class="card-title">About {{content.card.clubName}}</div>
 
           {{#if content.card.isMembership}}
@@ -151,7 +151,7 @@
             to answer. }}
       {{/if}}
     {{else}}
-      <div class="card card-static">
+      <div class="card">
         <div class="card-title">Clubs come after onboarding</div>
         {{#if content.noLegacyAffiliationFound}}
           <p>We did not find a past club affiliation for you.</p>

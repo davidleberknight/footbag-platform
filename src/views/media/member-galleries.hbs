@@ -10,11 +10,12 @@
     <div class="card-grid card-grid-compact">
       {{#each content.galleries}}
       <div class="card">
-        {{! The cover opens the gallery too. It is a second pointer for the eye
-            and hand only, so keyboard and screen-reader users meet one link
-            per card: the name. }}
+        {{! The name is the card's one link, stretched over the card. The cover
+            opens the gallery too. It is a second pointer for the eye and hand
+            only, so keyboard and screen-reader users meet one link per card:
+            the name. }}
         {{#if coverThumbUrl}}<a href="{{href}}" tabindex="-1" aria-hidden="true"><img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy"></a>{{/if}}
-        <a href="{{href}}" class="card-title">{{name}}</a>
+        <a href="{{href}}" class="card-title card-link">{{name}}</a>
         {{#if description}}<p class="card-description">{{description}}</p>{{/if}}
         <p class="card-meta">{{itemCount}} {{itemCountNoun}} by {{#if ownerHref}}<a href="{{ownerHref}}">{{ownerDisplayName}}</a>{{else}}{{ownerDisplayName}}{{/if}}</p>
       </div>

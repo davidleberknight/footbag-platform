@@ -10,8 +10,10 @@ file covers net, freestyle, golf and sideline, keyed by discipline and name,
 since one name ("Doubles", "Unknown") recurs across disciplines. The loader takes
 the parts from it and refuses a name it does not list, so a new spelling the
 source introduces fails the load instead of loading with no game, gender or
-class. A division the schema cannot yet record truthfully, a team contest with no
-entry size to carry, is withheld whole rather than loaded as singles.
+class. A team contest of more than two players loads with the team entry size
+when its source tags it team; one the structure has not yet mapped is withheld
+whole, and one tagged singles or doubles stops the load, so a team result never
+loads as an individual or a pair.
 
 Run from repo root:
     python -m pytest legacy_data/tests/test_division_structure.py -v
@@ -260,14 +262,102 @@ def test_every_committed_division_is_mapped_and_mixed_only_on_doubles():
     assert mixed_singles == [], f"mixed divisions tagged singles: {mixed_singles}"
 
 
-def test_every_committed_team_contest_is_withheld():
+def test_every_committed_team_contest_is_withheld_or_tagged_team():
     # Defect caught: a team contest in the committed results that the structure
-    # maps instead of withholding, so it would load under a singles entry size.
+    # maps while its source still tags it singles or doubles, so the load would
+    # stop, or the contest would show as an individual or a pair.
     structure = loader.read_division_structure(STRUCTURE)
     with CANONICAL_DISCIPLINES.open(encoding="utf-8") as f:
-        team = {(r["discipline_category"], r["discipline_name"]) for r in csv.DictReader(f)
+        team = [r for r in csv.DictReader(f)
                 if r["discipline_category"] in loader.STRUCTURED_CATEGORIES
-                and " team " in f" {r['discipline_name'].lower()} "}
+                and loader.names_team_contest(r["discipline_name"])]
     assert team, "no team contests in the committed results, so nothing was checked"
-    loaded = sorted(k for k in team if not structure[k]["withhold"])
-    assert loaded == [], f"team contests that would load as singles: {loaded}"
+    mistagged = sorted(f"{r['event_key']}/{r['discipline_key']} ({r['team_type']})" for r in team
+                       if not structure[(r["discipline_category"], r["discipline_name"])]["withhold"]
+                       and r["team_type"] != "team")
+    assert mistagged == [], f"team contests mapped but not tagged team: {mistagged}"
+
+
+def test_a_team_tag_or_an_untagged_team_name_gives_the_team_entry_size():
+    # Defect caught: a contest the source records as a team of three loads as
+    # singles, or "Open Doubles Net 12 Teams", which counts doubles entries,
+    # is taken for a team contest.
+    assert loader.normalize_team_type("team", "Women's Freestyle") == "team"
+    assert loader.normalize_team_type("", "Open Team Freestyle") == "team"
+    assert loader.normalize_team_type("", "Open Doubles Net 12 Teams") == "doubles"
+    for punctuated in ("Team-Freestyle", "Open Freestyle (Team)", "Team: Freestyle"):
+        assert loader.names_team_contest(punctuated), punctuated
+    assert loader.normalize_team_type("", "Open Freestyle") == "singles"
+    # A source tag is never overridden by the name: the load refuses the clash
+    # instead (below), so the fix lands upstream.
+    assert loader.normalize_team_type("doubles", "Open Team Freestyle") == "doubles"
+    assert loader.division_display_name("open", "women", "team", "Routines") == "Open Women's Team Routines"
+
+
+def test_a_division_tagged_team_loads_as_team_under_its_team_name(tmp_path):
+    # Defect caught: the 1984 shape, a three-player women's contest the source
+    # tags team under a name without the word, loading as singles.
+    seed = _seed_with_divisions(tmp_path, [("freestyle", "Women's Freestyle")])
+    path = seed / "seed_event_disciplines.csv"
+    with path.open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    rows[0]["team_type"] = "team"
+    helpers.write_csv(path, list(rows[0].keys()), rows)
+    db, result = _load(tmp_path, seed)
+    assert result.returncode == 0, result.stderr
+    conn = sqlite3.connect(db)
+    try:
+        loaded = conn.execute(
+            "SELECT name, team_type, gender_eligibility, created_by FROM event_disciplines "
+            "WHERE id LIKE 'disc_%idem_test_%'").fetchall()
+    finally:
+        conn.close()
+    assert loaded == [("Open Women's Team Routines", "team", "women", "seed_loader")]
+
+
+def test_a_teams_points_standing_loads_and_is_not_taken_for_a_team_contest(tmp_path):
+    # Defect caught: the 1996 Worlds' "Team Points", a nation's standing over
+    # several contests, stopping the whole load as if it were a mis-tagged team
+    # contest.
+    seed = _seed_with_divisions(tmp_path, [("", "Team Points")])
+    path = seed / "seed_event_disciplines.csv"
+    with path.open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    fields = list(rows[0].keys()) + (["is_aggregate_standing"] if "is_aggregate_standing" not in rows[0] else [])
+    rows[0].update(team_type="singles", is_aggregate_standing="1")
+    helpers.write_csv(path, fields, rows)
+    db, result = _load(tmp_path, seed)
+    assert result.returncode == 0, result.stderr
+    conn = sqlite3.connect(db)
+    try:
+        loaded = conn.execute(
+            "SELECT name, team_type, is_aggregate_standing FROM event_disciplines "
+            "WHERE id LIKE 'disc_%idem_test_%'").fetchall()
+    finally:
+        conn.close()
+    assert loaded == [("Team Points", "singles", 1)]
+
+
+def test_a_mapped_team_contest_tagged_doubles_stops_the_load(tmp_path, monkeypatch):
+    # Defect caught: a team contest the structure maps loading under the
+    # doubles tag its source wrongly carries, so a team of four shows as a pair.
+    # The committed structure, whatever it says of Team Freestyle, with that one
+    # row replaced by a mapping, so the test holds once the real row is mapped.
+    structure = tmp_path / "structure.csv"
+    with STRUCTURE.open(encoding="utf-8") as f:
+        lines = [ln for ln in f.read().splitlines() if not ln.startswith("freestyle,Team Freestyle,")]
+    lines.append("freestyle,Team Freestyle,game_routines,,open,open,,0,")
+    structure.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    seed = _seed_with_divisions(tmp_path, [("freestyle", "Team Freestyle")])
+    path = seed / "seed_event_disciplines.csv"
+    with path.open(encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+    rows[0]["team_type"] = "doubles"
+    helpers.write_csv(path, list(rows[0].keys()), rows)
+    db = helpers.make_db(tmp_path)
+    monkeypatch.setattr(loader, "DIVISION_STRUCTURE", structure)
+    monkeypatch.setattr("sys.argv", ["08", "--db", str(db), "--seed-dir", str(seed), "--no-backup"])
+    with pytest.raises(SystemExit, match="team contest tagged 'doubles'"):
+        loader.main()
+    assert _count_test_rows(db, "event_disciplines") == 0
+    assert helpers.count(db, "events") == 0, "the refused load left events behind"

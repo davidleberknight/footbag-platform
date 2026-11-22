@@ -80,7 +80,7 @@
     <div class="section-heading"><h2>Competitions</h2></div>
     {{#if content.hasDivisions}}
       {{#each content.divisions}}
-        <div class="card card-static">
+        <div class="card">
           <div class="card-title">{{name}}</div>
           <p class="card-meta">{{entriesLabel}}</p>
           <p><a href="{{siteHref correctHref}}" class="btn btn-outline btn-sm">Correct Competition</a></p>
@@ -106,7 +106,7 @@
     {{#if content.addEntrantHref}}<p><a href="{{siteHref content.addEntrantHref}}" class="btn btn-outline">Add Entrant</a></p>{{/if}}
     {{#if content.hasRegistrations}}
       {{#each content.registrations}}
-        <div class="card card-static">
+        <div class="card">
           <div class="card-title"><a href="{{memberRecordHref}}">{{name}}</a> <span class="badge">{{statusLabel}}</span>{{#if attendedLabel}} <span class="badge">{{attendedLabel}}</span>{{/if}}</div>
           {{#if editHref}}<p><a href="{{siteHref editHref}}" class="btn btn-outline btn-sm">Edit Entry</a></p>{{/if}}
           {{#if attendance}}

@@ -16,7 +16,7 @@
     <div class="card">
       <div class="card-title">Become a Member</div>
       <p class="card-description">Become an IFPA Member to compete in events, join a club, upload photos and videos, organize events, vote in IFPA elections, and participate in the global footbag community.</p>
-      <a href="/register" class="btn btn-primary">Sign Up</a>
+      <a href="/register" class="btn btn-primary card-link">Sign Up</a>
     </div>
     <p class="mt-3">Already a member? <a href="/login">Log In</a></p>
   </section>
@@ -26,10 +26,13 @@
     <h2>Governance Documents</h2>
     <div class="card-grid card-grid-2col">
       {{#each content.docs}}
+        {{! The title is the card's one link, stretched over the card. The Read
+            button repeats it as a pointer for the eye and hand only, so
+            keyboard and screen-reader users meet one link per card. }}
         <div class="card">
-          <div class="card-title"><a href="{{href}}">{{title}}</a></div>
+          <div class="card-title"><a href="{{href}}" class="card-link">{{title}}</a></div>
           <p class="card-description">{{summary}}</p>
-          <a href="{{href}}" class="btn btn-outline">Read</a>
+          <a href="{{href}}" class="btn btn-outline" tabindex="-1" aria-hidden="true">Read</a>
         </div>
       {{/each}}
     </div>
@@ -40,11 +43,11 @@
       <div class="card">
         <div class="card-title">Want to host the World Footbag Championships?</div>
         <p class="card-description">Read the Worlds host-bid template, make your own copy, fill in what you can, and share it with the IFPA Board.</p>
-        {{{externalLink content.worldsBidHref label="Worlds Host-bid Template" class="btn btn-outline" noIcon=true}}}
+        {{{externalLink content.worldsBidHref label="Worlds Host-bid Template" class="btn btn-outline card-link" noIcon=true}}}
       </div>
       <div class="card">
         <div class="card-title">Looking for the rules of competition?</div>
-        <a href="/rules" class="btn btn-outline">Footbag Rules</a>
+        <a href="/rules" class="btn btn-outline card-link">Footbag Rules</a>
       </div>
     </div>
   </section>

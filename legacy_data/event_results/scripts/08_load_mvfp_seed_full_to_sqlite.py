@@ -150,6 +150,8 @@ _CLASS_LABELS = {"open": "Open", "intermediate": "Intermediate", "novice": "Novi
                  "masters": "Masters"}
 # A level word a source printed for a division the event ran beside its Open one.
 _LEVEL_WORD = re.compile(r"\b(advanced?|ultra|pro)\b", re.IGNORECASE)
+# The word "team" in a division name, which names a team contest.
+_TEAM_WORD = re.compile(r"\bteam\b", re.IGNORECASE)
 
 
 def division_display_name(division_class: str, gender: str, team_type: str, game: str) -> str:
@@ -158,7 +160,7 @@ def division_display_name(division_class: str, gender: str, team_type: str, game
     the game without the word "Footbag", as in "Intermediate Women's Singles Net"."""
     parts = [_CLASS_LABELS.get(division_class, division_class),
              "Women's" if gender == "women" else "Mixed" if gender == "mixed" else "",
-             "Doubles" if team_type == "doubles" else "Singles",
+             "Doubles" if team_type == "doubles" else "Team" if team_type == "team" else "Singles",
              re.sub(r"^Footbag\s+", "", game)]
     return " ".join(p for p in parts if p)
 
@@ -223,16 +225,28 @@ def normalize_team_type(team_type: str, discipline_name: str = "") -> str:
     t = (team_type or "").strip().lower()
     dn = (discipline_name or "").strip().lower()
 
-    # Entry size is singles or doubles; mixed is a gender eligibility on a
-    # doubles division, not an entry size of its own.
+    # Entry size is singles, doubles or team, a contest of more than two players
+    # that only the historical record holds; mixed is a gender eligibility on a
+    # doubles or team division, not an entry size of its own.
     if t in ("doubles", "mixed_doubles"):
         return "doubles"
     if t == "singles":
         return "singles"
+    if t == "team":
+        return "team"
 
-    if "double" in dn or "pairs" in dn or "team" in dn:
+    if names_team_contest(dn):
+        return "team"
+    if "double" in dn or "pairs" in dn:
         return "doubles"
     return "singles"
+
+
+def names_team_contest(discipline_name: str) -> bool:
+    """Whether a division's name names a team contest: the word "team" on its own,
+    however punctuated ("Team-Freestyle", "(Team)", "Team:"), so "Open Doubles
+    Net 12 Teams", which counts doubles entries, does not."""
+    return _TEAM_WORD.search(discipline_name or "") is not None
 
 
 def event_dates(row: dict[str, str]) -> tuple[str, str]:
@@ -1064,9 +1078,9 @@ def main() -> None:
         # ------------------------------------------------------------------
         print("Loading event disciplines...")
         discipline_id_map: dict[tuple[str, str], str] = {}
-        # Divisions the schema cannot yet record truthfully (a team contest has no
-        # entry size to carry): left out whole, with their places and players,
-        # rather than loaded under an entry size they never had.
+        # Divisions the division structure withholds (a team contest not yet mapped
+        # to its parts): left out whole, with their places and players, rather than
+        # loaded under an entry size they never had.
         withheld: set[tuple[str, str]] = set()
 
         for row in seed_disciplines:
@@ -1094,6 +1108,17 @@ def main() -> None:
                     "./run_pipeline.sh full."
                 )
             team_type = normalize_team_type(row.get("team_type", ""), name)
+            # A contested division whose name names a team contest must carry the
+            # team entry size from its source; an aggregate standing such as a
+            # nation's "Team Points" ranks over several contests and is no team.
+            if (category_key in STRUCTURED_CATEGORIES and not is_aggregate
+                    and names_team_contest(name) and team_type != "team"):
+                raise SystemExit(
+                    f"ERROR: discipline {discipline_id} ({name!r}) is a team contest tagged "
+                    f"{team_type!r}. Tag it team upstream in the canonical export, or withhold it "
+                    "in legacy_data/inputs/division_structure.csv, and rebuild with "
+                    "./run_pipeline.sh full."
+                )
             parts = (structured if structured is not None
                      else dict.fromkeys(("game_id", "custom_game_name",
                                          "gender_eligibility", "division_class")))
@@ -1246,7 +1271,7 @@ def main() -> None:
 
         refuse_unloaded(unloaded)
         if withheld:
-            print(f"  divisions withheld until the schema can record them: {len(withheld):,} "
+            print(f"  divisions withheld until they are mapped: {len(withheld):,} "
                   f"(see the withhold column of {DIVISION_STRUCTURE.name})")
 
         # ------------------------------------------------------------------

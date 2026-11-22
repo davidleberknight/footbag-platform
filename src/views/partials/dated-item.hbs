@@ -1,14 +1,15 @@
 {{! One entry in a list of things that happen or were published on a date: an
-    event, upcoming or completed, or a news item. The page service shapes every
-    field. The title is the item's one link; the card body is not a link, so the
-    card is static and does not lift on hover. A compact item drops the excerpt
-    and the cover thumbnail where lists sit side by side. The thumbnail is
-    decorative: its link is out of the tab order and hidden from assistive
-    technology, and the picture carries no alt text. }}
-<article class="card card-static">
+    upcoming event or a news item. The page service shapes every field. The
+    title is the item's one link, stretched over the card, so a click anywhere
+    on the card opens the item while the meta line's links keep their own
+    targets. A compact item drops the excerpt and the cover thumbnail where
+    lists sit side by side. The thumbnail is decorative: its link is out of the
+    tab order and hidden from assistive technology, and the picture carries no
+    alt text. }}
+<article class="card">
   {{#unless compact}}{{#if image}}<a class="card-thumb" href="{{siteHref href}}" tabindex="-1" aria-hidden="true"><img src="{{image.thumbUrl}}" alt="" width="80" height="80" loading="lazy"></a>{{/if}}{{/unless}}
   <p class="card-meta"><span>{{date}}</span>{{#if label}}<span class="badge {{label.cssClass}}">{{label.text}}</span>{{/if}}</p>
-  <h3 class="card-title"><a href="{{siteHref href}}">{{title}}</a></h3>
+  <h3 class="card-title"><a class="card-link" href="{{siteHref href}}">{{title}}</a></h3>
   {{#if meta.length}}
     <p class="card-meta">{{#each meta}}<span>{{#if isHashtag}}{{#if href}}<a class="hashtag hashtag--media" href="{{siteHref href}}">{{text}}</a>{{else}}<span class="hashtag">{{text}}</span>{{/if}}{{else}}{{#if href}}<a href="{{siteHref href}}">{{text}}</a>{{else}}{{text}}{{/if}}{{/if}}</span>{{/each}}</p>
   {{/if}}

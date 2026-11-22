@@ -4,8 +4,8 @@
  * The contract: the events landing page lists every public upcoming event,
  * one that has started but not yet ended included, each as a card linking to
  * its event page with its registration status; a draft, pending or canceled
- * event is never listed. Below them come the current year's completed events,
- * and beside them a side list linking each archive year. A year page lists its
+ * event is never listed. No completed event is listed there one by one; after
+ * the upcoming events come links to each archive year. A year page lists its
  * completed events as the same items, with their hashtag and no status, and
  * ends with one link back to the landing page. An event page groups its
  * divisions by competition category with each division's count, shows results

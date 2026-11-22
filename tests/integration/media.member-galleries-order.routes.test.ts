@@ -123,7 +123,7 @@ describe('GET /media/member-galleries ordering', () => {
 describe('GET /media/member-galleries paging', () => {
   it('fills page one to the page size and links only forward', async () => {
     const res = await page(LIST);
-    const shown = (res.text.match(/class="card-title"/g) ?? []).length;
+    const shown = (res.text.match(/class="card-title card-link"/g) ?? []).length;
     expect(shown).toBe(pageSize);
     // Handlebars escapes the `=` in an attribute value.
     expect(res.text).toContain(`href="${LIST}?page&#x3D;2" rel="next"`);
@@ -133,7 +133,7 @@ describe('GET /media/member-galleries paging', () => {
   it('puts the two oldest galleries on page two, linking back to page one', async () => {
     const res = await page(`${LIST}?page=2`);
     expect(res.status).toBe(200);
-    const shown = (res.text.match(/class="card-title"/g) ?? []).length;
+    const shown = (res.text.match(/class="card-title card-link"/g) ?? []).length;
     expect(shown).toBe(2);
     for (const id of fillerIds.slice(0, 2)) {
       expect(res.text, `${id} on page two`).toContain(`href="/media/${id}"`);
@@ -148,7 +148,7 @@ describe('GET /media/member-galleries paging', () => {
     for (const id of all) {
       // A card links its gallery from its cover too; the title link is the
       // one-per-card mark.
-      const link = `href="/media/${id}" class="card-title"`;
+      const link = `href="/media/${id}" class="card-title card-link"`;
       const count = one.text.split(link).length - 1 + two.text.split(link).length - 1;
       expect(count, `${id} listed once`).toBe(1);
     }

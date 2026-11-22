@@ -39,7 +39,7 @@
         phone, so no width scrolls sideways. }}
     <div class="card-grid" role="list" aria-label="Current World Records">
       {{#each content.worldRecords}}
-      <div class="card card-static" role="listitem">
+      <div class="card" role="listitem">
         <h3 class="card-title">{{discipline}}</h3>
         <p>{{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}</p>
         <p class="fw-600">{{scoreFormatted}} kicks</p>

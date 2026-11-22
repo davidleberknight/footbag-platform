@@ -144,7 +144,7 @@ function imgs(html: string, cls: string): Array<{ src: string; alt: string; id: 
 
 /** The card the dated-item partial drew for the event whose page this links. */
 function cardFor(html: string, eventKey: string): string {
-  const cards = html.split('<article class="card card-static">').slice(1).map((c) => c.slice(0, c.indexOf('</article>')));
+  const cards = html.split('<article class="card">').slice(1).map((c) => c.slice(0, c.indexOf('</article>')));
   const card = cards.find((c) => c.includes(`href="/events/${eventKey}"`));
   expect(card, `a card for ${eventKey}`).toBeDefined();
   return card as string;

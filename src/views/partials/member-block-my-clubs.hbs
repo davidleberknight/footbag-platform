@@ -52,10 +52,10 @@
         <h3 class="mt-4">Clubs in Your Area</h3>
         <ul class="candidate-list">
           {{#each nearbySuggestions}}
-            <li class="card card-static">
+            <li class="card">
               <div class="card-title">{{this.clubName}}</div>
               {{#if this.city}}<div class="card-meta">{{this.city}}</div>{{/if}}
-              <a href="{{this.clubHref}}" class="btn btn-outline">View Club</a>
+              <a href="{{this.clubHref}}" class="btn btn-outline card-link">View Club</a>
             </li>
           {{/each}}
         </ul>

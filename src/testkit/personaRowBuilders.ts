@@ -2136,6 +2136,9 @@ export interface DisciplineOverrides {
   offers_prize_money?: 0 | 1;
   sort_order?: number;
   is_aggregate_standing?: 0 | 1;
+  /** The writer; the historical load writes `seed_loader`, the only writer the
+   *  schema lets carry the team entry size. Defaults to the system actor. */
+  created_by?: string;
 }
 
 export function insertDiscipline(db: BetterSqlite3.Database, eventId: string, o: DisciplineOverrides = {}): string {
@@ -2155,7 +2158,7 @@ export function insertDiscipline(db: BetterSqlite3.Database, eventId: string, o:
     o.offers_prize_money  ?? 0,
     o.sort_order          ?? 1,
     o.is_aggregate_standing ?? 0,
-    nowIso(), SYS, nowIso(), SYS,
+    nowIso(), o.created_by ?? SYS, nowIso(), o.created_by ?? SYS,
   );
   return id;
 }

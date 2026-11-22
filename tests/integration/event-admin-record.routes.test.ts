@@ -218,6 +218,37 @@ describe('correcting divisions an organizer can no longer change', () => {
     expect(count('SELECT COUNT(*) c FROM registration_discipline_selections WHERE registration_id = ?', reg)).toBe(1);
   });
 
+  // Defect caught: correcting a historical team contest forces it to singles
+  // or doubles, so a three-player result is rewritten as an individual one,
+  // or the team size is handed to a division that never had it.
+  it('keeps the team entry size on a historical team division and gives it to no other', async () => {
+    const { id, team } = withDb((db) => {
+      const eventId = insertEvent(db, { title: 'Historical Team Worlds', status: 'completed', start_date: '1984-07-01', end_date: '1984-07-01' });
+      const teamId = insertDiscipline(db, eventId, {
+        name: "Women's Freestyle", game_id: 'game_routines', team_type: 'team', gender_eligibility: 'women',
+        division_class: 'open', created_by: 'seed_loader',
+      });
+      return { id: eventId, team: teamId };
+    });
+    const record = `/admin/events/${id}`;
+    const page = await request(createApp()).get(`${record}/divisions/${team}`).set('Cookie', cookieFor(adam, true));
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('name="team_type" value="team" checked');
+    await adminPost(`${record}/divisions/${team}/confirm`, {
+      team_type: 'team', gender: 'open', division_class: 'open', offers_prize_money: '0', reason: 'Mixed team, not women only',
+    });
+    expect(one('SELECT team_type, gender_eligibility, name FROM event_disciplines WHERE id = ?', team))
+      .toEqual({ team_type: 'team', gender_eligibility: 'open', name: 'Open Team Routines' });
+
+    const ev = seedEvent();
+    const singlesPage = await request(createApp()).get(`${ev.record}/divisions/${ev.singles}`).set('Cookie', cookieFor(adam, true));
+    expect(singlesPage.text).not.toContain('name="team_type" value="team"');
+    await adminPost(`${ev.record}/divisions/${ev.singles}/confirm`, {
+      team_type: 'team', gender: 'open', division_class: 'open', offers_prize_money: '0', reason: 'Crafted team size',
+    });
+    expect(one('SELECT team_type FROM event_disciplines WHERE id = ?', ev.singles)).toEqual({ team_type: 'singles' });
+  });
+
   // Defect caught: removing a division with confirmed entries leaves orphaned
   // entries, or the audit row does not name what was removed.
   it('removes a division with its entries and names each one in the audit row', async () => {

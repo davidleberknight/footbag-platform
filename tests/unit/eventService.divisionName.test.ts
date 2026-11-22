@@ -23,6 +23,12 @@ describe('a division name', () => {
     expect(divisionName('open', 'open', 'singles', '30 Second Shred')).toBe('Open Singles 30 Second Shred');
   });
 
+  // Defect caught: a historical team contest corrected by an administrator is
+  // renamed as a singles one, so a three-player result reads as individual.
+  it('names a historical team division as team', () => {
+    expect(divisionName('open', 'women', 'team', 'Routines')).toBe("Open Women's Team Routines");
+  });
+
   // Defect caught: an open division carries a stray "Open" gender word, so
   // "Open Open Singles" appears, or a blank leaves a double space.
   it('leaves the gender out of an open division', () => {

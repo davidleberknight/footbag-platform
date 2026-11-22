@@ -48,15 +48,14 @@
       <h2>{{region}}</h2>
     </div>
     {{/if}}
-    <ul class="club-list">
+    {{! Each club is a card that opens from a click anywhere on it: the name is
+        its one link, stretched over the card, and the website link sits above
+        it with its own target. }}
+    <div class="card-grid">
       {{#each clubs}}
-      <li class="club-entry" data-club-id="{{clubId}}">
-        <a href="{{clubHref}}" class="club-name">{{name}}</a>
-        <span class="club-location">{{city}}</span>
-        <span class="club-hashtag">{{standardTagDisplay}}</span>
-        {{#if externalUrl}}
-        {{{externalLink externalUrl label="website" class="club-external-link"}}}
-        {{/if}}
+      <article class="card" data-club-id="{{clubId}}">
+        <h3 class="card-title"><a href="{{clubHref}}" class="card-link">{{name}}</a></h3>
+        <p class="card-meta"><span>{{city}}</span><span class="hashtag">{{standardTagDisplay}}</span>{{#if externalUrl}}<span>{{{externalLink externalUrl label="website"}}}</span>{{/if}}</p>
         {{#if leaders.length}}
         <div class="club-leaders-summary">
           <span class="club-leaders-label">Leaders:</span>
@@ -64,12 +63,14 @@
           {{#if leadersOverflow}} <span class="club-leaders-overflow">+{{leadersOverflow}} more</span>{{/if}}
         </div>
         {{/if}}
+        {{#if vitality.metaChips.length}}
         <div class="club-meta-row club-meta-row--{{vitality.statusLabelKebab}}">
           {{#each vitality.metaChips}}<span class="club-meta-chip">{{this}}</span>{{#unless @last}}<span class="club-meta-sep" aria-hidden="true"> · </span>{{/unless}}{{/each}}
         </div>
-      </li>
+        {{/if}}
+      </article>
       {{/each}}
-    </ul>
+    </div>
   </section>
   {{/each}}
 

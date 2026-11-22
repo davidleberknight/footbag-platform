@@ -230,7 +230,7 @@ describe('GET /consecutives', () => {
     const res = await page('/consecutives');
     const section = res.text.match(/<section class="content-section" id="world-records">[\s\S]*?<\/section>/)?.[0] ?? '';
     expect(section).not.toContain('<table');
-    const cards = section.match(/<div class="card card-static" role="listitem">[\s\S]*?<\/div>\s*<\/div>/g) ?? [];
+    const cards = section.match(/<div class="card" role="listitem">[\s\S]*?<\/div>\s*<\/div>/g) ?? [];
     expect(cards).toHaveLength(3);
     const singles = cards.find((c) => c.includes('<h3 class="card-title">Open Singles</h3>')) ?? '';
     expect(singles).toContain('Ted Martin');

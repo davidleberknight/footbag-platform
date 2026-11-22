@@ -80,6 +80,9 @@
  *   - A division's name is generated from its parts (class, gender, entry size,
  *     game), offering only what its game admits in `discipline_games`. A division
  *     with a confirmed registration is not changed or removed here.
+ *   - Team is the entry size of a historical team contest only: an organizer is
+ *     offered singles or doubles, and an administrator's correction of a team
+ *     division may keep team but never gives it to another division.
  *   - An organizer's edit of the event or a division records each changed field
  *     before and after: the event is a record its organizers all edit.
  *   - Public archive year derives from `events.start_date`; year archives are not paginated.
@@ -1459,6 +1462,11 @@ const TEAM_TYPES = [
   { value: 'doubles', label: 'Doubles', flag: 'allows_doubles' },
 ] as const;
 
+// The entry size of a historical team contest of more than two players. Only
+// the historical load writes it, so no organizer is offered it; an
+// administrator correcting a division that already carries it may keep it.
+const HISTORICAL_TEAM = { value: 'team', label: 'Team' } as const;
+
 const GENDERS = [
   { value: 'open', label: 'Open', flag: 'allows_open' },
   { value: 'women', label: "Women's", flag: 'allows_women' },
@@ -1484,7 +1492,7 @@ type PartFlag = typeof TEAM_TYPES[number]['flag'] | typeof GENDERS[number]['flag
 export function divisionName(divisionClass: string, gender: string, teamType: string, gameName: string): string {
   const classLabel = CLASSES.find((c) => c.value === divisionClass)?.label ?? divisionClass;
   const genderLabel = gender === 'women' ? "Women's" : gender === 'mixed' ? 'Mixed' : '';
-  const sizeLabel = teamType === 'doubles' ? 'Doubles' : 'Singles';
+  const sizeLabel = teamType === 'doubles' ? 'Doubles' : teamType === HISTORICAL_TEAM.value ? HISTORICAL_TEAM.label : 'Singles';
   const gameLabel = gameName.replace(/^Footbag\s+/, '');
   return [classLabel, genderLabel, sizeLabel, gameLabel].filter((p) => p !== '').join(' ');
 }
@@ -1675,19 +1683,20 @@ function admits(game: GameRow | null, flag: PartFlag): boolean {
   return game === null || game[flag] === 1;
 }
 
-function validateDivisionParts(resolved: ResolvedGame, input: DivisionInput): {
+function validateDivisionParts(resolved: ResolvedGame, input: DivisionInput, correcting: DivisionRow | null = null): {
   teamType: string; gender: string; divisionClass: string; offersPrizeMoney: boolean;
 } {
-  const teamType = TEAM_TYPES.find((t) => t.value === input.teamType);
+  const keepsTeam = correcting?.team_type === HISTORICAL_TEAM.value && input.teamType === HISTORICAL_TEAM.value;
+  const teamType = keepsTeam ? HISTORICAL_TEAM : TEAM_TYPES.find((t) => t.value === input.teamType);
   const gender = GENDERS.find((g) => g.value === input.gender);
   const divisionClass = CLASSES.find((c) => c.value === input.divisionClass);
-  if (!teamType || !admits(resolved.game, teamType.flag)) {
+  if (!teamType || ('flag' in teamType && !admits(resolved.game, teamType.flag))) {
     throw new ValidationError(`Choose singles or doubles, as ${resolved.gameName} is played.`);
   }
   if (!gender || !admits(resolved.game, gender.flag)) {
     throw new ValidationError(`Choose who may enter, from what ${resolved.gameName} offers.`);
   }
-  if (gender.value === 'mixed' && teamType.value !== 'doubles') {
+  if (gender.value === 'mixed' && teamType.value === 'singles') {
     throw new ValidationError('A mixed competition is played in doubles.');
   }
   if (!divisionClass || !admits(resolved.game, divisionClass.flag)) {
@@ -1700,12 +1709,14 @@ function validateDivisionParts(resolved: ResolvedGame, input: DivisionInput): {
 }
 
 // The division form's second step: the parts the chosen game admits, preset to
-// an existing division's own when it is being changed.
+// an existing division's own when it is being changed. Only an administrator's
+// correction offers a historical team division its own team entry size.
 function divisionPartsStep(
   base: string,
   games: GameRow[],
   source: { gameId: string | null; customName: string | null; customDiscipline: string | null },
   existing: DivisionRow | null,
+  correcting = false,
 ): DivisionPartsStep | null {
   const game = source.gameId ? games.find((g) => g.id === source.gameId) ?? null : null;
   if (source.gameId && !game) return null;
@@ -1729,7 +1740,9 @@ function divisionPartsStep(
     gameId: game?.id ?? '',
     customName: game ? '' : gameName,
     customDiscipline: game ? '' : (source.customDiscipline ?? ''),
-    teamTypes: choose(TEAM_TYPES, existing?.team_type ?? null),
+    teamTypes: correcting && existing?.team_type === HISTORICAL_TEAM.value
+      ? [{ value: HISTORICAL_TEAM.value, label: HISTORICAL_TEAM.label, checked: true }, ...choose(TEAM_TYPES, existing.team_type)]
+      : choose(TEAM_TYPES, existing?.team_type ?? null),
     genders: choose(GENDERS, existing?.gender_eligibility ?? null),
     classes: choose(CLASSES, existing?.division_class ?? null),
     offersPrizeMoney: existing?.offers_prize_money === 1,
@@ -6250,7 +6263,7 @@ export class EventService {
     const resolved = resolveDivisionGame({
       gameId: existing.game_id, customName: existing.custom_game_name, customDiscipline: existing.discipline_category,
     });
-    const parts = validateDivisionParts(resolved, input);
+    const parts = validateDivisionParts(resolved, input, existing);
     const name = divisionName(parts.divisionClass, parts.gender, parts.teamType, resolved.gameName);
     const clash = divisions.find((d) => d.name.toLowerCase() === name.toLowerCase() && d.id !== existing.id);
     if (clash) throw new ValidationError(`This event already has a competition named ${clash.name}.`);
@@ -6356,7 +6369,7 @@ export class EventService {
     const adminBase = `/admin/events/${encodeURIComponent(event.id)}`;
     const step = divisionPartsStep(adminBase, games, {
       gameId: division.game_id, customName: division.custom_game_name, customDiscipline: division.discipline_category,
-    }, division);
+    }, division, true);
     if (!step) throw new NotFoundError('Competition not found.');
     return {
       eventTitle: event.title,

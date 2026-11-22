@@ -58,7 +58,7 @@ describe('club country classification', () => {
     expect(res.text).toContain('Buenos Aires Footbag Club');
     expect(res.text).not.toContain('Greece Footbag Community');
     expect(res.text).not.toContain('Kutaisi Footbag Club');
-    expect(res.text.match(/class="club-entry"/g) ?? []).toHaveLength(2);
+    expect(res.text.match(/data-club-id="/g) ?? []).toHaveLength(2);
   });
 
   it('the Athens club resolves to Greece', async () => {
@@ -112,7 +112,7 @@ describe('club country classification', () => {
     for (const [slug, expected] of Object.entries(COUNTRY_SLUGS)) {
       const res = await request(createApp()).get(`/clubs/${slug}`);
       expect(res.status).toBe(200);
-      const rows = res.text.match(/class="club-entry"/g) ?? [];
+      const rows = res.text.match(/data-club-id="/g) ?? [];
       expect(rows, `${slug} listed clubs`).toHaveLength(expected);
       sum += expected;
     }

@@ -22,7 +22,7 @@
       <div class="section-heading"><h2>Suggested Matches</h2></div>
       <ul class="candidate-list">
         {{#each content.candidates}}
-          <li class="card card-static">
+          <li class="card">
             <div class="card-title">{{this.displayName}}</div>
             <div class="candidate-card-provenance">{{this.provenanceLabel}}</div>
             {{#if this.country}}<div class="candidate-card-meta">Country: {{this.country}}</div>{{/if}}
@@ -70,7 +70,7 @@
     {{/if}}
 
     {{#if content.conflictPrompt}}
-      <div class="card card-static mb-4">
+      <div class="card mb-4">
         <div class="card-title">We already have a claim under this name. Is one of these you?</div>
         <ul>
           {{#each content.conflictPrompt.records}}
@@ -88,7 +88,7 @@
         step is answered once. Offered only while the step still needs an
         answer. }}
     {{#if content.showNoLinkAnswers}}
-      <form method="POST" action="/register/wizard/legacy_claim/continue-without-linking" class="card card-static mb-4">
+      <form method="POST" action="/register/wizard/legacy_claim/continue-without-linking" class="card mb-4">
         <p>This is your one chance to link your old footbag.org history to your account. Check the matches above, and add any email or surname you used on the old site below, before you carry on. If none of these suggestions is you, tell us which of these is true and carry on.</p>
         <button type="submit" name="no_link_answer" value="never_had_one" class="btn btn-outline">I Never Had an Old Account</button>
         <button type="submit" name="no_link_answer" value="cannot_find_it" class="btn btn-outline">I Had One but Cannot Find It</button>
@@ -100,7 +100,7 @@
     {{! The date can be changed only here, so its saved notice sits inside this
         block, and the correction form renders once. }}
     {{#if content.sharpenNotice}}
-      <div class="card card-static mb-4">
+      <div class="card mb-4">
         <div class="card-title">One more look for your old account</div>
         {{#if content.birthDateSavedNotice}}
           {{> outcome-notice text="Saved. We checked again for matches with your updated date of birth." tone=content.birthDateNoticeTone}}
@@ -127,7 +127,7 @@
       </ul>
     {{/if}}
 
-    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card card-static mb-4">
+    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card mb-4">
       <div class="form-field">
         <label for="oldEmail">Email address used on the old footbag.org site</label>
         <input type="email" id="oldEmail" name="anchorValue" placeholder="your-old-email@example.com" required />
@@ -137,7 +137,7 @@
       <button type="submit" class="btn btn-outline">Add Old Email</button>
     </form>
 
-    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card card-static mb-6">
+    <form method="POST" action="/register/wizard/legacy_claim/anchors/add" class="card mb-6">
       <div class="form-field">
         <label for="formerSurname">Surname used on the old site</label>
         <input type="text" id="formerSurname" name="anchorValue" placeholder="Your previous last name" required />

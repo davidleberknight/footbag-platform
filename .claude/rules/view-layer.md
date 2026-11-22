@@ -97,8 +97,20 @@ service shapes its date as one preformatted range, its label as the registration
 upcoming event (a completed event carries none), and its meta line as location, host club and its
 hashtag, drawn as the shared hashtag token that links to the event's gallery when content carries
 it and is plain otherwise. A template never lays out an event, compares its two dates or
-derives its status. A dated item whose body is not itself a link is a static card, so it does not
-lift on hover.
+derives its status. Its title is the card's link, stretched over the card (the clickable card
+below), so a click anywhere on it opens the item while the meta line's links keep their own targets.
+
+A **clickable card** is a card that leads to one place. Its one link, the title link or else the
+card's one button, carries `.card-link`, whose `::after` is stretched over the card, so a click
+anywhere on the card follows it without JavaScript; any other link in the card (a host club, a
+hashtag, an owner, a website) sits above it and keeps its own target. A card title link is link
+green at rest. The card's stretched link underlines on hover and on keyboard focus; a title link
+that is not the card's link sits in a line of text, so it keeps its resting underline. Only a
+clickable card lifts on hover, and keyboard focus on its link draws one ring around the card. A
+second control repeating the card's link (a cover photo, a thumbnail, a Read button) is a pointer
+for the eye and hand only, out of the tab order and hidden from assistive technology. A card with
+several actions, or none, carries no `.card-link` and does not lift. Each club on a clubs country
+page is a clickable card in a card grid.
 
 A **member picker** (the `member-picker` partial) is the one way a form lets a person choose
 another member, by name, because people know names, not member ids, slugs or profile URLs. The
@@ -261,7 +273,7 @@ discipline and the shared classes; per-section classes are in the stylesheet.
 - Shared classes: site frame `.skip-link`, `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`,
   `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`; media line `.media-line` (its hashtag is the shared `.hashtag` token);
   sections `.content-section`, `.section-heading`, `.section-intro` (`.profile-section` on member
-  profile pages only); cards and tables `.card`, `.card-static`, `.card-title`, `.card-meta`,
+  profile pages only); cards and tables `.card`, `.card-link`, `.card-title`, `.card-meta`,
   `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; actions `.btn`,
   `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`; forms
   `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`;

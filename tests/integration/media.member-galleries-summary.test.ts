@@ -52,7 +52,7 @@ function seedOneItemGallery(db: BetterSqlite3.Database, id: string, at: string):
 // The item count shown on one gallery's card, or null when the card is absent.
 function shownCount(html: string, galleryId: string): number | null {
   const m = new RegExp(
-    `href="/media/${galleryId}" class="card-title">[^<]*</a>[\\s\\S]*?<p class="card-meta">(\\d+) item`,
+    `href="/media/${galleryId}" class="card-title card-link">[^<]*</a>[\\s\\S]*?<p class="card-meta">(\\d+) item`,
   ).exec(html);
   return m ? Number(m[1]) : null;
 }

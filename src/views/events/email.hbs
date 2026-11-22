@@ -19,7 +19,7 @@
     <p>It goes to every confirmed participant, with a line saying you sent it as an organizer of this event. Confirmed participants: {{content.recipientCount}}.</p>
 
     {{#if content.preview}}
-      <div class="card card-static">
+      <div class="card">
         <h3 class="card-title">{{content.preview.subject}}</h3>
         <pre class="broadcast-body">{{content.preview.bodyText}}</pre>
       </div>
@@ -55,7 +55,7 @@
     <div class="section-heading"><h2>Sent Emails</h2></div>
     {{#if content.hasSent}}
       {{#each content.sent}}
-        <details class="card card-static">
+        <details class="card">
           <summary>{{this.subject}} <span class="text-muted fs-sm">{{formatDate this.sentOn}}, by {{this.senderName}}, to {{this.recipientCount}}</span></summary>
           <pre class="broadcast-body">{{this.bodyText}}</pre>
         </details>

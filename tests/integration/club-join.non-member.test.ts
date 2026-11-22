@@ -84,7 +84,7 @@ describe('the club page for someone who is not a member', () => {
     expect(prompt).toContain('href="/register"');
     expect(res.text).not.toContain(`action="${clubPath}/join"`);
     // The roster card sends the visitor the same way.
-    expect(regionOf(res.text.replace('<div class="card card-static club-members-gate">', '<div id="members-gate">'), 'members-gate'))
+    expect(regionOf(res.text.replace('<div class="card club-members-gate">', '<div id="members-gate">'), 'members-gate'))
       .toContain(`href="${loginHref}"`);
   });
 
@@ -96,7 +96,7 @@ describe('the club page for someone who is not a member', () => {
     const prompt = regionOf(res.text, 'join-prompt');
     expect(prompt).toMatch(/href="\/register\/wizard\/[a-z_]+"/);
     expect(prompt).not.toContain('/login');
-    const gate = regionOf(res.text.replace('<div class="card card-static club-members-gate">', '<div id="members-gate">'), 'members-gate');
+    const gate = regionOf(res.text.replace('<div class="card club-members-gate">', '<div id="members-gate">'), 'members-gate');
     expect(gate).toMatch(/href="\/register\/wizard\/[a-z_]+"/);
     expect(gate).not.toContain('/login');
   });

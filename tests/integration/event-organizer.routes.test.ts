@@ -268,6 +268,20 @@ describe('divisions', () => {
     expect(divisions(event.id)).toHaveLength(1);
   });
 
+  // Defect caught: an organizer creates a team division, the historical
+  // record's entry size, which no registration partner rule enforces.
+  it('never offers the team entry size and refuses it when posted', async () => {
+    const event = seedEvent('Team Size Open', [olive]);
+    const base = `/events/${event.key}`;
+    const routines = await get(olive, `${base}/manage?game=game_routines`);
+    expect(routines.text).toContain('name="team_type" value="doubles"');
+    expect(routines.text).not.toContain('name="team_type" value="team"');
+    await post(olive, `${base}/divisions`, {
+      game_id: 'game_routines', custom_name: '', custom_discipline: '', team_type: 'team', gender: 'open', division_class: 'open',
+    });
+    expect(divisions(event.id)).toEqual([]);
+  });
+
   // Defect caught: a game the list does not carry cannot be added, or is
   // added with no name or no discipline to file it under.
   it('takes an unlisted game with its name and discipline, and refuses one without', async () => {

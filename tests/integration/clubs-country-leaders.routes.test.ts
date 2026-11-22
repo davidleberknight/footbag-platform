@@ -337,12 +337,14 @@ describe('GET /clubs/usa — leader summary on club cards', () => {
 });
 
 describe('GET /clubs/usa — vitality metadata row', () => {
-  it('renders a meta-row on every club entry', async () => {
+  it('draws no empty meta row on a club with no chips', async () => {
+    // Catches: an empty row left at the foot of a chipless club card, which
+    // traps the line above it and leaves a gap inside the card's bottom edge.
+    // The cases below show the row present where a club has chips.
     const app = createApp();
     const res = await request(app).get('/clubs/usa').set('Cookie', authCookie());
-    // Six fixture clubs in USA → six meta rows.
-    const rowCount = (res.text.match(/class="club-meta-row /g) ?? []).length;
-    expect(rowCount).toBeGreaterThanOrEqual(6);
+    expect(sliceCard(res.text, 'club_country_zero')).not.toContain('club-meta-row');
+    expect(sliceCard(res.text, 'club_country_two')).toContain('club-meta-row');
   });
 
   it('active club with leaders + members → "leaders · members" without a status chip', async () => {
@@ -436,24 +438,22 @@ describe('GET /clubs/canada — cross-country isolation', () => {
 });
 
 // ----------------------------------------------------------------------------
-// Helper: extract the markup for a single club's <li> entry by data-club-id
-// hashtag suffix. Anchors on the standard-tag prefix written into the card
-// hashtag span ("#${slug}") to scope assertions to one club's slice of the
-// country page.
+// Helper: extract the markup for a single club's card on the country page.
+// Anchors on the standard-tag text written into the card's hashtag token
+// ("#${slug}") to scope assertions to one club's slice of the page.
 function sliceCard(html: string, slug: string): string {
-  // Each club <li> opens with `class="club-entry"` and contains the hashtag
-  // span `<span class="club-hashtag">#${slug}</span>`. Find the start of the
-  // <li> that contains this hashtag, then read until the next </li>.
+  // Each club card is an <article> carrying data-club-id and containing the
+  // hashtag token `<span class="hashtag">#${slug}</span>`. Find the start of
+  // the card that contains this hashtag, then read until its </article>.
   const tag = `#${slug}`;
   const tagIdx = html.indexOf(`>${tag}<`);
   if (tagIdx === -1) {
     throw new Error(`Card for slug "${slug}" not found in response HTML`);
   }
-  // Walk back to the nearest <li class="club-entry"
-  const liStart = html.lastIndexOf('<li class="club-entry"', tagIdx);
-  const liEnd   = html.indexOf('</li>', tagIdx);
-  if (liStart === -1 || liEnd === -1) {
-    throw new Error(`Could not isolate <li> for slug "${slug}"`);
+  const cardStart = html.lastIndexOf('<article class="card" data-club-id=', tagIdx);
+  const cardEnd   = html.indexOf('</article>', tagIdx);
+  if (cardStart === -1 || cardEnd === -1) {
+    throw new Error(`Could not isolate the card for slug "${slug}"`);
   }
-  return html.slice(liStart, liEnd + 5);
+  return html.slice(cardStart, cardEnd + '</article>'.length);
 }

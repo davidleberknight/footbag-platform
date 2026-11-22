@@ -68,7 +68,7 @@ const isChecked = (html: string, re: RegExp): boolean => (html.match(re)?.[1] ??
 /** One card's markup on a card list, up to its title, found by the gallery's
  *  own title link. */
 function cardFor(html: string, galleryId: string): string {
-  const at = html.indexOf(`href="/media/${galleryId}" class="card-title"`);
+  const at = html.indexOf(`href="/media/${galleryId}" class="card-title card-link"`);
   expect(at, `no card links to /media/${galleryId}`).toBeGreaterThan(-1);
   const start = html.lastIndexOf('<div class="card">', at);
   return html.slice(start, at);
