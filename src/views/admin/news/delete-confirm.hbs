@@ -1,0 +1,28 @@
+{{! Confirm step before a news item is deleted permanently; the delete itself is the POST below }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    <p class="notice notice-warn" role="alert">Deleting this item removes it from the news feed and the database. This cannot be undone.</p>
+
+    <p class="fw-600">{{content.title}}</p>
+
+    <form method="POST" action="{{content.action}}" class="form-block">
+      <div class="form-field">
+        <label for="news-delete-reason">Reason</label>
+        <textarea id="news-delete-reason" name="reason" rows="3" maxlength="500" required>{{content.reasonValue}}</textarea>
+        {{#if content.reasonError}}<p class="form-field-error" role="alert">{{content.reasonError}}</p>{{/if}}
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-outline">Delete Item</button>
+        <a href="{{siteHref content.cancelHref}}" class="btn btn-outline">Cancel</a>
+      </div>
+    </form>
+  </section>
+</div>

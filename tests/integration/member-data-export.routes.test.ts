@@ -48,6 +48,8 @@ import {
   insertOutboxEmail,
   insertWorkQueueItem,
   insertMemberMessage,
+  insertNewsItem,
+  insertMemberAnnouncement,
   insertClubInsightNote,
   insertClubViabilitySignal,
   insertOnboardingTask,
@@ -614,6 +616,44 @@ describe('what other people recorded about the member', () => {
       'mail-body-with-live-link', 'provider-msg-exp-leak', 'reviewer-note-leak', 'Subject for them',
       'admin-question-body-theirs', other, admin,
     ]);
+  });
+
+  // Defect caught: the member's own Community posts, hidden ones included, are
+  // missing from the download, or it carries another member's posts or the
+  // News items an administrator wrote, which are acts performed as
+  // administrator rather than information about them.
+  it('carries the member\'s Community posts and none of the News items they wrote as administrator', async () => {
+    const { slug, id, other } = threeMembers('exp_news');
+    withDb((db) => {
+      insertNewsItem(db, { news_type: 'community_post', author_member_id: id, title: 'my-post-shown', is_public: 1 });
+      insertNewsItem(db, { news_type: 'community_post', author_member_id: id, title: 'my-post-hidden', is_public: 0 });
+      insertNewsItem(db, { news_type: 'announcement', author_member_id: id, title: 'admin-voice-item' });
+      insertNewsItem(db, { news_type: 'community_post', author_member_id: other, title: 'their-post' });
+    });
+
+    const res = await download(slug, id);
+    const doc = JSON.parse(res.text);
+
+    expect(doc.communityPosts.map((p: { title: string }) => p.title).sort()).toEqual(['my-post-hidden', 'my-post-shown']);
+    expectNoneOf(res.text, ['admin-voice-item', 'their-post']);
+  });
+
+  // Defect caught: the download holds the member's announcements without
+  // saying where each was to be published, which the member chose and the
+  // platform holds about them.
+  it('carries where each of the member\'s announcements was to be published', async () => {
+    const { slug, id } = threeMembers('exp_places');
+    withDb((db) => {
+      insertMemberAnnouncement(db, { member_id: id, subject: 'places-feed', publish_to: 'feed', status: 'returned' });
+      insertMemberAnnouncement(db, { member_id: id, subject: 'places-both', publish_to: 'both' });
+    });
+
+    const res = await download(slug, id);
+    const doc = JSON.parse(res.text);
+    const bySubject = Object.fromEntries(
+      doc.announcements.map((a: { subject: string; publish_to: string }) => [a.subject, a.publish_to]),
+    );
+    expect(bySubject).toEqual({ 'places-feed': 'feed', 'places-both': 'both' });
   });
 
   // Defect caught: the member cannot see the requests and administrative

@@ -8,7 +8,7 @@
  * reject `video_platform='s3'` to enforce this restriction at the boundary.
  */
 import { spawn } from 'node:child_process';
-import { mkdtemp, open, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, open, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
@@ -240,10 +240,14 @@ export function buildFfmpegArgs(
  * held in this process's memory, so peak memory is the encoder child's
  * working set alone, independent of file size. The caller owns both paths
  * and their cleanup; outputPath must end in .mp4 so ffmpeg picks the muxer.
+ * outputPath is written only by a complete, non-empty encode; on any failure
+ * it is left as it was and no partial file remains beside it.
  *
  * Errors:
- *   - FfmpegExecutionError, classified by `kind`, when the ffmpeg run fails.
- *     Its stderr tail and message never contain either file's directory.
+ *   - FfmpegExecutionError, classified by `kind`, when the ffmpeg run fails,
+ *     including a run that exits 0 but writes no output (`kind` 'exit',
+ *     `exitCode` 0). Its stderr tail and message never contain either file's
+ *     directory.
  *   - 'unrecognized video format' if the file's magic bytes do not match
  *     the curator-video input whitelist.
  */
@@ -256,10 +260,27 @@ export async function transcodeCuratorVideoFile(
   if (!detected) {
     throw new Error('unrecognized video format');
   }
+  // The encoder writes beside the destination and the result is renamed into
+  // place only once it is complete, so a failed or killed run never truncates
+  // a good file already at outputPath or leaves a partial one there to be
+  // served. The partial name keeps the .mp4 ending ffmpeg picks its muxer by.
+  const partialPath = path.join(
+    path.dirname(outputPath), `.${path.basename(outputPath, '.mp4')}.partial.mp4`);
   try {
-    await runFfmpeg(buildFfmpegArgs(inputPath, outputPath, tuning),
-                    tuning?.timeoutMs ?? DEFAULT_FFMPEG_TIMEOUT_MS);
+    const timeoutMs = tuning?.timeoutMs ?? DEFAULT_FFMPEG_TIMEOUT_MS;
+    const { stderrTail } = await runFfmpeg(
+      buildFfmpegArgs(inputPath, partialPath, tuning), timeoutMs);
+    // An exit of 0 is not proof of a usable output: an encoder can report
+    // success having written nothing, and an empty video must not be stored.
+    const size = await stat(partialPath).then((s) => s.size, () => 0);
+    if (size === 0) {
+      throw new FfmpegExecutionError({
+        kind: 'exit', exitCode: 0, signal: null, timeoutMs, stderrTail,
+      });
+    }
+    await rename(partialPath, outputPath);
   } catch (err) {
+    await rm(partialPath, { force: true });
     // ffmpeg echoes its input and output paths in its banner, so the captured
     // stderr routinely carries their directories. Only this function knows
     // those paths exactly, so they are scrubbed here rather than
@@ -321,7 +342,7 @@ export async function transcodeCuratorVideo(
 function runFfmpeg(
   args: string[],
   timeoutMs: number = DEFAULT_FFMPEG_TIMEOUT_MS,
-): Promise<void> {
+): Promise<{ stderrTail: string }> {
   return new Promise((resolve, reject) => {
     const proc = spawn('ffmpeg', args, { stdio: ['ignore', 'ignore', 'pipe'] });
     let stderrTail = '';
@@ -351,7 +372,7 @@ function runFfmpeg(
           kind: 'timeout', exitCode: code, signal, timeoutMs, stderrTail,
         }));
       } else if (code === 0) {
-        resolve();
+        resolve({ stderrTail });
       } else if (signal !== null) {
         reject(new FfmpegExecutionError({
           kind: 'signal', exitCode: code, signal, timeoutMs, stderrTail,

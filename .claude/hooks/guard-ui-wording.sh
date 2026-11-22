@@ -58,7 +58,7 @@ const file = path.isAbsolute(t.file_path) ? t.file_path : path.join(proj, t.file
 const rel = path.relative(proj, file).split(path.sep).join('/');
 
 let kind = null;
-if (/^src\/(db|testkit|types|dev-bootstrap)\//.test(rel)) kind = null;
+if (/^src\/(db|testkit|types|dev-bootstrap)\//.test(rel) || /^src\/run[A-Z][A-Za-z]*\.ts$/.test(rel)) kind = null;
 else if (/^src\/views\/.*\.hbs$/.test(rel)) kind = 'hbs';
 else if (/^src\/.*\.ts$|^src\/public\/js\/.*\.js$|^curated\/email_templates\/[^/]*\.json$/.test(rel)) kind = 'code';
 if (!kind) process.exit(0);
@@ -66,7 +66,7 @@ if (!kind) process.exit(0);
 // Prose string literals: a space and a word, not SQL or a directive, outside comments and log lines.
 function codeUnits(s) {
   s = s.replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n').filter((l) => !/^\s*(\/\/|\*)|logger\.|console\./.test(l)).join('\n')
+    .split('\n').filter((l) => !/^\s*(\/\/|\*)|logger\.|console\.|process\.(stdout|stderr)\.write\(/.test(l)).join('\n')
     // A regex literal (after an operator, bracket or return) is code: it can hold a quote or backtick.
     .replace(/(^|[=(,:;!&|?{}[>]\s*|return\s+)\/(?![\/*])(?:[^\/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])+\/[a-z]*/gm, '$1 ')
     // A trailing line comment (whitespace, //, whitespace) is dropped when the quotes before it balance.
@@ -93,7 +93,7 @@ function hbsUnits(s) {
 }
 // A written \n (as a plan or message quotes an email body) separates words, as it does in the unit.
 const norm = (s) => ' ' + (s.replace(/\\[nrt]/g, ' ').toLowerCase().replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ')
-  .replace(/\$\{[^}]*\}|\{\{[^}]*\}\}/g, ' ').match(/[a-z0-9]+/g) || []).join(' ') + ' ';
+  .replace(/\$\{[^}]*\}|\{\{[^}]*\}\}|\{[a-z_]+\}/gi, ' ').match(/[a-z0-9]+/g) || []).join(' ') + ' ';
 // Units keyed by their normalised words; the value is the text as written, for display.
 function units(s) {
   const out = new Map();

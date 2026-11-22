@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { adminController } from '../controllers/adminController';
 import { adminCuratorController } from '../controllers/adminCuratorController';
 import { adminMediaFlagsController } from '../controllers/adminMediaFlagsController';
+import { adminNewsController } from '../controllers/adminNewsController';
 import { adminWorkQueueController } from '../controllers/adminWorkQueueController';
 import { adminClubCleanupController } from '../controllers/adminClubCleanupController';
 import { adminBootstrapController } from '../controllers/adminBootstrapController';
@@ -327,6 +328,17 @@ adminRouter.get('/freestyle/consecutive-records/:id/edit',    adminFreestyleCont
 adminRouter.post('/freestyle/consecutive-records/:id/edit',   adminFreestyleController.consecutiveUpdate);
 adminRouter.get('/freestyle/consecutive-records/:id/delete',  adminFreestyleController.consecutiveDeleteConfirm);
 adminRouter.post('/freestyle/consecutive-records/:id/delete', adminFreestyleController.consecutiveDelete);
+// The news desk: every item listed; News items written and edited; any item
+// hidden, restored or deleted. The literal /news/new precedes /news/:newsId.
+adminRouter.get('/news',                    adminNewsController.index);
+adminRouter.get('/news/new',                adminNewsController.newItem);
+adminRouter.post('/news',                   adminNewsController.create);
+adminRouter.get('/news/:newsId',            adminNewsController.show);
+adminRouter.post('/news/:newsId',           adminNewsController.update);
+adminRouter.post('/news/:newsId/reject',    adminNewsController.reject);
+adminRouter.post('/news/:newsId/restore',   adminNewsController.restore);
+adminRouter.get('/news/:newsId/delete',     adminNewsController.deleteConfirm);
+adminRouter.post('/news/:newsId/delete',    adminNewsController.destroy);
 adminRouter.get('/curator/upload', adminCuratorController.getUpload);
 adminRouter.post('/curator/upload', adminCuratorController.postUpload);
 // Async curator video upload (DD §6.8). Three-step browser flow: sign,

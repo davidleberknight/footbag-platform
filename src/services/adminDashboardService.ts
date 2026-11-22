@@ -161,6 +161,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
   {
     title: 'Content',
     links: [
+      { label: 'News', href: '/admin/news' },
       { label: 'Curated Media', href: '/admin/curator/media' },
       { label: 'Upload Media', href: '/admin/curator/upload' },
       { label: 'Galleries', href: '/admin/curator/galleries' },

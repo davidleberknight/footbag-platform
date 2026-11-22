@@ -15,7 +15,7 @@
 <div class="wrapper sport-section">
 
   {{#if content.explainer}}
-  <section class="content-section">
+  <section class="content-section"{{#if content.explainer.id}} id="{{content.explainer.id}}"{{/if}}>
     <h2>{{content.explainer.heading}}</h2>
     {{#each content.explainer.paragraphs}}
     <p>{{#each this}}{{#if href}}<a href="{{href}}">{{text}}</a>{{else}}{{text}}{{/if}}{{/each}}</p>

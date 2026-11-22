@@ -361,6 +361,8 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   link_help_request_resolution:           { via: 'act' },
   announce_approved:                      { via: 'act' },
   announce_returned:                      { via: 'act' },
+  news_post_hidden:                       { via: 'act' },
+  news_post_deleted:                      { via: 'act' },
   media_moderation_decision:             { via: 'act' },
   media_report_outcome_reporter:          { via: 'act' },
   media_report_received_reporter:         { via: 'act' },

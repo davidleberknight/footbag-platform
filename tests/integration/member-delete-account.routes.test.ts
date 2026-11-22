@@ -32,6 +32,8 @@ import {
   insertSystemConfig,
   insertMemberAnnouncement,
   insertWorkQueueItem,
+  insertNewsItem,
+  insertEmailArchive,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4184');
@@ -249,6 +251,37 @@ describe('the deletion itself', () => {
       expect(db.prepare(
         "SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_member_id = ? AND template_key LIKE 'announce_%'",
       ).get(id)).toEqual({ c: 0 });
+    });
+  });
+
+  // Defect caught: a deleted member's Community posts stay on the news feed,
+  // or the deletion takes an item they wrote as administrator, or another
+  // member's post, or the broadcast record of a post also mailed to the list.
+  it('deletes the member\'s Community posts at the request, and nothing else in the feed', async () => {
+    const slug = 'del_community_posts';
+    const id = makeMember({ slug });
+    const otherId = makeMember({ slug: 'del_community_other' });
+    const seeded = withDb((db) => {
+      const mine = insertNewsItem(db, { news_type: 'community_post', author_member_id: id, title: 'my-post' });
+      const hidden = insertNewsItem(db, { news_type: 'community_post', author_member_id: id, is_public: 0 });
+      const asAdmin = insertNewsItem(db, { news_type: 'announcement', author_member_id: id });
+      const others = insertNewsItem(db, { news_type: 'community_post', author_member_id: otherId });
+      const archive = insertEmailArchive(db, { archive_type: 'announce', mailing_list_id: 'announce', sender_member_id: id });
+      const ann = insertMemberAnnouncement(db, {
+        member_id: id, status: 'approved', publish_to: 'both', email_archive_id: archive, news_item_id: mine,
+      });
+      return { mine, hidden, asAdmin, others, archive, ann };
+    });
+    await deleteAccount(slug, id);
+    expect(deletedAtOf(id)).not.toBeNull();
+
+    withDb((db) => {
+      const left = (db.prepare('SELECT id FROM news_items WHERE id IN (?, ?, ?, ?)')
+        .all(seeded.mine, seeded.hidden, seeded.asAdmin, seeded.others) as Array<{ id: string }>).map((r) => r.id).sort();
+      expect(left).toEqual([seeded.asAdmin, seeded.others].sort());
+      expect(db.prepare('SELECT email_archive_id, news_item_id FROM member_announcements WHERE id = ?').get(seeded.ann))
+        .toEqual({ email_archive_id: seeded.archive, news_item_id: null });
+      expect(db.prepare('SELECT COUNT(*) AS c FROM email_archives WHERE id = ?').get(seeded.archive)).toEqual({ c: 1 });
     });
   });
 

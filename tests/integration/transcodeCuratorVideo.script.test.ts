@@ -30,6 +30,8 @@ beforeEach(() => {
     '#!/usr/bin/env bash',
     `printf '%s\\n' "$@" > ${JSON.stringify(log)}`,
     '[[ -n "${STUB_HANG:-}" ]] && exec sleep 60',
+    // Writes its output where it was told to, the way the real encoder does.
+    'printf encoded > "${@: -1}"',
     'exit 0',
   ].join('\n'));
   chmodSync(stub, 0o755);
@@ -60,7 +62,11 @@ describe('transcode-curator-video', () => {
     const r = run([input, output]);
     expect(r.stderr).toBe('');
     expect(r.status).toBe(0);
-    expect(recordedArgs()).toEqual(buildFfmpegArgs(input, output));
+    // The encoder writes beside the destination and the finished file is moved
+    // into place, so every option but the path it writes to is the worker's own.
+    const args = recordedArgs()!;
+    expect(args.slice(0, -1)).toEqual(buildFfmpegArgs(input, output).slice(0, -1));
+    expect(readFileSync(output, 'utf-8')).toBe('encoded');
   });
 
   it('kills the encoder at the time limit FFMPEG_TIMEOUT_SECONDS sets', () => {

@@ -387,7 +387,7 @@ export interface WorkQueueEvidenceView {
   isLinkHelp: boolean;
   /** A member's held community announcement, in their own words. */
   isAnnouncement: boolean;
-  announcement: { subject: string; bodyParagraphs: string[] } | null;
+  announcement: { subject: string; bodyParagraphs: string[]; placesLine: string } | null;
   /** An organizer's sanction request, every answer the administrator decides on. */
   isSanctionRequest: boolean;
   sanctionRequest: SanctionReviewEvidence | null;
@@ -995,16 +995,24 @@ function shapeLinkCandidates(memberId: string): LinkCandidatesView {
  */
 function shapeAnnouncementEvidence(
   announcementId: string,
-): { subject: string; bodyParagraphs: string[] } | null {
+): { subject: string; bodyParagraphs: string[]; placesLine: string } | null {
   const row = memberAnnouncements.findById.get(announcementId) as
-    | { subject: string; body_text: string }
+    | { subject: string; body_text: string; publish_to: 'list' | 'feed' | 'both' }
     | undefined;
   if (!row) return null;
   return {
     subject: row.subject,
     bodyParagraphs: row.body_text.split(/\r?\n\s*\r?\n/).map((p) => p.trim()).filter((p) => p.length > 0),
+    // The places the member chose, which an approval publishes to as chosen.
+    placesLine: ANNOUNCEMENT_PLACES_LINE[row.publish_to],
   };
 }
+
+const ANNOUNCEMENT_PLACES_LINE: Record<'list' | 'feed' | 'both', string> = {
+  list: 'Publish to: the announcements list',
+  feed: 'Publish to: the news feed',
+  both: 'Publish to: the announcements list and the news feed',
+};
 
 /** What the card shows the decision being made on, per the type's declaration. */
 function shapeEvidence(raw: ContactRequestRow): WorkQueueEvidenceView {
@@ -2144,7 +2152,7 @@ export const adminWorkQueueService = {
           headsUp: [
             'A claim tells other administrators you are on it. It does not lock the item, and it lapses.',
             'Resolving a member\'s contact request or link-help request emails them your answer.',
-            'Approving a held announcement sends it to the whole announcements list at once and emails the member; sending one back emails them your note.',
+            'Approving a held announcement publishes it to the places the member chose, sending it to the whole announcements list at once when the list is one of them, and emails the member; sending one back emails them your note.',
             'Upholding an identity dispute takes the record away from the member who holds it, after a confirm page.',
             'You cannot decide a request about your own record or role.',
             'Asking a member a question emails them a short note to read it on the site. Their answer brings a parked item back.',

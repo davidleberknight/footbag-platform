@@ -25,6 +25,8 @@ const announceForm = z.object({
   bodyText: formText('Message'),
   sendToken: formText('The send token'),
   agree: formCheckbox('Community Standards agreement', '0'),
+  publishList: formCheckbox('By email to the announcements list', '0'),
+  publishFeed: formCheckbox('In the news feed, as a Community post', '0'),
   summaryEventId: formOptionalText('After-event summary for'),
 });
 
@@ -57,12 +59,16 @@ export const memberAnnounceController = {
     const memberKey = String(req.params.memberKey);
     const memberId = req.user!.userId;
     const rerender = (
-      submitted: { subject: string; bodyText: string; sendToken: string; summaryEventId?: string },
+      submitted: {
+        subject: string; bodyText: string; sendToken: string; summaryEventId?: string;
+        publishList?: string; publishFeed?: string;
+      },
       agreeChecked: boolean,
       fieldErrors: Record<string, string>,
     ): void => {
       const vm = broadcastService.getAnnouncePage(memberKey, memberId, {
         submitted, agreeChecked, fieldErrors, summaryEventId: submitted.summaryEventId,
+        publishList: submitted.publishList === '1', publishFeed: submitted.publishFeed === '1',
       });
       if (!vm) {
         renderNotFound(res);
@@ -79,6 +85,7 @@ export const memberAnnounceController = {
           {
             subject: s.subject ?? '', bodyText: s.bodyText ?? '', sendToken: s.sendToken ?? '',
             summaryEventId: s.summaryEventId ?? '',
+            publishList: s.publishList ?? '0', publishFeed: s.publishFeed ?? '0',
           },
           false,
           parsed.fieldErrors,

@@ -198,7 +198,10 @@ const DECISIONS: Record<string, Decision> = {
     export: { exported: 'memberExport.tierGrantHistory' },
     erasure: { unruled: NO_ERASURE_RULE },
   },
-  'news_items.author_member_id': { export: { noWriter: NO_WRITER }, erasure: { unruled: NO_ERASURE_RULE } },
+  'news_items.author_member_id': {
+    export: { exported: 'memberExport.communityPosts' },
+    erasure: { cleared: 'newsItems.deleteCommunityPostsForMember', on: 'deletion' },
+  },
   'outbox_emails.recipient_member_id': {
     export: { exported: 'memberExport.mailReceived' },
     erasure: { cleared: 'outbox.scrubForMember', on: 'purge' },
@@ -268,6 +271,7 @@ const LINKS: Record<string, Export | Covered> = {
   'active_player_grants.related_registration_id':     { covered: 'active_player_grants.member_id' },
   'active_player_grants.related_vouch_id':            { covered: 'active_player_grants.member_id' },
   'member_tier_grants.related_payment_id':            { covered: 'member_tier_grants.member_id' },
+  'member_announcements.news_item_id':                { covered: 'member_announcements.member_id' },
   'member_galleries.cover_media_id':                  { covered: 'member_galleries.owner_member_id' },
   'members.avatar_media_id':                          { covered: 'media_items.uploader_member_id' },
   'payments.recurring_subscription_id':               { covered: 'payments.member_id' },

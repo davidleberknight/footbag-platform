@@ -704,7 +704,7 @@ CREATE TABLE news_items (
   published_at TEXT NOT NULL,
   news_type    TEXT NOT NULL
     -- 'club_archived' fires when an admin archives a club (A_Archive_Club).
-    -- 'community_post' is a member's approved announcement, shown with a byline.
+    -- 'community_post' is a member's approved announcement.
     CHECK (news_type IN ('event_published','event_results','club_created','club_archived',
                          'member_honor','vote_results','announcement','community_post',
                          'system')),

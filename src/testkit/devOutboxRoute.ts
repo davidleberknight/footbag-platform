@@ -7,7 +7,8 @@
  * password reset). Notifications such as a tier change or a vouch confirmation
  * have no host page, so this viewer lists the captured buffer, newest first,
  * giving a tester a single place to read any outbound message without a real
- * inbox.
+ * inbox. On a copy of production it shows only mail to synthetic personas,
+ * because the copy holds real members' addresses.
  *
  * The stub buffer is per-process, and the outbox drain loop runs in the worker
  * container, so worker-drained messages live in the worker process's buffer
@@ -27,6 +28,7 @@ import { config } from '../config/env';
 import { getSesAdapter, getStubSesAdapterForTests } from '../adapters/sesAdapter';
 import { getDevOutboxCaptureClient, type CapturedEmail } from './devOutboxCaptureClient';
 import type { PageViewModel } from '../types/page';
+import { testRouteMayUseAddress } from './productionCopyGuard';
 
 interface DevOutboxRow {
   subject: string;
@@ -92,7 +94,9 @@ export async function getDevOutbox(_req: Request, res: Response): Promise<void> 
 
   // Merge both process buffers, dedupe by messageId, newest first by send time.
   const byId = new Map<string, CapturedEmail>();
-  for (const m of [...local, ...worker]) byId.set(m.messageId, m);
+  for (const m of [...local, ...worker]) {
+    if (testRouteMayUseAddress(m.to)) byId.set(m.messageId, m);
+  }
   const messages = [...byId.values()].sort((a, b) =>
     a.deliveredAt < b.deliveredAt ? 1 : a.deliveredAt > b.deliveredAt ? -1 : 0,
   );

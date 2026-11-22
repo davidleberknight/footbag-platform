@@ -259,6 +259,7 @@ describe('the Go To tier', () => {
     for (const href of [
       '/admin/freestyle/records',
       '/admin/freestyle/consecutive-records',
+      '/admin/news',
       '/admin/freestyle/sources',
       '/admin/freestyle/emerging-vocabulary',
       '/admin/freestyle/notation-backlog',

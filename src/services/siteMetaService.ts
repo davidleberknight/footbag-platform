@@ -221,7 +221,7 @@ export const siteMetaService = {
     return [
       '# Footbag Worldwide',
       '',
-      '> The home of the International Footbag Players Association (IFPA), the worldwide governing body for footbag sports (commonly known as hacky sack). The site covers competitive history, tournament results, the freestyle trick dictionary, world records, clubs, and official rules.',
+      '> The home of the International Footbag Players Association (IFPA), the worldwide governing body for footbag sports (commonly known as Hacky Sack). The site covers competitive history, tournament results, the freestyle trick dictionary, world records, clubs, and official rules.',
       '',
       '## Browse',
       '',

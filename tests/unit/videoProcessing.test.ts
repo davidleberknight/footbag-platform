@@ -238,6 +238,44 @@ describe('file-based transcode API', () => {
     });
   });
 
+  // Defect caught: the encoder writes straight onto the caller's output path,
+  // so a failed or killed run truncates a good file already there and leaves
+  // the partial one in its place, which the existing media row then serves.
+  it.skipIf(process.platform === 'win32')(
+    'leaves an existing output untouched and no partial file behind when a run fails',
+    async () => {
+      await withTempDir(async (dir) => {
+        const { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } = await import('node:fs');
+        const path = await import('node:path');
+        const os = await import('node:os');
+        const shimDir = mkdtempSync(path.join(os.tmpdir(), 'footbag-test-ffmpeg-shim-'));
+        const originalPath = process.env.PATH;
+        try {
+          const inputPath = path.join(dir, 'in.bin');
+          const mp4 = Buffer.alloc(32);
+          mp4.write('ftyp', 4, 'ascii');
+          mp4.write('mp42', 8, 'ascii');
+          writeFileSync(inputPath, mp4);
+          const outputPath = path.join(dir, 'clip.mp4');
+          writeFileSync(outputPath, 'previous good encode');
+          // Writes a partial file wherever it was told to, then fails.
+          writeFileSync(
+            path.join(shimDir, 'ffmpeg'),
+            '#!/bin/sh\neval last=\\${$#}\necho partial > "$last"\nexit 1\n',
+            { mode: 0o755 },
+          );
+          process.env.PATH = `${shimDir}:${originalPath ?? ''}`;
+          await expect(transcodeCuratorVideoFile(inputPath, outputPath)).rejects.toBeInstanceOf(FfmpegExecutionError);
+          expect(readFileSync(outputPath, 'utf-8')).toBe('previous good encode');
+          expect(readdirSync(dir).sort()).toEqual(['clip.mp4', 'in.bin']);
+        } finally {
+          process.env.PATH = originalPath;
+          rmSync(shimDir, { recursive: true, force: true });
+        }
+      });
+    },
+  );
+
   it.skipIf(process.platform === 'win32')(
     'scrubs both the input and output directories from a failed run',
     async () => {
@@ -374,6 +412,21 @@ describe('transcodeCuratorVideo', () => {
       expect(fferr.message).toBe('ffmpeg timed out after 200 ms');
     },
   );
+
+  // Defect caught: an encoder that reports success but writes nothing (or an
+  // empty file) is accepted, and an empty video is stored and served as the
+  // curated clip.
+  it.skipIf(!posixOnly)('refuses a run that exits 0 without writing a usable output', async () => {
+    for (const [label, script] of [
+      ['no file', 'exit 0'],
+      ['empty file', 'eval last=\\${$#}; : > "$last"; exit 0'],
+    ] as const) {
+      const err = await runWithFakeFfmpeg(script);
+      expect(err, label).toBeInstanceOf(FfmpegExecutionError);
+      expect((err as FfmpegExecutionError).kind, label).toBe('exit');
+      expect((err as FfmpegExecutionError).exitCode, label).toBe(0);
+    }
+  });
 
   it.skipIf(!posixOnly)('keeps only the bounded tail of a large stderr stream', async () => {
     const err = await runWithFakeFfmpeg(

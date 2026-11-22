@@ -7,8 +7,9 @@
  *
  * Rendering contract:
  *   - getSidelinePage() returns PageViewModel<SidelineContent>.
- *   - Static hero with the hacky sack mascot, an explainer whose last paragraph links the X-Square
- *     games (also played as open play), then circle kicking with its cartoon icon, curated demo
+ *   - Static hero with the circle-kicking mascot, then the Getting a Hack subsection (anchor
+ *     `#hack`, which the Hack menu entry opens) whose last paragraph places it within sideline and
+ *     links the X-Square games (also played as open play), then circle kicking with its cartoon icon, curated demo
  *     clip (absent until the curator seed stores it) and a "More info" link to the footbags section of the equipment page.
  *   - Explainer paragraphs are prose segments; a segment carrying `href` renders as an internal
  *     link inside the sentence.
@@ -21,11 +22,11 @@ export type SidelineContent = SportSectionContent;
 
 const CIRCLE_KICKING: SportSectionGame = {
   slug: 'circle-kicking',
-  title: 'Circle Kicking (Hacky Sack)',
+  title: 'Circle Kicking ("Hacky Sack")',
   iconSrc: '/img/sideline-icon-hackysack.svg',
   iconAlt: 'Two figures circle-kicking a footbag',
   paragraphs: [
-    'Circle kicking, more commonly known as "hacky sack," is the original and most well-known footbag game. A group stands in a circle and keeps the footbag off the ground without using their hands, passing to other players, and trying to get everyone to kick the bag before it drops, known as a "hack." Simple tricks are encouraged, but the focus stays on the group and the flow.',
+    'Circle kicking, commonly known as "Hacky Sack," is the original and most well-known footbag game. A group stands in a circle and keeps the footbag off the ground without using their hands, passing to other players, and trying to get everyone to kick the bag before it drops, known as a "hack." Simple tricks are encouraged, but the focus stays on the group and the flow.',
   ],
   // Filled per request from the curated circle kicking demo slot.
   demoVideo: null,
@@ -46,16 +47,17 @@ export const sidelineService = {
         sectionKey: 'sideline',
         pageKey: 'sideline_home',
         title: 'Sideline',
-        intro: 'Casual and social kicking that anyone can join: free flow, circle kicking and hacky sack.',
+        intro: 'Open play that anyone can join, starting with getting a hack: the cooperative circle game most of the world knows as "Hacky Sack."',
       },
       content: {
         mascot: { src: '/img/sideline-hackysack-hero.svg', alt: 'Two figures circle-kicking a footbag' },
         explainer: {
-          heading: 'What Is Sideline?',
+          id: 'hack',
+          heading: 'Getting a Hack',
           paragraphs: [
-            [{ text: 'Sideline is open play, the casual and social side of the sport. Anyone can turn up and join in: there is nothing to register for and no bracket. It is easy to learn, and it is how most players first picked up a footbag.' }],
+            [{ text: 'Getting a hack is the original footbag game and how most players first picked up a footbag. A group stands in a circle and keeps the footbag off the ground without using their hands. It is cooperative, not competitive: everyone plays together. The game\'s inventors called it "hacking the sack"; "Hacky Sack" is the brand name that followed.' }],
             [
-              { text: 'Sideline also includes the ' },
+              { text: 'Getting a hack is part of sideline play, the casual and social side of the sport: anyone can turn up and join in, with nothing to register for and no bracket. Sideline also includes the ' },
               { text: 'X-Square games', href: '/x-square' },
               { text: '.' },
             ],

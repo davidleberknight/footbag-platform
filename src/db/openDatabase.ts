@@ -34,3 +34,12 @@ export function openDatabase(filename = DEFAULT_DB_FILENAME): SqliteDatabase {
   applyStartupPragmas(db);
   return db;
 }
+
+/**
+ * A read-only connection to an existing database, with none of the startup
+ * PRAGMAs: for a process that reads another's database, such as the copy
+ * builder taking an online backup of the live one, and must never write to it.
+ */
+export function openDatabaseReadOnly(filename: string): SqliteDatabase {
+  return new BetterSqlite3(filename, { readonly: true, fileMustExist: true });
+}

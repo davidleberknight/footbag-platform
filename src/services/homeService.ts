@@ -97,7 +97,7 @@ export const homeService = {
         {
           label: 'Sideline',
           href: '/sideline',
-          description: 'Casual and social kicking that anyone can join: free flow, circle kicking and hacky sack.',
+          description: 'Open play that anyone can join, starting with getting a hack: the cooperative circle game known around the world as "Hacky Sack."',
         },
         {
           label: 'Rules',

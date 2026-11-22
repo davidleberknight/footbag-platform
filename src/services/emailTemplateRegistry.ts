@@ -192,11 +192,17 @@ export const TEMPLATE_VARIANTS = {
   club_record_corrected:           v('confidential', ['leaderName', 'clubName', 'whatChanged', 'note']),
   gallery_moderated_member:        v('confidential', ['memberName', 'galleryName', 'whatChanged', 'note']),
   link_help_request_resolution:    v('confidential', ['memberName', 'displayDecision', 'note']),
-  announce_approved:               v('confidential', ['memberName', 'subject']),
+  // Names where it was published, and links the Community post when the feed
+  // was among its places.
+  announce_approved:               v('confidential', ['memberName', 'subject', 'placesPhrase', 'postLinkLine']),
   // Carries the administrator's comment and the subject the member chose, never
   // the body: the member wrote it and still has it on the form.
   announce_returned:               v('confidential', ['memberName', 'subject', 'comment']),
-  admin_loss_recruitment:         v('internal',     ['itemUrl']),
+  // An administrator hid or deleted the member's Community post: its title and
+  // the administrator's reason, with the way to appeal.
+  news_post_hidden:                v('confidential', ['memberName', 'title', 'note']),
+  news_post_deleted:               v('confidential', ['memberName', 'title', 'note']),
+  admin_loss_recruitment:        v('internal',     ['itemUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
   admin_queue_topic_digest:        v('internal',     ['areaLabel', 'countPhrase', 'itemLines', 'queueUrl']),
   work_queue_topic_route_disabled: v('internal',     ['areaLabel']),
@@ -690,13 +696,28 @@ const SHAPERS = {
   // writing back, so it resolves through its own queue and needs its own reply.
   // Without it a member is promised an answer on submission and hears nothing,
   // whether their records were linked or the request was refused.
-  announce_approved: (p: { memberName: string; subject: string }): ShapedEmail => ({
+  announce_approved: (p: {
+    memberName: string; subject: string; placesPhrase: string; postUrl: string | null;
+  }): ShapedEmail => ({
     variant: 'announce_approved',
-    merge: { memberName: p.memberName, subject: p.subject },
+    merge: {
+      memberName: p.memberName,
+      subject: p.subject,
+      placesPhrase: p.placesPhrase,
+      postLinkLine: p.postUrl ? `\n\nYour post: ${p.postUrl}` : '',
+    },
   }),
   announce_returned: (p: { memberName: string; subject: string; comment: string }): ShapedEmail => ({
     variant: 'announce_returned',
     merge: { memberName: p.memberName, subject: p.subject, comment: p.comment },
+  }),
+  news_post_hidden: (p: { memberName: string; title: string; note: string }): ShapedEmail => ({
+    variant: 'news_post_hidden',
+    merge: { memberName: p.memberName, title: p.title, note: p.note },
+  }),
+  news_post_deleted: (p: { memberName: string; title: string; note: string }): ShapedEmail => ({
+    variant: 'news_post_deleted',
+    merge: { memberName: p.memberName, title: p.title, note: p.note },
   }),
   link_help_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
     variant: 'link_help_request_resolution',

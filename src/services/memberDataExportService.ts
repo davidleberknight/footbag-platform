@@ -55,7 +55,7 @@
  *   active_player_vouches, membership_discipline_decisions, member_club_affiliations, club_leaders,
  *   club_insight_notes, club_viability_signals, registrations,
  *   registration_discipline_selections, event_organizers, mailing_list_subscriptions, outbox_emails,
- *   member_messages, member_announcements, work_queue_items,
+ *   member_messages, member_announcements, news_items, work_queue_items,
  *   member_onboarding_tasks, media_items,
  *   media_tags, media_flags, member_galleries, member_gallery_tags,
  *   member_gallery_exclude_tags, gallery_external_links, payments,
@@ -111,6 +111,7 @@ export interface MemberDataExport {
   mailReceived: unknown[];
   messagesReceived: unknown[];
   announcements: unknown[];
+  communityPosts: unknown[];
   clubs: {
     affiliations: unknown[];
     leadership: unknown[];
@@ -217,6 +218,7 @@ export const memberDataExportService = {
       mailReceived:       capped('mailReceived', memberExport.mailReceived.all(memberId)),
       messagesReceived:   capped('messagesReceived', memberExport.messagesReceived.all(memberId)),
       announcements:      capped('announcements', memberExport.memberAnnouncements.all(memberId)),
+      communityPosts:     capped('communityPosts', memberExport.communityPosts.all(memberId)),
       clubs: {
         affiliations:     capped('clubs.affiliations', memberExport.clubAffiliations.all(memberId)),
         leadership:       capped('clubs.leadership', memberExport.clubLeadership.all(memberId)),

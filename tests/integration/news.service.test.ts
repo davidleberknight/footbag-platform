@@ -192,6 +192,21 @@ describe('validateAuthoredInput', () => {
     expect(v({ title: 't', body: 'b', publishedAt: '2027-01-02T03:04:05Z' }).publishedAt).toBe('2027-01-02T03:04:05.000Z');
     expect(Object.keys(fieldErrorsOf({ title: 't', body: 'b', publishedAt: 'next tuesday' }))).toEqual(['publishedAt']);
   });
+
+  // Defect: a time typed with no zone is read in the server's own zone, so an
+  // item meant for 03:04 UTC publishes hours early or late.
+  it('reads a date or date and time with no zone as UTC, whatever the server zone', () => {
+    const saved = process.env.TZ;
+    process.env.TZ = 'America/Los_Angeles';
+    try {
+      expect(v({ title: 't', body: 'b', publishedAt: '2027-01-02 03:04' }).publishedAt).toBe('2027-01-02T03:04:00.000Z');
+      expect(v({ title: 't', body: 'b', publishedAt: '2027-01-02T03:04:05' }).publishedAt).toBe('2027-01-02T03:04:05.000Z');
+      expect(v({ title: 't', body: 'b', publishedAt: '2027-01-02' }).publishedAt).toBe('2027-01-02T00:00:00.000Z');
+    } finally {
+      if (saved === undefined) delete process.env.TZ;
+      else process.env.TZ = saved;
+    }
+  });
 });
 
 describe('shapeNewsItem', () => {

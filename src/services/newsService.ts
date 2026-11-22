@@ -34,11 +34,13 @@
  *         years holding items, the current year by its landing address.
  *       - `/news/:newsId`, one item's page in the detail-page order: an event
  *         item's cover, the label and date, an event item's
- *         media line, the body, the link to the event, and the back link to
- *         the item's year.
+ *         media line, the body, the link to the event or the club, and the
+ *         back link to the item's year.
  *     An item about an event carries that event's hashtag, linked to its
  *     gallery only while media carries it, and the event's honoured cover; a
- *     news item has no hashtag or cover of its own.
+ *     news item has no hashtag or cover of its own. An item about a club
+ *     links to the club only while the club's page is public; an archived
+ *     club leaves the item standing without the link.
  *
  * Visibility invariant: a hidden item, an item whose publication time has not
  *   arrived, and an item about an event that is not publicly visible appear on
@@ -50,6 +52,9 @@
  *     records it.
  *   - The member's announcement and its approval, which the broadcast service
  *     owns; an approval with the feed among its places produces the post.
+ *   - The administrators' news pages (writing, editing, hiding, restoring and
+ *     deleting items), which the admin news service owns, applying the
+ *     authored-item rules here.
  *
  * Required patterns:
  *   - `emitAutomaticItem` and `deleteItemsForEntity` are synchronous and open
@@ -64,7 +69,8 @@
  *     and renders only web and site links.
  *
  * Persistence: `news_items` (insert and delete; the public reads), reading the
- *   item's event through `events` and `tags`.
+ *   item's event through `events` and `tags`, and its club through
+ *   `clubs_open` and `tags`.
  * Side effects: none of its own; the calling flow writes the audit row for
  *   the act that emitted the item.
  */
@@ -117,7 +123,8 @@ export type EmitAutomaticItemResult =
 export interface AuthoredNewsInput {
   title: unknown;
   body: unknown;
-  /** An ISO-8601 instant, or empty for the moment of writing. */
+  /** An ISO-8601 instant, a date or date and time with no zone (read as
+   *  UTC), or empty for the moment of writing. */
   publishedAt?: unknown;
 }
 
@@ -144,6 +151,9 @@ export interface PublicNewsItemRow extends NewsItemRow {
   event_title: string | null;
   event_tag_normalized: string | null;
   event_tag_display: string | null;
+  /** Present only while the club's page is public. */
+  club_id: string | null;
+  club_tag_normalized: string | null;
 }
 
 /** The current year's page and each other year's page: one year's items, newest first. */
@@ -165,6 +175,8 @@ export interface NewsItemContent {
     hashtag: { display: string; galleryHref: string | null };
     galleryLabel: string;
   } | null;
+  /** The club the item is about, while its page is public, or null. */
+  club: { href: string; linkLabel: string } | null;
 }
 
 export interface NewsItemView {
@@ -240,8 +252,12 @@ function newsDateText(publishedAt: string): string {
   return eventDateRange(day, day);
 }
 
+function stripTagHash(tagNormalized: string): string {
+  return tagNormalized.startsWith('#') ? tagNormalized.slice(1) : tagNormalized;
+}
+
 function eventHrefFromTag(tagNormalized: string): string {
-  return `/events/${tagNormalized.startsWith('#') ? tagNormalized.slice(1) : tagNormalized}`;
+  return `/events/${stripTagHash(tagNormalized)}`;
 }
 
 /**
@@ -332,7 +348,12 @@ export const newsService = {
     let publishedAt = nowIso;
     const rawDate = typeof input.publishedAt === 'string' ? input.publishedAt.trim() : '';
     if (rawDate !== '') {
-      const parsed = Date.parse(rawDate);
+      // A date, or a date and time, written with no zone is UTC, as every
+      // stored time is; the server's own zone never shifts it.
+      const zoneless = /^(\d{4}-\d{2}-\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?$/.exec(rawDate);
+      const parsed = zoneless
+        ? Date.parse(`${zoneless[1]}T${zoneless[2] ?? '00:00'}Z`)
+        : Date.parse(rawDate);
       if (Number.isNaN(parsed)) {
         fieldErrors.publishedAt = 'Publish date must be a valid date and time.';
       } else {
@@ -447,6 +468,9 @@ export const newsService = {
         };
         cover = eventCoverPhotos([row.event_id]).get(row.event_id) ?? null;
       }
+      const club: NewsItemContent['club'] = row.club_id && row.club_tag_normalized
+        ? { href: `/clubs/${stripTagHash(row.club_tag_normalized)}`, linkLabel: 'View Club' }
+        : null;
 
       const description = newsExcerpt(row.body);
       return {
@@ -467,6 +491,7 @@ export const newsService = {
           bodyHtml: view.bodyHtml,
           coverPhoto: cover ? coverPhotoImage(cover, row.event_title ?? row.title) : null,
           event,
+          club,
         },
       };
     });

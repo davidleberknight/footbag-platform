@@ -150,12 +150,21 @@ const CATALOG: CatalogEntry[] = [
     { params: { memberName: 'M', displayDecision: 'D', note: 'n' }, variant: 'link_help_request_resolution' },
   ] },
   // broadcastService — the member told what became of their held community
-  // announcement: sent, or sent back with the administrator's note.
+  // announcement: published, naming where and linking any Community post, or
+  // sent back with the administrator's note.
   { template: 'announce_approved', services: ['broadcastService'], samples: [
-    { params: { memberName: 'M', subject: 'S' }, variant: 'announce_approved' },
+    { params: { memberName: 'M', subject: 'S', placesPhrase: ' and p', postUrl: 'https://x/news/n' }, variant: 'announce_approved' },
   ] },
   { template: 'announce_returned', services: ['broadcastService'], samples: [
     { params: { memberName: 'M', subject: 'S', comment: 'c' }, variant: 'announce_returned' },
+  ] },
+  // adminNewsService — a Community post's member told an administrator hid or
+  // deleted the post, with the reason.
+  { template: 'news_post_hidden', services: ['adminNewsService'], samples: [
+    { params: { memberName: 'M', title: 'T', note: 'n' }, variant: 'news_post_hidden' },
+  ] },
+  { template: 'news_post_deleted', services: ['adminNewsService'], samples: [
+    { params: { memberName: 'M', title: 'T', note: 'n' }, variant: 'news_post_deleted' },
   ] },
   // clubService / clubCleanupService — club operational notifications.
   { template: 'club_membership_member', services: ['clubService'], samples: [

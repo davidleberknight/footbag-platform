@@ -12,6 +12,10 @@
  *     goes through
  *   - a member may have one announcement awaiting review; a second is refused
  *     with the text kept
+ *   - the form asks where the announcement is published (the announce list,
+ *     the news feed, or both), refuses neither, keeps the choice across a
+ *     refusal and on a sent-back one, and holds a subject for the feed to a
+ *     news title's length
  *   - the same rendered form submitted twice holds one announcement
  *   - one sent back opens in the form with its text and the administrator's note
  *   - the shortcut appears on an organizer's profile and not on a Tier 1 one
@@ -97,13 +101,28 @@ async function formToken(): Promise<string> {
   return tokenFrom(form.text);
 }
 
-/** The body a browser posts for the form as rendered, the box ticked or not:
- *  the hidden "0" always, then the box's "1" when ticked. */
-function formBody(fields: { subject: string; bodyText: string; sendToken: string }, ticked: boolean): string {
+/** The body a browser posts for the form as rendered, each box ticked or not:
+ *  the hidden "0" always, then the box's "1" when ticked. The places default
+ *  to the announce list alone. */
+function formBody(
+  fields: { subject: string; bodyText: string; sendToken: string },
+  ticked: boolean,
+  places: { list?: boolean; feed?: boolean } = { list: true },
+): string {
   const p = new URLSearchParams({ sendToken: fields.sendToken, subject: fields.subject, bodyText: fields.bodyText });
   p.append('agree', '0');
   if (ticked) p.append('agree', '1');
+  p.append('publishList', '0');
+  if (places.list) p.append('publishList', '1');
+  p.append('publishFeed', '0');
+  if (places.feed) p.append('publishFeed', '1');
   return p.toString();
+}
+
+function heldPlaces(): string[] {
+  return withDb((db) => (db.prepare(
+    'SELECT publish_to FROM member_announcements WHERE member_id = ? ORDER BY created_at, id',
+  ).all(ORGANIZER) as Array<{ publish_to: string }>).map((r) => r.publish_to));
 }
 
 function submit(body: string) {
@@ -165,7 +184,7 @@ describe('who may submit an announcement', () => {
   // Defect caught: a field repeated by a hand-made request goes in with
   // whichever value the code read, or the refused form loses the message.
   it('refuses a field posted twice at 422, keeps the message, and holds nothing', async () => {
-    const res = await submit('subject=One&subject=Two&bodyText=Kept+typed+message&sendToken=tok-shape&agree=0&agree=1');
+    const res = await submit('subject=One&subject=Two&bodyText=Kept+typed+message&sendToken=tok-shape&agree=0&agree=1&publishList=0&publishList=1');
     expect(res.status).toBe(422);
     expect(res.text).toContain('Kept typed message');
     expect(heldRows()).toHaveLength(0);
@@ -184,6 +203,97 @@ describe('the announce form', () => {
     expect(res.text).toContain('data-volunteer-notice');
     // One subscriber is counted in the singular.
     expect(res.text).toContain('1 member currently receives these.');
+    // The form asks where to publish, with neither place chosen for the member.
+    expect(res.text).toMatch(/<input type="checkbox" id="publishList" name="publishList" value="1"\s*\/>/);
+    expect(res.text).toMatch(/<input type="checkbox" id="publishFeed" name="publishFeed" value="1"\s*\/>/);
+  });
+});
+
+describe('where an announcement is published', () => {
+  // Defect caught: a submit choosing no place is held, and approving it would
+  // publish nowhere; or the refusal drops the text, so the member retypes it.
+  it('refuses a submit choosing neither place, keeping the text, and takes the corrected form', async () => {
+    const fields = { subject: 'Jam on Sunday', bodyText: 'Kept across the refusal', sendToken: await formToken() };
+    const refused = await submit(formBody(fields, true, {}));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('class="form-error-banner"');
+    expect(refused.text).toContain('Kept across the refusal');
+    expect(heldRows()).toHaveLength(0);
+
+    const corrected = await submit(formBody({ ...fields, sendToken: tokenFrom(refused.text) }, true, { feed: true }));
+    expect(corrected.status).toBe(303);
+    expect(heldPlaces()).toEqual(['feed']);
+  });
+
+  // Defect caught: the member's choice is lost, so an approval publishes to
+  // the wrong place.
+  it('holds the places chosen: both boxes as both', async () => {
+    const res = await submit(formBody(
+      { subject: 'Both ways', bodyText: 'Body', sendToken: await formToken() }, true, { list: true, feed: true },
+    ));
+    expect(res.status).toBe(303);
+    expect(heldPlaces()).toEqual(['both']);
+  });
+
+  // Defect caught: a refusal re-renders with the member's places unticked, so
+  // resubmitting the page as rendered is refused again or goes somewhere else.
+  it('keeps the ticked places across a refusal', async () => {
+    const refused = await submit(formBody(
+      { subject: '', bodyText: 'Body', sendToken: await formToken() }, true, { feed: true },
+    ));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toMatch(/name="publishFeed" value="1" checked/);
+    expect(refused.text).not.toMatch(/name="publishList" value="1" checked/);
+  });
+
+  // Defect caught: a subject too long for a news title is held for the feed,
+  // and its approval then fails on the post's own rules.
+  it('refuses a subject longer than a news title when the feed is chosen, and holds it for the list alone', async () => {
+    // A news title holds 200 characters; the email subject holds 300.
+    const subject = 'x'.repeat(201);
+    const refused = await submit(formBody({ subject, bodyText: 'Body', sendToken: await formToken() }, true, { feed: true }));
+    expect(refused.status).toBe(422);
+    expect(heldRows()).toHaveLength(0);
+
+    const fits = await submit(formBody({ subject: 'x'.repeat(200), bodyText: 'Body', sendToken: await formToken() }, true, { feed: true }));
+    expect(fits.status).toBe(303);
+    withDb((db) => db.prepare('DELETE FROM member_announcements').run());
+
+    const listOnly = await submit(formBody({ subject, bodyText: 'Body', sendToken: await formToken() }, true, { list: true }));
+    expect(listOnly.status).toBe(303);
+    expect(heldPlaces()).toEqual(['list']);
+  });
+
+  // Defect caught: the body loses its indentation, so a nested Markdown list
+  // or an indented line in the email arrives flattened.
+  it('keeps each line\'s leading spaces in the held body', async () => {
+    const bodyText = 'Schedule:\n\n- Saturday\n  - Net at noon\n- Sunday';
+    expect((await submit(formBody({ subject: 'Indented', bodyText, sendToken: await formToken() }, true, { feed: true }))).status).toBe(303);
+    expect(heldRows()[0]!.body_text).toBe(bodyText);
+  });
+
+  // Defect caught: a resubmit of one form with its places changed is taken
+  // for the first submit, so the change is silently dropped.
+  it('does not take a resubmit with changed places for the first submit', async () => {
+    const token = await formToken();
+    const fields = { subject: 'Changed places', bodyText: 'Body', sendToken: token };
+    expect((await submit(formBody(fields, true, { list: true }))).status).toBe(303);
+    const changed = await submit(formBody(fields, true, { feed: true }));
+    expect(changed.status).toBe(422);
+    expect(heldPlaces()).toEqual(['list']);
+    expect(reviewItems()).toHaveLength(1);
+  });
+
+  // Defect caught: a sent-back announcement reopens with no places ticked, so
+  // the member has to remember and re-choose where it was going.
+  it('reopens a sent-back announcement with its places ticked', async () => {
+    withDb((db) => insertMemberAnnouncement(db, {
+      member_id: ORGANIZER, subject: 'Returned', body_text: 'Body', status: 'returned',
+      admin_comment: 'Shorten it.', publish_to: 'feed',
+    }));
+    const page = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
+    expect(page.text).toMatch(/name="publishFeed" value="1" checked/);
+    expect(page.text).not.toMatch(/name="publishList" value="1" checked/);
   });
 });
 

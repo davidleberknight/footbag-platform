@@ -386,6 +386,15 @@ Output too large (84.2KB). Full output saved to: /x/tool-results/p1.txt
 Preview (first 2KB):
 User has approved your plan. You can now start coding."
 expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_result p1 "$uw_pl" "$uw_persisted")" defer
+# A placeholder is no words however it is spelled: a plan quoting a template's {sender}
+# approves code interpolating ${...} in its place.
+uw_ph_pl='Service heading AFTER: `Emails go out from {sender} each week.`'
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" '`Emails go out from ${cfg.sender} each week.`')" "$(uw_plan_call p1 "$uw_ph_pl")"$'\n'"$(uw_plan_result p1 "$uw_ph_pl")" defer
+# What an operator reads at a terminal is not site wording: a command-line entry point,
+# and a process output write anywhere in src/.
+expect_wording "$(jq -cn --arg p "$uw_dir/src/runFoo.ts" '{file_path:$p,content:"process.stderr.write('"'"'foo: the source database is required\\n'"'"');\nconst usage = '"'"'Usage: run foo against the live database'"'"';\n"}')" "" defer
+expect_wording "$(uw_edit src/services/clubService.ts 'export function f(n: number) {' "export function f(n: number) {
+  process.stdout.write('club lookup finished for the batch\\n');")" "" defer
 # Not approval: a rejected plan, a plan not yet answered, text the approved plan lacks,
 # text the human edited out of the plan before approving it, an approval-worded result
 # that is an error or answers no ExitPlanMode call, and Claude's plain text quoting it.

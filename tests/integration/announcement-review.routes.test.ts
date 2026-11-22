@@ -5,17 +5,21 @@
  * Contract verified:
  *   - the item page shows the announcement as the member wrote it, names its
  *     author, and offers exactly the two declared decisions
- *   - approving sends it to the announce list under the member's name: one
- *     message per subscriber from the list address, an announce archive row
- *     naming the member as sender, the announcement approved with that archive,
- *     the item resolved, an audit row naming the approving administrator with no
- *     member text, and the member emailed
+ *   - the item page names the places the member chose
+ *   - approving publishes to each place chosen. To the announce list under the
+ *     member's name: one message per subscriber from the list address, an
+ *     announce archive row naming the member as sender. To the news feed: a
+ *     public Community post with the member as author. Then the announcement
+ *     approved with both records, the item resolved, an audit row naming the
+ *     approving administrator with no member text, and the member emailed with
+ *     the post's link when there is one
  *   - an administrator cannot approve their own announcement, and an author no
  *     longer at Tier 2 or 3 cannot be sent for; both leave it waiting
- *   - the daily limit is counted at approval from what was sent in the last 24
- *     hours; over it the approval is refused unless the override is ticked,
+ *   - the daily limit is counted at approval from what was approved in the last
+ *     24 hours, whatever its places; over it the approval is refused unless the override is ticked,
  *     which the audit row records; a sent-back announcement never counts
- *   - a list nobody can receive refuses the approval and leaves it waiting
+ *   - with the list among its places, a list nobody can receive refuses the
+ *     approval, publishes nothing, and leaves it waiting
  *   - sending back requires a note of at most 500 characters, closes the item,
  *     and emails the member the note but never their body
  *   - the same decision submitted twice acts once and spends no rate-limit slot;
@@ -63,12 +67,16 @@ function cookieFor(memberId: string, admin = true): string {
 
 let seq = 0;
 /** A held announcement and its open review item. */
-function seedHeld(memberId = AUTHOR, words?: { subject?: string; body_text?: string }): { annId: string; itemId: string } {
+function seedHeld(
+  memberId = AUTHOR,
+  words?: { subject?: string; body_text?: string; publish_to?: 'list' | 'feed' | 'both' },
+): { annId: string; itemId: string } {
   seq += 1;
   const annId = insertMemberAnnouncement(db, {
     member_id: memberId,
     subject: words?.subject ?? `Club meetup ${seq}`,
     body_text: words?.body_text ?? `Meet at the park, gate ${seq}.\n\nBring a bag.`,
+    publish_to: words?.publish_to ?? 'list',
   });
   const itemId = insertWorkQueueItem(db, {
     task_type: 'announcement_review', entity_type: 'member_announcement', entity_id: annId,
@@ -90,8 +98,28 @@ const UNTICKED = 'allow_extra=0';
 const TICKED = 'allow_extra=0&allow_extra=1';
 
 function annRow(id: string) {
-  return db.prepare('SELECT status, email_archive_id, decided_by_member_id, admin_comment FROM member_announcements WHERE id = ?')
-    .get(id) as { status: string; email_archive_id: string | null; decided_by_member_id: string | null; admin_comment: string | null };
+  return db.prepare('SELECT status, email_archive_id, news_item_id, decided_by_member_id, admin_comment FROM member_announcements WHERE id = ?')
+    .get(id) as {
+      status: string; email_archive_id: string | null; news_item_id: string | null;
+      decided_by_member_id: string | null; admin_comment: string | null;
+    };
+}
+function newsRow(id: string | null) {
+  return db.prepare('SELECT news_type, title, body, author_member_id, is_public, entity_type, entity_id FROM news_items WHERE id = ?')
+    .get(id) as {
+      news_type: string; title: string; body: string; author_member_id: string | null;
+      is_public: number; entity_type: string | null; entity_id: string | null;
+    } | undefined;
+}
+function postsBy(memberId: string): number {
+  return (db.prepare("SELECT COUNT(*) AS c FROM news_items WHERE author_member_id = ? AND news_type = 'community_post'")
+    .get(memberId) as { c: number }).c;
+}
+/** An announcement of this member's already approved, decided at a given time. */
+function seedApproved(decidedAt: string, publishTo: 'list' | 'feed' | 'both' = 'list'): void {
+  insertMemberAnnouncement(db, {
+    member_id: AUTHOR, status: 'approved', decided_by_member_id: ADMIN, decided_at: decidedAt, publish_to: publishTo,
+  });
 }
 function itemRow(id: string) {
   return db.prepare('SELECT status, decision_label FROM work_queue_items WHERE id = ?').get(id) as { status: string; decision_label: string | null };
@@ -157,6 +185,23 @@ describe('the held announcement on its item page', () => {
     expect(res.text).toContain(`action="/admin/work-queue/${itemId}/announcement/send-back"`);
     expect(res.text).toMatch(/<input type="hidden" name="allow_extra" value="0" \/>\s*<label><input type="checkbox"[^>]*name="allow_extra" value="1"/);
     expect(res.text).not.toContain(`/admin/work-queue/${itemId}/park`);
+    expect(res.text).toContain('data-announcement-places');
+  });
+
+  // Defect caught: the administrator approves without knowing the post will
+  // also reach the news feed, where it must be news rather than opinion.
+  it('names a different line for each set of places the member chose', async () => {
+    const lines = new Set<string>();
+    for (const publish_to of ['list', 'feed', 'both'] as const) {
+      const { itemId, annId } = seedHeld(AUTHOR, { publish_to });
+      const res = await request(createApp()).get(`/admin/work-queue/${itemId}`).set('Cookie', cookieFor(ADMIN));
+      // A member holds one pending announcement at a time.
+      db.prepare("UPDATE member_announcements SET status = 'returned' WHERE id = ?").run(annId);
+      const line = /<p data-announcement-places>([^<]+)<\/p>/.exec(res.text);
+      expect(line, `places line for ${publish_to}`).not.toBeNull();
+      lines.add(line![1]!);
+    }
+    expect(lines.size).toBe(3);
   });
 
   it('refuses the decisions to a non-administrator', async () => {
@@ -206,6 +251,91 @@ describe('approving', () => {
     const notice = memberMail('announce_approved');
     expect(notice.length).toBeGreaterThanOrEqual(1);
     expect(notice.at(-1)!.body_text).toContain('Approved and out');
+    // The list alone: no Community post, and the email links none.
+    expect(ann.news_item_id).toBeNull();
+    expect(postsBy(AUTHOR)).toBe(0);
+    expect(notice.at(-1)!.body_text).not.toContain('/news/');
+  });
+
+  // Defect caught: a feed-only approval still mails the list, publishes no
+  // post, credits the administrator as author, or the member is never given
+  // the link.
+  it('publishes a feed-only announcement as a Community post, with no email to the list', async () => {
+    const { itemId, annId } = seedHeld(AUTHOR, {
+      subject: 'Feed only news', body_text: 'The **new** club meets Tuesdays.', publish_to: 'feed',
+    });
+    const res = await approve(itemId, UNTICKED);
+    expect(res.status).toBe(303);
+
+    const ann = annRow(annId);
+    expect(ann.status).toBe('approved');
+    expect(ann.email_archive_id).toBeNull();
+    expect(listMail('Feed only news')).toHaveLength(0);
+    expect(db.prepare("SELECT COUNT(*) AS c FROM email_archives WHERE subject = 'Feed only news'").get()).toEqual({ c: 0 });
+
+    expect(newsRow(ann.news_item_id)).toEqual({
+      news_type: 'community_post', title: 'Feed only news', body: 'The **new** club meets Tuesdays.',
+      author_member_id: AUTHOR, is_public: 1, entity_type: null, entity_id: null,
+    });
+    expect(JSON.parse(auditsFor(annId, 'announce.approved')[0]!.metadata_json))
+      .toMatchObject({ publishTo: 'feed', archiveId: null, newsItemId: ann.news_item_id });
+
+    // Public at once, labelled Community, with its Markdown rendered.
+    const page = await request(createApp()).get(`/news/${ann.news_item_id}`);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('<strong>new</strong>');
+    expect(page.text).toContain('Community');
+    const feed = await request(createApp()).get('/news');
+    expect(feed.text).toContain(`/news/${ann.news_item_id}`);
+
+    const notice = memberMail('announce_approved');
+    expect(notice).toHaveLength(1);
+    expect(notice[0]!.body_text).toContain(`/news/${ann.news_item_id}`);
+  });
+
+  // Defect caught: an approval for both places publishes to only one of them.
+  it('publishes to both places in one approval', async () => {
+    const { itemId, annId } = seedHeld(AUTHOR, { subject: 'Both places', publish_to: 'both' });
+    expect((await approve(itemId, UNTICKED)).status).toBe(303);
+    const ann = annRow(annId);
+    expect(listMail('Both places').map((m) => m.recipient_member_id).sort()).toEqual([SUB_ONE, SUB_TWO]);
+    expect(ann.email_archive_id).not.toBeNull();
+    expect(newsRow(ann.news_item_id)?.news_type).toBe('community_post');
+    const notice = memberMail('announce_approved');
+    expect(notice).toHaveLength(1);
+    expect(notice[0]!.body_text).toContain(`/news/${ann.news_item_id}`);
+  });
+
+  // Defect caught: a feed-only announcement is refused because nobody is on
+  // the list, although no email is part of it.
+  it('approves a feed-only announcement when nobody is subscribed to the list', async () => {
+    db.prepare('DELETE FROM mailing_list_subscriptions').run();
+    const { itemId, annId } = seedHeld(AUTHOR, { subject: 'No list needed', publish_to: 'feed' });
+    expect((await approve(itemId, UNTICKED)).status).toBe(303);
+    expect(annRow(annId).status).toBe('approved');
+    expect(postsBy(AUTHOR)).toBe(1);
+  });
+
+  // Defect caught: a refused approval for both places still leaves the post
+  // standing, so the feed shows what the list never got and the
+  // announcement is still waiting.
+  it('publishes no post when the list half of a both approval is refused', async () => {
+    db.prepare('DELETE FROM mailing_list_subscriptions').run();
+    const { itemId, annId } = seedHeld(AUTHOR, { subject: 'Half refused', publish_to: 'both' });
+    expect((await approve(itemId, UNTICKED)).status).toBe(422);
+    expect(annRow(annId).status).toBe('pending');
+    expect(postsBy(AUTHOR)).toBe(0);
+  });
+
+  // Defect caught: a double click on a feed approval publishes the post twice.
+  it('publishes one post when a feed approval is submitted twice', async () => {
+    const { itemId } = seedHeld(AUTHOR, { subject: 'Feed twice', publish_to: 'feed' });
+    expect((await approve(itemId, UNTICKED)).status).toBe(303);
+    const again = await approve(itemId, UNTICKED);
+    expect(again.status).toBe(303);
+    expect(flashValueOf(again)).toMatch(/^work_queue_resolved:/);
+    expect(postsBy(AUTHOR)).toBe(1);
+    expect(memberMail('announce_approved')).toHaveLength(1);
   });
 
   // Defect caught: a double click mails the list twice or files a second
@@ -278,7 +408,7 @@ describe('the daily limit, counted at approval', () => {
   // Defect caught: a member gets several announcements out in one day, or the
   // override cannot be used, or is used without a trace.
   it('refuses one over the limit unless the override is ticked, which the audit row records', async () => {
-    insertEmailArchive(db, { archive_type: 'announce', mailing_list_id: 'announce', sender_member_id: AUTHOR, sent_at: isoDaysFromNow(-0.5) });
+    seedApproved(isoDaysFromNow(-0.5));
     const { itemId, annId } = seedHeld(AUTHOR, { subject: 'Second today' });
 
     const refused = await approve(itemId, UNTICKED);
@@ -294,8 +424,17 @@ describe('the daily limit, counted at approval', () => {
 
   // Defect caught: yesterday's send, or one that was sent back and never
   // went out, blocks today's.
-  it('counts only what was sent in the last 24 hours', async () => {
-    insertEmailArchive(db, { archive_type: 'announce', mailing_list_id: 'announce', sender_member_id: AUTHOR, sent_at: isoDaysFromNow(-1.1) });
+  // Defect caught: a feed-only approval does not count, so a member gets an
+  // email out the same day as a post, past the one-a-day limit.
+  it('counts an approval to the news feed alone against the limit', async () => {
+    seedApproved(isoDaysFromNow(-0.5), 'feed');
+    const { itemId, annId } = seedHeld(AUTHOR, { subject: 'After a post' });
+    expect((await approve(itemId, UNTICKED)).status).toBe(422);
+    expect(annRow(annId).status).toBe('pending');
+  });
+
+  it('counts only what was approved in the last 24 hours', async () => {
+    seedApproved(isoDaysFromNow(-1.1));
     insertMemberAnnouncement(db, { member_id: AUTHOR, status: 'returned', admin_comment: 'No.' });
     const { itemId, annId } = seedHeld(AUTHOR, { subject: 'Only one today' });
     expect((await approve(itemId, UNTICKED)).status).toBe(303);

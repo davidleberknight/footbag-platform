@@ -10,7 +10,8 @@
  * middleware production uses, never a parallel auth-bypass.
  *
  * Looks the member up by slug via the same session-member query the auth
- * middleware uses (members_active, email-verified). Unknown slug → 404.
+ * middleware uses (members_active, email-verified). Unknown slug → 404. On a
+ * copy of production a member who is not a synthetic persona → 403.
  * Every issuance writes an audit entry with action_type 'testkit.persona_switch'.
  */
 import { Request, Response, NextFunction } from 'express';
@@ -20,6 +21,7 @@ import { issueSessionCookie } from '../lib/sessionCookie';
 import { memberOnboardingService } from '../services/memberOnboardingService';
 import { appendAuditEntry } from '../services/auditService';
 import { PERSONA_SWITCH_AUDIT_ACTION_TYPE } from './personaFactory';
+import { PERSONAS_ONLY_ON_COPY_MESSAGE, testRouteMayActAs } from './productionCopyGuard';
 
 interface SessionMemberRow {
   id: string;
@@ -47,6 +49,10 @@ export async function getDevSwitch(
       | undefined;
     if (!row) {
       res.status(404).send(`no persona with slug '${slug}'`);
+      return;
+    }
+    if (!testRouteMayActAs(row.id)) {
+      res.status(403).send(PERSONAS_ONLY_ON_COPY_MESSAGE);
       return;
     }
 

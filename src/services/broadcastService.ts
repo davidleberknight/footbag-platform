@@ -7,16 +7,21 @@
  *     the list's subject prefix, and handing the send to the one enqueue path
  *     by naming the audience.
  *   - The community announcement an organizer-tier member writes, held for
- *     review: the member's form (with its Community Standards agreement), the
- *     held row, and the two decisions on it. Submitting writes the row and
- *     raises an `announcement_review` work-queue item; nothing is sent. Another
- *     administrator approves it as written, which sends it to the announce list
- *     under the member's name, or sends it back with a note the member is
- *     emailed. A member has at most one awaiting review. An organizer of a
- *     sanctioned event that has ended may mark the announcement as that
- *     event's after-event summary; only an event the member currently
- *     organizes and whose summary has not been sent is accepted, and once the
- *     announcement is approved and sent it meets that sanctioning obligation.
+ *     review: the member's form (with its Community Standards agreement and
+ *     its places: the announce list, the news feed as a Community post, or
+ *     both), the held row, and the two decisions on it. Submitting writes the
+ *     row and raises an `announcement_review` work-queue item; nothing is
+ *     published. Another administrator approves it as written, which publishes
+ *     it to each place the member chose in one step: the announce list under
+ *     the member's name, and a Community post in the news feed with the member
+ *     as its author and the subject as its title. Or the administrator sends
+ *     it back with a note the member is emailed. A member has at most one
+ *     awaiting review. An organizer of a sanctioned event that has ended may
+ *     mark the announcement as that event's after-event summary; only an
+ *     event the member currently organizes and whose summary has not been sent
+ *     is accepted, a summary must include the announce list among its places,
+ *     and once the announcement is approved it meets that sanctioning
+ *     obligation.
  *   - The broadcast archive: one row per send, written when the send lands, and
  *     the admin surfaces that read it back.
  *
@@ -44,19 +49,26 @@
  *   - An archived list accepts no further sends, and a group-backed list is
  *     refused here rather than allowed to fail deep in the audience resolver.
  *   - The subject and body are cleaned with the shared write-time sanitizer
- *     before validation and before the send fingerprint is taken.
- *   - Bodies are plain text. The subject stored on the archive row is the
- *     subject that went out, prefix included, so the record shows what
+ *     before validation and before the send fingerprint is taken. An
+ *     announcement's body is cleaned as Markdown, keeping each line's leading
+ *     spaces, because the email sends it as typed and the Community post
+ *     renders it as Markdown; with the feed among its places its subject must
+ *     also fit a news item's title.
+ *   - Emailed bodies are plain text. The subject stored on the archive row is
+ *     the subject that went out, prefix included, so the record shows what
  *     recipients actually saw.
  *   - Announcement decisions: the administrator never edits the member's
- *     words and cannot approve their own. Approval re-checks that the author
- *     still holds Tier 2 or Tier 3 and is a full member, counts the daily limit
- *     from the announcements actually sent in the last 24 hours (a sent-back
- *     one never counts), and lets a ticked override through, recorded on its
- *     audit row. A list nobody can receive refuses the approval and leaves it
- *     waiting. The send, the archive row, the decision, the item's close, the
- *     audit row and the member's email are one transaction, and the
- *     announcement's id is the send's token, so approving twice sends once.
+ *     words or changes their places, and cannot approve their own. Approval
+ *     re-checks that the author still holds Tier 2 or Tier 3 and is a full
+ *     member, counts the daily limit from the member's announcements approved
+ *     in the last 24 hours whatever their places (a sent-back one never
+ *     counts), and lets a ticked override through, recorded on its audit row.
+ *     With the list among its places, a list nobody can receive refuses the
+ *     approval and leaves it waiting. The send, the archive row, the Community
+ *     post, the decision, the item's close, the audit row and the member's
+ *     email are one transaction, guarded on the announcement still pending, and
+ *     the announcement's id is the send's token, so approving twice publishes
+ *     once.
  *   - Repeats: a repeated submit finds its row by the form's token; a decision
  *     submitted again is recognised from the administrator's standing audit
  *     row before the shared work-queue rate limit is touched.
@@ -64,13 +76,14 @@
  *     and archive rows, which erasure reaches and the ledger does not.
  *
  * Persistence: email_archives (write/read), mailing_lists (read),
- * member_announcements (write/read), events and event_organizers (read: the
- * summary choices), work_queue_items (resolve, through the
- * work-queue enqueue for the review item), outbox_emails (through the enqueue
- * path, never directly).
+ * member_announcements (write/read), news_items (insert: the Community post,
+ * through the news service's authored-item rules), events and
+ * event_organizers (read: the summary choices), work_queue_items (resolve,
+ * through the work-queue enqueue for the review item), outbox_emails (through
+ * the enqueue path, never directly).
  *
  * Side effects: outbox enqueue, audit_entries append, work-queue insert and
- * resolve, member act-notice email.
+ * resolve, news emission (the Community post), member act-notice email.
  */
 import { createHash, randomUUID } from 'crypto';
 
@@ -79,17 +92,20 @@ import {
   emailArchives,
   mailingLists,
   memberAnnouncements,
+  newsItems,
   outbox,
   transaction,
   workQueue,
   type EmailArchiveRow,
   type MailingListRow,
 } from '../db/db';
+import { config } from '../config/env';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { getCommunicationService } from './communicationService';
 import { readIntConfig } from './configReader';
 import { emailService } from './emailService';
 import { enforceWorkQueueResolveLimit } from './identityAccessService';
+import { NEWS_TITLE_MAX_LENGTH, newsService } from './newsService';
 import { isTier2Plus } from './tierPredicates';
 import { workQueueService } from './workQueueService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
@@ -127,12 +143,37 @@ const ONE_PENDING =
 const SELF_APPROVE =
   'You cannot approve your own announcement. Another administrator must review it.';
 const OVER_LIMIT =
-  'This member has had an announcement sent in the last 24 hours. Tick Allow an Extra Announcement Today to send it anyway.';
+  'This member has had an announcement approved in the last 24 hours. Tick Allow an Extra Announcement Today to approve it anyway.';
 const TIER_LAPSED =
-  'This member no longer holds Tier 2 or Tier 3, so the announcement cannot be sent. Send it back to the member.';
+  'This member no longer holds Tier 2 or Tier 3, so the announcement cannot be published. Send it back to the member.';
 
 const SUMMARY_EVENT_UNAVAILABLE =
   'That event cannot take an after-event summary from you: you do not organize it, or its summary has already been sent.';
+const PLACES_REQUIRED = 'Choose where to publish it: by email, in the news feed, or both.';
+const SUMMARY_NEEDS_LIST =
+  'An after-event summary must go to the announcements list. Tick By email to the announcements list, or choose no event.';
+const FEED_SUBJECT_TOO_LONG = `Subject: at most ${NEWS_TITLE_MAX_LENGTH} characters for a news feed post.`;
+
+/** Where a member's announcement is published: the announce list, the news
+ *  feed as a Community post, or both. */
+type PublishTo = 'list' | 'feed' | 'both';
+
+function publishToOf(list: boolean, feed: boolean): PublishTo | null {
+  if (list && feed) return 'both';
+  if (list) return 'list';
+  if (feed) return 'feed';
+  return null;
+}
+
+const includesList = (p: PublishTo): boolean => p === 'list' || p === 'both';
+const includesFeed = (p: PublishTo): boolean => p === 'feed' || p === 'both';
+
+/** The places an approval email names, completing "was approved". */
+const APPROVED_PLACES_PHRASE: Record<PublishTo, string> = {
+  list: ' and sent to the announcements list',
+  feed: ' and published in the footbag.org news feed',
+  both: ', sent to the announcements list and published in the footbag.org news feed',
+};
 
 /** The sanctioned events a member organizes that have ended and still owe their summary. */
 function summaryEventChoices(memberId: string): Array<{ id: string; title: string; end_date: string }> {
@@ -148,7 +189,9 @@ export type SubmitAnnouncementResult =
   | { status: 'own_repeat' };
 
 export type AnnouncementDecisionResult =
-  | { status: 'approved'; archiveId: string }
+  /** Published: the archive row when the list was among its places, the
+   *  Community post when the feed was. */
+  | { status: 'approved'; archiveId: string | null; newsItemId: string | null }
   | { status: 'returned' }
   /** This administrator's own decision, submitted again. */
   | { status: 'own_repeat'; decision: 'approved' | 'returned' }
@@ -162,6 +205,7 @@ interface AnnouncementRow {
   body_text: string;
   status: 'pending' | 'approved' | 'returned';
   admin_comment: string | null;
+  publish_to: PublishTo;
 }
 
 /**
@@ -215,11 +259,14 @@ interface ValidCompose {
   sendToken: string;
 }
 
-function validateCompose(input: ComposeInput): ValidCompose {
+function validateCompose(
+  input: ComposeInput,
+  bodyShape: 'multi_line' | 'markdown' = 'multi_line',
+): ValidCompose {
   // Cleaned before every check and before the send fingerprint, so a resubmitted
   // form whose text cleans to the same words is recognised as the same send.
   const cleanSubject = sanitizeUserText(input.subject ?? '', 'single_line');
-  const cleanBody = sanitizeUserText(input.bodyText ?? '', 'multi_line');
+  const cleanBody = sanitizeUserText(input.bodyText ?? '', bodyShape);
   const subject = cleanSubject.status === 'ok' ? cleanSubject.text : '';
   const bodyText = cleanBody.status === 'ok' ? cleanBody.text : '';
   const sendToken = (input.sendToken ?? '').trim();
@@ -319,13 +366,16 @@ const COMPOSE_NOTICES: Record<string, [OutcomeTone, string]> = {
   no_recipients: ['no',   'Nothing was sent: nobody on this list has a deliverable address right now.'],
   // The member's announcement form: nothing is sent yet, so it says what
   // happens next instead.
-  submitted:     ['ok',   'Submitted for review. You will get an email when it is sent, or if an administrator sends it back with a note.'],
+  submitted:     ['ok',   'Submitted for review. You will get an email when it is published, or if an administrator sends it back with a note.'],
 };
 
 /** The member's announcement form: the compose form plus the agreement box and
  *  where their last announcement stands. */
 export interface AnnounceContent extends ComposeContent {
   agreeChecked: boolean;
+  /** The two places, ticked as submitted or as the sent-back one chose. */
+  publishListChecked: boolean;
+  publishFeedChecked: boolean;
   /** Said while one of theirs awaits review. */
   pendingNotice: string | null;
   /** The administrator's note on the one sent back, while it is the latest. */
@@ -593,15 +643,23 @@ export const broadcastService = {
       submitted?: ComposeInput;
       agreeChecked?: boolean;
       summaryEventId?: string;
+      /** The places as submitted, on a re-rendered refusal. */
+      publishList?: boolean;
+      publishFeed?: boolean;
       fieldErrors?: Record<string, string>;
       notice?: string;
     } = {},
   ): PageViewModel<AnnounceContent> | null {
     const summaryChoices = summaryEventChoices(memberId);
     const latest = memberAnnouncements.findLatestForMember.get(memberId) as
-      | { subject: string; body_text: string; status: string; admin_comment: string | null }
+      | { subject: string; body_text: string; status: string; admin_comment: string | null; publish_to: PublishTo }
       | undefined;
     const isReturned = latest?.status === 'returned';
+    // A refusal keeps what was ticked; a sent-back announcement reopens with
+    // its places; a fresh form asks, with neither ticked.
+    const returnedPlaces = !opts.submitted && isReturned && latest ? latest.publish_to : null;
+    const publishListChecked = opts.publishList ?? (returnedPlaces ? includesList(returnedPlaces) : false);
+    const publishFeedChecked = opts.publishFeed ?? (returnedPlaces ? includesFeed(returnedPlaces) : false);
     // A sent-back announcement fills a fresh form; a re-rendered refusal keeps
     // what was just typed instead.
     const submitted = opts.submitted
@@ -619,7 +677,7 @@ export const broadcastService = {
       page: {
         ...vm.page,
         title: 'Send a Community Announcement',
-        intro: `Write to the members who have subscribed to community announcements: an event you are running, a project, news worth the community's attention. It goes out from ${vm.content.fromIdentityDisplay}. An administrator reads each announcement before it goes out.`,
+        intro: `Share news with the footbag community: an event you are running, a project, news worth the community's attention. Send it by email to the members who subscribed to community announcements, publish it in the news feed as a Community post, or both. Emails go out from ${vm.content.fromIdentityDisplay}. An administrator reads each announcement before it is published.`,
       },
       navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${memberKey}` }] },
       content: {
@@ -627,6 +685,8 @@ export const broadcastService = {
         formAction: `/members/${memberKey}/announce`,
         backHref: `/members/${memberKey}`,
         agreeChecked: opts.agreeChecked ?? false,
+        publishListChecked,
+        publishFeedChecked,
         pendingNotice: latest?.status === 'pending' ? ONE_PENDING : null,
         returnedNotice: isReturned && comment
           ? `An administrator sent your last announcement back with this note: "${comment}"${afterQuote} Your text is below to change and submit again.`
@@ -652,38 +712,55 @@ export const broadcastService = {
    * reports that success; a member already waiting on one is refused a second.
    */
   submitAnnouncement(
-    input: ComposeInput & { agree?: string; summaryEventId?: string },
+    input: ComposeInput & {
+      agree?: string; summaryEventId?: string; publishList?: string; publishFeed?: string;
+    },
     memberId: string,
   ): SubmitAnnouncementResult {
     let compose: ValidCompose | null = null;
     let fieldErrors: Record<string, string> = {};
     try {
-      compose = validateCompose(input);
+      compose = validateCompose(input, 'markdown');
     } catch (err) {
       if (!(err instanceof ValidationError)) throw err;
       fieldErrors = { ...(err.fieldErrors ?? {}) };
     }
     if (input.agree !== '1') fieldErrors.agree = AGREE_REQUIRED;
+    const publishTo = publishToOf(input.publishList === '1', input.publishFeed === '1');
+    if (!publishTo) fieldErrors.publishTo = PLACES_REQUIRED;
+    // The post takes the subject as its title, so it must fit one.
+    if (compose && publishTo && includesFeed(publishTo)
+      && [...compose.subject].length > NEWS_TITLE_MAX_LENGTH && !fieldErrors.subject) {
+      fieldErrors.subject = FEED_SUBJECT_TOO_LONG;
+    }
     // Marked as an event's after-event summary only for an event this member
-    // organizes that still owes one.
+    // organizes that still owes one, and only when it goes to the list, since
+    // the obligation is a summary sent to the list.
     const summaryEventId = input.summaryEventId ? input.summaryEventId : null;
     if (summaryEventId && !summaryEventChoices(memberId).some((e) => e.id === summaryEventId)) {
       fieldErrors.summaryEventId = SUMMARY_EVENT_UNAVAILABLE;
+    } else if (summaryEventId && publishTo && !includesList(publishTo)) {
+      fieldErrors.summaryEventId = SUMMARY_NEEDS_LIST;
     }
-    if (!compose || Object.keys(fieldErrors).length) {
+    if (!compose || !publishTo || Object.keys(fieldErrors).length) {
       throw new ValidationError('Some fields need attention.', { fieldErrors });
     }
     const valid = compose;
+    const places = publishTo;
 
     let result: SubmitAnnouncementResult = { status: 'submitted' };
     try {
       transaction(() => {
         const prior = memberAnnouncements.findBySubmitToken.get(valid.sendToken) as
-          | { member_id: string; subject: string; body_text: string }
+          | {
+            member_id: string; subject: string; body_text: string;
+            summary_event_id: string | null; publish_to: PublishTo;
+          }
           | undefined;
         if (prior) {
           if (prior.member_id === memberId && prior.subject === valid.subject
-            && prior.body_text === valid.bodyText) {
+            && prior.body_text === valid.bodyText && prior.publish_to === places
+            && prior.summary_event_id === summaryEventId) {
             result = { status: 'own_repeat' };
             return;
           }
@@ -700,7 +777,7 @@ export const broadcastService = {
         const now = new Date().toISOString();
         memberAnnouncements.insert.run(
           id, now, memberId, now, memberId,
-          memberId, valid.sendToken, valid.subject, valid.bodyText, summaryEventId,
+          memberId, valid.sendToken, valid.subject, valid.bodyText, summaryEventId, places,
         );
         // The queue row names the announcement and carries none of its words,
         // which stay on the announcement row the item page reads.
@@ -722,12 +799,13 @@ export const broadcastService = {
   },
 
   /**
-   * Another administrator approves a held announcement as written, which sends
-   * it to the announce list under the member's name. The member's daily limit
-   * is counted here, from what was actually sent, and the administrator may
+   * Another administrator approves a held announcement as written, which
+   * publishes it to each place the member chose: the announce list under the
+   * member's name, and a Community post in the news feed. The member's daily
+   * limit is counted here, from what was approved, and the administrator may
    * tick to allow one more, which the audit row records. A repeat of the
-   * administrator's own approval reports it without sending again or spending
-   * a rate-limit slot.
+   * administrator's own approval reports it without publishing again or
+   * spending a rate-limit slot.
    */
   approveAnnouncement(input: {
     queueItemId: string;
@@ -752,41 +830,63 @@ export const broadcastService = {
       throw new ValidationError(TIER_LAPSED);
     }
 
-    const list = sendableList(ANNOUNCE_LIST_SLUG);
+    const places = announcement.publish_to;
+    const list = includesList(places) ? sendableList(ANNOUNCE_LIST_SLUG) : null;
     const compose = validateCompose({
       subject: announcement.subject,
       bodyText: announcement.body_text,
       // The announcement's own id is the send's token, so a second approval
       // can never mail the list twice.
       sendToken: announcement.id,
-    });
+    }, 'markdown');
     const perDay = readIntConfig('announce_send_rate_limit_per_day', 1);
-    let result: AnnouncementDecisionResult = { status: 'approved', archiveId: '' };
+    let result: AnnouncementDecisionResult = { status: 'approved', archiveId: null, newsItemId: null };
     transaction(() => {
       const now = new Date();
       const nowIso = now.toISOString();
       const since = new Date(now.getTime() - DAY_IN_MINUTES * 60_000).toISOString();
-      const sentToday = (emailArchives.countAnnounceSentSince.get(
+      const approvedToday = (memberAnnouncements.countApprovedSince.get(
         announcement.member_id, since,
       ) as { n: number }).n;
-      const overLimit = sentToday >= perDay;
+      const overLimit = approvedToday >= perDay;
       if (overLimit && !input.allowExtra) throw new ValidationError(OVER_LIMIT);
 
-      const sent = sendToListInTx(list, compose, input.adminMemberId, {
-        archiveType: 'announce',
-        actorType: 'admin',
-        senderMemberId: announcement.member_id,
-      });
-      // Nobody can receive it: refused, and the announcement stays waiting,
-      // because marking it approved would record a send that never happened.
-      if (sent.status === 'noop' && sent.reason === 'no_recipients') {
-        throw new ValidationError(COMPOSE_NOTICES.no_recipients[1]);
+      let archiveId: string | null = null;
+      if (list) {
+        const sent = sendToListInTx(list, compose, input.adminMemberId, {
+          archiveType: 'announce',
+          actorType: 'admin',
+          senderMemberId: announcement.member_id,
+        });
+        // Nobody can receive it: refused, and the announcement stays waiting,
+        // because marking it approved would record a send that never happened.
+        if (sent.status === 'noop' && sent.reason === 'no_recipients') {
+          throw new ValidationError(COMPOSE_NOTICES.no_recipients[1]);
+        }
+        if (sent.status !== 'sent') {
+          throw new Error(`announcement ${announcement.id} was already sent while still pending`);
+        }
+        archiveId = sent.archiveId;
       }
-      if (sent.status !== 'sent') {
-        throw new Error(`announcement ${announcement.id} was already sent while still pending`);
+
+      // The Community post: the member's words under the news feed's own
+      // rules, published now, the member as its author and no byline.
+      let newsItemId: string | null = null;
+      if (includesFeed(places)) {
+        const post = newsService.validateAuthoredInput(
+          { title: compose.subject, body: compose.bodyText }, nowIso,
+        );
+        newsItemId = `news_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+        newsItems.insertAuthored.run(
+          newsItemId, nowIso, input.adminMemberId, nowIso, input.adminMemberId,
+          post.publishedAt, 'community_post', post.title, post.body, null, null,
+          announcement.member_id,
+        );
       }
+
       if (memberAnnouncements.markApproved.run(
-        input.adminMemberId, nowIso, sent.archiveId, nowIso, input.adminMemberId, announcement.id,
+        input.adminMemberId, nowIso, archiveId, newsItemId, nowIso, input.adminMemberId,
+        announcement.id,
       ).changes !== 1) {
         throw new Error(`announcement ${announcement.id} left pending between its read and its approval`);
       }
@@ -799,20 +899,30 @@ export const broadcastService = {
         actorMemberId: input.adminMemberId,
         entityType: 'member_announcement',
         entityId: announcement.id,
-        // The words are on the archive row this names; the ledger keeps none.
+        // The words are on the archive row and the post this names; the
+        // ledger keeps none.
         metadata: {
-          archiveId: sent.archiveId,
+          publishTo: places,
+          archiveId,
+          newsItemId,
           limitOverridden: overLimit,
           work_queue_item_id: item.id,
         },
       });
       emailService.sendActNotice({
         template: 'announce_approved',
-        params: { memberName: author.display_name, subject: announcement.subject },
+        params: {
+          memberName: author.display_name,
+          subject: announcement.subject,
+          placesPhrase: APPROVED_PLACES_PHRASE[places],
+          postUrl: newsItemId
+            ? `${config.publicBaseUrl.replace(/\/+$/, '')}/news/${newsItemId}`
+            : null,
+        },
         memberId: announcement.member_id,
         actId: auditId,
       });
-      result = { status: 'approved', archiveId: sent.archiveId };
+      result = { status: 'approved', archiveId, newsItemId };
     });
     return result;
   },

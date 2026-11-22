@@ -9,7 +9,8 @@
  *     withdrawal from upcoming events, the withdrawal of open suggested matches
  *     (performed by IdentityAccessService in the same transaction), the
  *     stopping of queued mail, the withdrawal of a community announcement still
- *     awaiting review (its review item closed, no email), the
+ *     awaiting review (its review item closed, no email), the permanent
+ *     deletion of the member's Community posts in the news feed, the
  *     work-queue item for an event left with no organizer, the soft-delete write
  *     and its audit row, and the one message that tells the member what was
  *     deleted and how long their personal details are held before erasure. An
@@ -40,7 +41,7 @@
  * Persistence:
  *   members (soft-delete columns), media_items, media_tags, member_galleries,
  *   registrations, outbox_emails, work_queue_items, member_announcements,
- *   audit_entries.
+ *   news_items (the member's Community posts, deleted), audit_entries.
  *
  * Side effects:
  *   - audit_entries append (`auth.account_deleted`)
@@ -61,6 +62,7 @@ import {
   media,
   mediaTags,
   memberAnnouncements,
+  newsItems,
   outbox,
   recurringDonationSubscriptions,
   tagStats,
@@ -291,6 +293,10 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
           nowIso, actorId, input.memberId,
         );
         memberAnnouncements.withdrawPendingForMember.run(nowIso, actorId, input.memberId);
+        // The member's Community posts go now and for good, as their media
+        // does. An announcement that was also mailed keeps its broadcast
+        // record; its link to the post clears with the post.
+        newsItems.deleteCommunityPostsForMember.run(input.memberId);
         // Enqueued after the dead-letter sweep below, or it would be caught by
         // it, and addressed by the literal address read before the soft delete,
         // because the member-resolving send path reads the active view and would

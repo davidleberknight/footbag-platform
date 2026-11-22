@@ -73,6 +73,13 @@ import {
   PUBLIC_UPCOMING_VISIBLE_STATUSES,
 } from '../services/eventVisibility';
 import { PUBLIC_FREESTYLE_RECORD_CONFIDENCES } from '../services/freestyleRecordVisibility';
+import {
+  NEVER_VERIFYING_PASSWORD_HASH,
+  PRODUCTION_COPY_CONFIG_KEY,
+  PROVIDER_ID_PLACEHOLDER,
+  TOKEN_LINK_TEMPLATE_KEYS,
+  stripProviderIds,
+} from '../lib/productionCopy';
 
 const PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL = PUBLIC_EVENT_DETAIL_VISIBLE_STATUSES
   .map((status) => `'${status}'`)
@@ -94,10 +101,13 @@ const PUBLIC_NEWS_SELECT = `
     SELECT n.id, n.news_type, n.title, n.body, n.published_at,
            n.entity_type, n.entity_id,
            e.id AS event_id, e.title AS event_title,
-           t.tag_normalized AS event_tag_normalized, t.tag_display AS event_tag_display
+           t.tag_normalized AS event_tag_normalized, t.tag_display AS event_tag_display,
+           c.id AS club_id, ct.tag_normalized AS club_tag_normalized
     FROM news_items AS n
     LEFT JOIN events AS e ON n.entity_type = 'event' AND e.id = n.entity_id
-    LEFT JOIN tags AS t ON t.id = e.hashtag_tag_id`;
+    LEFT JOIN tags AS t ON t.id = e.hashtag_tag_id
+    LEFT JOIN clubs_open AS c ON n.entity_type = 'club' AND c.id = n.entity_id
+    LEFT JOIN tags AS ct ON ct.id = c.hashtag_tag_id`;
 
 const PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL = PUBLIC_FREESTYLE_RECORD_CONFIDENCES
   .map((c) => `'${c}'`)
@@ -10271,14 +10281,6 @@ export const emailArchives = {
     SELECT COUNT(*) AS n FROM email_archives
   `); },
 
-  // A member's announcements actually sent since a cutoff: the daily limit is
-  // counted at approval, from what went out, so an announcement sent back
-  // never counts. Params: (memberId, sinceIso).
-  get countAnnounceSentSince() { return db.prepare(`
-    SELECT COUNT(*) AS n FROM email_archives
-    WHERE archive_type = 'announce' AND sender_member_id = ? AND sent_at >= ?
-  `); },
-
   get getById() { return db.prepare(`
     SELECT
       a.id, a.created_at, a.archive_type, a.mailing_list_id, a.event_id,
@@ -10676,9 +10678,9 @@ export const newsItems = {
   // The public reads. Each shows only an item that is public and whose
   // publication time has arrived, and an item about an event only while that
   // event is publicly visible, so a cancelled or unpublished event's items
-  // leave every public surface with it. The author comes through the
-  // onboarded-members view, so a deleted or unfinished account names no one.
-  // The event's hashtag and id feed its gallery link and cover photo.
+  // leave every public surface with it. The event's hashtag and id feed its
+  // gallery link and cover photo; a club item's club joins only while its page
+  // is public, so the item stays and its club link goes with an archived club.
 
   // Params: (nowIso, year as four digits). Newest first.
   get listPublicByYear() { return db.prepare(`
@@ -10701,6 +10703,86 @@ export const newsItems = {
     WHERE ${PUBLIC_NEWS_VISIBLE}
     ORDER BY year DESC
   `); },
+
+  // The administrators' reads and writes. An authored item records the person
+  // who wrote it; unlike an automatic item it may share its source entity with
+  // other items, so it takes no conflict target.
+  // Params: (id, nowIso, actorId, nowIso, actorId, publishedAt, newsType,
+  //          title, body, entityType, entityId, authorMemberId).
+  get insertAuthored() { return db.prepare(`
+    INSERT INTO news_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      published_at, news_type, title, body, entity_type, entity_id, is_public,
+      author_member_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 1, ?)
+  `); },
+
+  // Params: (title, body, publishedAt, entityType, entityId, nowIso, actorId, id).
+  get updateContent() { return db.prepare(`
+    UPDATE news_items
+    SET title = ?, body = ?, published_at = ?, entity_type = ?, entity_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ?
+  `); },
+
+  // Changes nothing when the item already holds the asked state.
+  // Params: (isPublic, nowIso, actorId, id, isPublic).
+  get setPublic() { return db.prepare(`
+    UPDATE news_items
+    SET is_public = ?, updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND is_public <> ?
+  `); },
+
+  // Params: (id).
+  get deleteById() { return db.prepare(`
+    DELETE FROM news_items WHERE id = ?
+  `); },
+
+  // A member's Community posts, deleted at their account deletion request. An
+  // item they wrote as administrator is an act on the platform and stays.
+  // Params: (memberId).
+  get deleteCommunityPostsForMember() { return db.prepare(`
+    DELETE FROM news_items WHERE author_member_id = ? AND news_type = 'community_post'
+  `); },
+
+  // One item whatever its state, with the event or club it is about, archived
+  // clubs included. Params: (id).
+  get getForAdmin() { return db.prepare(`
+    SELECT n.id, n.news_type, n.title, n.body, n.published_at, n.is_public,
+           n.entity_type, n.entity_id, n.author_member_id,
+           e.title AS event_title, et.tag_display AS event_tag_display,
+           c.name AS club_name, ct.tag_display AS club_tag_display
+    FROM news_items AS n
+    LEFT JOIN events AS e ON n.entity_type = 'event' AND e.id = n.entity_id
+    LEFT JOIN tags AS et ON et.id = e.hashtag_tag_id
+    LEFT JOIN clubs_all AS c ON n.entity_type = 'club' AND c.id = n.entity_id
+    LEFT JOIN tags AS ct ON ct.id = c.hashtag_tag_id
+    WHERE n.id = ?
+  `); },
+
+  // Every item, newest first, a page at a time. Params: (limit, offset).
+  get listForAdmin() { return db.prepare(`
+    SELECT id, news_type, title, published_at, is_public
+    FROM news_items
+    ORDER BY published_at DESC, id DESC
+    LIMIT ? OFFSET ?
+  `); },
+
+  get countForAdmin() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM news_items
+  `); },
+
+  // The event or club carrying one hashtag, in its stored form; a hashtag
+  // belongs to at most one of them. Params: (tagNormalized, tagNormalized).
+  get entityByHashtag() { return db.prepare(`
+    SELECT 'event' AS entity_type, e.id AS entity_id
+    FROM events AS e JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE t.tag_normalized = ?
+    UNION ALL
+    SELECT 'club' AS entity_type, c.id AS entity_id
+    FROM clubs_all AS c JOIN tags AS t ON t.id = c.hashtag_tag_id
+    WHERE t.tag_normalized = ?
+  `); },
 };
 
 // ── memberAnnouncements ─────────────────────────────────────────────────────
@@ -10710,12 +10792,21 @@ export const newsItems = {
 // as written or sends them back, and never edits them.
 export const memberAnnouncements = {
   // Params: (id, nowIso, memberId, nowIso, memberId, memberId, submitToken,
-  //          subject, bodyText, summaryEventId).
+  //          subject, bodyText, summaryEventId, publishTo).
   get insert() { return db.prepare(`
     INSERT INTO member_announcements (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, submit_token, subject, body_text, status, summary_event_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending', ?)
+      member_id, submit_token, subject, body_text, status, summary_event_id,
+      publish_to
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, 'pending', ?, ?)
+  `); },
+
+  // A member's announcements approved since a cutoff, whatever their places:
+  // the daily limit is counted at approval, so an announcement sent back
+  // never counts. Params: (memberId, sinceIso).
+  get countApprovedSince() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM member_announcements
+    WHERE member_id = ? AND status = 'approved' AND decided_at >= ?
   `); },
 
   // The sanctioned events a member organizes that have ended and still owe
@@ -10737,14 +10828,14 @@ export const memberAnnouncements = {
 
   // What a repeated submit of one form finds: the row its first submit wrote.
   get findBySubmitToken() { return db.prepare(`
-    SELECT id, member_id, subject, body_text, status
+    SELECT id, member_id, subject, body_text, status, summary_event_id, publish_to
     FROM member_announcements
     WHERE submit_token = ?
   `); },
 
   get findById() { return db.prepare(`
     SELECT id, member_id, subject, body_text, status, admin_comment,
-           decided_by_member_id, decided_at, email_archive_id
+           decided_by_member_id, decided_at, email_archive_id, publish_to
     FROM member_announcements
     WHERE id = ?
   `); },
@@ -10757,19 +10848,22 @@ export const memberAnnouncements = {
   // The member's newest announcement, which decides what the form shows: a
   // pending one, or a sent-back one to change and resubmit.
   get findLatestForMember() { return db.prepare(`
-    SELECT id, subject, body_text, status, admin_comment
+    SELECT id, subject, body_text, status, admin_comment, publish_to
     FROM member_announcements
     WHERE member_id = ?
     ORDER BY created_at DESC, id DESC
     LIMIT 1
   `); },
 
-  // Guarded on the pending status, so two decisions cannot both land.
-  // Params: (adminId, nowIso, archiveId, nowIso, adminId, id).
+  // Guarded on the pending status, so two decisions cannot both land. The
+  // archive id is null when the list was not among its places, the news item
+  // id when the feed was not. Params: (adminId, nowIso, archiveId, newsItemId,
+  // nowIso, adminId, id).
   get markApproved() { return db.prepare(`
     UPDATE member_announcements
     SET status = 'approved', decided_by_member_id = ?, decided_at = ?,
-        email_archive_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+        email_archive_id = ?, news_item_id = ?,
+        updated_at = ?, updated_by = ?, version = version + 1
     WHERE id = ? AND status = 'pending'
   `); },
 
@@ -12954,10 +13048,20 @@ export const memberExport = {
   // deciding administrator is never selected; the comment they wrote back is
   // the member's to read.
   get memberAnnouncements() { return db.prepare(`
-    SELECT subject, body_text, status, admin_comment, created_at, decided_at
+    SELECT subject, body_text, status, admin_comment, publish_to, created_at, decided_at
     FROM member_announcements
     WHERE member_id = ?
     ORDER BY created_at, id
+  `); },
+
+  // The member's Community posts, shown or hidden. An item an administrator
+  // wrote also records its author, but as an act performed as administrator it
+  // is not among what the download holds about the member.
+  get communityPosts() { return db.prepare(`
+    SELECT title, body, published_at, is_public
+    FROM news_items
+    WHERE author_member_id = ? AND news_type = 'community_post'
+    ORDER BY published_at, id
   `); },
 
   // Work-queue items about the member. No actor column is selected, and
@@ -14247,3 +14351,232 @@ export function savepoint<T>(work: () => T): T {
 export function inTransaction(): boolean {
   return helperTransactionOpen;
 }
+
+// ---------------------------------------------------------------------------
+// Copy of the production database
+// ---------------------------------------------------------------------------
+//
+// The copy builder runs in a process whose connection here is opened on a
+// fresh, empty file, with the snapshot it copies from attached beside it under
+// the schema name `snapshot`. Every statement below reads the snapshot and
+// writes the fresh file; none reaches the live database, which the builder
+// only ever reads through a backup. Table and column names come from the
+// column register and are checked against a plain identifier shape before they
+// are spliced into SQL.
+
+const COPY_SNAPSHOT_SCHEMA = 'snapshot';
+const COPY_IDENTIFIER = /^[a-z_][a-z0-9_]*$/;
+
+function copyIdent(name: string): string {
+  if (!COPY_IDENTIFIER.test(name)) {
+    throw new Error(`production copy: '${name}' is not a plain table or column name`);
+  }
+  return `"${name}"`;
+}
+
+const COPY_TOKEN_TEMPLATE_SQL = TOKEN_LINK_TEMPLATE_KEYS.map((k) => `'${k}'`).join(', ');
+
+// A row that names a payment-provider object by its identifier: a payout,
+// dispute, refund or payment intent, recorded under a provider entity type.
+const COPY_PROVIDER_ENTITY_ROW = `entity_type LIKE 'stripe\\_%' ESCAPE '\\'`;
+
+/**
+ * The value a copy writes for each column the register marks `rewrite`, as an
+ * expression over the snapshot row. The register states why for each one; a
+ * test holds the two in step, so a rewrite in one has an expression here.
+ */
+export const PRODUCTION_COPY_REWRITES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  audit_entries: {
+    entity_id: `CASE WHEN ${COPY_PROVIDER_ENTITY_ROW} THEN '${PROVIDER_ID_PLACEHOLDER}' ELSE entity_id END`,
+    metadata_json: 'copy_strip_provider_ids(metadata_json)',
+  },
+  members: {
+    password_hash: `CASE WHEN password_hash IS NULL THEN NULL ELSE '${NEVER_VERIFYING_PASSWORD_HASH}' END`,
+  },
+  outbox_emails: {
+    // Unsent rows are left behind by the row filter, so every row reaching the
+    // copy was sent and keeps its recipient.
+    recipient_email: 'recipient_email',
+    body_text: `CASE WHEN template_key IN (${COPY_TOKEN_TEMPLATE_SQL}) THEN NULL ELSE body_text END`,
+  },
+  payment_status_transitions: {
+    metadata_json: 'copy_strip_provider_ids(metadata_json)',
+  },
+  payments: {
+    metadata_json: 'copy_strip_provider_ids(metadata_json)',
+  },
+  reconciliation_issues: {
+    details_json: 'copy_strip_provider_ids(details_json)',
+  },
+  recurring_donation_subscription_transitions: {
+    stripe_subscription_id: `'${PROVIDER_ID_PLACEHOLDER}'`,
+    metadata_json: 'copy_strip_provider_ids(metadata_json)',
+  },
+  recurring_donation_subscriptions: {
+    status: `CASE WHEN status IN ('active', 'past_due') THEN 'canceled' ELSE status END`,
+  },
+  system_config: {
+    value_json: `CASE WHEN config_key = 'post_cutover' THEN '0' ELSE value_json END`,
+  },
+  system_job_runs: {
+    details_json: 'copy_strip_provider_ids(details_json)',
+  },
+  work_queue_items: {
+    entity_id: `CASE WHEN ${COPY_PROVIDER_ENTITY_ROW} THEN '${PROVIDER_ID_PLACEHOLDER}' ELSE entity_id END`,
+    detail_text: `CASE WHEN ${COPY_PROVIDER_ENTITY_ROW} THEN NULL ELSE detail_text END`,
+  },
+};
+
+/** Rows a copy leaves behind, per table: only rows matching the filter are copied. */
+export const PRODUCTION_COPY_ROW_FILTERS: Readonly<Record<string, string>> = {
+  // An unsent message is not copied, so nothing in a copy can deliver it.
+  outbox_emails: `status = 'sent'`,
+};
+
+/**
+ * What must be absent from a finished copy, each as a condition that counts
+ * the offending rows. The builder refuses to finish while any count is above
+ * zero. JSON columns are checked separately, value by value.
+ */
+export const PRODUCTION_COPY_RESIDUE_CHECKS: ReadonlyArray<{ label: string; table: string; offending: string }> = [
+  { label: 'a password hash that could verify', table: 'members',
+    offending: `password_hash IS NOT NULL AND password_hash <> '${NEVER_VERIFYING_PASSWORD_HASH}'` },
+  { label: 'an unsent message', table: 'outbox_emails', offending: `status <> 'sent'` },
+  { label: 'a sent body carrying a one-time link', table: 'outbox_emails',
+    offending: `body_text IS NOT NULL AND (template_key IN (${COPY_TOKEN_TEMPLATE_SQL})
+      OR body_text LIKE '%/verify/%' OR body_text LIKE '%/password/reset/%')` },
+  { label: 'a provider object named in the audit log', table: 'audit_entries',
+    offending: `${COPY_PROVIDER_ENTITY_ROW} AND entity_id <> '${PROVIDER_ID_PLACEHOLDER}'` },
+  { label: 'a provider object named in the work queue', table: 'work_queue_items',
+    offending: `${COPY_PROVIDER_ENTITY_ROW} AND (entity_id <> '${PROVIDER_ID_PLACEHOLDER}' OR detail_text IS NOT NULL)` },
+  { label: 'a subscription still billing', table: 'recurring_donation_subscriptions',
+    offending: `status IN ('active', 'past_due')` },
+  { label: 'a subscription ledger row naming a provider subscription',
+    table: 'recurring_donation_subscription_transitions',
+    offending: `stripe_subscription_id <> '${PROVIDER_ID_PLACEHOLDER}'` },
+  { label: 'a cutover marker reading complete', table: 'system_config',
+    offending: `config_key = 'post_cutover' AND value_json <> '0'` },
+];
+
+export interface CopySnapshotObject {
+  type: 'table' | 'index' | 'view' | 'trigger';
+  name: string;
+  tbl_name: string;
+  sql: string;
+}
+
+export const productionCopy = {
+  /** Tables, indexes, views and triggers in the connection's own file. */
+  countOwnSchemaObjects(): number {
+    const row = db.prepare(`SELECT COUNT(*) AS n FROM main.sqlite_master`).get() as { n: number };
+    return row.n;
+  },
+
+  attachSnapshot(path: string): void {
+    db.prepare(`ATTACH DATABASE ? AS ${COPY_SNAPSHOT_SCHEMA}`).run(path);
+  },
+
+  detachSnapshot(): void {
+    db.exec(`DETACH DATABASE ${COPY_SNAPSHOT_SCHEMA}`);
+  },
+
+  /**
+   * Every object the snapshot's schema defines, in the order it was created,
+   * leaving out the engine's own internal tables and its automatic indexes,
+   * which carry no SQL and are rebuilt by their tables.
+   */
+  listSnapshotObjects(): CopySnapshotObject[] {
+    return db.prepare(`
+      SELECT type, name, tbl_name, sql
+      FROM ${COPY_SNAPSHOT_SCHEMA}.sqlite_master
+      WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite\\_%' ESCAPE '\\'
+      ORDER BY rowid
+    `).all() as CopySnapshotObject[];
+  },
+
+  listSnapshotColumns(table: string): string[] {
+    return (db.prepare(`SELECT name FROM pragma_table_info(?, ?) ORDER BY cid`)
+      .all(table, COPY_SNAPSHOT_SCHEMA) as { name: string }[]).map((r) => r.name);
+  },
+
+  /** Run one object's definition, as the snapshot wrote it, in the fresh file. */
+  createObject(sql: string): void {
+    db.exec(sql);
+  },
+
+  /**
+   * Foreign keys are off while tables load in an order that ignores them, and
+   * checked in full once everything is in.
+   */
+  setForeignKeys(on: boolean): void {
+    db.pragma(`foreign_keys = ${on ? 'ON' : 'OFF'}`);
+  },
+
+  registerFunctions(): void {
+    db.function('copy_strip_provider_ids', { deterministic: true }, (json: unknown) =>
+      stripProviderIds(json === null || json === undefined ? null : String(json)));
+  },
+
+  /** Copy one table's rows; each column takes the expression the plan gives it. */
+  copyTable(table: string, columns: ReadonlyArray<{ name: string; expression: string }>, rowFilter: string | null): number {
+    const names = columns.map((c) => copyIdent(c.name)).join(', ');
+    const values = columns.map((c) => c.expression).join(', ');
+    const where = rowFilter ? ` WHERE ${rowFilter}` : '';
+    const info = db.prepare(
+      `INSERT INTO main.${copyIdent(table)} (${names}) SELECT ${values} FROM ${COPY_SNAPSHOT_SCHEMA}.${copyIdent(table)}${where}`,
+    ).run();
+    return info.changes;
+  },
+
+  /** The whole load commits once, so a failure leaves no partly loaded copy. */
+  inOneTransaction(work: () => void): void {
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      work();
+      db.exec('COMMIT');
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  },
+
+  appendCopyMarker(id: string, at: string, valueJson: string, reason: string): void {
+    db.prepare(`
+      INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
+      VALUES (?, ?, ?, ?, ?, ?, NULL)
+    `).run(id, at, PRODUCTION_COPY_CONFIG_KEY, valueJson, at, reason);
+  },
+
+  countRows(table: string, condition: string | null): number {
+    const where = condition ? ` WHERE ${condition}` : '';
+    const row = db.prepare(`SELECT COUNT(*) AS n FROM main.${copyIdent(table)}${where}`).get() as { n: number };
+    return row.n;
+  },
+
+  countNonNull(table: string, column: string): number {
+    const row = db.prepare(
+      `SELECT COUNT(*) AS n FROM main.${copyIdent(table)} WHERE ${copyIdent(column)} IS NOT NULL`,
+    ).get() as { n: number };
+    return row.n;
+  },
+
+  /** One column's values, read a row at a time so a large table is not held whole. */
+  iterateColumn(table: string, column: string): IterableIterator<{ value: string | null }> {
+    return db.prepare(`SELECT ${copyIdent(column)} AS value FROM main.${copyIdent(table)}`)
+      .iterate() as IterableIterator<{ value: string | null }>;
+  },
+
+  integrityCheck(): string[] {
+    return (db.pragma('integrity_check') as { integrity_check: string }[]).map((r) => r.integrity_check);
+  },
+
+  foreignKeyViolations(): number {
+    return (db.pragma('foreign_key_check') as unknown[]).length;
+  },
+
+  /** Fold the write-ahead log in, so the finished copy is one self-contained file. */
+  settleToSingleFile(): void {
+    db.pragma('wal_checkpoint(TRUNCATE)');
+    db.pragma('journal_mode = DELETE');
+  },
+};

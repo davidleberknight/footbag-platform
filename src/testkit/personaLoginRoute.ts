@@ -28,6 +28,7 @@ import { issueSessionCookie } from '../lib/sessionCookie';
 import { memberOnboardingService } from '../services/memberOnboardingService';
 import { appendAuditEntry } from '../services/auditService';
 import { PERSONA_LOGIN_AUDIT_ACTION_TYPE } from './personaFactory';
+import { PERSONAS_ONLY_ON_COPY_MESSAGE, testRouteMayUseAddress } from './productionCopyGuard';
 
 interface PersonaEmailRow {
   login_email: string;
@@ -49,6 +50,10 @@ export async function getDevLogin(
     const row = auth.personaLoginEmailBySlug.get(slug) as PersonaEmailRow | undefined;
     if (!row) {
       res.status(404).send(`no persona with slug '${slug}'`);
+      return;
+    }
+    if (!testRouteMayUseAddress(row.login_email)) {
+      res.status(403).send(PERSONAS_ONLY_ON_COPY_MESSAGE);
       return;
     }
 

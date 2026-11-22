@@ -136,8 +136,9 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   insertEventOrganizer(db, crawlEventId, CRAWL_ADMIN_ID);
 
   // The news feed: an administrator's item, a member's Community post, an item
-  // about the crawl event with its hashtag, and an item from an
-  // earlier year, so the landing page's year navigation reaches a year page.
+  // about the crawl event with its hashtag, an item from an earlier year, so
+  // the landing page's year navigation reaches a year page, and a hidden item,
+  // whose admin page offers the restore form.
   const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
   insertNewsItem(db, {
     id: 'news_crawl_announcement', published_at: anHourAgo, news_type: 'announcement', title: 'Crawl Announcement',
@@ -151,6 +152,7 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
     entity_type: 'event', entity_id: crawlEventId,
   });
   insertNewsItem(db, { id: 'news_crawl_earlier', published_at: '2024-05-01T12:00:00.000Z', title: 'Crawl Earlier News' });
+  insertNewsItem(db, { id: 'news_crawl_hidden', published_at: anHourAgo, title: 'Crawl Hidden News', is_public: 0 });
   insertDiscipline(db, crawlEventId, {
     name: 'Open Singles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
     team_type: 'singles', gender_eligibility: 'open', division_class: 'open',

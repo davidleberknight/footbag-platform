@@ -1,6 +1,6 @@
 {{! One news item's own page, in the detail-page order: an event item's cover,
     the item's facts, an event item's media line, the body, the link to the
-    event, and the link back to the item's year. }}
+    event or the club, and the link back to the item's year. }}
 
 <div class="hero hero-sm">
   <div>
@@ -26,6 +26,9 @@
 
     {{#if content.event}}
       <p><a class="action-link" id="news-event-link" href="{{content.event.href}}">{{content.event.linkLabel}}</a></p>
+    {{/if}}
+    {{#if content.club}}
+      <p><a class="action-link" id="news-club-link" href="{{content.club.href}}">{{content.club.linkLabel}}</a></p>
     {{/if}}
   </section>
 

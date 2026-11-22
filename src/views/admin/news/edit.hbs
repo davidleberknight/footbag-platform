@@ -1,0 +1,102 @@
+{{! Writing a News item, or one item's admin page: a News item's edit form or a
+    Community post as written, then hiding, restoring and deleting it }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+
+  {{#if content.facts}}
+    <div class="event-meta-row" id="admin-news-facts">
+      <span class="badge badge-muted">{{content.facts.label}}</span>
+      <span>{{content.facts.publishedText}}</span>
+      <span>{{content.facts.stateLabel}}</span>
+      <span>{{content.facts.sourceLabel}}</span>
+    </div>
+  {{/if}}
+
+  <section>
+    {{#if content.saved}}
+    {{> outcome-notice text="Saved." tone='ok'}}
+    {{/if}}
+    {{> outcome-notice lines=content.errorList tone='no'}}
+
+    {{#if content.preview}}
+      <div class="section-heading"><h2>Preview</h2></div>
+      <div class="card" id="admin-news-preview">
+        <h3 class="card-title">{{content.preview.title}}</h3>
+        <p class="card-meta">{{content.preview.label}} &middot; {{content.preview.dateText}}</p>
+        {{{content.preview.bodyHtml}}}
+      </div>
+    {{/if}}
+
+    {{#if content.communityPost}}
+      <div class="card" id="admin-news-community-post">
+        <h3 class="card-title">{{content.communityPost.title}}</h3>
+        {{{content.communityPost.bodyHtml}}}
+      </div>
+    {{/if}}
+
+    {{#if content.isEditable}}
+      <form method="POST" action="{{content.formAction}}" class="form-block">
+        <div class="form-field">
+          <label for="news-title">Title</label>
+          <input type="text" id="news-title" name="title" value="{{content.fields.title}}" maxlength="200" required />
+          {{#if content.fieldErrors.title}}<p class="form-field-error" role="alert">{{content.fieldErrors.title}}</p>{{/if}}
+        </div>
+        <div class="form-field">
+          <label for="news-body">Body</label>
+          <textarea id="news-body" name="body" rows="12" required>{{content.fields.body}}</textarea>
+          {{#if content.fieldErrors.body}}<p class="form-field-error" role="alert">{{content.fieldErrors.body}}</p>{{/if}}
+        </div>
+        <div class="form-field">
+          <label for="news-hashtag">Linked event or club hashtag (optional)</label>
+          {{#if content.hashtagLocked}}
+            <input type="text" id="news-hashtag" value="{{content.fields.hashtag}}" readonly />
+            <small class="form-hint">This item was created for its event, so its link cannot change.</small>
+          {{else}}
+            <input type="text" id="news-hashtag" name="hashtag" value="{{content.fields.hashtag}}" />
+          {{/if}}
+          {{#if content.fieldErrors.hashtag}}<p class="form-field-error" role="alert">{{content.fieldErrors.hashtag}}</p>{{/if}}
+        </div>
+        <div class="form-field">
+          <label for="news-published-at">Publish date and time (UTC; empty means now)</label>
+          <input type="text" id="news-published-at" name="publishedAt" value="{{content.fields.publishedAt}}" />
+          {{#if content.fieldErrors.publishedAt}}<p class="form-field-error" role="alert">{{content.fieldErrors.publishedAt}}</p>{{/if}}
+        </div>
+        <div class="form-actions">
+          <button type="submit" name="step" value="preview" class="btn btn-outline">Preview</button>
+          <button type="submit" name="step" value="save" class="btn btn-primary">Save</button>
+        </div>
+      </form>
+    {{/if}}
+  </section>
+
+  {{#if content.moderation}}
+    <section>
+      {{#if content.moderation.isHidden}}
+        <form method="POST" action="{{content.moderation.restoreAction}}" class="form-block">
+          <div class="form-actions">
+            <button type="submit" class="btn btn-outline">Restore Item</button>
+          </div>
+        </form>
+      {{else}}
+        <form method="POST" action="{{content.moderation.hideAction}}" class="form-block">
+          <div class="form-field">
+            <label for="news-hide-reason">Reason</label>
+            <textarea id="news-hide-reason" name="reason" rows="3" maxlength="500" required>{{content.moderation.reasonValue}}</textarea>
+            {{#if content.moderation.reasonError}}<p class="form-field-error" role="alert">{{content.moderation.reasonError}}</p>{{/if}}
+          </div>
+          <div class="form-actions">
+            <button type="submit" class="btn btn-outline">Hide Item</button>
+          </div>
+        </form>
+      {{/if}}
+      <p><a href="{{content.moderation.deleteHref}}" class="btn btn-outline">Delete Item</a></p>
+    </section>
+  {{/if}}
+</div>

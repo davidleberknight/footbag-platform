@@ -25,6 +25,18 @@
 # container as a hard kill. The default is read from the app's own constant
 # (DEFAULT_FFMPEG_TIMEOUT_MS in src/lib/videoProcessing.ts), never copied here.
 #
+# A lost exit: on some Docker hosts (a WSL2 workstation is one) a container's
+# process ends but the engine never records it, so `docker run` waits on a
+# container that is doing nothing until the caller's ceiling kills it, and the
+# encode that succeeded is reported as a timeout. So the runner does not rely
+# on Docker's exit alone: the container writes the tool's exit code to a status
+# file under /tmp, and once that file exists and the client has still not
+# returned after a grace period (FOOTBAG_FFMPEG_EXIT_GRACE_SECONDS, default 10),
+# the runner removes the container (bounded by FOOTBAG_FFMPEG_RM_TIMEOUT_SECONDS,
+# default 20) and exits with the recorded code. Each container is named, so an
+# interrupt, or a client that dies on its own, removes it too; and a run that
+# records no result at all is ended at the runner's own deadline (exit 124).
+#
 # What it refuses to do: run when the image for the pinned version has not been
 # built (it says to run the install), or install a build whose ffmpeg reports a
 # version other than the pin.
@@ -91,7 +103,8 @@ default_ms="$(sed -n 's/^export const DEFAULT_FFMPEG_TIMEOUT_MS = \([0-9_]*\);.*
   "${REPO_ROOT}/src/lib/videoProcessing.ts" | tr -d _)"
 [[ "$default_ms" =~ ^[0-9]+$ ]] || { echo "ERROR: cannot read DEFAULT_FFMPEG_TIMEOUT_MS from src/lib/videoProcessing.ts." >&2; exit 1; }
 CEILING="${FFMPEG_TIMEOUT_SECONDS:-$(( default_ms / 1000 ))}"
-[[ "$CEILING" =~ ^[0-9]+$ ]] || { echo "ERROR: FFMPEG_TIMEOUT_SECONDS must be a whole number of seconds." >&2; exit 2; }
+# Zero is refused: `timeout 0` means no limit at all.
+[[ "$CEILING" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: FFMPEG_TIMEOUT_SECONDS must be a positive whole number of seconds." >&2; exit 2; }
 
 # The same paths inside as outside, each mounted once.
 MOUNTS=()
@@ -102,5 +115,99 @@ for dir in /tmp "${HOME:-}" "$PWD"; do
   MOUNTS+=(-v "${dir}:${dir}")
 done
 
-exec "$DOCKER" run --rm -i --user "$(id -u):$(id -g)" "${MOUNTS[@]}" -w "$PWD" \
-  --entrypoint timeout "$IMAGE" -s KILL "$CEILING" "$TOOL" "$@"
+GRACE="${FOOTBAG_FFMPEG_EXIT_GRACE_SECONDS:-10}"
+RM_TIMEOUT="${FOOTBAG_FFMPEG_RM_TIMEOUT_SECONDS:-20}"
+[[ "$GRACE" =~ ^[0-9]+$ && "$RM_TIMEOUT" =~ ^[1-9][0-9]*$ ]] \
+  || { echo "ERROR: FOOTBAG_FFMPEG_EXIT_GRACE_SECONDS must be a whole number of seconds and FOOTBAG_FFMPEG_RM_TIMEOUT_SECONDS a positive one." >&2; exit 2; }
+# The runner's own last resort, for a container that ends without recording a
+# result (its shell killed) and whose exit Docker also loses: nothing else would
+# ever end the wait, and not every caller has a watchdog of its own.
+DEADLINE=$(( CEILING + GRACE + 10 ))
+
+NAME="footbag-ffmpeg-$$-${RANDOM}${RANDOM}"
+STATUS_DIR="$(mktemp -d /tmp/footbag-ffmpeg.XXXXXX)"
+STATUS_FILE="${STATUS_DIR}/status"
+CLIENT=""
+
+# The caller's watchdog stops a stuck encode with SIGKILL, which no trap here
+# can see. The docker client is given a parent-death signal so it dies with
+# this script; otherwise it would outlive it, hold the caller's output pipe
+# open, and the caller would learn of its timeout only when the container ended
+# on its own. setpriv is util-linux; where it is missing the client runs
+# without it and the in-container ceiling still ends the encode. A SIGKILL
+# also leaves this run's status directory in /tmp, empty or holding one exit
+# code; nothing reads it again.
+PDEATH=()
+command -v setpriv >/dev/null 2>&1 && PDEATH=(setpriv --pdeathsig KILL --)
+
+# Bounded, because an engine that lost an exit can hang the removal as well.
+remove_container() {
+  local out
+  if out="$(timeout "$RM_TIMEOUT" "$DOCKER" rm -f "$NAME" 2>&1)"; then
+    return 0
+  fi
+  echo "WARNING: container ${NAME} could not be removed (${out:-docker rm did not answer within ${RM_TIMEOUT}s}); restarting the Docker service clears it." >&2
+}
+
+# Ends a docker client still waiting and removes its container, so neither an
+# interrupt nor a lost exit leaves an encoder or a stuck container behind. The
+# container goes first: removing it ends the client's streams, so output the
+# client still holds is delivered before the client itself is killed.
+stop_client() {
+  set +e
+  if [[ -n "$CLIENT" ]] && kill -0 "$CLIENT" 2>/dev/null; then
+    remove_container
+    kill -KILL "$CLIENT" 2>/dev/null
+    wait "$CLIENT" 2>/dev/null
+  fi
+  CLIENT=""
+}
+# A second interrupt during cleanup must not abandon the removal half done.
+cleanup() { trap '' INT TERM HUP; stop_client; rm -rf "$STATUS_DIR"; }
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+
+# Inside the container: run the tool under the ceiling, then record its exit
+# code where the host can read it without asking Docker. A ceiling kill exits
+# 137 (128 + SIGKILL), measured on the pinned image. A failed write is said
+# aloud, since it switches off the lost-exit recovery for this run.
+IN_CONTAINER='status=$1; ceiling=$2; shift 2; timeout -s KILL "$ceiling" "$@"; rc=$?; echo "$rc" > "$status" || echo "ffmpeg-pinned: could not record the exit status in $status" >&2; exit "$rc"'
+
+started=$SECONDS
+"${PDEATH[@]}" "$DOCKER" run --rm -i --name "$NAME" --user "$(id -u):$(id -g)" "${MOUNTS[@]}" -w "$PWD" \
+  --entrypoint sh "$IMAGE" -c "$IN_CONTAINER" ffmpeg-pinned "$STATUS_FILE" "$CEILING" "$TOOL" "$@" <&0 &
+CLIENT=$!
+
+seen_at=""
+while kill -0 "$CLIENT" 2>/dev/null; do
+  if (( SECONDS - started >= DEADLINE )); then
+    echo "ERROR: ${TOOL} in ${NAME} recorded no result within ${DEADLINE}s, past its ${CEILING}s ceiling; removing the container." >&2
+    stop_client
+    exit 124
+  fi
+  if [[ -s "$STATUS_FILE" ]]; then
+    seen_at="${seen_at:-$SECONDS}"
+    if (( SECONDS - seen_at >= GRACE )); then
+      recorded="$(<"$STATUS_FILE")"
+      [[ "$recorded" =~ ^[0-9]+$ ]] || recorded=1
+      echo "WARNING: Docker did not record the exit of ${NAME}; ${TOOL} ended with status ${recorded}, so the container is being removed." >&2
+      stop_client
+      exit "$recorded"
+    fi
+  fi
+  sleep 0.1
+done
+
+rc=0
+wait "$CLIENT" || rc=$?
+CLIENT=""
+# A client that failed without the tool recording a result may have died on its
+# own (a dropped daemon connection, a kill) with the container still encoding,
+# or Docker may have refused to start it; remove only a container that exists.
+if (( rc != 0 )) && [[ ! -s "$STATUS_FILE" ]]; then
+  present="$(timeout "$RM_TIMEOUT" "$DOCKER" ps -aq --filter "name=^${NAME}\$" 2>&1)" || present="unknown"
+  [[ -z "$present" ]] || remove_container
+fi
+exit "$rc"

@@ -32,6 +32,8 @@ export interface SportSectionProseSegment {
 }
 
 export interface SportSectionExplainer {
+  /** Anchor for an explainer that is itself a subsection a link elsewhere opens. */
+  id?: string;
   heading: string;
   paragraphs: SportSectionProseSegment[][];
 }

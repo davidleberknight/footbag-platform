@@ -70,6 +70,15 @@ describe('game section landing pages (X-Square, Golf, Sideline)', () => {
     expect(segments.some((s) => s.href === '/x-square')).toBe(true);
   });
 
+  // Defect caught: the anchor the Hack menu entry opens goes missing from the
+  // Sideline explainer, or leaks onto X-Square and Golf, giving them a
+  // subsection address nothing links to.
+  it('anchors only the Sideline explainer, as the getting-a-hack subsection', () => {
+    expect(pages.sideline.content.explainer!.id).toBe('hack');
+    expect(pages['x-square'].content.explainer?.id).toBeUndefined();
+    expect(pages.golf.content.explainer?.id).toBeUndefined();
+  });
+
   it('keeps every More info link internal', () => {
     for (const vm of Object.values(pages)) {
       for (const game of vm.content.games) {

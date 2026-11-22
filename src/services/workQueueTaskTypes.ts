@@ -486,9 +486,9 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     kind:          'waiting',
     alertTemplate: null,
     brief: {
-      what: 'A member wrote a community announcement and it waits for an administrator before it goes to the announcements list.',
-      why:  'The member is waiting, and nothing reaches the list until it is approved.',
-      todo: 'Read it against the Community Standards, then approve and send it as written, or send it back with a note saying what to change.',
+      what: 'A member wrote a community announcement and it waits for an administrator before it is published to the places they chose: the announcements list, the news feed, or both.',
+      why:  'The member is waiting, and nothing is published until it is approved.',
+      todo: 'Read it against the Community Standards, then approve and publish it as written, or send it back with a note saying what to change. A post for the news feed must be news for the community, not opinion; send an opinion piece back.',
     },
     entityTypes:   ['member_announcement'],
     routeTopic:    'moderation',
@@ -497,7 +497,7 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
       {
         kind:  'act',
         key:   'announcement/approve',
-        label: 'Approve and Send',
+        label: 'Approve and Publish',
         style: 'primary',
         fields: [
           { name: 'allow_extra', label: 'Allow an Extra Announcement Today', input: 'checkbox', maxLength: 1, required: false },

@@ -1,7 +1,7 @@
 {
   "templateKey": "announce_approved",
-  "subjectTemplate": "Your announcement was sent",
-  "bodyTemplate": "Hi {memberName},\n\nYour community announcement \"{subject}\" was approved and sent to the announcements list.\n\nInternational Footbag Players Association",
+  "subjectTemplate": "Your announcement was approved",
+  "bodyTemplate": "Hi {memberName},\n\nYour community announcement \"{subject}\" was approved{placesPhrase}.{postLinkLine}\n\nInternational Footbag Players Association",
   "piiClassification": "confidential",
   "isEnabled": true
 }

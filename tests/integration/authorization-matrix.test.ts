@@ -229,6 +229,8 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/freestyle/tricks',
     '/admin/freestyle/records',
     '/admin/freestyle/consecutive-records',
+    '/admin/news',
+    '/admin/news/new',
   ];
 
   // The four outcomes the gate can produce, as a function of the persona's own
@@ -417,6 +419,11 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/freestyle/consecutive-records',
     '/admin/freestyle/consecutive-records/ph/edit',
     '/admin/freestyle/consecutive-records/ph/delete',
+    '/admin/news',
+    '/admin/news/ph',
+    '/admin/news/ph/reject',
+    '/admin/news/ph/restore',
+    '/admin/news/ph/delete',
     '/admin/freestyle/tricks/ph/edit',
     '/admin/curator/media/ph/edit',
     '/admin/curator/media/ph/delete',

@@ -30,6 +30,7 @@ import { memberOnboardingService } from '../services/memberOnboardingService';
 import { appendAuditEntry } from '../services/auditService';
 import { PERSONA_SWITCH_AUDIT_ACTION_TYPE } from './personaFactory';
 import { ensureRealClaimMember, RealClaimRefusedError } from './realClaimJourney';
+import { PERSONAS_ONLY_ON_COPY_MESSAGE, databaseIsProductionCopy } from './productionCopyGuard';
 
 interface SessionMemberRow {
   id: string;
@@ -61,6 +62,13 @@ export async function getDevBuildClaim(
       return;
     }
 
+    // A copy of production holds real members' claims, and building a new
+    // claim account would act on a real member's record, so a copy refuses
+    // the route before it reads or builds anything.
+    if (databaseIsProductionCopy()) {
+      res.status(403).send(PERSONAS_ONLY_ON_COPY_MESSAGE);
+      return;
+    }
     const { memberId } = await ensureRealClaimMember(legacyMemberId);
     const row = authDb.findMemberForSession.get(memberId) as SessionMemberRow | undefined;
     if (!row) {

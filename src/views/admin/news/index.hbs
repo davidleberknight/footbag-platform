@@ -1,0 +1,38 @@
+{{! Every news item, newest first, a page at a time, each linking to its admin page }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  <section>
+    <p><a href="{{content.newHref}}" class="btn btn-primary">Write a News Item</a></p>
+
+    {{#if content.hasRows}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="News items">
+        <table class="data-table">
+          <thead>
+            <tr><th>Published</th><th>Title</th><th>Label</th><th>State</th><th>Source</th></tr>
+          </thead>
+          <tbody>
+            {{#each content.rows}}
+              <tr>
+                <td>{{this.publishedText}}</td>
+                <td><a href="{{this.href}}">{{this.title}}</a></td>
+                <td>{{this.label}}</td>
+                <td>{{this.stateLabel}}</td>
+                <td>{{this.sourceLabel}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+      {{> _pager pagination=content.pagination}}
+    {{else}}
+      <div class="empty-state"><p>No news items yet.</p></div>
+    {{/if}}
+  </section>
+</div>

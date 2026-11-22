@@ -46,6 +46,7 @@ const AUDIT_TOPIC_BY_PREFIX: ReadonlyArray<readonly [string, AuditTopic]> = [
   ['media.tag_retired', 'moderation'],
   ['member.', 'membership'],
   ['member_message.', 'membership'],
+  ['news.', 'moderation'],
   ['payment.', 'payments'],
   ['support.', 'membership'],
   ['support.help_request_', 'identity'],

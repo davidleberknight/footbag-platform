@@ -703,6 +703,20 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
     expect(res.text).not.toContain('href="/rules/');
   });
 
+  // Defect caught: the menu entry for getting a hack jumps to the top of the
+  // Sideline page or to a section that is not its first, or it takes the
+  // active highlight away from Sideline while the visitor is on that page.
+  it('opens the first Sideline section from its menu entry, leaving Sideline active', async () => {
+    const res = await page('/sideline');
+    const navHrefs = [...res.text.matchAll(/<a href="(\/sideline#[^"]+)"( class="active")?>/g)];
+    expect(navHrefs.length, 'deep-link menu entry in header and footer').toBe(2);
+    for (const [, , active] of navHrefs) expect(active).toBeUndefined();
+    expect(res.text).toMatch(/<a href="\/sideline" class="active">/);
+    const fragment = navHrefs[0][1].split('#')[1];
+    const firstSection = res.text.match(/<section class="content-section"( id="([^"]+)")?>/);
+    expect(firstSection?.[2], 'first section carries the menu entry anchor').toBe(fragment);
+  });
+
   it('contains no offsite rules links (no Google Docs, no YouTube tutorial, no footbag.org/rules)', async () => {
     for (const { path } of GAME_PAGES) {
       const res = await page(path);

@@ -476,13 +476,25 @@ describe('the after-event summary on the announcement form', () => {
 
     const tokenOf = (html: string) => /name="sendToken" value="([^"]+)"/.exec(html)![1];
     const crafted = await post(olive, '/members/er_olive/announce', {
-      subject: 'Summary', bodyText: 'It went well.', sendToken: tokenOf(page.text), agree: '1', summaryEventId: notMine.id,
+      subject: 'Summary', bodyText: 'It went well.', sendToken: tokenOf(page.text), agree: '1', publishList: '1',
+      summaryEventId: notMine.id,
     });
     expect(crafted.status).toBe(422);
     expect(count("SELECT COUNT(*) c FROM member_announcements WHERE member_id = ? AND status = 'pending'", olive)).toBe(0);
 
+    // A summary meets an obligation to the list, so one meant for the news
+    // feed alone is refused.
+    const feedOnly = await post(olive, '/members/er_olive/announce', {
+      subject: 'Summary', bodyText: 'It went well.', sendToken: tokenOf(page.text), agree: '1', publishFeed: '1',
+      summaryEventId: mine.id,
+    });
+    expect(feedOnly.status).toBe(422);
+    expect(feedOnly.text).toContain('class="form-error-banner"');
+    expect(count("SELECT COUNT(*) c FROM member_announcements WHERE member_id = ? AND status = 'pending'", olive)).toBe(0);
+
     const ok = await post(olive, '/members/er_olive/announce', {
-      subject: 'Summary', bodyText: 'It went well.', sendToken: tokenOf(page.text), agree: '1', summaryEventId: mine.id,
+      subject: 'Summary', bodyText: 'It went well.', sendToken: tokenOf(page.text), agree: '1', publishList: '1',
+      summaryEventId: mine.id,
     });
     expect(ok.status).toBe(303);
     expect(one<{ summary_event_id: string }>("SELECT summary_event_id FROM member_announcements WHERE member_id = ? AND status = 'pending'", olive).summary_event_id).toBe(mine.id);
