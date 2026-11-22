@@ -770,9 +770,3 @@ in the maintainers' private tracker.
   `orbit_kick` embed the name. Closes when the curator rules whether the folk name
   stays canonical; if it does not, the slug-preserving correction plus
   display-name-exception mechanism is the one the reverse whirl rename used.
-
-- **Blurrier's base.** Blurrier (`blurrier`, 5 ADD) is filed on mirage with no
-  modifier links, but its footbag.org notation
-  `CLIP > OP IN [DEX] (plant) > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`
-  ends in two same-side outward dexterities to a clipper, which no mirage does. The
-  curator assigns its base and family; its page has no opening until then.

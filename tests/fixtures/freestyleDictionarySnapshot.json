@@ -5526,19 +5526,6 @@
 "sort_order": 1404
 },
 {
-"slug": "stepping_barfly",
-"canonical_name": "stepping barfly",
-"adds": "5",
-"base_trick": "barfly",
-"trick_family": "barfly",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "STEPPING BARFLY",
-"operational_notation": "CLIP > OP IN [DEX] >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]",
-"sort_order": 1406
-},
-{
 "slug": "stepping_pickup",
 "canonical_name": "stepping pickup",
 "adds": "3",
@@ -10248,8 +10235,8 @@
 "slug": "blurrier",
 "canonical_name": "Blurrier",
 "adds": "5",
-"base_trick": "mirage",
-"trick_family": "mirage",
+"base_trick": "barfly",
+"trick_family": "barfly",
 "category": "compound",
 "description": null,
 "aliases_json": null,

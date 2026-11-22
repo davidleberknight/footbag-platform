@@ -228,6 +228,16 @@ const FOLDS = [
     // A genuine decomposition name of the survivor, so it is shown on its page.
     shown: true,
   },
+  {
+    retired: 'stepping_barfly',
+    retiredName: 'stepping barfly',
+    survivor: 'blurrier',
+    dependants: [],
+    movedFields: [],
+    // Blurrier takes the stepping link the retired row carried, on its barfly base.
+    movedLinks: 'stepping',
+    shown: true,
+  },
 ];
 
 // The override a fold's retired name takes: a genuine structural name the

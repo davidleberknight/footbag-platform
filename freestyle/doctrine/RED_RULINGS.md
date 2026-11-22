@@ -77,6 +77,11 @@ silently reshaping either side.
   its own. The two are folded into Mind Bender, which takes the `OP IN` dexterity
   footbag.org's Stepping Ducking Paradox Blender writes, and shows Ducking Paradox
   Blender as its structural name. Home: the identity-folds sweep.
+- **Blurrier is Stepping Barfly** (curator ruling). footbag.org's Blurrier notation is
+  one stepping dexterity on the clipper-set Down cell, which the ratified grid makes
+  Barfly; the 5 ADD is stepping plus barfly. The unsourced Stepping Barfly row is
+  folded into Blurrier and shown as its structural name. Home: the identity-folds
+  sweep.
 - **Pixie Paradon is a paradon** (maintainer ruling). It is a pixie set into a paradon:
   footbag.org's move page gives it 5 ADD and
   `TOE > SAME IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, the
