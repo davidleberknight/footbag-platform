@@ -258,6 +258,15 @@ const FOLDS = [
     movedLinks: 'blazing',
     shown: true,
   },
+  {
+    retired: 'whirling_butterfly',
+    retiredName: 'whirling butterfly',
+    survivor: 'blazing_butterfly',
+    dependants: [],
+    movedFields: [],
+    // Whirling is the body modifier, not the blazing set, so the name misleads.
+    misleading: true,
+  },
 ];
 
 // The override a fold's retired name takes: a genuine structural name the
@@ -265,6 +274,7 @@ const FOLDS = [
 function expectedOverride(f: (typeof FOLDS)[number]): string[] {
   if ('shown' in f && f.shown) return ['retype', 'structural', '1'];
   if ('oldName' in f && f.oldName) return ['retype', 'historical', '0'];
+  if ('misleading' in f && f.misleading) return ['retype', 'suppressed', '0'];
   return ['retype', 'technical', '0'];
 }
 

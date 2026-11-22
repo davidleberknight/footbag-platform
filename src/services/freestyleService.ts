@@ -3047,8 +3047,9 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   // Whirling-X (uptime-whirl operator; OP IN [DEX] prefix + leading-dex flip).
   'whirling_pickup',
   'whirling_whirl',
-  'whirling_butterfly',
   'whirling_rake',
+  // Blazing Butterfly: the blazing set (an uptime whirl) on butterfly.
+  'blazing_butterfly',
   // Clean Tier-1 sweep (settled operators on canonical bases).
   'stepping_guay',
   'diving_guay',

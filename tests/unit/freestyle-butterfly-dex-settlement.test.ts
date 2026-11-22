@@ -1,7 +1,7 @@
 /**
  * Settled butterfly-dex coordinates in the three set-on-butterfly compounds.
  *
- * The curator ruled the first butterfly dex in fairy butterfly, whirling
+ * The curator ruled the first butterfly dex in fairy butterfly, blazing
  * butterfly, and swirling butterfly as OP OUT, replacing the provisional
  * either-side placeholder. These tests pin the settled coordinate at every
  * authoritative source so the placeholder cannot return after a rebuild, and
@@ -25,7 +25,7 @@ const EDUCATION = readFileSync(
 // Both historical slug spellings appear in the corrections file.
 const SLUG_FORMS = [
   ['fairy-butterfly', 'fairy_butterfly'],
-  ['whirling-butterfly', 'whirling_butterfly'],
+  ['blazing-butterfly', 'blazing_butterfly'],
   ['swirling-butterfly', 'swirling_butterfly'],
 ] as const;
 

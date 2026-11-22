@@ -297,7 +297,6 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'tripwalk', derivation: 'quantum(+1) + butterfly(3) = 4 ADD', operator: 'quantum' },
   { slug: 'walk_over', derivation: 'inside-stall(1) + dex(1) = 2 ADD', operator: 'leg-step primitive' },
   { slug: 'warp', derivation: 'warping(3) + mirage(2) = 5 ADD', operator: 'warping' },
-  { slug: 'whirling_butterfly', derivation: 'whirling(+1) + butterfly(3) = 4 ADD', operator: 'whirling' },
   { slug: 'whirling_pickup', derivation: 'whirling(+1) + pickup(2) = 3 ADD', operator: 'whirling' },
   { slug: 'whirling_rake', derivation: 'whirling(+1) + rake(2) = 3 ADD', operator: 'whirling' },
   { slug: 'whirling_swirl', derivation: 'whirling(+1) + swirl(3) = 4 ADD', operator: 'whirling' },

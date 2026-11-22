@@ -1370,7 +1370,6 @@ rake,notation,,RAKE,JOB per mechanical uppercase rule.
 rake,operational_notation,,SET > SWING [DEX] > SAME TOE [DEL],Rake terminal = swing-into-toe catch; corrected 2026-06-08 to 2 brackets (swing [DEX] + toe-stall [DEL]) matching the 2-ADD swing-element doctrine; pendulum is the entry/set counterpart whose terminal contact lands on an arbitrary surface.
 whirling-pickup,notation,,WHIRLING PICKUP,JOB per mechanical uppercase rule.
 whirling-whirl,notation,,WHIRLING WHIRL,JOB per mechanical uppercase rule.
-whirling-butterfly,notation,,WHIRLING BUTTERFLY,JOB per mechanical uppercase rule.
 whirling-rake,notation,,WHIRLING RAKE,JOB per mechanical uppercase rule.
 stepping-guay,notation,,STEPPING GUAY,JOB per mechanical uppercase rule.
 diving-guay,notation,,DIVING GUAY,JOB per mechanical uppercase rule.
@@ -1431,7 +1430,6 @@ diving-butterfly,operational_notation,,SET > DIVE [BOD] > SAME/OP OUT [DEX] > OP
 gyro-diving-butterfly,operational_notation,,SET > (back) SPIN [BOD] > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: gyro and diving body-modifiers prepended onto the butterfly base; ADD token count equals the stated value.
 furious-butterfly,operational_notation,,SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: barraging operator inserts a two-dex set (OP IN [DEX] then SAME IN [DEX]) ahead of the butterfly core; ADD token count equals the stated value.
 swirling-butterfly,operational_notation,,SET > SAME BACK SWIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: swirling operator inserts the named swirl dex (SAME BACK SWIRL [DEX]) ahead of the butterfly core; butterfly dex settled OP OUT by curator ruling; ADD token count equals the stated value.
-whirling-butterfly,operational_notation,,SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: whirling operator inserts the named whirl dex (OP FRONT WHIRL [DEX]) ahead of the butterfly core; butterfly dex settled OP OUT by curator ruling; ADD token count equals the stated value.
 miraging-symposium-butterfly,operational_notation,,SET > OP IN [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: miraging operator inserts a mirage dex ahead of the symposium-butterfly core; ADD token count equals the stated value.
 fairy-butterfly,operational_notation,,TOE > SAME OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: fairy entry composed with the butterfly core; butterfly dex settled OP OUT by curator ruling; ADD token count equals the stated value.
 pixie-rev-whirl,operational_notation,,TOE > SAME IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: pixie entry (TOE > SAME IN [DEX] >>) applied to the rev-whirl base; ADD token count equals the stated value.
@@ -3880,7 +3878,6 @@ tombstone,description,Stepping-modified drifter.,"A drifter with a stepping set:
 triple_mirage,description,Triple mirage: three inside dexes into an opposite toe stall. 4 ADD = dex(3) + toe-stall(1). Multiplicity of mirage.,"Three mirage dexterities in a row: off the set, three inward dexterities, then a toe catch.","Opening rewrite: composed from the mirage description, with the stored execution notation; replaces a line that restated the name or modifiers, or carried notation shorthand."
 triple_orbit,description,Triple full orbit: three out-dexes into a toe stall. 4 ADD = dex(3) + toe-stall(1); parallels double-orbit.,"Three orbits in a row: from a toe delay, the leg circles the bag outward three times, then the same toe catches it.","Opening rewrite: composed from the orbit opening, with the stored execution notation; replaces a line that restated the name or modifiers, or carried notation shorthand."
 vortex,description,Gyro-modified drifter.,"A drifter with a gyro turn first: turn off the clipper set, then the drifter's dexterity, caught on a clipper.","Opening rewrite: composed from the drifter description and the stored gyro note, with the stored execution notation; replaces a line that restated the name or modifiers, or carried notation shorthand."
-whirling_butterfly,description,Whirling-modified butterfly.,"A butterfly with a whirling dexterity first: off the set, a whirl's dexterity, then the butterfly's leg over to a clipper catch.","Opening rewrite: composed from the butterfly opening and the stored whirling note, with the stored execution notation; replaces a line that restated the name or modifiers, or carried notation shorthand."
 whirling_whirl,description,Whirling-modified whirl.,"A whirl with a whirling dexterity first: off the set, a whirl's dexterity, then the whirl's own dexterity, caught on a clipper.","Opening rewrite: composed from the whirl description and the stored whirling note, with the stored execution notation; replaces a line that restated the name or modifiers, or carried notation shorthand."
 atomic_blender,description,Atomic on blender. 5 ADD = atomic(1) + blender(4). Atomic chassis plus blender.,"A blender with an atomic set: one outward dexterity off the toe, then the blender's whirl dexterity into an osis, caught on a clipper.","Opening rewrite: composed from the blender description and the stored atomic note, with the stored execution notation; replaces a line that restated the name or modifiers, or carried notation shorthand."
 atomic_inspinning_butterfly,description,Atomic + inspinning on butterfly base. 5 ADD = atomic(+1) + inspinning(+1) + butterfly(3); JOB TOE > OP OUT [DEX] > (front) SPIN [BOD] > SAME OUT [DEX] > OP CLIP [XBD] [DEL].,"An inspinning butterfly with an atomic set: one outward dexterity off the toe, a forward body spin, then the butterfly's leg over to a clipper catch.","Opening rewrite: composed from the inspinning butterfly opening and the stored atomic note, with the stored execution notation; replaces a line that restated the name or modifiers, or carried notation shorthand."
@@ -4103,9 +4100,9 @@ backside_symposium_smear,review_aspect,,positional,Open question still pending; 
 barfly,review_aspect,,identity,Open question still pending; clear once ruled.
 barfry,review_aspect,,positional,Open question still pending; clear once ruled.
 bedwetter,review_aspect,,identity,Open question still pending; clear once ruled.
-blazing_butterfly,review_aspect,,identity,Open question still pending; clear once ruled.
+blazing_butterfly,review_aspect,,notation,"Waits on the butterfly-versus-reverse-whirl notation question: its formula collides with Bling Blang's, the whirling reverse whirl, as every butterfly and reverse whirl pair does."
 blender_same_side,review_aspect,,identity,Open question still pending; clear once ruled.
-bling_blang,review_aspect,,identity,Open question still pending; clear once ruled.
+bling_blang,review_aspect,,notation,"Waits on the butterfly-versus-reverse-whirl notation question: its formula collides with Blazing Butterfly's, as every butterfly and reverse whirl pair does."
 blink,review_aspect,,notation,Open question still pending; clear once ruled.
 blizzard,review_aspect,,notation,Open question still pending; clear once ruled.
 blurry_drifter,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4219,7 +4216,6 @@ tombstone,review_aspect,,positional,Open question still pending; clear once rule
 trixie,review_aspect,,add,Open question still pending; clear once ruled.
 venom,review_aspect,,identity,Open question still pending; clear once ruled.
 voodoo,review_aspect,,identity,Open question still pending; clear once ruled.
-whirling_butterfly,review_aspect,,notation,Open question still pending; clear once ruled.
 bill_ted_s_excellent_adventure,is_active,1,0,"Held out of the main dictionary: no execution notation, and its ADD is 5 or 7 on an open question. Listed in Emerging Vocabulary until ruled."
 bill_ted_s_excellent_adventure,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
 reverse_swirling_osis,is_active,1,0,"Held out of the main dictionary: its notation puts the reverse swirl on the opposite side, which the reverse-swirling question has not ruled. Listed in Emerging Vocabulary until ruled."

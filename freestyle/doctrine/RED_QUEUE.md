@@ -226,7 +226,7 @@ Each is separable and answered on its own.
   plus their six derivative pairs (Dimwalk / Pixie Reverse Whirl, Ripwalk /
   Stepping Reverse Whirl, Spinning Butterfly / Spinning Reverse Whirl, Nuclear
   Butterfly / Nuclear Reverse Whirl, Fairy Butterfly / Fairy Rev Whirl, and
-  Whirling Butterfly / Whirling Rev Whirl), share byte-identical operational notation. The
+  Blazing Butterfly / Bling Blang), share byte-identical operational notation. The
   curated descriptions and existing family taxonomy nevertheless preserve them as
   distinct movements: reverse-whirl-family dexterities are described as knee-driven,
   with the ankle circling the bag, while butterfly-family dexterities are described
