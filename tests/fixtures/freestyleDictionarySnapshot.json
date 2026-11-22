@@ -7138,19 +7138,6 @@
 "sort_order": 1539
 },
 {
-"slug": "barraging_barfly",
-"canonical_name": "barraging barfly",
-"adds": "6",
-"base_trick": "barfly",
-"trick_family": "barfly",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "BARRAGING BARFLY",
-"operational_notation": "CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]",
-"sort_order": 1540
-},
-{
 "slug": "furious_butterfly",
 "canonical_name": "furious butterfly",
 "adds": "5",

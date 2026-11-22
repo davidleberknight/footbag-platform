@@ -25,7 +25,7 @@ export interface ResolvedFormula {
 }
 
 export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
-  // The lead in front of a symposium chassis is a scored dexterity of its own,
+  // A miraging lead in front of a trick's base is a scored dexterity of its own,
   // which no operator names (miraging carries no registry weight), so it is
   // written as a leading dexterity.
   { slug: 'armageddon', derivation: 'leading dexterity(+1) + paradox(+1) + symposium(+1) + eggbeater(3) = 6 ADD', operator: 'leading dexterity + paradox + symposium' },
@@ -37,7 +37,6 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'avalanche', derivation: 'stepping(+1) + ducking(+1) + paradox-illusion(3) = 5 ADD ([DEX] + [BOD] + [PDX] + [DEX] + [DEL])', operator: 'stepping + ducking' },
   { slug: 'backside_magellan', derivation: 'backside(+1) + magellan(3) = 4 ADD', operator: 'backside' },
   { slug: 'backside_paste', derivation: 'backside(+1) + paste(3) = 4 ADD', operator: 'backside' },
-  { slug: 'barraging_barfly', derivation: 'furious(+2) + barfly(4) = 6 ADD', operator: 'furious' },
   { slug: 'bedwetter', derivation: 'stepping(+1) + paradox(+1) + eggbeater(3) = 5 ADD', operator: 'stepping + paradox' },
   { slug: 'big_apple', derivation: 'gyro(+1) + symposium(+1) + torque(4) = 6 ADD', operator: 'gyro + symposium' },
   { slug: 'big_apple_sauce', derivation: 'spinning(+1) + leading dexterity(+1) + paradox(+1) + symposium(+1) + torque(4) = 8 ADD', operator: 'spinning + leading dexterity + paradox + symposium' },
@@ -140,6 +139,14 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'matador', derivation: 'nuclear(+2) + butterfly(3) = 5 ADD', operator: 'nuclear' },
   { slug: 'merkon', derivation: 'spinning(+1) + legover(2) = 3 ADD', operator: 'spinning' },
   { slug: 'mind_bender', derivation: 'ducking(+1) + paradox(+1) + blender(4) = 6 ADD', operator: 'ducking + paradox' },
+  { slug: 'miraging_dyno', derivation: 'leading dexterity(+1) + dyno(4) = 5 ADD', operator: 'leading dexterity' },
+  { slug: 'miraging_eclipse', derivation: 'leading dexterity(+1) + eclipse(3) = 4 ADD', operator: 'leading dexterity' },
+  { slug: 'miraging_flail', derivation: 'leading dexterity(+1) + flail(3) = 4 ADD', operator: 'leading dexterity' },
+  { slug: 'miraging_pickup', derivation: 'leading dexterity(+1) + pickup(2) = 3 ADD', operator: 'leading dexterity' },
+  { slug: 'miraging_symposium_butterfly', derivation: 'leading dexterity(+1) + symposium(+1) + butterfly(3) = 5 ADD', operator: 'leading dexterity + symposium' },
+  { slug: 'miraging_symposium_double_over_down', derivation: 'leading dexterity(+1) + symposium(+1) + double-over-down(4) = 6 ADD', operator: 'leading dexterity + symposium' },
+  { slug: 'miraging_symposium_eggbeater', derivation: 'leading dexterity(+1) + symposium(+1) + eggbeater(3) = 5 ADD', operator: 'leading dexterity + symposium' },
+  { slug: 'miraging_symposium_whirl', derivation: 'leading dexterity(+1) + symposium(+1) + whirl(3) = 5 ADD', operator: 'leading dexterity + symposium' },
   { slug: 'mofly', derivation: 'leading dexterity(+1) + symposium(+1) + paradon(4) = 6 ADD', operator: 'leading dexterity + symposium' },
   { slug: 'montage', derivation: 'spinning(+1) + ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 7 ADD', operator: 'spinning + ducking + paradox + symposium' },
   { slug: 'mullet', derivation: 'ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6 ADD', operator: 'ducking + paradox + symposium' },

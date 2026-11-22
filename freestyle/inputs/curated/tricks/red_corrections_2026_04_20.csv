@@ -1318,7 +1318,6 @@ fairy-spinning-ducking-osis,notation,,FAIRY SPINNING DUCKING OSIS,JOB notation b
 fairy-spinning-ducking-osis,trick_family,spinning-ducking-osis,osis,terminal-identity family override: spinning-ducking-osis resolves to the osis family (loader-19 default would mis-set family=spinning-ducking-osis).
 fairy-swirling-swirl,notation,,FAIRY SWIRLING SWIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
 fairy-whirl,notation,,FAIRY WHIRL,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the fairy batch.
-barraging-barfly,notation,,BARRAGING BARFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
 furious-butterfly,notation,,FURIOUS BUTTERFLY,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
 furious-illusion,notation,,FURIOUS ILLUSION,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
 furious-legover,notation,,FURIOUS LEGOVER,JOB notation backfill (mechanical uppercase structural decomposition); closes the first-class notation gate for the barraging batch.
@@ -1457,7 +1456,6 @@ tapping-legover,operational_notation,,TOE > OP OUT [DEX] >> OP OUT [DEX] > SAME 
 tapping-guay,operational_notation,,TOE > OP OUT [DEX] >> OP IN [DEX] > SAME INSIDE [DEL],Derived operational notation: grammar-ruling-pass (tapping entry); ADD token count equals the stated value.
 tapping-double-over-down,operational_notation,,TOE > OP OUT [DEX] >> OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],Derived operational notation: grammar-ruling-pass (tapping entry); ADD token count equals the stated value.
 spinning-eggbeater,operational_notation,,TOE > (back) SPIN [BOD] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Derived operational notation: grammar-ruling-pass (>>-base collapse); ADD token count equals the stated value.
-barraging-barfly,operational_notation,,CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],Derived operational notation: grammar-ruling-pass (>>-base collapse); ADD token count equals the stated value.
 diving-illusion,operational_notation,,SET > DIVE [BOD] > OP OUT [DEX] > OP TOE [DEL],Derived operational notation: diving prepend on illusion; ADD token count equals the stated value.
 furious-illusion,operational_notation,,SET > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL],Derived operational notation: barraging two-dex on illusion; ADD token count equals the stated value.
 symposium-bubba,operational_notation,,CLIP > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],Derived operational notation: symposium on the bubba dex (precedent flail); ADD token count equals the stated value.
@@ -3379,7 +3377,6 @@ spinning_ducking_blender,description,Spinning + ducking on blender base. 6 ADD =
 archnemesis,description,Barraging-modified down double-down.,"A down double down with a furious set: two quick same-direction dexterities on the set, then the down double down's two out-to-in circles to a same-side clipper.","Opening rewrite: composed from the down double down description, the stored furious note and the stored execution notation."
 atomic_ducking_blender,description,Atomic Ducking Blender (atomic(+1) + ducking(+1) + blender(4) = 6).,"A blender with an atomic set and a duck in front: one outward dexterity off the toe, a duck under the bag, then the blender's whirl and turn to a same-side clipper.","Opening rewrite: composed from the blender description, the stored atomic and ducking notes and the stored execution notation."
 atomic_symposium_paradon,description,An atomic entry into a symposium-led paradon.,"A paradon with an atomic set, done without putting the support leg down: one outward dexterity off the toe, then the paradon's two circles with the support leg off the ground, caught on a clipper.","Opening rewrite: composed from the paradon description, the stored atomic and symposium notes and the stored execution notation."
-barraging_barfly,description,Barraging-modified barfly.,"A barfly with a furious set: two quick same-direction dexterities on the set, then the barfly's two circles of the bag to a clipper.","Opening rewrite: composed from the barfly description, the stored furious note and the stored execution notation."
 blurry_whirling_swirl,description,Blurry-modified whirling swirl.,"A whirling swirl entered from a blurry set: two quick dexterities off the clipper, the second with the hips switching sides, then the swirl's dexterity to a same-side clipper.","Opening rewrite: composed from the whirling swirl description, the stored blurry note and the stored execution notation."
 fairy_ducking_blender,description,Fairy + ducking on blender base. 6 ADD = fairy(+1) + ducking(+1) + blender(4); JOB TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]. Double-body-event compound (ducking + blender's back-spin).,"A blender with a fairy set and a duck in front: the bag is circled once on an outside path from the toe, you duck under it, then the blender's whirl and turn finish on a same-side clipper.","Opening rewrite: composed from the blender description, the stored fairy and ducking notes and the stored execution notation."
 fairy_spinning_blender,description,Fairy + spinning on blender base. 6 ADD = fairy(+1) + spinning(+1) + blender(4); JOB TOE > SAME OUT [DEX] > (back) SPIN [BOD] > OP IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]. Double back-spin compound (spinning + blender's own back-spin).,"A spinning blender set from the toe with a fairy: the bag is circled once on an outside path, then the full body spin, the whirl over the bag and the turn into a same-side clipper.","Opening rewrite: composed from the spinning blender opening, the stored fairy note and the stored execution notation."
@@ -4108,7 +4105,6 @@ backside_paste,review_aspect,,positional,Open question still pending; clear once
 backside_symposium_smear,review_aspect,,positional,Open question still pending; clear once ruled.
 barfly,review_aspect,,identity,Open question still pending; clear once ruled.
 barfry,review_aspect,,positional,Open question still pending; clear once ruled.
-barraging_barfly,review_aspect,,add,Open question still pending; clear once ruled.
 bedwetter,review_aspect,,identity,Open question still pending; clear once ruled.
 blaze,review_aspect,,identity,Open question still pending; clear once ruled.
 blazing_butterfly,review_aspect,,identity,Open question still pending; clear once ruled.
@@ -4150,8 +4146,6 @@ fairy_butterfly,review_aspect,,notation,Open question still pending; clear once 
 fairy_double_leg_over_same_side,review_aspect,,add,Open question still pending; clear once ruled.
 fairy_gyro_drifter,review_aspect,,add,Open question still pending; clear once ruled.
 fairy_rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
-flying_clipper,review_aspect,,add,Open question still pending; clear once ruled.
-flying_fish,review_aspect,,add,Open question still pending; clear once ruled.
 fury,review_aspect,,add,Open question still pending; clear once ruled.
 fusion,review_aspect,,identity,Open question still pending; clear once ruled.
 gary_coleman,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4164,15 +4158,7 @@ hurl,review_aspect,,positional,Open question still pending; clear once ruled.
 id,review_aspect,,add,Open question still pending; clear once ruled.
 jani_walker,review_aspect,,identity,Open question still pending; clear once ruled.
 miraging_dragon,review_aspect,,add,Open question still pending; clear once ruled.
-miraging_dyno,review_aspect,,add,Open question still pending; clear once ruled.
-miraging_eclipse,review_aspect,,add,Open question still pending; clear once ruled.
-miraging_flail,review_aspect,,add,Open question still pending; clear once ruled.
-miraging_pickup,review_aspect,,add,Open question still pending; clear once ruled.
-miraging_symposium_butterfly,review_aspect,,add,Open question still pending; clear once ruled.
-miraging_symposium_double_over_down,review_aspect,,add,Open question still pending; clear once ruled.
-miraging_symposium_eggbeater,review_aspect,,add,Open question still pending; clear once ruled.
 miraging_symposium_mirage,review_aspect,,identity,Open question still pending; clear once ruled.
-miraging_symposium_whirl,review_aspect,,add,Open question still pending; clear once ruled.
 nemesis,review_aspect,,add,Open question still pending; clear once ruled.
 nuclear_rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
 osis,review_aspect,,positional,Open question still pending; clear once ruled.

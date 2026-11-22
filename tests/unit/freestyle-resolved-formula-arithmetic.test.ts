@@ -41,11 +41,14 @@ describe('the published Difficulty breakdowns', () => {
     expect(wrong).toEqual([]);
   });
 
-  // Defect caught: the scored lead in front of a symposium chassis credited to
+  // Defect caught: the scored lead in front of a trick's base credited to
   // miraging, which carries no registry weight, or left out of the breakdown.
-  it('writes the unnamed lead of the five symposium-chassis tricks as a leading dexterity', () => {
+  it('writes the unnamed miraging lead as a leading dexterity', () => {
     const expected: Record<string, number> = {
       armageddon: 6, mofly: 6, paratoxic: 6, big_apple_sauce: 8, spinning_miraging_symposium_torque: 7,
+      miraging_dyno: 5, miraging_eclipse: 4, miraging_flail: 4, miraging_pickup: 3,
+      miraging_symposium_butterfly: 5, miraging_symposium_double_over_down: 6,
+      miraging_symposium_eggbeater: 5, miraging_symposium_whirl: 5,
     };
     for (const [slug, add] of Object.entries(expected)) {
       const f = RESOLVED_ADD_FORMULAS.find(x => x.slug === slug);

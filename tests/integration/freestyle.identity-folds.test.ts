@@ -238,12 +238,24 @@ const FOLDS = [
     movedLinks: 'stepping',
     shown: true,
   },
+  {
+    retired: 'barraging_barfly',
+    retiredName: 'barraging barfly',
+    survivor: 'nemesis',
+    dependants: [],
+    movedFields: [],
+    movedLinks: 'furious',
+    // Barraging is the old name of furious, so the name is kept search-only.
+    oldName: true,
+  },
 ];
 
 // The override a fold's retired name takes: a genuine structural name the
 // survivor's page shows, or a hidden technical redirect.
 function expectedOverride(f: (typeof FOLDS)[number]): string[] {
-  return 'shown' in f && f.shown ? ['retype', 'structural', '1'] : ['retype', 'technical', '0'];
+  if ('shown' in f && f.shown) return ['retype', 'structural', '1'];
+  if ('oldName' in f && f.oldName) return ['retype', 'historical', '0'];
+  return ['retype', 'technical', '0'];
 }
 
 describe('identity folds: committed source outcomes', () => {
