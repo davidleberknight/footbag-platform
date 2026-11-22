@@ -2,7 +2,7 @@ import { Request, Response, NextFunction } from 'express';
 import { z } from 'zod';
 import {
   eventService, resultsDecisionsFromFields,
-  type EntryInput, type EventFormValues, type RegistrationInput, type ResultsUploadInput, type SanctionFormValues,
+  type EntryInput, type EventFormValues, type PartnerInput, type RegistrationInput, type ResultsUploadInput, type SanctionFormValues,
 } from '../services/eventService';
 import { RESULTS_FILE_MAX_BYTES, RESULTS_FILE_MAX_ROWS } from '../services/eventResultsFile';
 import { readMultipart } from '../lib/multipartForm';
@@ -81,10 +81,28 @@ const registerForm = z.object({
   amateur: formList('Enter as an Amateur'),
   partner_division: formList('Partner competition'),
   partner: formList('Partner'),
+  looking: formList('Looking for a partner'),
   tshirt_size: formText('T-shirt size'),
   pick: formOptionalText('The partner picker'),
   pick_q: formText("Partner's name"),
 });
+
+// A member's own doubles partners: the partner fields pair up as the
+// registration form's do, and each looking tick names its division.
+const partnerForm = z.object({
+  partner_division: formList('Partner competition'),
+  partner: formList('Partner'),
+  looking: formList('Looking for a partner'),
+  pick: formOptionalText('The partner picker'),
+  pick_q: formText("Partner's name"),
+});
+
+function toPartnerInput(d: z.output<typeof partnerForm>): PartnerInput {
+  return {
+    partners: d.partner_division.map((divisionId, i) => ({ divisionId, memberId: d.partner[i] ?? '' })),
+    lookingDivisionIds: d.looking,
+  };
+}
 
 // Add Entrant and Edit Entry, for an organizer and an administrator alike. The
 // partner fields pair up as the registration form's do; the entrant's id is
@@ -172,6 +190,7 @@ function toRegistrationInput(d: z.output<typeof registerForm>): RegistrationInpu
     divisionIds: d.division,
     amateurIds: d.amateur,
     partners: d.partner_division.map((divisionId, i) => ({ divisionId, memberId: d.partner[i] ?? '' })),
+    lookingDivisionIds: d.looking,
     tshirtSize: d.tshirt_size,
   };
 }
@@ -715,6 +734,53 @@ export const eventController = {
       if (result.branch === 'checkout') { res.redirect(303, result.redirectUrl); return; }
       flashTo(req, res, eventHref(eventKey), result.branch === 'registered' ? 'advance' : 'own_repeat',
         `You are registered for ${result.eventTitle}.`);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** GET /events/:eventKey/registration/partner */
+  getPartner(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const eventKey = eventKeyParam(req);
+      const result = eventService.getPartnerPage(eventKey, req.user!.userId);
+      if (result.branch === 'form') { res.render('events/partner', result.page); return; }
+      flashTo(req, res, eventHref(eventKey), 'refused', result.message);
+    } catch (err) {
+      handleControllerError(err, res, next, 'events controller');
+    }
+  },
+
+  /** POST /events/:eventKey/registration/partner */
+  postPartner(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const eventKey = eventKeyParam(req);
+      const parsed = parseFormBody(partnerForm, req.body);
+      const renderForm = (input: PartnerInput, message: string | null, status: number, picker?: Parameters<typeof eventService.getPartnerPage>[3]): void => {
+        const page = eventService.getPartnerPage(eventKey, req.user!.userId, { input, message }, picker);
+        if (page.branch === 'form') { res.status(status).render('events/partner', page.page); return; }
+        flashTo(req, res, eventHref(eventKey), 'refused', page.message);
+      };
+      if (!parsed.ok) { renderForm(toPartnerInput(partnerForm.parse({})), parsed.message, 422); return; }
+      const input = toPartnerInput(parsed.data);
+      // A partner picker control draws the form again with everything chosen, saving nothing.
+      if (parsed.data.pick !== undefined) {
+        renderForm(input, null, 200, { intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown' });
+        return;
+      }
+      let result;
+      try {
+        result = eventService.changePartners(req.user!.userId, eventKey, input);
+      } catch (err) {
+        if (err instanceof ValidationError) { renderForm(input, err.message, 422); return; }
+        if (err instanceof RateLimitedError) {
+          if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
+          renderRateLimited(res, { title: 'Too Many Attempts', detail: err.message });
+          return;
+        }
+        throw err;
+      }
+      flashTo(req, res, eventHref(eventKey), result.branch === 'saved' ? 'advance' : 'own_repeat', result.message);
     } catch (err) {
       handleControllerError(err, res, next, 'events controller');
     }

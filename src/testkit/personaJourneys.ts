@@ -84,6 +84,7 @@ async function runOne(spec: PersonaSpec): Promise<void> {
       divisionIds: [divisionId],
       amateurIds: [],
       partners: partner ? [{ divisionId, memberId: memberIdOf(partner) }] : [],
+      lookingDivisionIds: [],
       tshirtSize: '',
     });
   }

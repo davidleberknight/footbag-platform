@@ -22,8 +22,11 @@
  * Every other construct is Markdown's own (paragraphs, emphasis, lists, block
  * quotes, code, rules), whose text marked escapes. The result is named into a
  * `*Html` view-model field by the caller.
+ *
+ * The same body also reduces to plain text, for a list entry's excerpt and a
+ * page's meta description: the words the rendered body shows, without markup.
  */
-import { Marked, type Tokens } from 'marked';
+import { Marked, type Token, type Tokens } from 'marked';
 
 export interface NewsMarkdownOptions {
   /** True for a Community post: a member's words, whose links are marked as user content. */
@@ -93,4 +96,56 @@ const communityRenderer = buildRenderer(true);
 export function renderNewsMarkdown(markdown: string, options: NewsMarkdownOptions): string {
   const renderer = options.memberAuthored ? communityRenderer : newsRenderer;
   return renderer.parse(markdown, { async: false }) as string;
+}
+
+// The words a token shows, under the same rules the renderer draws it by: raw
+// HTML and a table as the text typed, an image as its alt text, a link as its
+// words, a checkbox as nothing. Blocks are separated by a space.
+function tokenText(token: Token): string {
+  switch (token.type) {
+    case 'space':
+    case 'hr':
+    case 'checkbox':
+      return '';
+    case 'br':
+      return ' ';
+    case 'table':
+      return (token as Tokens.Table).raw;
+    case 'list':
+      return (token as Tokens.List).items.map(tokenText).join(' ');
+    case 'image':
+      return (token as Tokens.Image).text;
+    default: {
+      const children = (token as { tokens?: Token[] }).tokens;
+      if (children && children.length > 0) return children.map(tokenText).join('');
+      const text = (token as { text?: string }).text;
+      return typeof text === 'string' ? text : '';
+    }
+  }
+}
+
+/**
+ * A news body as plain text: the words a reader sees, with no Markdown syntax
+ * and no markup, on one line. Meant for escaped output, never as HTML.
+ */
+export function newsMarkdownToPlainText(markdown: string): string {
+  const blocks = newsRenderer.lexer(markdown).map(tokenText);
+  return blocks.join(' ').replace(/\s+/g, ' ').trim();
+}
+
+export const NEWS_EXCERPT_MAX_LENGTH = 200;
+
+/**
+ * The opening of a news body as plain text, for a list entry: the whole text
+ * when it fits, otherwise cut at the last word boundary within the limit and
+ * closed with an ellipsis. Lengths count characters, not bytes.
+ */
+export function newsExcerpt(markdown: string, max: number = NEWS_EXCERPT_MAX_LENGTH): string {
+  const text = newsMarkdownToPlainText(markdown);
+  const chars = [...text];
+  if (chars.length <= max) return text;
+  const cut = chars.slice(0, max).join('');
+  const lastSpace = cut.lastIndexOf(' ');
+  const head = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
+  return `${head.replace(/[\s.,;:!?]+$/, '')}…`;
 }

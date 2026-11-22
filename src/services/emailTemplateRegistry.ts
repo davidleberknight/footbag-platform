@@ -57,6 +57,12 @@ function reasonNote(byAdministrator: boolean, reason: string | null): string {
   return byAdministrator && reason ? `The reason given:\n\n${reason}\n\n` : '';
 }
 
+// A doubles partner notice: the recipient, the other member on the entry, and
+// where it is.
+interface PartnerNoticeParams {
+  memberName: string; entrantName: string; divisionName: string; eventTitle: string; eventDates: string;
+}
+
 // Stored template text is logic-less, so a donation note that may be absent
 // resolves to a complete sentence here rather than to an empty gap in the body.
 function donationNotePhrase(note: string | null): string {
@@ -166,6 +172,10 @@ export const TEMPLATE_VARIANTS = {
   event_registration_confirmed:    v('confidential', ['eventTitle', 'eventDates', 'registrationSummary']),
   event_registration_reminder:     v('confidential', ['eventTitle', 'eventDates', 'registrationSummary']),
   event_registration_withdrawn:    v('confidential', ['memberName', 'eventTitle', 'eventDates']),
+  // A doubles partner told another member's entry names them, or that a
+  // partner left their entry: both name the other member.
+  event_partner_named:             v('confidential', ['memberName', 'entrantName', 'divisionName', 'eventTitle', 'eventDates']),
+  event_partner_left:              v('confidential', ['memberName', 'entrantName', 'divisionName', 'eventTitle', 'eventDates']),
   // An organizer's or administrator's correction at the event, naming the
   // member's entries and partners, and an administrator's reason.
   event_registration_added:        v('confidential', ['memberName', 'eventTitle', 'eventDates', 'changedBy', 'reasonNote', 'registrationSummary']),
@@ -526,7 +536,12 @@ const SHAPERS = {
     variant: 'event_registration_withdrawn',
     merge: { memberName: p.memberName, eventTitle: p.eventTitle, eventDates: p.eventDates },
   }),
-  // Sent to the member an organizer or administrator registered at the event.
+  // Sent once to the member a doubles entry names as partner, unless their own
+  // entry already names the entrant back.
+  event_partner_named: (p: PartnerNoticeParams): ShapedEmail => ({ variant: 'event_partner_named', merge: { ...p } }),
+  // Sent to the member whose entry a partner left by withdrawing or choosing
+  // someone else; their entry is left looking for a partner.
+  event_partner_left: (p: PartnerNoticeParams): ShapedEmail => ({ variant: 'event_partner_left', merge: { ...p } }),
   // Sent to the member an organizer or administrator registered at the event.
   // An administrator's reason follows as its own paragraph.
   event_registration_added: (p: {

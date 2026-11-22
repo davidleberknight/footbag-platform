@@ -289,7 +289,7 @@ export function readResultsFile(
     problems.push(`These names match more than one confirmed registration for this event: ${ambiguous.join(', ')}.`);
   }
   if (partnerless.length > 0) {
-    problems.push(`Results name a doubles entry with no partner: ${partnerless.join(', ')}. Add the partner to the entry, and upload the file again.`);
+    problems.push(`Results place a doubles pair whose registrations don't name each other: ${partnerless.join(', ')}. Pair them with Edit Entry on the participant list, then upload the file again.`);
   }
   const present = new Set([...groups.values()].map((g) => g.divisionId).filter(Boolean));
   const missingDivisions = divisions.filter((d) => !d.hasResults && !present.has(d.id)).map((d) => d.name);

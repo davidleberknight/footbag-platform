@@ -297,6 +297,25 @@ describe('settling the checkout', () => {
     expect(mailCount('event_registration_confirmed', m)).toBe(1);
   });
 
+  // Defect caught: a doubles partner is told they were named while the entry
+  // is still unpaid and may never stand, or is never told once it is paid.
+  it('tells a named doubles partner only once the payment settles', async () => {
+    const m = makeMember();
+    const partner = makeMember();
+    const ev = seedEvent();
+    const doubles = withDb((db) => insertDiscipline(db, ev.id, {
+      name: "Open Women's Doubles Footbag Net", discipline_category: 'net', team_type: 'doubles',
+      gender_eligibility: 'women', division_class: 'open', sort_order: 3,
+    }));
+    const sessionId = sessionOf(await post(m, `/events/${ev.key}/register`, {
+      ...body({ divisions: [doubles] }), partner_division: [doubles], partner: [partner],
+    }));
+    expect(mailCount('event_partner_named', partner)).toBe(0);
+    expect((await deliver((await stub()).buildSignedStubWebhookEvent(sessionId))).status).toBe(200);
+    expect(registrationOf(ev.id, m)!.status).toBe('confirmed');
+    expect(mailCount('event_partner_named', partner)).toBe(1);
+  });
+
   // Defect caught: an abandoned checkout leaves a registration pending forever.
   it('cancels the pending registration when its checkout expires, and lets the member register again', async () => {
     const m = makeMember();

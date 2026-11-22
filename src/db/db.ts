@@ -82,6 +82,25 @@ const PUBLIC_UPCOMING_VISIBLE_STATUS_SQL = PUBLIC_UPCOMING_VISIBLE_STATUSES
   .map((status) => `'${status}'`)
   .join(', ');
 
+// A news item is public when it is not hidden, its publication time has come
+// (the one `?`, the current instant), and, when it is about an event, that
+// event is publicly visible. Every public news read applies it, joined to the
+// event as `e`.
+const PUBLIC_NEWS_VISIBLE = `n.is_public = 1 AND n.published_at <= ?
+    AND (n.entity_type IS NULL OR n.entity_type <> 'event'
+         OR e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL}))`;
+
+const PUBLIC_NEWS_SELECT = `
+    SELECT n.id, n.news_type, n.title, n.body, n.published_at,
+           n.entity_type, n.entity_id,
+           m.display_name AS author_display_name, m.slug AS author_slug,
+           e.id AS event_id, e.title AS event_title,
+           t.tag_normalized AS event_tag_normalized, t.tag_display AS event_tag_display
+    FROM news_items AS n
+    LEFT JOIN members_onboarded AS m ON m.id = n.author_member_id
+    LEFT JOIN events AS e ON n.entity_type = 'event' AND e.id = n.entity_id
+    LEFT JOIN tags AS t ON t.id = e.hashtag_tag_id`;
+
 const PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL = PUBLIC_FREESTYLE_RECORD_CONFIDENCES
   .map((c) => `'${c}'`)
   .join(', ');
@@ -10641,6 +10660,35 @@ export const newsItems = {
   get deleteForEntity() { return db.prepare(`
     DELETE FROM news_items WHERE entity_type = ? AND entity_id = ?
   `); },
+
+  // The public reads. Each shows only an item that is public and whose
+  // publication time has arrived, and an item about an event only while that
+  // event is publicly visible, so a cancelled or unpublished event's items
+  // leave every public surface with it. The author comes through the
+  // onboarded-members view, so a deleted or unfinished account names no one.
+  // The event's hashtag and id feed its gallery link and cover photo.
+
+  // Params: (nowIso, year as four digits). Newest first.
+  get listPublicByYear() { return db.prepare(`
+    ${PUBLIC_NEWS_SELECT}
+    WHERE ${PUBLIC_NEWS_VISIBLE} AND substr(n.published_at, 1, 4) = ?
+    ORDER BY n.published_at DESC, n.id DESC
+  `); },
+
+  // Params: (id, nowIso).
+  get getPublicById() { return db.prepare(`
+    ${PUBLIC_NEWS_SELECT}
+    WHERE n.id = ? AND ${PUBLIC_NEWS_VISIBLE}
+  `); },
+
+  // Every year holding a public item, newest first. Params: (nowIso).
+  get listPublicYears() { return db.prepare(`
+    SELECT DISTINCT CAST(substr(n.published_at, 1, 4) AS INTEGER) AS year
+    FROM news_items AS n
+    LEFT JOIN events AS e ON n.entity_type = 'event' AND e.id = n.entity_id
+    WHERE ${PUBLIC_NEWS_VISIBLE}
+    ORDER BY year DESC
+  `); },
 };
 
 // ── memberAnnouncements ─────────────────────────────────────────────────────
@@ -12321,7 +12369,7 @@ export const eventRegistrations = {
   `); },
 
   get listSelectionsForRegistration() { return db.prepare(`
-    SELECT rds.discipline_id, ed.name AS division_name, ed.sort_order,
+    SELECT rds.discipline_id, ed.name AS division_name, ed.sort_order, ed.team_type,
            rds.partner_member_id, rds.enters_as_amateur,
            p.display_name AS partner_member_name, p.slug AS partner_member_slug
     FROM registration_discipline_selections AS rds
@@ -12342,7 +12390,7 @@ export const eventRegistrations = {
   `); },
 
   get listConfirmedSelectionsForEvent() { return db.prepare(`
-    SELECT rds.registration_id, ed.name AS division_name, ed.sort_order,
+    SELECT rds.registration_id, ed.name AS division_name, ed.sort_order, ed.team_type, rds.partner_member_id,
            p.display_name AS partner_member_name, p.slug AS partner_member_slug
     FROM registration_discipline_selections AS rds
     INNER JOIN registrations AS r ON r.id = rds.registration_id
@@ -12423,15 +12471,85 @@ export const eventRegistrations = {
     ORDER BY ed.sort_order, ed.name COLLATE NOCASE, ed.id, m.display_name COLLATE NOCASE, r.id
   `); },
 
-  // The doubles entries of an event's confirmed registrations that name no
-  // partner, which a results upload refuses to place.
-  get listPartnerlessDoublesEntries() { return db.prepare(`
+  // The doubles entries of an event's confirmed registrations that are not a
+  // pair: naming no partner, or a partner whose own confirmed registration
+  // does not name this entrant in the same division. A results upload refuses
+  // to place them.
+  get listUnmatchedDoublesEntries() { return db.prepare(`
     SELECT rds.registration_id, rds.discipline_id
     FROM registration_discipline_selections AS rds
     INNER JOIN registrations AS r ON r.id = rds.registration_id
     INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    LEFT JOIN registrations AS pr
+      ON pr.event_id = r.event_id AND pr.member_id = rds.partner_member_id AND pr.status = 'confirmed'
+    LEFT JOIN registration_discipline_selections AS back
+      ON back.registration_id = pr.id AND back.discipline_id = rds.discipline_id
+     AND back.partner_member_id = r.member_id
     WHERE r.event_id = ? AND r.status = 'confirmed'
-      AND ed.team_type = 'doubles' AND rds.partner_member_id IS NULL
+      AND ed.team_type = 'doubles' AND back.id IS NULL
+  `); },
+
+  // Every doubles entry of an event's standing registrations, with what the
+  // named partner's own confirmed entry in that division says: whether there
+  // is one, and whom it names. A member holds one registration per event, so
+  // each entry joins at most one partner entry.
+  get listDoublesPairingForEvent() { return db.prepare(`
+    SELECT rds.registration_id, rds.discipline_id, r.member_id, r.status,
+           rds.partner_member_id,
+           CASE WHEN back.id IS NULL THEN 0 ELSE 1 END AS partner_entered,
+           back.partner_member_id AS partner_names_member_id
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    LEFT JOIN registrations AS pr
+      ON pr.event_id = r.event_id AND pr.member_id = rds.partner_member_id AND pr.status = 'confirmed'
+    LEFT JOIN registration_discipline_selections AS back
+      ON back.registration_id = pr.id AND back.discipline_id = rds.discipline_id
+    WHERE r.event_id = ? AND r.status <> 'canceled' AND ed.team_type = 'doubles'
+  `); },
+
+  // The confirmed entries of an event naming this member as their doubles
+  // partner, with who made each, live members only. Params: (eventId, memberId).
+  get listConfirmedEntriesNamingMember() { return db.prepare(`
+    SELECT rds.registration_id, rds.discipline_id, r.member_id, m.display_name, ed.name AS division_name
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    INNER JOIN members_onboarded AS m ON m.id = r.member_id AND m.is_deceased = 0
+    WHERE r.event_id = ? AND rds.partner_member_id = ? AND r.status = 'confirmed'
+    ORDER BY ed.sort_order, ed.id, m.display_name COLLATE NOCASE, r.id
+  `); },
+
+  // The partners a registration's doubles entries name, with the entrant,
+  // the event, and whether the partner's own confirmed entry in that division
+  // already names the entrant back. Live members only.
+  get listNamedPartnersForRegistration() { return db.prepare(`
+    SELECT rds.discipline_id, ed.name AS division_name, rds.partner_member_id,
+           r.event_id, r.member_id, m.display_name AS entrant_name,
+           pm.display_name AS partner_name,
+           e.title AS event_title, e.start_date, e.end_date,
+           CASE WHEN back.id IS NULL THEN 0 ELSE 1 END AS partner_names_back
+    FROM registration_discipline_selections AS rds
+    INNER JOIN registrations AS r ON r.id = rds.registration_id
+    INNER JOIN events AS e ON e.id = r.event_id
+    INNER JOIN event_disciplines AS ed ON ed.id = rds.discipline_id
+    INNER JOIN members_onboarded AS m ON m.id = r.member_id
+    INNER JOIN members_onboarded AS pm ON pm.id = rds.partner_member_id AND pm.is_deceased = 0
+    LEFT JOIN registrations AS pr
+      ON pr.event_id = r.event_id AND pr.member_id = rds.partner_member_id AND pr.status = 'confirmed'
+    LEFT JOIN registration_discipline_selections AS back
+      ON back.registration_id = pr.id AND back.discipline_id = rds.discipline_id
+     AND back.partner_member_id = r.member_id
+    WHERE rds.registration_id = ? AND ed.team_type = 'doubles'
+    ORDER BY ed.sort_order, ed.id
+  `); },
+
+  // A member choosing or changing the partner on one of their own doubles
+  // entries. Params: (partnerMemberId, now, actorId, registrationId, disciplineId).
+  get setSelectionPartner() { return db.prepare(`
+    UPDATE registration_discipline_selections
+       SET partner_member_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE registration_id = ? AND discipline_id = ?
   `); },
 
   // A partner swap leaves the old partner's own entry naming nobody, where it

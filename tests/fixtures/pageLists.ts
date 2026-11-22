@@ -126,6 +126,7 @@ export const REACH: readonly Reach[] = [
   { template: 'events/results', viewer: 'member', url: `/events/${R.eventKey}/results`, why: 'the results upload, open only to the event\'s organizers' },
   { template: 'events/participant-add', viewer: 'member', url: `/events/${R.correctionsEventKey}/participants/add`, why: 'Add Entrant, open only to the event\'s organizers before results are uploaded' },
   { template: 'events/participant-edit', viewer: 'member', url: `/events/${R.correctionsEventKey}/participants/${R.correctionsRegistrationId}/edit`, why: 'Edit Entry, open only to the event\'s organizers before results are uploaded' },
+  { template: 'events/partner', viewer: 'admin', url: `/events/${R.correctionsEventKey}/registration/partner`, why: 'a member\'s own partner page, open only to a confirmed doubles entrant while registration is open' },
   { template: 'admin/events/entry', viewer: 'admin', url: `/admin/events/${R.correctionsEventId}/registrations/${R.correctionsRegistrationId}/edit`, why: 'linked only from an event record' },
   { template: 'events/attendance', viewer: 'member', url: `/events/${R.eventKey}/attendance`, why: 'the attendance screen, open only to the event\'s organizers' },
   { template: 'events/sanction', viewer: 'admin', url: `/events/${R.sanctionDraftKey}/sanction`, why: 'the sanction request, open only to a Tier 2 or Tier 3 organizer of a sanctioned-path draft' },

@@ -193,6 +193,12 @@ const CATALOG: CatalogEntry[] = [
   { template: 'event_registration_withdrawn', services: ['eventService'], samples: [
     { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D' }, variant: 'event_registration_withdrawn' },
   ] },
+  { template: 'event_partner_named', services: ['eventRegistrationSettlement'], samples: [
+    { params: { memberName: 'M', entrantName: 'A', divisionName: 'X', eventTitle: 'E', eventDates: 'D' }, variant: 'event_partner_named' },
+  ] },
+  { template: 'event_partner_left', services: ['eventService'], samples: [
+    { params: { memberName: 'M', entrantName: 'A', divisionName: 'X', eventTitle: 'E', eventDates: 'D' }, variant: 'event_partner_left' },
+  ] },
   { template: 'event_registration_added', services: ['eventService'], samples: [
     { params: { memberName: 'M', eventTitle: 'E', eventDates: 'D', registrationSummary: 'S', byAdministrator: true, reason: 'R' }, variant: 'event_registration_added' },
   ] },

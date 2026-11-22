@@ -47,7 +47,7 @@
             {{#each this.rows}}
               <tr data-registration-id="{{this.registrationId}}">
                 <td><a href="{{siteHref this.entrantHref}}">{{this.entrantName}}</a></td>
-                {{#if ../isDoubles}}<td>{{#if this.noPartner}}<span class="badge" data-no-partner>No partner</span>{{else}}{{this.partnerName}}{{/if}}</td>{{/if}}
+                {{#if ../isDoubles}}<td>{{#if this.noPartner}}<span class="badge" data-no-partner>No partner</span>{{else}}{{this.partnerName}}{{#if this.pairingFlag}} <span class="badge" data-pairing-flag="{{this.pairingKind}}">{{this.pairingFlag}}</span>{{/if}}{{/if}}</td>{{/if}}
                 <td>{{this.paymentLabel}}</td>
                 <td>{{#if this.editHref}}<a href="{{siteHref this.editHref}}" class="btn btn-outline btn-sm">Edit Entry</a>{{/if}}</td>
               </tr>
@@ -55,6 +55,9 @@
           </tbody>
         </table>
         </div>
+        {{#if this.isDoubles}}
+          <p data-doubles-pairing-help>A doubles entry is a pair once both partners have registered and named each other. Fix a flagged entry with Edit Entry before uploading results.</p>
+        {{/if}}
       {{/each}}
     {{else}}
       <p class="empty-state">Nobody is registered yet.</p>

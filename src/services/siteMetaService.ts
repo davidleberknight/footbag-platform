@@ -30,7 +30,7 @@
  *     line is publicly readable and would advertise the very paths it hides.
  */
 import { config } from '../config/env';
-import { publicEvents, clubs, freestyleTricks, media, publicPlayers } from '../db/db';
+import { publicEvents, clubs, freestyleTricks, media, newsItems, publicPlayers } from '../db/db';
 import { freestyleService } from './freestyleService';
 import { listGroupedByCategory } from '../lib/rulesLoader';
 import { getIfpaDocs } from '../lib/ifpaLoader';
@@ -39,6 +39,7 @@ import { getIfpaDocs } from '../lib/ifpaLoader';
 // reading order; dynamic detail URLs are appended below.
 const STATIC_PUBLIC_PATHS = [
   '/',
+  '/news',
   '/events',
   '/clubs',
   '/freestyle',
@@ -113,6 +114,18 @@ function collectPublicPaths(): string[] {
     paths.add(`/events/year/${yr.archive_year}`);
     for (const row of publicEvents.listCompletedByYear.all(yr.archive_year) as Array<{ tag_normalized: string }>) {
       paths.add(`/events/${keyFromTag(row.tag_normalized)}`);
+    }
+  }
+
+  // News: each earlier year holding public items (the current year is the
+  // landing page, which redirects from its year address), and every public
+  // item's own page.
+  const nowIso = new Date().toISOString();
+  const currentNewsYear = Number(nowIso.slice(0, 4));
+  for (const yr of newsItems.listPublicYears.all(nowIso) as Array<{ year: number }>) {
+    if (yr.year !== currentNewsYear) paths.add(`/news/year/${yr.year}`);
+    for (const row of newsItems.listPublicByYear.all(nowIso, String(yr.year)) as Array<{ id: string }>) {
+      paths.add(`/news/${row.id}`);
     }
   }
 
@@ -212,6 +225,7 @@ export const siteMetaService = {
       '',
       '## Browse',
       '',
+      `- [News](${b}/news): news from IFPA and posts from the footbag community, by year.`,
       `- [Events](${b}/events): footbag tournaments worldwide, with results and yearly archives.`,
       `- [Clubs](${b}/clubs): footbag clubs and communities by country.`,
       `- [Freestyle](${b}/freestyle): the freestyle trick dictionary, families, and notation.`,

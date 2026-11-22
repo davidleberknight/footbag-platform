@@ -380,6 +380,8 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   event_registration_confirmed:           { via: 'member' },
   event_registration_reminder:            { via: 'address' },
   event_registration_withdrawn:           { via: 'member' },
+  event_partner_named:                    { via: 'member' },
+  event_partner_left:                     { via: 'member' },
   event_registration_added:               { via: 'act' },
   event_registration_corrected:           { via: 'act' },
   event_sanction_requested:               { via: 'member' },

@@ -278,7 +278,7 @@ const DRIVERS: Driver[] = [
             onboarded.add(m);
           }
           return eventService.register(m, eventKey, {
-            type: 'competitor', divisionIds: [divisionId], amateurIds: [], partners: [], tshirtSize: '',
+            type: 'competitor', divisionIds: [divisionId], amateurIds: [], partners: [], lookingDivisionIds: [], tshirtSize: '',
           });
         },
       });

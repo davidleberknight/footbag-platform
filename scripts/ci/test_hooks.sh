@@ -223,8 +223,9 @@ export CLAUDE_PROJECT_DIR="$saved_project_dir"
 rm -rf "$cp_dir"
 
 # guard-ui-wording.sh: a change that adds text a site visitor reads passes silently only
-# when a message the human typed approved that text, or pre-approved technical wording;
-# otherwise it asks once, saying a human must approve the UI copy and naming it.
+# when a message the human typed, or a plan the human approved, showed that text, or the
+# human pre-approved technical UI words and the text is not prose; otherwise it asks
+# once, saying a human must approve the UI copy, naming it, and saying why it asks.
 # A scratch project stands in for the real files; each case gets its own transcript.
 H=guard-ui-wording.sh
 uw_dir="$(mktemp -d)"
@@ -304,12 +305,32 @@ expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(jq -cn '{ty
 # A short change needs the file named too, so a common word in a message cannot approve it.
 expect_wording "$(uw_edit "$V" 'meets weekly' 'meets often')" "$(uw_human 'meets often')" ask
 expect_wording "$(uw_edit "$V" 'meets weekly' 'meets often')" "$(uw_human 'in detail.hbs say meets often')" defer
-# Pre-approval of UI wording, typed or sent mid-turn, passes every new unit, email text
-# and long prose included; a later withdrawal ends it.
+# Pre-approval of UI wording, typed or sent mid-turn, passes technical words (labels,
+# buttons, badges, short status words) in any medium, an email template included; prose
+# still asks under it, page or email, and the ask says why; a later withdrawal ends it.
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_queued 'approve all ui wording, technical not editorial copy')" defer
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'ui wording changes are technical not editor copy, go ahead')" defer
-expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "$(uw_human 'approve all technical UI wording')" defer
-expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'$uw_long $uw_long'")" "$(uw_human 'approve all technical UI wording')" defer
+expect_wording "$(uw_edit curated/email_templates/club_join.json '"club_join",' '"club_join",
+  "buttonLabel": "View event",')" "$(uw_human 'approve all technical UI wording')" defer
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Show results for this division'")" "$(uw_human 'approve all technical UI wording')" defer
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Request sent.'")" "$(uw_human 'approve all technical UI wording')" defer
+expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "$(uw_human 'approve all technical UI wording')" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'$uw_long $uw_long'")" "$(uw_human 'approve all technical UI wording')" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'This club is full today.'")" "$(uw_human 'approve all technical UI wording')" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Your partner left your entry for {eventTitle}'")" "$(uw_human 'approve all technical UI wording')" ask
+expect_wording "$(uw_edit "$V" 'meets weekly.' 'meets {{freq}} each week.')" "$(uw_human 'approve all technical UI wording')" ask
+uw_out="$(jq -cn --argjson i "$(uw_edit "$V" 'Club details' 'This club welcomes new players.')" '{tool_input:$i,transcript_path:"",session_id:"s1"}' | ".claude/hooks/$H")"
+case "$(printf '%s' "$uw_out" | jq -r '.hookSpecificOutput.permissionDecisionReason')" in
+  *'Why it asks: this text was not in a message you typed or a plan you approved, and no pre-approval'*) : ;;
+  *) echo "[hooks] FAIL ($H): an ask does not say why no approval was found" >&2; fail=1 ;;
+esac
+uw_tf="$(mktemp)"; uw_human 'approve all technical UI wording' > "$uw_tf"
+uw_out="$(jq -cn --argjson i "$(uw_edit "$V" 'Club details' 'This club welcomes new players.')" --arg t "$uw_tf" '{tool_input:$i,transcript_path:$t,session_id:"s1"}' | ".claude/hooks/$H")"
+rm -f "$uw_tf"
+case "$(printf '%s' "$uw_out" | jq -r '.hookSpecificOutput.permissionDecisionReason')" in
+  *'your pre-approval covers technical UI words only, never prose'*) : ;;
+  *) echo "[hooks] FAIL ($H): a prose ask under a pre-approval does not say the pre-approval skips prose" >&2; fail=1 ;;
+esac
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve all technical UI wording')"$'\n'"$(uw_human 'stop approving UI wording')" ask
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve ui edits')" defer
 expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'approve ui edits')"$'\n'"$(uw_human 'stop approving UI edits')" ask
@@ -323,6 +344,38 @@ expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_human 'a
 mkdir -p "$uw_dir/sess/subagents"; uw_human 'heading: About this club' > "$uw_dir/sess.jsonl"
 uw_out="$(jq -cn --arg p "$uw_dir/$V" --arg t "$uw_dir/sess/subagents/agent-x.jsonl" '{tool_input:{file_path:$p,old_string:"Club details",new_string:"About this club"},transcript_path:$t}' | ".claude/hooks/$H")"
 [ -z "$uw_out" ] || { echo "[hooks] FAIL ($H): a subagent edit did not find the session approval" >&2; fail=1; }
+# An approved plan is the approval of the text it shows, as Claude Code records it: the
+# ExitPlanMode call, then its own tool result saying the human approved it and carrying
+# the plan as approved (the human may edit it in the approval dialog). It approves prose
+# as well as technical words, page or email, and a written \n in a quoted body separates
+# words as in the file.
+uw_plan_call() { jq -cn --arg id "$1" --arg p "$2" '{type:"assistant",message:{content:[{type:"tool_use",id:$id,name:"ExitPlanMode",input:{plan:$p}}]}}'; }
+uw_plan_result() { jq -cn --arg id "$1" --arg p "$2" --arg h "${3:-User has approved your plan. You can now start coding.}" --argjson err "${4:-false}" \
+  '{type:"user",message:{content:[{type:"tool_result",tool_use_id:$id,is_error:$err,content:($h + "\n\n## Approved Plan:\n" + $p)}]},toolUseResult:{plan:$p,isAgent:false,filePath:"/x/plan.md"}}'; }
+uw_plan_rejected() { jq -cn --arg id "$1" '{type:"user",message:{content:[{type:"tool_result",tool_use_id:$id,is_error:true,content:"The user doesn'"'"'t want to proceed with this tool use. The tool use was rejected."}]},toolUseResult:"Error: The user doesn'"'"'t want to proceed with this tool use."}'; }
+uw_body='Hi {name},\n\nYou joined.\n\nSee you soon at the club.'
+uw_pl="Email club_join body: \`$uw_body\`. Service heading: 'Become a member'."
+expect_wording "$(uw_edit curated/email_templates/club_join.json 'Hi {name},\n\nYou joined.' "$uw_body")" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_result p1 "$uw_pl")" defer
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_result p1 "$uw_pl")" defer
+uw_persisted="<persisted-output>
+Output too large (84.2KB). Full output saved to: /x/tool-results/p1.txt
+
+Preview (first 2KB):
+User has approved your plan. You can now start coding."
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_result p1 "$uw_pl" "$uw_persisted")" defer
+# Not approval: a rejected plan, a plan not yet answered, text the approved plan lacks,
+# text the human edited out of the plan before approving it, an approval-worded result
+# that is an error or answers no ExitPlanMode call, and Claude's plain text quoting it.
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_rejected p1)" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_call p1 "$uw_pl")" ask
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_result p1 "$uw_pl")" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_result p1 'Email club_join body only.')" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_call p1 "$uw_pl")"$'\n'"$(uw_plan_result p1 "$uw_pl" 'User has approved your plan.' true)" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_plan_result p1 "$uw_pl")" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(jq -cn --arg p "$uw_pl" '{type:"assistant",message:{content:[{type:"tool_use",id:"p1",name:"Bash",input:{command:$p}}]}}')"$'\n'"$(uw_plan_result p1 "$uw_pl")" ask
+expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Become a member'")" "$(uw_claude "User has approved your plan. $uw_pl")" ask
+# A plan never grants or ends the pre-approval of UI wording, even when it quotes the phrase.
+expect_wording "$(uw_edit "$V" 'Club details' 'About this club')" "$(uw_plan_call p1 'approve all technical UI wording')"$'\n'"$(uw_plan_result p1 'approve all technical UI wording')" ask
 # Out of scope: tests and docs defer.
 expect_file "$H" "$uw_dir/tests/x.test.ts" defer
 # Fails to ask, never to deny or to an error exit.

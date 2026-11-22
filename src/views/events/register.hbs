@@ -46,8 +46,7 @@
               {{/if}}
             </div>
             {{#if this.partnerPicker}}
-              <input type="hidden" name="partner_division" value="{{this.id}}" />
-              {{> member-picker this.partnerPicker}}
+              {{> doubles-partner-choice this}}
             {{/if}}
             {{#if this.offersPrizeMoney}}
               <div class="form-field">

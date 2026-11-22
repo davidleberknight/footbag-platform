@@ -935,6 +935,8 @@ URLs are validated by the application before insertion (must be `https`, well-fo
 #### Competitor registration completeness (APP-013)
 Before a competitor registration reaches `status = 'confirmed'`, the application must ensure at least one `registration_discipline_selections` row exists for that registration. A selection's `enters_as_amateur` records the competitor's choice to enter a prize-money division as an Amateur.
 
+A doubles selection's pairing is derived, never stored: it is matched when the partner's confirmed registration has a selection in the same division naming this registrant. A null `partner_member_id` on a doubles selection means the competitor is looking for a partner.
+
 #### Pre-event reminder ledger
 `event_registration_reminder_sent` is an append-only ledger with one row each time the daily worker enqueues the pre-event reminder to a confirmed registrant: `registration_id` (FK to `registrations`), `event_start_date` (the event's start date at send time) and `sent_at`. It is unique on (`registration_id`, `event_start_date`), so a missed day still sends once, a repeat run sends nothing, and an event moved to a new date reminds its registrants again. Rows are immutable; UPDATE and DELETE are blocked by triggers (see the Retained DB Triggers section).
 

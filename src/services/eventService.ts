@@ -109,8 +109,25 @@
  *     was not refunded, registers again as the same type with no new charge.
  *     A competitor enters at least one division; a doubles entry names its
  *     partner, a live onboarded member other than the registrant, chosen by
- *     name from the member search and posted by member id. Gender eligibility
- *     is checked between the two member profiles.
+ *     name from the member search and posted by member id, or is ticked as
+ *     looking for a partner and names nobody. Gender eligibility is checked
+ *     between the two member profiles.
+ *   - Doubles pairing: each partner holds their own registration, and an entry
+ *     is a pair only when the partner's confirmed entry in the same division
+ *     names the entrant back. The pairing is derived on read, never stored.
+ *     A member named by a confirmed entry is emailed once per event, division
+ *     and entrant, unless their own entry already names the entrant; their
+ *     register and partner forms say who named them and start with that member
+ *     chosen. Each doubles division on those forms lists who is looking for a
+ *     partner. Choosing someone else is allowed; both entries then show as
+ *     unconfirmed.
+ *   - Own partner changes: while registration is open, a confirmed competitor
+ *     chooses or changes the partner on their own doubles entries, at no
+ *     charge and with no audit row, as registering writes none.
+ *   - A partner left behind: when a member's entry stops naming a partner (by
+ *     withdrawal, registering again or a partner change), that partner's
+ *     standing entry naming the member is cleared to looking for a partner and
+ *     they are emailed.
  *   - Withdrawal: the member cancels their own registration up to the same cutoff;
  *     the canceled row keeps its entries, and every current organizer is emailed.
  *     A registration waiting at checkout ends that checkout first.
@@ -149,7 +166,9 @@
  *     organizers as not paid until a payment succeeds or the fee is marked
  *     paid at the event.
  *   - The participant list groups the confirmed entries by division, each with
- *     its count, above the full list of standing registrations.
+ *     its count, above the full list of standing registrations. A doubles entry
+ *     is flagged when it names no partner, when the partner has not named it
+ *     back, or when the partner named someone else.
  *   - The participant list, its CSV export, the registration summary, the
  *     check-in sheet and participant email are for the event's organizers only.
  *     The export, the sheet and the email reach confirmed registrations only. A
@@ -171,7 +190,7 @@
  *     undeclared repeated place, a division that already has results and a
  *     name that matches no single confirmed registration of the event are
  *     refused, the last naming each such row, as is a doubles row placing an
- *     entry whose registration names no partner; no result is ever saved as a
+ *     entry that is not a pair; no result is ever saved as a
  *     name without its member. The commit writes the upload, its entries and
  *     competitors, any unadvertised division, the event's completion and the
  *     attendance of every placing member with a confirmed registration, in one
@@ -232,7 +251,8 @@
  *     CuratorMediaService's storage adapter
  *   - outbox_emails enqueue (organizer confirmations, participant notices, sanction
  *     request and decisions, cancellations, correction notices, the member's
- *     notice of an entry an organizer or administrator added or changed, participant
+ *     notice of an entry an organizer or administrator added or changed, the
+ *     doubles partner notices of being named and of being left, participant
  *     email, the Active Player notice an attendance grant sends), inside the
  *     act's transaction
  *   - work_queue_items insert (`sanction_request`, routine: read on the queue and
@@ -311,6 +331,7 @@ import {
   eventDatesPhrase,
   registrationSummary,
   toEntryView,
+  notifyNamedPartnersInTx,
   type RegistrationEntryView,
   type RegistrationType,
 } from './eventRegistrationSettlement';
@@ -514,6 +535,8 @@ export interface OwnRegistrationView {
   withdrawAction: string | null;
   /** The register page, to return to checkout, while the registration waits for payment. */
   completePaymentHref: string | null;
+  /** The page choosing or changing the member's own doubles partners, while they can. */
+  partnerLink: { href: string; label: string } | null;
 }
 
 /** One confirmed registrant on the member-visible list. */
@@ -1153,6 +1176,10 @@ export interface DivisionEntryRowView {
   partnerName: string | null;
   /** A doubles entry naming no partner, which the results upload refuses. */
   noPartner: boolean;
+  /** A doubles entry whose partner has not named it back; the upload refuses it too. */
+  pairingFlag: string | null;
+  /** Which of the two the flag says: the partner has not named it back, or named someone else. */
+  pairingKind: 'unconfirmed' | 'named_other' | null;
   paymentLabel: string;
   /** The entry's edit page while corrections are open; null after. */
   editHref: string | null;
@@ -1765,6 +1792,9 @@ const REGISTRATION_AWAITS_PAYMENT =
 const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
 // The registration form's id, which its partner pickers' buttons submit.
 const REGISTER_FORM_ID = 'event-register-form';
+// The partner page's form, which its partner pickers' buttons submit.
+const PARTNER_FORM_ID = 'event-partner-form';
+const PARTNER_CHANGE_CLOSED = "Registration has closed. The event's organizers can change your partner at the event.";
 // The manage page's add-organizer form, which its organizer picker submits.
 const ADD_ORGANIZER_FORM_ID = 'add-organizer-form';
 
@@ -1845,13 +1875,64 @@ function heldRegistrationInput(own: OwnRegistrationRow): RegistrationInput {
     partners: held
       .filter((s) => s.partner_member_id !== null)
       .map((s) => ({ divisionId: s.discipline_id, memberId: s.partner_member_id ?? '' })),
+    lookingDivisionIds: held.filter((s) => s.team_type === 'doubles' && s.partner_member_id === null).map((s) => s.discipline_id),
     tshirtSize: own.tshirt_size ?? '',
+  };
+}
+
+// A doubles division's partner picker on a form where the member chooses
+// their own partner: the member a Choose just named, else the one the form
+// carried, else, on a fresh form, the first member whose entry names them
+// there. An id the search could not offer is dropped, so the form never shows
+// or posts back a partner the save refuses.
+function ownPartnerPicker(
+  formId: string, formAction: string, d: { id: string; name: string }, memberId: string,
+  carried: RegistrationInput['partners'] | undefined, help: DoublesHelp, picker: PickerRequest | undefined,
+): MemberPickerView {
+  const key = `partner-${d.id}`;
+  const intent = picker?.intent ?? null;
+  const chosenId = intent?.kind === 'choose' && intent.key === key
+    ? intent.memberId
+    : carried
+      ? carried.find((p) => p.divisionId === d.id)?.memberId ?? ''
+      : help.namedBy.get(d.id)?.[0]?.memberId ?? '';
+  const partner = chosenId !== '' ? findSearchableMember(chosenId) : null;
+  return buildMemberPicker({
+    formId,
+    formAction,
+    fieldName: 'partner',
+    fieldKey: key,
+    label: 'Partner',
+    searchLabel: "Partner's name",
+    openLabel: 'Choose Partner',
+    rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name} as partner for ${d.name}` },
+    chosen: partner && partner.id !== memberId ? toPickerMember(partner) : null,
+    intent,
+    openOnLoad: false,
+    query: picker?.query ?? '',
+    search: runPickerSearch(picker, key, memberId, [memberId]),
+    notFoundHint: 'Your partner needs a footbag.org account and must appear in member search.',
+  });
+}
+
+// The doubles help beside one division of a form, for a member choosing their
+// own partner there.
+function doublesChoiceView(
+  d: { id: string; name: string; team_type: string }, help: DoublesHelp, lookingChecked: boolean,
+): DoublesChoiceView {
+  if (d.team_type !== 'doubles') return { lookingForPartner: null, namedByNotices: [], lookingList: null };
+  const names = help.looking.get(d.id) ?? [];
+  return {
+    lookingForPartner: { checked: lookingChecked },
+    namedByNotices: (help.namedBy.get(d.id) ?? []).map((n) => `${n.name} has entered you as their partner in ${d.name}.`),
+    lookingList: names.length > 0 ? `Looking for a partner in ${d.name}: ${names.join(', ')}` : null,
   };
 }
 
 interface SelectionRow {
   discipline_id: string;
   division_name: string;
+  team_type: string;
   partner_member_id: string | null;
   enters_as_amateur: number;
   partner_member_name: string | null;
@@ -1868,10 +1949,22 @@ export interface RegistrationInput {
    * division with no partner chosen yet carries an empty id.
    */
   partners: Array<{ divisionId: string; memberId: string }>;
+  /** The doubles divisions ticked as looking for a partner. */
+  lookingDivisionIds: string[];
   tshirtSize: string;
 }
 
-export interface RegisterDivisionView {
+/** A doubles division's partner choice, on the register and partner forms. */
+export interface DoublesChoiceView {
+  /** The looking-for-a-partner tick; null for a singles division. */
+  lookingForPartner: { checked: boolean } | null;
+  /** One line for each member whose entry names the viewer as partner here. */
+  namedByNotices: string[];
+  /** The registrants looking for a partner in this division; null when none is. */
+  lookingList: string | null;
+}
+
+export interface RegisterDivisionView extends DoublesChoiceView {
   id: string;
   name: string;
   checked: boolean;
@@ -1905,6 +1998,34 @@ export interface RegisterEventContent {
 export type RegisterResult =
   | { branch: 'registered' | 'own_repeat'; eventTitle: string }
   | { branch: 'checkout'; redirectUrl: string; eventTitle: string };
+
+/** What the partner page posts: a partner or the looking tick per doubles division. */
+export interface PartnerInput {
+  partners: Array<{ divisionId: string; memberId: string }>;
+  lookingDivisionIds: string[];
+}
+
+export interface PartnerDivisionView extends DoublesChoiceView {
+  id: string;
+  name: string;
+  partnerPicker: MemberPickerView;
+}
+
+/** A member choosing or changing the partners on their own doubles entries. */
+export interface PartnerPageContent {
+  formId: string;
+  formAction: string;
+  cancelHref: string;
+  eventDates: string;
+  divisions: PartnerDivisionView[];
+  errorMessage: string | null;
+}
+
+export type PartnerPageResult =
+  | { branch: 'form'; page: PageViewModel<PartnerPageContent> }
+  | { branch: 'closed'; message: string };
+
+export type ChangePartnersResult = { branch: 'saved' | 'own_repeat'; message: string };
 
 export type RegisterPageResult =
   | { branch: 'form'; page: PageViewModel<RegisterEventContent> }
@@ -1966,6 +2087,92 @@ function findSearchableMember(memberId: string): MemberRow | null {
   const id = memberId.trim();
   if (!id) return null;
   return (eventRegistrations.findSearchableMemberById.get(id) as MemberRow | undefined) ?? null;
+}
+
+/**
+ * How a doubles entry stands against its partner's own entry: naming nobody
+ * (looking for a partner), a pair (the partner's confirmed entry in the same
+ * division names the entrant back), the partner's confirmed entry naming
+ * someone else, or neither (the partner has not entered that division, or
+ * entered it looking for a partner).
+ */
+type Pairing = 'looking' | 'matched' | 'named_other' | 'unconfirmed';
+
+interface PairingRow {
+  registration_id: string; discipline_id: string; member_id: string; status: string;
+  partner_member_id: string | null; partner_entered: number; partner_names_member_id: string | null;
+}
+
+function pairingOf(r: PairingRow): Pairing {
+  if (r.partner_member_id === null) return 'looking';
+  if (r.partner_names_member_id === r.member_id) return 'matched';
+  if (r.partner_entered === 1 && r.partner_names_member_id !== null) return 'named_other';
+  return 'unconfirmed';
+}
+
+// Every doubles entry of the event's standing registrations, keyed by
+// registration and division.
+function pairingsForEvent(eventId: string): Map<string, Pairing> {
+  const map = new Map<string, Pairing>();
+  for (const r of eventRegistrations.listDoublesPairingForEvent.all(eventId) as PairingRow[]) {
+    map.set(`${r.registration_id}|${r.discipline_id}`, pairingOf(r));
+  }
+  return map;
+}
+
+// What the entrant reads beside a partner who has not named them back.
+function pairingNoteFor(pairing: Pairing | undefined, partnerName: string | null): string | null {
+  if (!partnerName) return null;
+  if (pairing === 'unconfirmed') return `${partnerName} hasn't named you as their partner yet`;
+  if (pairing === 'named_other') return `${partnerName} has named someone else`;
+  return null;
+}
+
+/**
+ * The partner a member's own doubles entry names, from the picker's choice or
+ * the looking-for-a-partner tick: null when ticked with no partner chosen.
+ * Refuses an entry with neither, the member themselves, and anyone the member
+ * search would not offer.
+ */
+function resolveOwnPartner(
+  division: { id: string; name: string }, memberId: string, chosenId: string, looking: boolean,
+): MemberRow | null {
+  if (chosenId.trim() === '') {
+    if (looking) return null;
+    throw new ValidationError(`Choose a partner for ${division.name}, or tick I'm looking for a partner.`);
+  }
+  if (chosenId.trim() === memberId) throw new ValidationError(`Your ${division.name} partner has to be someone else.`);
+  // Only a member the partner search can offer is a partner; any other id the
+  // form carries is refused as if no member had been chosen.
+  const partner = findSearchableMember(chosenId);
+  if (!partner) {
+    throw new ValidationError(`Your ${division.name} partner must be a footbag.org member. Search for them by name and choose them.`);
+  }
+  return partner;
+}
+
+// What the register and partner forms show beside each doubles division: who
+// has entered this member as their partner there, and who is looking for one.
+interface DoublesHelp {
+  namedBy: Map<string, Array<{ memberId: string; name: string }>>;
+  looking: Map<string, string[]>;
+}
+
+function doublesHelpFor(eventId: string, memberId: string): DoublesHelp {
+  const namedBy = new Map<string, Array<{ memberId: string; name: string }>>();
+  for (const r of eventRegistrations.listConfirmedEntriesNamingMember.all(eventId, memberId) as Array<{
+    discipline_id: string; member_id: string; display_name: string;
+  }>) {
+    namedBy.set(r.discipline_id, [...(namedBy.get(r.discipline_id) ?? []), { memberId: r.member_id, name: r.display_name }]);
+  }
+  const looking = new Map<string, string[]>();
+  for (const r of eventRegistrations.listConfirmedEntriesByDivision.all(eventId) as Array<{
+    discipline_id: string; team_type: string; partner_member_id: string | null; member_id: string; display_name: string;
+  }>) {
+    if (r.team_type !== 'doubles' || r.partner_member_id !== null || r.member_id === memberId) continue;
+    looking.set(r.discipline_id, [...(looking.get(r.discipline_id) ?? []), r.display_name]);
+  }
+  return { namedBy, looking };
 }
 
 function toPickerMember(m: MemberRow): PickerMember {
@@ -3025,13 +3232,25 @@ export class EventService {
     let mine: OwnRegistrationView | null = null;
     if (own && holds) {
       const selections = eventRegistrations.listSelectionsForRegistration.all(own.id) as SelectionRow[];
+      const pairings = pairingsForEvent(event.id);
+      const entries = selections.map((s) => ({
+        ...toEntryView(s),
+        pairingNote: pairingNoteFor(pairings.get(`${own.id}|${s.discipline_id}`), s.partner_member_name),
+      }));
+      // A confirmed competitor chooses or changes their own doubles partners
+      // while registration is open; the organizers do it after.
+      const doubles = selections.some((s) => s.team_type === 'doubles');
+      const canChangePartner = doubles && own.status === 'confirmed' && isRegistrationOpen(event, today);
       mine = {
         typeLabel: REGISTRATION_TYPE_LABELS[own.registration_type],
         statusLabel: own.status === 'pending' ? 'Awaiting payment' : null,
-        entries: selections.map(toEntryView),
+        entries,
         tshirtSize: own.tshirt_size,
         withdrawAction: today.slice(0, 10) <= registrationCutoff(event) ? `${base}/withdraw` : null,
         completePaymentHref: awaitsCheckout(own) && open ? `${base}/register` : null,
+        partnerLink: canChangePartner
+          ? { href: `${base}/registration/partner`, label: entries.some((e) => e.lookingForPartner) ? 'Choose Partner' : 'Change Partner' }
+          : null,
       };
     }
 
@@ -3087,33 +3306,9 @@ export class EventService {
     const chosenType = input?.type ?? types[0];
     const tshirt = input?.tshirtSize ?? '';
     const formAction = `${base}/register`;
-    const intent = picker?.intent ?? null;
-    // Each doubles division's partner: the member a Choose just named, else the
-    // one the form carried. An id the search could not offer is dropped, so
-    // the form never shows or posts back a partner the registration refuses.
-    const partnerPicker = (d: DivisionRow): MemberPickerView => {
-      const key = `partner-${d.id}`;
-      const chosenId = intent?.kind === 'choose' && intent.key === key
-        ? intent.memberId
-        : input?.partners.find((p) => p.divisionId === d.id)?.memberId ?? '';
-      const partner = chosenId !== '' ? findSearchableMember(chosenId) : null;
-      return buildMemberPicker({
-        formId: REGISTER_FORM_ID,
-        formAction,
-        fieldName: 'partner',
-        fieldKey: key,
-        label: 'Partner',
-        searchLabel: "Partner's name",
-        openLabel: 'Choose Partner',
-        rowAction: { label: 'Choose', completes: false, ariaLabel: (name) => `Choose ${name} as partner for ${d.name}` },
-        chosen: partner && partner.id !== memberId ? toPickerMember(partner) : null,
-        intent,
-        openOnLoad: false,
-        query: picker?.query ?? '',
-        search: runPickerSearch(picker, key, memberId, [memberId]),
-        notFoundHint: 'Your partner needs a footbag.org account and must appear in member search.',
-      });
-    };
+    const help = doublesHelpFor(event.id, memberId);
+    const partnerPicker = (d: DivisionRow): MemberPickerView =>
+      ownPartnerPicker(REGISTER_FORM_ID, formAction, d, memberId, input?.partners, help, picker);
     const page: PageViewModel<RegisterEventContent> = {
       seo: { title: `Register for ${event.title}`, noindex: true },
       page: { sectionKey: 'events', pageKey: 'event_register', title: `Register for ${event.title}` },
@@ -3131,11 +3326,15 @@ export class EventService {
         showDivisions: types.includes('competitor') && divisions.length > 0,
         divisions: divisions.map((d) => {
           const gated = d.gender_eligibility === 'women' || d.gender_eligibility === 'mixed';
+          const doublesPicker = d.team_type === 'doubles' ? partnerPicker(d) : null;
+          // A chosen partner is the answer, so the looking tick clears.
+          const looking = (input?.lookingDivisionIds.includes(d.id) ?? false) && !doublesPicker?.chosenId;
           return {
             id: d.id,
             name: d.name,
             checked: input?.divisionIds.includes(d.id) ?? false,
-            partnerPicker: d.team_type === 'doubles' ? partnerPicker(d) : null,
+            partnerPicker: doublesPicker,
+            ...doublesChoiceView(d, help, looking),
             offersPrizeMoney: d.offers_prize_money === 1,
             amateur: input?.amateurIds.includes(d.id) ?? false,
             genderWarning: gated && declaredGender(self?.gender ?? null) === null ? GENDER_NEEDED : null,
@@ -3223,16 +3422,7 @@ export class EventService {
         let partnerMember: MemberRow | null = null;
         if (division.team_type === 'doubles') {
           const chosenId = input.partners.find((p) => p.divisionId === division.id)?.memberId ?? '';
-          if (chosenId.trim() === '') {
-            throw new ValidationError(`${division.name} is played in doubles: search for your partner by name and choose them.`);
-          }
-          if (chosenId.trim() === memberId) throw new ValidationError(`Your ${division.name} partner has to be someone else.`);
-          // Only a member the partner search can offer is a partner; any other
-          // id the form carries is refused as if no member had been chosen.
-          partnerMember = findSearchableMember(chosenId);
-          if (!partnerMember) {
-            throw new ValidationError(`Your ${division.name} partner must be a footbag.org member. Search for them by name and choose them.`);
-          }
+          partnerMember = resolveOwnPartner(division, memberId, chosenId, input.lookingDivisionIds.includes(division.id));
         }
         const refusal = checkDivisionEligibility(division, self.gender, partnerMember && { gender: partnerMember.gender });
         if (refusal) throw new ValidationError(refusal);
@@ -3246,11 +3436,14 @@ export class EventService {
             partnerName: partnerMember?.display_name ?? null,
             partnerHref: null,
             isAmateur: amateur,
+            lookingForPartner: division.team_type === 'doubles' && partnerMember === null,
+            pairingNote: null,
           },
         });
       }
     }
 
+    const partnersAfter = new Map(entries.map((e) => [e.division.id, e.partnerMemberId]));
     const fee = this.chargeFor(event, own, type);
     if (fee !== null) {
       const writeEntries = (registrationId: string, at: string): void => {
@@ -3274,11 +3467,17 @@ export class EventService {
           // checkout, or an overlapping submit, may have moved the row.
           const row = eventRegistrations.findForMember.get(event.id, memberId) as OwnRegistrationRow | undefined;
           if (row) {
+            // A held registration's partners, before its entries are replaced;
+            // a withdrawn one already released them when it was withdrawn.
+            const before = row.status === 'canceled'
+              ? []
+              : eventRegistrations.listSelectionsForRegistration.all(row.id) as SelectionRow[];
             if (eventRegistrations.reactivateWithPayment.run(type, tshirtSize, at, paymentId, at, memberId, row.id).changes === 0) {
               return false;
             }
             eventRegistrations.deleteSelections.run(row.id);
             writeEntries(row.id, at);
+            this.releaseLeftPartnersInTx(event, memberId, before, partnersAfter, at);
           } else {
             const registrationId = `reg_${newId()}`;
             eventRegistrations.insertWithPayment.run(
@@ -3310,7 +3509,10 @@ export class EventService {
       if (pending) {
         paymentService.releaseEventRegistrationCheckoutInTx(own.payment_id, memberId);
       }
+      let before: SelectionRow[] = [];
       if (own) {
+        // A withdrawn registration already released its partners.
+        if (own.status !== 'canceled') before = eventRegistrations.listSelectionsForRegistration.all(own.id) as SelectionRow[];
         eventRegistrations.reactivate.run(type, 'confirmed', tshirtSize, now, now, memberId, own.id);
         eventRegistrations.deleteSelections.run(own.id);
       } else {
@@ -3335,6 +3537,8 @@ export class EventService {
         memberId,
         idempotencyKey: `event-registration:${registrationId}:${now}`,
       });
+      this.releaseLeftPartnersInTx(event, memberId, before, partnersAfter, now);
+      notifyNamedPartnersInTx(registrationId);
     });
     return { branch: 'registered', eventTitle: event.title };
   }
@@ -3371,7 +3575,11 @@ export class EventService {
     const self = eventRegistrations.findMemberById.get(memberId) as MemberRow | undefined;
     const organizers = eventOrganizers.listForEvent.all(event.id) as Array<{ member_id: string }>;
     transaction(() => {
+      const before = eventRegistrations.listSelectionsForRegistration.all(own.id) as SelectionRow[];
       eventRegistrations.cancel.run(WITHDRAWN_BY_MEMBER, now, now, memberId, own.id);
+      // The canceled row keeps its entries; a partner whose own entry named
+      // this member is left looking for a partner, and told.
+      this.releaseLeftPartnersInTx(event, memberId, before, new Map(), now);
       if (releasePayment && own.payment_id) {
         paymentService.releaseEventRegistrationCheckoutInTx(own.payment_id, memberId);
       }
@@ -3397,6 +3605,144 @@ export class EventService {
       }
     });
     return { branch: 'withdrawn', eventTitle: event.title };
+  }
+
+  // The member's own confirmed competitor registration holding a doubles
+  // entry, which the partner page changes; not-found for anyone else, and the
+  // closed message once registration is not open.
+  private requireOwnDoublesRegistration(eventKey: string, memberId: string): {
+    event: EventRow; own: OwnRegistrationRow; doubles: SelectionRow[];
+  } | { closed: string } {
+    const event = this.requirePublicEvent(eventKey);
+    const own = eventRegistrations.findForMember.get(event.id, memberId) as OwnRegistrationRow | undefined;
+    if (!own || own.status !== 'confirmed') throw new NotFoundError('Registration not found.');
+    const doubles = (eventRegistrations.listSelectionsForRegistration.all(own.id) as SelectionRow[])
+      .filter((s) => s.team_type === 'doubles');
+    if (doubles.length === 0) throw new NotFoundError('Registration not found.');
+    if (!isRegistrationOpen(event, new Date().toISOString())) return { closed: PARTNER_CHANGE_CLOSED };
+    return { event, own, doubles };
+  }
+
+  /**
+   * The page where a member chooses or changes the partner on each of their
+   * own doubles entries, while registration is open. `form` carries what they
+   * submitted, shown again with a refusal or a picker control's request.
+   */
+  getPartnerPage(
+    eventKey: string, memberId: string,
+    form?: { input: PartnerInput; message: string | null }, picker?: PickerRequest,
+  ): PartnerPageResult {
+    const held = this.requireOwnDoublesRegistration(eventKey, memberId);
+    if ('closed' in held) return { branch: 'closed', message: held.closed };
+    const { event, doubles } = held;
+    const base = `/events/${encodeURIComponent(eventKey)}`;
+    const formAction = `${base}/registration/partner`;
+    const help = doublesHelpFor(event.id, memberId);
+    const carried = form?.input.partners ?? doubles
+      .filter((s) => s.partner_member_id !== null)
+      .map((s) => ({ divisionId: s.discipline_id, memberId: s.partner_member_id ?? '' }));
+    const looking = form?.input.lookingDivisionIds
+      ?? doubles.filter((s) => s.partner_member_id === null).map((s) => s.discipline_id);
+    return {
+      branch: 'form',
+      page: {
+        seo: { title: `Choose Your Partner for ${event.title}`, noindex: true },
+        page: { sectionKey: 'events', pageKey: 'event_partner', title: 'Choose Your Partner' },
+        navigation: { contextLinks: [{ label: `Back to ${event.title}`, href: base }] },
+        content: {
+          formId: PARTNER_FORM_ID,
+          formAction,
+          cancelHref: base,
+          eventDates: eventDatesPhrase(event.start_date, event.end_date),
+          divisions: doubles.map((s) => {
+            const d = { id: s.discipline_id, name: s.division_name, team_type: s.team_type };
+            const partnerPicker = ownPartnerPicker(PARTNER_FORM_ID, formAction, d, memberId, carried, help, picker);
+            // A chosen partner is the answer, so the looking tick clears.
+            return {
+              id: d.id,
+              name: d.name,
+              partnerPicker,
+              ...doublesChoiceView(d, help, looking.includes(d.id) && !partnerPicker.chosenId),
+            };
+          }),
+          errorMessage: form?.message ?? null,
+        },
+      },
+    };
+  }
+
+  /**
+   * Save the partner a member chose, or the looking tick, for each of their
+   * own doubles entries. A partner left behind is released and told; a newly
+   * named one is told once. Submitting what is already held is the member's
+   * own repeat: only the member chooses their own partner while registration
+   * is open.
+   */
+  changePartners(memberId: string, eventKey: string, input: PartnerInput): ChangePartnersResult {
+    const held = this.requireOwnDoublesRegistration(eventKey, memberId);
+    if ('closed' in held) throw new ValidationError(held.closed);
+    const { event, own, doubles } = held;
+    const self = eventRegistrations.findMemberById.get(memberId) as MemberRow | undefined;
+    if (!self) throw new NotFoundError('Member not found.');
+    const after = new Map<string, string | null>();
+    const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
+    for (const s of doubles) {
+      const division = divisions.find((d) => d.id === s.discipline_id);
+      if (!division) continue;
+      const chosenId = input.partners.find((p) => p.divisionId === s.discipline_id)?.memberId ?? '';
+      const partner = resolveOwnPartner(division, memberId, chosenId, input.lookingDivisionIds.includes(s.discipline_id));
+      const refusal = checkDivisionEligibility(division, self.gender, partner && { gender: partner.gender });
+      if (refusal) throw new ValidationError(refusal);
+      after.set(s.discipline_id, partner?.id ?? null);
+    }
+    const changed = doubles.filter((s) => (after.get(s.discipline_id) ?? null) !== s.partner_member_id);
+    const saved = (rows: readonly SelectionRow[]): string => `Your partner for ${rows.map((s) => s.division_name).join(' and ')} is saved.`;
+    if (changed.length === 0) return { branch: 'own_repeat', message: saved(doubles) };
+    const now = new Date().toISOString();
+    transaction(() => {
+      for (const s of changed) {
+        eventRegistrations.setSelectionPartner.run(after.get(s.discipline_id) ?? null, now, memberId, own.id, s.discipline_id);
+      }
+      eventRegistrations.touch.run(now, memberId, own.id);
+      this.releaseLeftPartnersInTx(event, memberId, changed, after, now);
+      notifyNamedPartnersInTx(own.id);
+    });
+    return { branch: 'saved', message: saved(changed) };
+  }
+
+  /**
+   * A member's own doubles entries stopped naming a partner (they withdrew,
+   * registered again with someone else, or changed partner): each such
+   * partner whose standing entry named this member there is left looking for
+   * a partner, and is told. Call inside the transaction that made the change,
+   * after it. `after` maps each division to the partner it now names.
+   */
+  private releaseLeftPartnersInTx(
+    event: EventRow, memberId: string, before: readonly SelectionRow[],
+    after: ReadonlyMap<string, string | null>, now: string,
+  ): void {
+    let entrantName: string | null = null;
+    for (const s of before) {
+      if (s.partner_member_id === null || (after.get(s.discipline_id) ?? null) === s.partner_member_id) continue;
+      const theirs = eventRegistrations.findForMember.get(event.id, s.partner_member_id) as OwnRegistrationRow | undefined;
+      if (!theirs || theirs.status === 'canceled') continue;
+      if (eventRegistrations.clearPartnerOnEntry.run(now, memberId, theirs.id, s.discipline_id, memberId).changes === 0) continue;
+      const partner = eventRegistrations.findMemberById.get(s.partner_member_id) as MemberRow | undefined;
+      if (!partner) continue;
+      entrantName ??= (eventRegistrations.findMemberById.get(memberId) as MemberRow | undefined)?.display_name ?? 'Your partner';
+      emailService.sendToMember({
+        template: 'event_partner_left',
+        params: {
+          memberName: partner.display_name,
+          entrantName,
+          divisionName: s.division_name,
+          eventTitle: event.title,
+          eventDates: eventDatesPhrase(event.start_date, event.end_date),
+        },
+        memberId: partner.id,
+        idempotencyKey: `event-partner-left:${theirs.id}:${s.discipline_id}:${memberId}:${now}`,
+      });
+    }
   }
 
   /** Stop or resume online registration, without moving the event's status. */
@@ -5374,8 +5720,10 @@ export class EventService {
       paid_at_event_at: string | null; display_name: string; slug: string;
       partner_member_name: string | null; payment_status: string | null;
     }>;
+    const pairings = pairingsForEvent(event.id);
     const groups = new Map<string, DivisionGroupView>();
     for (const r of rows) {
+      const pairing = pairings.get(`${r.registration_id}|${r.discipline_id}`);
       let group = groups.get(r.discipline_id);
       if (!group) {
         group = { name: r.division_name, confirmedCount: 0, isDoubles: r.team_type === 'doubles', rows: [] };
@@ -5388,6 +5736,9 @@ export class EventService {
         entrantHref: `/members/${encodeURIComponent(r.slug)}`,
         partnerName: r.partner_member_name,
         noPartner: group.isDoubles && r.partner_member_id === null,
+        pairingFlag: pairing === 'unconfirmed' ? "Partner hasn't confirmed"
+          : pairing === 'named_other' ? 'Partner named someone else' : null,
+        pairingKind: pairing === 'unconfirmed' || pairing === 'named_other' ? pairing : null,
         paymentLabel: paymentLabel(r.payment_status, r.paid_at_event_at, feeOwed(event, { status: 'confirmed', registration_type: r.registration_type })),
         editHref: editHref && r.registration_type === 'competitor' ? editHref(r.registration_id) : null,
       });
@@ -6093,7 +6444,7 @@ export class EventService {
       id: d.id, name: d.name, teamType: d.team_type, hasResults: withResults.has(d.id),
     }));
     const partnerless = new Map<string, string[]>();
-    for (const e of eventRegistrations.listPartnerlessDoublesEntries.all(event.id) as Array<{ registration_id: string; discipline_id: string }>) {
+    for (const e of eventRegistrations.listUnmatchedDoublesEntries.all(event.id) as Array<{ registration_id: string; discipline_id: string }>) {
       partnerless.set(e.registration_id, [...(partnerless.get(e.registration_id) ?? []), e.discipline_id]);
     }
     const candidates = (eventRegistrations.listConfirmedForAttendance.all(event.id) as AttendanceCandidateRow[]).map((c) => ({

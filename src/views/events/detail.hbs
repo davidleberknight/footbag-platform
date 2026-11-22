@@ -82,9 +82,12 @@
               {{#if mine.entries.length}}
                 <ul>
                   {{#each mine.entries}}
-                    <li>{{divisionName}}{{#if partnerName}}, with {{partnerName}}{{/if}}{{#if isAmateur}}, as an Amateur{{/if}}</li>
+                    <li>{{divisionName}}{{#if partnerName}}, with {{partnerName}}{{#if pairingNote}} <span data-pairing-note>({{pairingNote}})</span>{{/if}}{{/if}}{{#if lookingForPartner}}<span data-looking-for-partner>, looking for a partner</span>{{/if}}{{#if isAmateur}}, as an Amateur{{/if}}</li>
                   {{/each}}
                 </ul>
+              {{/if}}
+              {{#if mine.partnerLink}}
+                <p><a href="{{siteHref mine.partnerLink.href}}" class="action-link">{{mine.partnerLink.label}}</a></p>
               {{/if}}
               {{#if mine.tshirtSize}}<p>T-shirt size: {{mine.tshirtSize}}</p>{{/if}}
               {{#if mine.completePaymentHref}}
@@ -110,7 +113,7 @@
                 {{#each registrants}}
                   <li>
                     <a href="{{siteHref profileHref}}">{{name}}</a>, {{typeLabel}}{{#if entries.length}}:
-                      {{#each entries}}{{#unless @first}}; {{/unless}}{{divisionName}}{{#if partnerName}} with {{#if partnerHref}}<a href="{{siteHref partnerHref}}">{{partnerName}}</a>{{else}}{{partnerName}}{{/if}}{{/if}}{{/each}}
+                      {{#each entries}}{{#unless @first}}; {{/unless}}{{divisionName}}{{#if partnerName}} with {{#if partnerHref}}<a href="{{siteHref partnerHref}}">{{partnerName}}</a>{{else}}{{partnerName}}{{/if}}{{/if}}{{#if lookingForPartner}}<span data-looking-for-partner>, looking for a partner</span>{{/if}}{{/each}}
                     {{/if}}
                   </li>
                 {{/each}}

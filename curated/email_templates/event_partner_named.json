@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_partner_named",
+  "subjectTemplate": "{entrantName} entered you as their partner for {eventTitle}",
+  "bodyTemplate": "Hi {memberName},\n\n{entrantName} has entered {divisionName} at {eventTitle} ({eventDates}) with you as their partner.\n\nTo play together, choose {entrantName} as your partner in {divisionName} when you register, or change your partner from the event's page on footbag.org if you are already registered. Until you both name each other, the organizers see the entry as unconfirmed.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

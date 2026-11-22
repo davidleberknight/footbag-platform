@@ -6,7 +6,7 @@
  * ordinary Markdown not formatted at all.
  */
 import { describe, it, expect } from 'vitest';
-import { renderNewsMarkdown } from '../../src/lib/newsMarkdown';
+import { newsExcerpt, newsMarkdownToPlainText, renderNewsMarkdown } from '../../src/lib/newsMarkdown';
 
 const news = (md: string): string => renderNewsMarkdown(md, { memberAuthored: false });
 const community = (md: string): string => renderNewsMarkdown(md, { memberAuthored: true });
@@ -130,5 +130,50 @@ describe('renderNewsMarkdown: link marking', () => {
     const html = news('See https://example.com or write to someone@example.com');
     expect(html).toContain('<a href="https://example.com"');
     expect(html).not.toContain('mailto:');
+  });
+});
+
+describe('newsMarkdownToPlainText: the words a reader sees, on one line', () => {
+  // Defect: a list entry's excerpt or a page's description shows Markdown
+  // syntax, a link's address, or markup instead of the words.
+  it('drops the syntax and keeps the words of every construct', () => {
+    const text = newsMarkdownToPlainText(
+      '## Results\n\n**Bold** and *em* and `code`.\n\n- one\n- two\n\n> quoted\n\n[the site](/events) ![a kick](/x.png)',
+    );
+    expect(text).toBe('Results Bold and em and code. one two quoted the site a kick');
+  });
+
+  // Defect: raw HTML a member typed reaches a description as markup.
+  it('keeps raw HTML as the literal text typed, never as markup to render', () => {
+    expect(newsMarkdownToPlainText('Hello <b>there</b>')).toBe('Hello <b>there</b>');
+  });
+
+  // Defect: an empty body yields stray whitespace for the excerpt.
+  it('is empty for an empty body', () => {
+    expect(newsMarkdownToPlainText('')).toBe('');
+    expect(newsMarkdownToPlainText('\n\n   \n')).toBe('');
+  });
+});
+
+describe('newsExcerpt: the opening of a body, cut at a word', () => {
+  // Defect: a short body is cut or ellipsised when it already fits.
+  it('returns a body that fits whole', () => {
+    expect(newsExcerpt('A short *post*.', 20)).toBe('A short post.');
+  });
+
+  // Defect: a long excerpt runs past the limit, or cuts a word in half.
+  it('cuts a long body at the last word boundary within the limit and closes it with an ellipsis', () => {
+    expect(newsExcerpt('one two three four five', 12)).toBe('one two…');
+    expect(newsExcerpt('one two, three', 9)).toBe('one two…');
+  });
+
+  // Defect: a body of exactly the limit is cut although it fits.
+  it('keeps a body exactly at the limit', () => {
+    expect(newsExcerpt('abcde fghij', 11)).toBe('abcde fghij');
+  });
+
+  // Defect: a limit counted in UTF-16 units splits an emoji or accented letter.
+  it('counts characters, not code units', () => {
+    expect(newsExcerpt('😀😀😀 ok', 6)).toBe('😀😀😀 ok');
   });
 });

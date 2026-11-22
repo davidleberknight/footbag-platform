@@ -1,0 +1,18 @@
+{{! One doubles division's partner choice for a member choosing their own partner:
+    who has entered them there, the partner picker, the looking-for-a-partner tick,
+    and who else is looking. Takes a division view carrying partnerPicker and
+    the doubles choice fields. }}
+{{#each namedByNotices}}
+  <p data-named-by>{{this}}</p>
+{{/each}}
+<input type="hidden" name="partner_division" value="{{id}}" />
+{{> member-picker partnerPicker}}
+<div class="form-field">
+  <label>
+    <input type="checkbox" name="looking" value="{{id}}" aria-label="I'm looking for a partner in {{name}}"{{#if lookingForPartner.checked}} checked{{/if}} />
+    I'm looking for a partner
+  </label>
+</div>
+{{#if lookingList}}
+  <p data-looking-list>{{lookingList}}</p>
+{{/if}}

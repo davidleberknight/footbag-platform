@@ -8,6 +8,7 @@ import { clubController } from '../controllers/clubController';
 import { mediaController } from '../controllers/mediaController';
 import { mediaFlagController } from '../controllers/mediaFlagController';
 import { eventController } from '../controllers/eventController';
+import { newsController } from '../controllers/newsController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
 import { memberGalleryController } from '../controllers/memberGalleryController';
@@ -221,6 +222,14 @@ publicRouter.post('/events/:eventKey/sanction',                      requireMemb
 publicRouter.get('/events/:eventKey/register',                       requireMember, eventController.getRegister);
 publicRouter.post('/events/:eventKey/register',                      requireMember, eventController.postRegister);
 publicRouter.post('/events/:eventKey/withdraw',                      requireMember, eventController.postWithdraw);
+publicRouter.get('/events/:eventKey/registration/partner',           requireMember, eventController.getPartner);
+publicRouter.post('/events/:eventKey/registration/partner',          requireMember, eventController.postPartner);
+
+// The news feed. /news/year/:year precedes /news/:newsId, so the literal
+// segment "year" is never taken for an item id.
+publicRouter.get('/news',             newsController.index);
+publicRouter.get('/news/year/:year',  newsController.year);
+publicRouter.get('/news/:newsId',     newsController.item);
 
 // HP-only self-serve claim (scenarios D and E). Every claim flow, this one
 // included, belongs to the onboarding wizard at /register/wizard/legacy_claim:

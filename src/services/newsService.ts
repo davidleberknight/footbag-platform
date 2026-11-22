@@ -18,6 +18,27 @@
  *     an administrator or created automatically; Community for a member's
  *     approved post), the byline a Community post carries and no other item
  *     does, and the body rendered from Markdown to HTML.
+ *   - The public news pages, for any visitor, rendered identically for every
+ *     viewer whether signed in or not:
+ *       - `/news`, the current UTC year's items, with an empty state when it
+ *         has none; `/news/year/:year`, another year's items, which exists only
+ *         while that year holds items. Items are listed newest first, each as
+ *         a dated item card (date, label, headline, excerpt; a Community
+ *         post's byline and an event item's hashtag on its meta line; an event
+ *         item's cover as its thumbnail). The year navigation links only to
+ *         years holding items, the current year by its landing address.
+ *       - `/news/:newsId`, one item's page in the detail-page order: an event
+ *         item's cover, the label, date and Community byline, an event item's
+ *         media line, the body, the link to the event, and the back link to
+ *         the item's year.
+ *     An item about an event carries that event's hashtag, linked to its
+ *     gallery only while media carries it, and the event's honoured cover; a
+ *     news item has no hashtag or cover of its own.
+ *
+ * Visibility invariant: a hidden item, an item whose publication time has not
+ *   arrived, and an item about an event that is not publicly visible appear on
+ *   no public surface; such an item's own page is not found. One filter in the
+ *   statement layer applies it to every public read.
  *
  * Does not own:
  *   - When an item is due. The flow that emits it decides; this service only
@@ -37,15 +58,24 @@
  *     for display, by the news Markdown renderer, which shows raw HTML as text
  *     and renders only web and site links.
  *
- * Persistence: `news_items` (insert and delete).
+ * Persistence: `news_items` (insert and delete; the public reads), reading the
+ *   item's author through `members_onboarded` and its event through `events`
+ *   and `tags`.
  * Side effects: none of its own; the calling flow writes the audit row for
  *   the act that emitted the item.
  */
 import { randomUUID } from 'node:crypto';
 import { newsItems } from '../db/db';
-import { renderNewsMarkdown } from '../lib/newsMarkdown';
+import { newsExcerpt, renderNewsMarkdown } from '../lib/newsMarkdown';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
-import { ValidationError } from './serviceErrors';
+import type { DatedItemMeta, DatedItemView } from '../types/datedItem';
+import type { PageViewModel } from '../types/page';
+import { coverPhotoImage, eventCoverPhotos, type CoverPhotoImage, type CoverPhotoView } from './entityCoverPhoto';
+import { eventDateRange } from './eventListing';
+import { getAdjacentArchiveYears } from './eventService';
+import { mediaService } from './mediaService';
+import { NotFoundError, ValidationError } from './serviceErrors';
+import { runSqliteRead } from './sqliteRetry';
 
 export type NewsType =
   | 'event_published'
@@ -104,6 +134,38 @@ export interface NewsItemRow {
   author_slug: string | null;
 }
 
+/** A public read's row: the item, plus the event it is about when it has one. */
+export interface PublicNewsItemRow extends NewsItemRow {
+  entity_type: string | null;
+  entity_id: string | null;
+  event_id: string | null;
+  event_title: string | null;
+  event_tag_normalized: string | null;
+  event_tag_display: string | null;
+}
+
+/** The current year's page and each other year's page: one year's items, newest first. */
+export interface NewsYearContent {
+  year: number;
+  items: DatedItemView[];
+}
+
+/** One item's own page. */
+export interface NewsItemContent {
+  label: NewsLabel;
+  dateText: string;
+  byline: { text: string; profileHref: string } | null;
+  bodyHtml: string;
+  coverPhoto: CoverPhotoImage | null;
+  /** The event the item is about, with its hashtag and gallery, or null. */
+  event: {
+    href: string;
+    linkLabel: string;
+    hashtag: { display: string; galleryHref: string | null };
+    galleryLabel: string;
+  } | null;
+}
+
 export interface NewsItemView {
   id: string;
   title: string;
@@ -120,6 +182,59 @@ function newNewsItemId(): string {
 
 export function newsLabelFor(newsType: NewsType): NewsLabel {
   return newsType === 'community_post' ? 'Community' : 'News';
+}
+
+const NEWS_LABEL_CSS_CLASS = 'badge-muted';
+
+function newsYearOf(iso: string): number {
+  return Number(iso.slice(0, 4));
+}
+
+/** The address of a year's news: the current year's is the news landing page. */
+function newsYearHref(year: number, currentYear: number): string {
+  return year === currentYear ? '/news' : `/news/year/${year}`;
+}
+
+function newsDateText(publishedAt: string): string {
+  const day = publishedAt.slice(0, 10);
+  return eventDateRange(day, day);
+}
+
+function eventHrefFromTag(tagNormalized: string): string {
+  return `/events/${tagNormalized.startsWith('#') ? tagNormalized.slice(1) : tagNormalized}`;
+}
+
+function bylineText(displayName: string): string {
+  return `By ${displayName}`;
+}
+
+/**
+ * One item as a list entry: its date, label, headline linking to its page and
+ * excerpt; a Community post's byline, then an event item's hashtag, on the
+ * meta line; and an event item's cover as the thumbnail.
+ */
+export function toNewsDatedItem(
+  row: PublicNewsItemRow,
+  opts: { galleryHref: string | null; thumbUrl: string | null },
+): DatedItemView {
+  const view = newsService.shapeNewsItem(row);
+  const meta: DatedItemMeta[] = [];
+  if (view.byline) meta.push({ text: bylineText(view.byline.displayName), href: view.byline.profileHref });
+  if (row.event_id && row.event_tag_display) {
+    meta.push(opts.galleryHref
+      ? { text: row.event_tag_display, href: opts.galleryHref, isHashtag: true }
+      : { text: row.event_tag_display, isHashtag: true });
+  }
+  const excerpt = newsExcerpt(row.body);
+  return {
+    date: newsDateText(row.published_at),
+    title: row.title,
+    href: `/news/${row.id}`,
+    label: { text: view.label, cssClass: NEWS_LABEL_CSS_CLASS },
+    meta,
+    excerpt: excerpt === '' ? null : excerpt,
+    image: opts.thumbUrl ? { thumbUrl: opts.thumbUrl } : null,
+  };
 }
 
 export const newsService = {
@@ -211,5 +326,119 @@ export const newsService = {
       byline,
       bodyHtml: renderNewsMarkdown(row.body, { memberAuthored: isCommunity }),
     };
+  },
+
+  /** The year whose news the landing page shows: the current UTC year. */
+  currentNewsYear(nowIso: string): number {
+    return newsYearOf(nowIso);
+  },
+
+  /**
+   * A year's news page: the current year's at `/news`, which shows an empty
+   * state when it has no items, or another year's, which exists only while it
+   * holds items. The year navigation links only to years holding items.
+   */
+  getNewsYearPage(year: number, nowIso: string): PageViewModel<NewsYearContent> {
+    const currentYear = newsYearOf(nowIso);
+    if (!Number.isInteger(year) || year < 1000 || year > currentYear) {
+      throw new NotFoundError('No news for that year.');
+    }
+    return runSqliteRead('getNewsYearPage', () => {
+      const rows = newsItems.listPublicByYear.all(nowIso, String(year)) as PublicNewsItemRow[];
+      const isCurrent = year === currentYear;
+      if (rows.length === 0 && !isCurrent) throw new NotFoundError('No news for that year.');
+
+      const yearsHoldingItems = (newsItems.listPublicYears.all(nowIso) as Array<{ year: number }>)
+        .map((r) => r.year);
+      const navYears = yearsHoldingItems.includes(year) ? yearsHoldingItems : [...yearsHoldingItems, year];
+      const { previousYear, nextYear } = getAdjacentArchiveYears(navYears, year);
+
+      const eventIds = rows.flatMap((r) => (r.event_id ? [r.event_id] : []));
+      const covers = eventIds.length > 0 ? eventCoverPhotos(eventIds) : new Map<string, CoverPhotoView>();
+      const items = rows.map((row) => toNewsDatedItem(row, {
+        galleryHref: row.event_tag_normalized ? mediaService.getEntityGalleryHref(row.event_tag_normalized) : null,
+        thumbUrl: row.event_id ? covers.get(row.event_id)?.thumbUrl ?? null : null,
+      }));
+
+      return {
+        seo: isCurrent
+          ? { title: 'News', description: 'News from IFPA and posts from the footbag community.' }
+          : { title: `${year} News`, description: `News from IFPA and posts from the footbag community in ${year}.` },
+        page: isCurrent
+          ? {
+            sectionKey: 'news',
+            pageKey: 'news_index',
+            title: 'Footbag News',
+            intro: 'News from IFPA and posts from the footbag community.',
+          }
+          : {
+            sectionKey: 'news',
+            pageKey: 'news_year',
+            title: `Footbag News From ${year}`,
+            intro: `News from IFPA and posts from the footbag community in ${year}.`,
+          },
+        navigation: {
+          siblings: {
+            previous: previousYear !== null
+              ? { label: String(previousYear), href: newsYearHref(previousYear, currentYear) } : undefined,
+            next: nextYear !== null
+              ? { label: String(nextYear), href: newsYearHref(nextYear, currentYear) } : undefined,
+          },
+          ...(isCurrent ? {} : { contextLinks: [{ label: 'Back to Footbag News', href: '/news' }] }),
+        },
+        content: { year, items },
+      };
+    });
+  },
+
+  /**
+   * One item's own page, in the detail-page order: an event item's cover, the
+   * item's facts, an event item's media line, the body, the link to the event,
+   * and the link back to the item's year.
+   */
+  getNewsItemPage(newsId: string, nowIso: string): PageViewModel<NewsItemContent> {
+    return runSqliteRead('getNewsItemPage', () => {
+      const row = newsItems.getPublicById.get(newsId, nowIso) as PublicNewsItemRow | undefined;
+      if (!row) throw new NotFoundError('News item not found.');
+      const view = newsService.shapeNewsItem(row);
+      const currentYear = newsYearOf(nowIso);
+      const itemYear = newsYearOf(row.published_at);
+
+      let event: NewsItemContent['event'] = null;
+      let cover: CoverPhotoView | null = null;
+      if (row.event_id && row.event_tag_normalized && row.event_tag_display) {
+        const galleryHref = mediaService.getEntityGalleryHref(row.event_tag_normalized);
+        event = {
+          href: eventHrefFromTag(row.event_tag_normalized),
+          linkLabel: 'View Event',
+          hashtag: { display: row.event_tag_display, galleryHref },
+          galleryLabel: 'View Event Gallery',
+        };
+        cover = eventCoverPhotos([row.event_id]).get(row.event_id) ?? null;
+      }
+
+      const description = newsExcerpt(row.body);
+      return {
+        seo: {
+          title: row.title,
+          ...(description !== '' ? { description } : {}),
+          ...(cover ? { imageUrl: cover.absoluteDisplayUrl } : {}),
+        },
+        page: { sectionKey: 'news', pageKey: 'news_item', title: row.title },
+        navigation: {
+          contextLinks: [itemYear === currentYear
+            ? { label: 'Back to Footbag News', href: '/news' }
+            : { label: `Back to Footbag News From ${itemYear}`, href: `/news/year/${itemYear}` }],
+        },
+        content: {
+          label: view.label,
+          dateText: newsDateText(row.published_at),
+          byline: view.byline ? { text: bylineText(view.byline.displayName), profileHref: view.byline.profileHref } : null,
+          bodyHtml: view.bodyHtml,
+          coverPhoto: cover ? coverPhotoImage(cover, row.event_title ?? row.title) : null,
+          event,
+        },
+      };
+    });
   },
 };

@@ -1,0 +1,34 @@
+{{! One news item's own page, in the detail-page order: an event item's cover,
+    the item's facts, an event item's media line, the body, the link to the
+    event, and the link back to the item's year. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{#if content.coverPhoto}}
+    <img id="news-cover-photo" class="cover-photo" src="{{content.coverPhoto.url}}" alt="{{content.coverPhoto.alt}}"{{#if content.coverPhoto.widthPx}} width="{{content.coverPhoto.widthPx}}" height="{{content.coverPhoto.heightPx}}"{{/if}}>
+  {{/if}}
+  <section>
+    <div class="event-meta-row" id="news-facts">
+      <span class="badge badge-muted">{{content.label}}</span>
+      <span>{{content.dateText}}</span>
+      {{#if content.byline}}<span><a href="{{content.byline.profileHref}}">{{content.byline.text}}</a></span>{{/if}}
+    </div>
+
+    {{#if content.event}}
+      {{> media-line id="news-media" display=content.event.hashtag.display galleryHref=content.event.hashtag.galleryHref galleryLabel=content.event.galleryLabel}}
+    {{/if}}
+
+    {{{content.bodyHtml}}}
+
+    {{#if content.event}}
+      <p><a class="action-link" id="news-event-link" href="{{content.event.href}}">{{content.event.linkLabel}}</a></p>
+    {{/if}}
+  </section>
+
+  {{> back-link}}
+</div>

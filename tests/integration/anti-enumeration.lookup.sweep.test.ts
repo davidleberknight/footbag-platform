@@ -21,6 +21,7 @@ import {
   insertMember,
   insertEvent,
   insertMediaItem,
+  insertNewsItem,
   insertTag,
   insertOnboardingTask,
   createTestSessionJwt,
@@ -51,6 +52,9 @@ const hidden = {
   usedVerifyToken: '',
   usedResetToken: '',
   heldRecord: 'hp-enum-held',
+  hiddenNews: 'news_enum_hidden',
+  futureNews: 'news_enum_future',
+  canceledEventNews: 'news_enum_canceled_event',
 };
 
 type Viewer = 'anonymous' | 'member' | 'registrant';
@@ -199,6 +203,16 @@ const CLASSIFIED: Record<string, Classification> = {
         unknown: { url: '/events/event_2026_no_such_event/register', key: 'event_2026_no_such_event' },
       }))),
   },
+  'GET /events/:eventKey/registration/partner': {
+    // A member's own partner page: a draft or canceled event answers as an
+    // event that does not exist, as the registration form does.
+    probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
+      [hidden.draftEvent, hidden.canceledEvent].map((key) => ({
+        viewer,
+        existing: () => ({ url: `/events/${key}/registration/partner`, key }),
+        unknown: { url: '/events/event_2026_no_such_event/registration/partner', key: 'event_2026_no_such_event' },
+      }))),
+  },
   'GET /media/item/:mediaId': {
     probes: () => (['anonymous', 'member'] as Viewer[]).map((viewer) => ({
       viewer,
@@ -239,6 +253,17 @@ const CLASSIFIED: Record<string, Classification> = {
   'GET /rules/:categorySlug/:ruleSlug': { exempt: PUBLIC_RECORD },
   'GET /ifpa/:docSlug': { exempt: PUBLIC_RECORD },
   'GET /events/year/:year': { exempt: PUBLIC_RECORD },
+  'GET /news/year/:year': { exempt: PUBLIC_RECORD },
+  'GET /news/:newsId': {
+    // A hidden item, one not yet due, and one about a cancelled event answer
+    // exactly as an id that matches nothing, for a visitor and a member alike.
+    probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
+      [hidden.hiddenNews, hidden.futureNews, hidden.canceledEventNews].map((key) => ({
+        viewer,
+        existing: () => ({ url: `/news/${key}`, key }),
+        unknown: { url: '/news/news_no_such_item', key: 'news_no_such_item' },
+      }))),
+  },
   'GET /history/:personId': { exempt: PUBLIC_RECORD },
   'GET /history/:personId/claim': {
     // Which records exist is public, but which are held by a member is not. A
@@ -284,7 +309,13 @@ beforeAll(async () => {
   hidden.draftEvent = 'event_2026_enum_draft';
   hidden.canceledEvent = 'event_2026_enum_canceled';
   insertEvent(db, { status: 'draft', hashtag_tag_id: insertTag(db, { tag_normalized: `#${hidden.draftEvent}` }) });
-  insertEvent(db, { status: 'canceled', hashtag_tag_id: insertTag(db, { tag_normalized: `#${hidden.canceledEvent}` }) });
+  const canceledEventId = insertEvent(db, { status: 'canceled', hashtag_tag_id: insertTag(db, { tag_normalized: `#${hidden.canceledEvent}` }) });
+  // News items no visitor may see: hidden, not yet due, and about a cancelled event.
+  insertNewsItem(db, { id: hidden.hiddenNews, is_public: 0 });
+  insertNewsItem(db, { id: hidden.futureNews, published_at: '2999-01-01T00:00:00.000Z' });
+  insertNewsItem(db, {
+    id: hidden.canceledEventNews, news_type: 'event_published', entity_type: 'event', entity_id: canceledEventId,
+  });
   hidden.removedMedia = insertMediaItem(db, { uploader_member_id: OTHER, moderation_status: 'removed_by_admin' });
   db.close();
 

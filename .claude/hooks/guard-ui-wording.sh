@@ -12,20 +12,29 @@
 # wording, so text that is deleted, moved or repeated from elsewhere in the same file
 # passes, and so do code directives such as 'use strict'.
 #
-# Approval is read from the session transcript. Only a message the human typed counts
-# (origin.kind "human", including one sent while Claude was working; never a tool
-# result, hook feedback, task notification, compaction summary or Claude's own text).
-# It approves a unit when it contains the unit's words, or when it opens with a yes and
-# the Claude text it answers contains them, as a literal BEFORE/AFTER shows it. A unit
-# of under three words also needs the file's name in that text, so a common word in
-# some message cannot approve it.
+# Approval is read from the session transcript. A message the human typed counts
+# (origin.kind "human", including one sent while Claude was working), and so does a plan
+# the human approved through ExitPlanMode: the plan whose tool result Claude Code
+# reports as approved, as the human last saw and edited it. Nothing else counts: never
+# another tool result, a rejected or unanswered plan, hook feedback, a task
+# notification, a compaction summary or Claude's own text. Either approves a unit when
+# it contains the unit's words; a typed message also approves one when it opens with a
+# yes and the Claude text it answers contains them, as a literal BEFORE/AFTER shows it.
+# A unit of under three words also needs the file's name in that text, so a common word
+# in some message cannot approve it.
 #
 # Pre-approval: a human message such as "approve all technical UI wording" or
-# "approve ui edits" lets
-# technical wording through for the rest of the session without a prompt, each unit
-# still announced to the human. A later message such as "stop approving UI wording"
-# ends it. Editorial copy is never covered: email template text, and any unit of over
-# forty words, still asks.
+# "approve ui edits" lets technical words through for the rest of the session without a
+# prompt, each unit still announced to the human. A later message such as "stop
+# approving UI wording" ends it. Only a typed message grants or ends it, never a plan.
+# One test applies whatever the medium, page or email: a technical word is a label,
+# button, badge or short status word; prose is a unit that reads as a sentence (six or
+# more words, placeholders not counted, or a sentence ending on three or more words or
+# on the lowercase tail of a split sentence). Prose always asks under a pre-approval;
+# a typed message or approved plan that shows it approves it like any other unit.
+#
+# Every ask says why: the text was in no message the human typed or plan they approved,
+# and either no pre-approval is in force or the one in force does not cover prose.
 #
 # Fails to "ask": any internal error (bad input, missing node, unreadable transcript)
 # prompts the human. It never denies and never lets a wording change through unseen.
@@ -74,7 +83,8 @@ function hbsUnits(s) {
     .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&');
   return units.concat(s.split('\u0000'));
 }
-const norm = (s) => ' ' + (s.toLowerCase().replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ')
+// A written \n (as a plan or message quotes an email body) separates words, as it does in the unit.
+const norm = (s) => ' ' + (s.replace(/\\[nrt]/g, ' ').toLowerCase().replace(/<system-reminder>[\s\S]*?<\/system-reminder>/g, ' ')
   .replace(/\$\{[^}]*\}|\{\{[^}]*\}\}/g, ' ').match(/[a-z0-9]+/g) || []).join(' ') + ' ';
 // Units keyed by their normalised words; the value is the text as written, for display.
 function units(s) {
@@ -112,13 +122,28 @@ if (tp.includes('/subagents/')) tp = tp.slice(0, tp.indexOf('/subagents/')) + '.
 const affirm = /^\s*(y|yes|yep|yeah|yup|ok|okay|go|go ahead|approved?|lgtm|do it|apply|ship it|sounds good|agreed|confirmed?)\b/i;
 const msgs = [];
 let prev = '';
+const plans = new Set();
+const approvedPlan = /^(<persisted-output>[\s\S]*?Preview[^\n]*\n)?User has approved your plan\b/;
 for (const line of (tp && fs.existsSync(tp) ? fs.readFileSync(tp, 'utf8') : '').split('\n')) {
-  if (!line.includes('"assistant"') && !line.includes('"human"') && !line.includes('"queue-operation"')) continue;
+  if (!line.includes('"assistant"') && !line.includes('"human"') && !line.includes('"queue-operation"')
+    && !line.includes('User has approved your plan')) continue;
   let e; try { e = JSON.parse(line); } catch { continue; }
   let text = null;
   if (e.type === 'assistant') {
     const c = e.message && e.message.content;
     prev += ' ' + (typeof c === 'string' ? c : Array.isArray(c) ? c.filter((b) => b && b.type === 'text').map((b) => b.text).join(' ') : '');
+    if (Array.isArray(c)) for (const b of c) if (b && b.type === 'tool_use' && b.name === 'ExitPlanMode') plans.add(b.id);
+    continue;
+  }
+  // An approved plan: Claude Code's own tool result for an ExitPlanMode call, saying the
+  // human approved it and carrying the plan as approved. A rejection is an error result
+  // with no plan, so it never matches.
+  const r = e.type === 'user' && !e.origin && e.toolUseResult && typeof e.toolUseResult.plan === 'string'
+    && e.toolUseResult.isAgent !== true && Array.isArray(e.message && e.message.content)
+    && e.message.content.find((b) => b && b.type === 'tool_result' && plans.has(b.tool_use_id) && b.is_error !== true);
+  if (r && approvedPlan.test(typeof r.content === 'string' ? r.content
+    : Array.isArray(r.content) ? r.content.map((b) => (b && b.text) || '').join(' ') : '')) {
+    msgs.push({ raw: e.toolUseResult.plan, h: norm(e.toolUseResult.plan), prev: '', plan: true });
     continue;
   }
   if (e.type === 'user' && e.origin && e.origin.kind === 'human' && !e.isMeta) {
@@ -143,23 +168,36 @@ const approved = (u) => msgs.some((m) => [m.h, m.prev].some((x) => x.includes(u.
 let todo = fresh.filter((u) => !approved(u));
 if (!todo.length) process.exit(0);
 
-// The latest pre-approval or withdrawal of one decides; a pre-approval covers every unit.
+// Prose is a unit that reads as a sentence: six or more words, placeholders not counted,
+// or a sentence ending (. ! ?) on three or more words or on the lowercase tail of a
+// sentence an expression split. Anything shorter is a technical word: a label, button,
+// badge or short status word.
+const isProse = (u) => {
+  const s = u.raw.replace(/\$\{[^}]*\}|\{\{[^}]*\}\}|\{[^}]*\}/g, ' ').trim();
+  const w = (s.match(/[A-Za-z0-9']+/g) || []).length;
+  return w >= 6 || (/[.!?]["')\]]*$/.test(s) && (w >= 3 || /^[a-z]/.test(s)));
+};
+
+// The latest pre-approval or withdrawal of one decides; a pre-approval covers technical
+// words only, so prose still asks under it.
 const UI = '\\bui\\s+(copy|text|words?|wording|edits?)\\b';
 const grant = new RegExp('\\b(all|technical|approve[ds]?)\\b[^\\n.]{0,40}' + UI + '|' + UI + '[^\\n]{0,60}\\btechnical\\b', 'i');
 const withdraw = new RegExp('\\b(stop|revoke|withdraw|cancel)\\b[^\\n]{0,40}' + UI
   + '|\\b(no|not|don\'?t|do not|never)\\s+(to\\s+)?(approve|all)\\b[^\\n]{0,40}' + UI, 'i');
 let preApproved = false;
 for (const m of msgs) {
+  if (m.plan) continue;
   if (withdraw.test(m.raw)) preApproved = false;
   else if (grant.test(m.raw)) preApproved = true;
 }
 const quote = (s) => '"' + s + '"';
-if (preApproved) {
+if (preApproved && !todo.some(isProse)) {
   process.stdout.write(JSON.stringify({ systemMessage: 'UI copy changed in ' + rel
-    + ' under your pre-approval of UI wording. New text: '
+    + ' under your pre-approval of technical UI words. New text: '
     + todo.map((u) => quote(u.raw)).join('; ') }) + '\n');
   process.exit(0);
 }
+if (preApproved) todo = todo.filter(isProse);
 
 // Whole changed lines of the file, so wording a template expression splits into
 // pieces still reads as the sentence a visitor sees.
@@ -171,11 +209,15 @@ const lineBefore = linesOf(orig).filter((l) => !afterLines.has(l) && gone.some((
 const lineAfter = linesOf(after).filter((l) => !beforeLines.has(l) && todo.some((u) => norm(l).includes(u.k)));
 const reason = 'HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors read in ' + rel
   + ', and public UI wording changes only with a human\'s approval, so approve or reject this exact text.\n'
+  + 'Why it asks: this text was not in a message you typed or a plan you approved, and '
+  + (preApproved ? 'your pre-approval covers technical UI words only, never prose.\n'
+    : 'no pre-approval of technical UI words is in force.\n')
   + (lineBefore.length ? 'Line before: ' + shown(lineBefore) + '\n' : '')
   + (lineAfter.length ? 'Line after: ' + shown(lineAfter) + '\n' : '')
   + (gone.length ? 'Text it replaces or removes: ' + gone.map(quote).join('; ') + '\n' : '')
-  + 'New text: ' + todo.map((u) => quote(u.raw)).join('; ') + '\n'
-  + 'To let all UI wording through for the rest of this session, say "approve all technical UI wording".';
+  + 'New text: ' + todo.map((u) => quote(u.raw)).join('; ')
+  + (preApproved || todo.every(isProse) ? ''
+    : '\nTo let technical UI words (labels, buttons, badges, short status words) through for the rest of this session, say "approve all technical UI wording"; prose always needs its own approval.');
 process.stdout.write(JSON.stringify({ systemMessage: reason,
   hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n');
 JS

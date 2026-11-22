@@ -5,7 +5,7 @@
  * links are how a crawl becomes a persona), points the media roots at a temp
  * directory so no render reaches a repository path, and seeds a small corpus in
  * which every section has something to link to: members of each standing, a
- * club, an event, a historical honoree, a freestyle corpus with an alias, a
+ * club, an event, news items, a historical honoree, a freestyle corpus with an alias, a
  * modifier and a source, records, the catalog galleries the freestyle landing
  * links, the whole canonical persona catalog, and the private-field canaries.
  *
@@ -45,6 +45,7 @@ import {
   insertGalleryCriterionTag,
   insertMediaItem,
   insertWorkQueueItem,
+  insertNewsItem,
   completeOnboarding,
   seedPrivateFieldCanaries,
   type PrivateFieldCanaries,
@@ -133,6 +134,23 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   // one structured division puts its change and remove controls on that page.
   insertEventOrganizer(db, crawlEventId, CRAWL_MEMBER_ID);
   insertEventOrganizer(db, crawlEventId, CRAWL_ADMIN_ID);
+
+  // The news feed: an administrator's item, a member's Community post with its
+  // byline, an item about the crawl event with its hashtag, and an item from an
+  // earlier year, so the landing page's year navigation reaches a year page.
+  const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
+  insertNewsItem(db, {
+    id: 'news_crawl_announcement', published_at: anHourAgo, news_type: 'announcement', title: 'Crawl Announcement',
+  });
+  insertNewsItem(db, {
+    id: 'news_crawl_community', published_at: anHourAgo, news_type: 'community_post', title: 'Crawl Community Post',
+    author_member_id: CRAWL_MEMBER_ID,
+  });
+  insertNewsItem(db, {
+    id: 'news_crawl_event', published_at: anHourAgo, news_type: 'event_published', title: 'Crawl Open Is Open',
+    entity_type: 'event', entity_id: crawlEventId,
+  });
+  insertNewsItem(db, { id: 'news_crawl_earlier', published_at: '2024-05-01T12:00:00.000Z', title: 'Crawl Earlier News' });
   insertDiscipline(db, crawlEventId, {
     name: 'Open Singles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
     team_type: 'singles', gender_eligibility: 'open', division_class: 'open',
@@ -147,6 +165,17 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   });
   const crawlRegistrationId = insertRegistration(db, crawlEventId, CRAWL_ADMIN_ID);
   insertRegistrationDisciplineSelection(db, crawlRegistrationId, enteredDivisionId);
+  // A doubles entry looking for a partner, so the administrator's event page
+  // links the page where they choose their own partner. It is on an event the
+  // administrator does not organize, so their walk never stops its online
+  // registration before reaching that page.
+  const doublesEventId = insertEvent(db, { title: 'Crawl Doubles', status: 'reg_open' });
+  insertEventOrganizer(db, doublesEventId, CRAWL_MEMBER_ID);
+  const doublesDivisionId = insertDiscipline(db, doublesEventId, {
+    name: 'Open Doubles Footbag Net', discipline_category: 'net', game_id: 'game_footbag_net',
+    team_type: 'doubles', gender_eligibility: 'open', division_class: 'open',
+  });
+  insertRegistrationDisciplineSelection(db, insertRegistration(db, doublesEventId, CRAWL_ADMIN_ID), doublesDivisionId);
   // An event whose last day has passed and that has no results yet, so its
   // manage page links the results upload and the attendance screen, and the
   // attendance screen and participant list offer the crawl administrator's

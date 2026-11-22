@@ -38,6 +38,7 @@ onRateLimitRefusal((action) => logger.warn('rate_limit.refused', { action }));
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
   { href: '/',          section: 'home',      label: 'Home' },
+  { href: '/news',      section: 'news',      label: 'News' },
   { href: '/events',    section: 'events',    label: 'Events' },
   { href: '/clubs',     section: 'clubs',     label: 'Clubs' },
   { href: '/net',       section: 'net',       label: 'Net' },
@@ -461,6 +462,7 @@ export function createApp(): express.Express {
   app.use((req, res, next) => {
     res.locals.currentSection = req.path === '/' ? 'home'
       : req.path.startsWith('/events') ? 'events'
+      : req.path.startsWith('/news') ? 'news'
       : req.path.startsWith('/members') ? 'members'
       : req.path.startsWith('/history') ? 'history'
       : req.path.startsWith('/clubs') ? 'clubs'

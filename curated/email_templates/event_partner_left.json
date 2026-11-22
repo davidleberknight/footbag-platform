@@ -1,0 +1,7 @@
+{
+  "templateKey": "event_partner_left",
+  "subjectTemplate": "Your partner left your entry for {eventTitle}",
+  "bodyTemplate": "Hi {memberName},\n\n{entrantName} is no longer entered with you in {divisionName} at {eventTitle} ({eventDates}). You are still registered, now looking for a partner in {divisionName}.\n\nYou can choose a new partner from the event's page on footbag.org until registration closes. After that, the organizers can pair you at the event.\n\nInternational Footbag Players Association",
+  "piiClassification": "confidential",
+  "isEnabled": true
+}

@@ -507,9 +507,8 @@ Success Criteria:
 - One source event yields at most one item of each kind, however often its flow runs: uploading results again or correcting them keeps the one item. An item about an event appears only while that event is publicly visible, so a cancelled event's items leave every public news surface, as the event itself does. Deleting an event deletes its items with it. A private or unpublished event never produces an item.
 - Each item has its own permanent page at `/news/:newsId`, showing its title, label, publication date, the byline for a Community post, its body, a link to the entity it is about when it has one, and a back link to its year's page. A hidden item, an item whose publication date has not arrived, and an unknown id each answer the standard not-found page.
 - A post's body is text written in Markdown (headings, emphasis, lists and links) and cleaned against an allowlist before it is shown, so no script, style, frame or raw markup reaches a page. Its links may point to other pages on the site, such as a media gallery, a club or an event, or to outside pages, which open as external links. Photos and video reach a post as links to their gallery.
-- The newest 20 published items are also offered as an RSS feed at `/news/feed.xml`. Each entry carries the title, the permanent page address, the publication date, the label, the member's display name for a Community post, and the body as plain text. The news pages advertise the feed to feed readers.
 - The home page shows, directly under its hero, a compact band of two lists side by side: the five newest published news items, each with its date, label and headline linking to its page, and the next five upcoming public events. Each list ends in a link to its full page, and a list with nothing to show says so in one line. The two lists stack on a narrow screen.
-- A hidden item, and an item whose publication date has not arrived, appear on no public surface: not the year pages, the item page, the home page band, or the RSS feed. Every news surface renders identically for every viewer, signed in or not.
+- A hidden item, and an item whose publication date has not arrived, appear on no public surface: not the year pages, the item page, or the home page band. Every news surface renders identically for every viewer, signed in or not.
 
 ### V_View_Tutorials
 
@@ -1311,6 +1310,8 @@ Success Criteria:
 - Registration includes a required selection of registration type: Competitor or Spectator (if the organizer has enabled both; otherwise the single available type is implied).
 - If Competitor: member selects one or more of the competition categories and divisions the organizer offers.
 - Only members compete. If a selected competition category is doubles/team: the partner is a member, found by searching members by name and chosen from the results; the member never types a member ID or profile address.
+- A doubles entry is a pair only when both partners hold confirmed registrations naming each other in that division. A competitor may instead enter a doubles division looking for a partner. A member named by another member's entry is emailed once, and their registration form starts with that member chosen and says who named them; they remain free to choose someone else, and both entries then show as unconfirmed to the organizer.
+- Until registration closes, a competitor can choose or change the partner on their own doubles entry from the event page, at no charge. A partner they leave, whose entry named them, is left looking for a partner and is emailed.
 - A division's gender eligibility is enforced at registration from the division's own gender part. A women's division requires every member on the entry to have declared female. A mixed division requires one member with gender Male and one with gender Female. An open division admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open divisions; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies between the two member profiles on the entry. Class is self-selected: the competitor chooses the division whose class fits them, and the entry records that division.
 - In a division that offers prize money, the competitor chooses whether to enter as an Amateur. An Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The choice appears on the registration confirmation and on the organizer's participant list, and is carried into the results so the organizer knows who is eligible for prize money; the organizer pays prize money outside the platform.
 - When a member selects a gender-gated division while their stored gender is `undisclosed`, the registration surface warns them that the gendered draw requires a declared gender and points them to set it in their profile; the member may still register for Open divisions.
@@ -1346,6 +1347,7 @@ Success Criteria:
 - A withdrawn member can register again while registration remains open; withdrawal is not a bar to re-entry.
 - Withdrawal is audit-logged with member ID, event ID, and timestamp.
 - Withdrawing a doubles or team entry withdraws the whole entry, and the registering member's partner information is retained on the canceled row for the organizer's reference.
+- A partner whose own entry named the withdrawing member keeps their registration, is left looking for a partner, and is emailed.
 
 ### M_Upload_Routine_Music
 
@@ -1407,6 +1409,7 @@ Success Criteria:
 - One-click access to event details, results, and media galleries.
 - For events the member is registered for, the event detail view displays the member’s registration type and selected competition categories and divisions/partner info (if applicable).
 - On any event detail page, an authenticated member sees who else is registered: display name, registration type, the competition categories and divisions each competitor entered, and partner or team information where the entry is a doubles or team entry. Only confirmed registrations are listed. Entering a competition is a public act within the community, so registrants appear on this list without an opt-out; the list carries no contact details.
+- Each doubles division lists the registrants looking for a partner, and the member's own entry shows whether their partner has named them back.
 
 ## 3.5 Payments
 
@@ -2174,7 +2177,7 @@ Success Criteria:
 - Editing an entry changes its divisions and its doubles partner, both chosen the same way. A partner must be a member.
 - A fee the organizer collects at the table is recorded as paid at the event, with no amount; such a registration is never charged online.
 - Removing an entry follows `EO_Cancel_Registration`.
-- A doubles entry left without a partner is flagged on the participant list, and a results upload naming it is refused (`EO_Upload_Results`).
+- A doubles entry is flagged on the participant list when it has no partner, when the partner has not named it back, or when the partner named someone else, and a results upload naming such an entry is refused (`EO_Upload_Results`).
 - Each save returns to the participant list with a one-line message naming what changed and an Edit link back to that entry.
 - Each correction is audit-logged with the organizer who made it, and the member is emailed what changed.
 

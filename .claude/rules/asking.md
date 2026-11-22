@@ -60,7 +60,8 @@ plausible option. When two or more interpretations genuinely remain, name each a
 back when the evidence warrants rather than defaulting to the human's framing.
 
 A reply of "no preference", "I don't know", a bare Enter, or a tool-level plan approval is not a
-decision on any question and not consent to proceed. Settle it yourself from the sources, or ask
+decision on any question and not consent to proceed; a plan approval does approve the literal
+text the plan shows. Settle it yourself from the sources, or ask
 once more with your recommendation; never treat it as a go-ahead.
 
 Scoping questions belong to plan mode, under the plan-mode rule in root `CLAUDE.md`. Once the plan
@@ -72,12 +73,14 @@ The human must be able to answer without opening another doc, scrolling back, or
 Before any message containing "?":
 
 1. Plain English, self-contained. No internal reference the human was not handed: section numbers, "§", audit gate or finding codes, "item N", operational-state numbers, prior-message labels, or doc-path pointers. A reference the human DOES have is fine: a concrete identifier they must act on (path, route, env var), or a finding ID in an artifact they are reading, paired with its title so it stands alone.
-2. Context inline: what it is, where it bites, the options.
+2. Context inline: what it is, why it is asked (what the sources could not settle), where it bites, the options.
 3. One recommended answer, researched from the canonical docs and code and grounded in design intent, verified and never guessed. Every factual claim cites the source read this turn, or is marked UNVERIFIED. Pros and cons when the trade-offs are real.
 4. One decision per message. A trailing "open questions" or "decisions for you" list carrying a second ask is the same violation, as is any mention of a question not yet asked, in the body or in a `Not done:` item: it is not named, numbered, counted or previewed.
 5. Ask in plain prose in the message text, never through a multiple-choice tool, in plan mode and outside it, so the human can answer by voice: one question per message, the recommended answer first, with the context and load-bearing assumptions in the message.
-6. Explain before any approval prompt; never spring a bare approval. Before a command that an ask rule or an ask-returning hook gates, say in the message what it runs and why, write the Bash description as that why, and run it as its own call with no trailing plumbing, so any rule the prompt offers names that command. Before editing public UI copy, show the literal BEFORE/AFTER in the message and ask for a yes,
-or name the session pre-approval phrase; the wording guard asks otherwise.
+6. Explain before any approval prompt; never spring a bare approval. Before a command that an ask rule or an ask-returning hook gates, say in the message what it runs and why, write the Bash description as that why, and run it as its own call with no trailing plumbing, so any rule the prompt offers names that command. Before editing user-facing text in any medium (a page, an email, anything a visitor or member
+reads), show the literal BEFORE/AFTER in the message or in a plan the human approves, and ask for
+a yes; for technical words only (labels, buttons, badges, short status words) the session
+pre-approval phrase may stand in, never for prose. The wording guard asks otherwise, saying why.
 7. Structure it so a bare "y" or "go" means take the recommended answer: exactly one recommendation to affirm, never an ambiguous "y".
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.
 9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description. A documentation edit follows Documentation edits below instead.
@@ -112,8 +115,8 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
   message with the same what-and-why summary. The pre-approval lapses when its scope ends. One
   recorded in a handover or plan from an earlier session has lapsed, so Claude asks the human to
   restate it before the first edit it would cover.
-- A pre-approval never covers a change of meaning or design, IFPA governing documents, public UI
-  wording, `.github/` or the harness, unless the human names that class. Each of those gets its own
+- A pre-approval never covers a change of meaning or design, IFPA governing documents, user-facing
+  wording (its own technical-words pre-approval is in the wording guard), `.github/` or the harness, unless the human names that class. Each of those gets its own
   ask; a harness ask carries the literal before/after, under the harness governance rule. A
   tool-level "allow edits to .claude this session" answer is not a pre-approval.
 - One standing pre-approval: the maintainer's working walk file in the private operations
@@ -131,6 +134,6 @@ continuation or trivial review. Re-gate only for a real reason:
 - A new material decision the plan did not anticipate, or a finding that contradicts the plan's premise or makes the work materially larger or different than approved.
 - Finished UI work: have the human review the new or changed UI visually, giving them `./run_dev.sh` to start it (or starting it if they ask); discuss significant visual changes before building them.
 - Destructive, irreversible, or outward-facing actions (deleting data, overwriting, retiring resources, sending mail, deploying), behind one consolidated approval per batch, never many prompts. Exception: when a plan or runbook names its own per-step approval points (an arming table's approver column, a phase marked "each its own approval"), those override the batch default; ask at each named point, and never treat one go for a sequence as consent to every irreversible step inside it.
-- Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so an edit a pre-approval in force covers needs no re-gate), or public UI wording.
+- Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so an edit a pre-approval in force covers needs no re-gate), or user-facing wording the approved plan did not show literally and no technical-words pre-approval covers.
 - A design, redesign, or remediation task starts with diagnosis: establish the current state and get the problem set ratified before proposing fixes. Plan approval is not blanket consent to mutate canonical docs.
 - On a review or audit punch-list, apply the best fix and show the diff without asking per item; pause only for a genuine design choice, a destructive or outward-facing action, a scope change, or anything touching AWS or production.

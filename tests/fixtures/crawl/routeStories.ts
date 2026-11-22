@@ -92,6 +92,9 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /events/year/:year': { stories: ['V_Browse_Past_Events'] },
   'GET /events/:eventKey': { stories: ['V_Browse_Upcoming_Events', 'V_Browse_Past_Events', 'EO_Manage_CoOrganizers', 'M_View_Event'] },
   'GET /events/create': { stories: ['M_Create_Event'] },
+  'GET /news': { stories: ['V_View_News_Feed'] },
+  'GET /news/year/:year': { stories: ['V_View_News_Feed'] },
+  'GET /news/:newsId': { stories: ['V_View_News_Feed'] },
   'POST /events/create': { stories: ['M_Create_Event'] },
   'GET /events/:eventKey/manage': { stories: ['EO_Edit_Event', 'EO_Manage_CoOrganizers'] },
   'POST /events/:eventKey/edit': { stories: ['EO_Edit_Event'] },
@@ -108,6 +111,8 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /events/:eventKey/register': { stories: ['M_Register_For_Event'] },
   'POST /events/:eventKey/register': { stories: ['M_Register_For_Event'] },
   'POST /events/:eventKey/withdraw': { stories: ['M_Withdraw_Registration'] },
+  'GET /events/:eventKey/registration/partner': { stories: ['M_Register_For_Event'] },
+  'POST /events/:eventKey/registration/partner': { stories: ['M_Register_For_Event'] },
   'POST /events/:eventKey/close-registration': { stories: ['EO_Close_Registration'] },
   'POST /events/:eventKey/cancel': { stories: ['EO_Cancel_Event'] },
   'POST /events/:eventKey/delete': { stories: ['EO_Delete_Event'] },
@@ -467,7 +472,6 @@ export type StoryWithoutRoute = 'designed-not-deployed' | 'runtime-only' | 'no-r
 
 export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWithoutRoute; why: string }>> = {
   // Visitor
-  'V_View_News_Feed': { status: 'designed-not-deployed', why: 'The news feed is second-version scope and no news route is mounted.' },
   'M_Request_Video_Hosting': { status: 'designed-not-deployed', why: 'Member video hosting is second-version scope and no hosting-request route is mounted.' },
   'A_Grant_Video_Hosting': { status: 'designed-not-deployed', why: 'Member video hosting is second-version scope and no grant route is mounted.' },
   'V_Access_Denied': { status: 'no-route-of-its-own', why: 'The access-denied page is rendered by the error handling of other routes.' },
