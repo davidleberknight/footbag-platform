@@ -248,7 +248,7 @@ pixie_same_legover,retype,structural,0,Pending ruling: whether a side word writt
 pixie_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
 pixie_symposium_eggbeater,retype,structural,1,genuine decomposition name of the same movement
 pixie_symposium_reverse_whirl,retype,technical,0,modifier-stack decomposition rather than a nickname
-pod,retype,technical,0,abbreviation of the canonical name
+pod,retype,technical,0,"FootbagMoves' abbreviation for Pixie ss Double Over Down, whose notation it prints exactly"
 pogo_far_mirage,retype,positional,0,modifier-stack decomposition rather than a nickname
 pogo_nuclear_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 pogo_ss_flail,retype,positional,0,same-side / opposite-side marker on the canonical name

@@ -182,6 +182,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'pixie_clipper', derivation: 'pixie(+1) + clipper-stall(2) = 3 ADD', operator: 'pixie' },
   { slug: 'pixie_dolomite', derivation: 'pixie(+1) + dolomite(5) = 6 ADD', operator: 'pixie' },
   { slug: 'pixie_quantum_double_over_down_swirl', derivation: 'pixie(+1) + quantum(+1) + double-over-down(4) + out dex(1) = 7 ADD', operator: 'pixie + quantum + tripled-dex chassis' },
+  { slug: 'pixie_over_down', derivation: 'pixie(+1) + out dex(1) + cross-body(1) + delay(1) = 4 ADD', operator: 'pixie' },
   { slug: 'pixie_double_over_down', derivation: 'pixie(+1) + double-over-down(4) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])', operator: 'pixie' },
   { slug: 'pixie_double_pickup', derivation: 'pixie(+1) + double-pickup(3) = 4 ADD', operator: 'pixie' },
   { slug: 'pixie_double_switch_over', derivation: 'pixie(+1) + double-switch-over(3) = 4 ADD', operator: 'pixie' },
