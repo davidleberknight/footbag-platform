@@ -4098,7 +4098,6 @@ reverse_magellan,description,The reverse-direction form of the magellan (3 ADD).
 reverse_magellan,execution_summary,"Reverse magellan is an orbit followed by an around the world. From a toe delay, set and immediately orbit the bag with the setting foot, plant that leg, then bring it back up into an around the world, ending on a toe delay.",\N,Held until the Reverse Magellan direction-or-side question is ruled: the text taught reversed directions while the notation flips sides. Cleared rather than rewritten; restore from the rows above once ruled.
 reverse_magellan,learning_notes,"The move runs the two circles in the reverse of the usual order, so the trick is the quick plant and relift between them. Keeping the bag close keeps both circles small enough to chain.",\N,Held until the Reverse Magellan direction-or-side question is ruled: the text taught reversed directions while the notation flips sides. Cleared rather than rewritten; restore from the rows above once ruled.
 reverse_magellan,prerequisite_notes,Comfort with both an around the world and an orbit off a toe set is the core skill. The new piece is connecting the two opposite circles with a fast replant.,\N,Held until the Reverse Magellan direction-or-side question is ruled: the text taught reversed directions while the notation flips sides. Cleared rather than rewritten; restore from the rows above once ruled.
-armageddon,review_aspect,,add,Open question still pending; clear once ruled.
 atom_bomb,review_aspect,,add,Open question still pending; clear once ruled.
 atomic_butterfly,review_aspect,,identity,Open question still pending; clear once ruled.
 atomic_miraging_butterfly,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4111,7 +4110,6 @@ barfly,review_aspect,,identity,Open question still pending; clear once ruled.
 barfry,review_aspect,,positional,Open question still pending; clear once ruled.
 barraging_barfly,review_aspect,,add,Open question still pending; clear once ruled.
 bedwetter,review_aspect,,identity,Open question still pending; clear once ruled.
-big_apple_sauce,review_aspect,,add,Open question still pending; clear once ruled.
 blaze,review_aspect,,identity,Open question still pending; clear once ruled.
 blazing_butterfly,review_aspect,,identity,Open question still pending; clear once ruled.
 blazing_mirage,review_aspect,,identity,Open question still pending; clear once ruled.
@@ -4175,17 +4173,14 @@ miraging_symposium_double_over_down,review_aspect,,add,Open question still pendi
 miraging_symposium_eggbeater,review_aspect,,add,Open question still pending; clear once ruled.
 miraging_symposium_mirage,review_aspect,,identity,Open question still pending; clear once ruled.
 miraging_symposium_whirl,review_aspect,,add,Open question still pending; clear once ruled.
-mofly,review_aspect,,add,Open question still pending; clear once ruled.
 nemesis,review_aspect,,add,Open question still pending; clear once ruled.
 nuclear_rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
 osis,review_aspect,,positional,Open question still pending; clear once ruled.
 paradon,review_aspect,,identity,Open question still pending; clear once ruled.
 paradox_blur,review_aspect,,add,Open question still pending; clear once ruled.
-paratoxic,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_eggbeater,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_opposite_clipper,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_over_down,review_aspect,,add,Open question still pending; clear once ruled.
-pixie_quantum_double_over_down_swirl,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
 pixie_same_clipper,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_spinning_paradox_blender,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4218,7 +4213,6 @@ spinning_double_over_down,review_aspect,,identity,Open question still pending; c
 spinning_ducking_superfly,review_aspect,,add,Open question still pending; clear once ruled.
 spinning_ducking_symposium_double_over_down,review_aspect,,identity,Open question still pending; clear once ruled.
 spinning_mirage,review_aspect,,identity,Open question still pending; clear once ruled.
-spinning_miraging_symposium_torque,review_aspect,,add,Open question still pending; clear once ruled.
 spinning_rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
 spinning_symposium_swirl,review_aspect,,notation,Open question still pending; clear once ruled.
 spyro,review_aspect,,add,Open question still pending; clear once ruled.

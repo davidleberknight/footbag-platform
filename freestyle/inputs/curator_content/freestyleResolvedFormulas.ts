@@ -25,6 +25,10 @@ export interface ResolvedFormula {
 }
 
 export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
+  // The lead in front of a symposium chassis is a scored dexterity of its own,
+  // which no operator names (miraging carries no registry weight), so it is
+  // written as a leading dexterity.
+  { slug: 'armageddon', derivation: 'leading dexterity(+1) + paradox(+1) + symposium(+1) + eggbeater(3) = 6 ADD', operator: 'leading dexterity + paradox + symposium' },
   { slug: 'around_the_world_kick', derivation: 'dex(1) = 1 ADD', operator: 'kick (terminal stall removed)' },
   { slug: 'assassin', derivation: 'pixie(+1) + ducking(+1) + mirage(2) = 4 ADD', operator: 'pixie + ducking' },
   { slug: 'atom_smasher', derivation: 'atomic(+1) + mirage(2) + xdex(+1) = 4 ADD', operator: 'atomic + x-dex' },
@@ -36,6 +40,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'barraging_barfly', derivation: 'furious(+2) + barfly(4) = 6 ADD', operator: 'furious' },
   { slug: 'bedwetter', derivation: 'stepping(+1) + paradox(+1) + eggbeater(3) = 5 ADD', operator: 'stepping + paradox' },
   { slug: 'big_apple', derivation: 'gyro(+1) + symposium(+1) + torque(4) = 6 ADD', operator: 'gyro + symposium' },
+  { slug: 'big_apple_sauce', derivation: 'spinning(+1) + leading dexterity(+1) + paradox(+1) + symposium(+1) + torque(4) = 8 ADD', operator: 'spinning + leading dexterity + paradox + symposium' },
   { slug: 'big_papa_smurf', derivation: 'surfing(3) + blender(4) = 7 ADD', operator: 'surfing' },
   { slug: 'bigwalk', derivation: 'surging(+2) + butterfly(3) = 5 ADD', operator: 'surging' },
   { slug: 'bill_ted_s_excellent_adventure', derivation: 'flailing(2) + eggbeater(3) = 5 ADD', operator: 'flailing' },
@@ -135,6 +140,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'matador', derivation: 'nuclear(+2) + butterfly(3) = 5 ADD', operator: 'nuclear' },
   { slug: 'merkon', derivation: 'spinning(+1) + legover(2) = 3 ADD', operator: 'spinning' },
   { slug: 'mind_bender', derivation: 'ducking(+1) + paradox(+1) + blender(4) = 6 ADD', operator: 'ducking + paradox' },
+  { slug: 'mofly', derivation: 'leading dexterity(+1) + symposium(+1) + paradon(4) = 6 ADD', operator: 'leading dexterity + symposium' },
   { slug: 'montage', derivation: 'spinning(+1) + ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 7 ADD', operator: 'spinning + ducking + paradox + symposium' },
   { slug: 'mullet', derivation: 'ducking(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6 ADD', operator: 'ducking + paradox + symposium' },
   { slug: 'nebula', derivation: 'furious(2) + double-leg-over(3) = 5 ADD', operator: 'furious' },
@@ -159,6 +165,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'paradox_torque', derivation: 'paradox(+1) + torque(4) = 5 ADD', operator: 'paradox' },
   { slug: 'paradox_whirl', derivation: 'paradox(+1) + whirl(3) = 4 ADD', operator: 'paradox' },
   { slug: 'paradox_whirling_swirl', derivation: 'paradox(+1) + whirling-swirl(4) = 5 ADD ([PDX] + [DEX] + [DEX] + [XBD] + [DEL])', operator: 'paradox' },
+  { slug: 'paratoxic', derivation: 'leading dexterity(+1) + paradox(+1) + symposium(+1) + whirl(3) = 6 ADD', operator: 'leading dexterity + paradox + symposium' },
   { slug: 'parkwalk', derivation: 'pixie(+1) + butterfly(3) = 4 ADD', operator: 'pixie' },
   { slug: 'paste', derivation: 'pixie(+1) + pickup(2) = 3 ADD', operator: 'pixie' },
   { slug: 'pendulum', derivation: 'swing(1) + contact(1) = 2 ADD', operator: 'swing' },
@@ -166,6 +173,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'pigbeater', derivation: 'pixie(+1) + eggbeater(3) = 4 ADD', operator: 'pixie' },
   { slug: 'pixie_clipper', derivation: 'pixie(+1) + clipper-stall(2) = 3 ADD', operator: 'pixie' },
   { slug: 'pixie_dolomite', derivation: 'pixie(+1) + dolomite(5) = 6 ADD', operator: 'pixie' },
+  { slug: 'pixie_quantum_double_over_down_swirl', derivation: 'pixie(+1) + quantum(+1) + double-over-down(4) + out dex(1) = 7 ADD', operator: 'pixie + quantum + tripled-dex chassis' },
   { slug: 'pixie_double_over_down', derivation: 'pixie(+1) + double-over-down(4) = 5 ADD ([DEX] + [DEX] + [DEX] + [XBD] + [DEL])', operator: 'pixie' },
   { slug: 'pixie_double_pickup', derivation: 'pixie(+1) + double-pickup(3) = 4 ADD', operator: 'pixie' },
   { slug: 'pixie_double_switch_over', derivation: 'pixie(+1) + double-switch-over(3) = 4 ADD', operator: 'pixie' },
@@ -220,6 +228,7 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   { slug: 'spinning_ducking_superfly', derivation: 'spinning(+1) + ducking(+1) + superfly(5) = 7 ADD', operator: 'spinning + ducking' },
   { slug: 'spinning_ducking_symposium_whirl', derivation: 'spinning(+1) + ducking(+1) + symposium-whirl(4) = 6 ADD', operator: 'spinning + ducking' },
   { slug: 'spinning_eggbeater', derivation: 'spinning(+1) + eggbeater(3) = 4 ADD', operator: 'spinning' },
+  { slug: 'spinning_miraging_symposium_torque', derivation: 'spinning(+1) + leading dexterity(+1) + symposium(+1) + torque(4) = 7 ADD', operator: 'spinning + leading dexterity + symposium' },
   { slug: 'spinning_osis', derivation: 'spinning(+1) + osis(3) = 4 ADD', operator: 'spinning' },
   { slug: 'spinning_paradox_illusion', derivation: 'spinning(+1) + paradox(+1) + illusion(2) = 4 ADD', operator: 'spinning + paradox' },
   { slug: 'spinning_paradox_mirage', derivation: 'spinning(+1) + paradox(+1) + mirage(2) = 4 ADD', operator: 'spinning + paradox' },
