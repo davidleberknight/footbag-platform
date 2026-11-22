@@ -135,8 +135,8 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
   insertEventOrganizer(db, crawlEventId, CRAWL_MEMBER_ID);
   insertEventOrganizer(db, crawlEventId, CRAWL_ADMIN_ID);
 
-  // The news feed: an administrator's item, a member's Community post with its
-  // byline, an item about the crawl event with its hashtag, and an item from an
+  // The news feed: an administrator's item, a member's Community post, an item
+  // about the crawl event with its hashtag, and an item from an
   // earlier year, so the landing page's year navigation reaches a year page.
   const anHourAgo = new Date(Date.now() - 3_600_000).toISOString();
   insertNewsItem(db, {

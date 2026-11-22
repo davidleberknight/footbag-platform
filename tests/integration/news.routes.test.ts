@@ -4,7 +4,7 @@
  *
  * The contract: items are listed newest first, each a clickable dated card
  * with its date, label, headline linking to its page and a plain-text excerpt;
- * a Community post carries its author's byline and an event item its event's
+ * no item names its author or links a member, and an event item carries its event's
  * hashtag, linked to the gallery only when media carries it, and the event's
  * cover as a thumbnail. A hidden item, one whose publication time has not come,
  * and one about an event that is not publicly visible appear nowhere. The
@@ -140,9 +140,14 @@ describe('the news landing page', () => {
     expect(cardFor(res.text, 'news_b')).toContain('<span class="badge badge-muted">Community</span>');
   });
 
-  it('bylines a Community post with its onboarded author, and no other item', async () => {
+  // Defect caught: a member's post names its author or links a member-only
+  // profile, a dead end for every viewer who is not a member.
+  it('names no author and links no member on any card, a Community post included', async () => {
     const res = await page('/news');
-    expect(cardFor(res.text, 'news_b')).toContain('href="/members/news_author"');
+    const b = cardFor(res.text, 'news_b');
+    expect(b).toContain('href="/news/news_b"');
+    expect(b).not.toContain('/members/');
+    expect(b).not.toContain('Pat Kicker');
     expect(cardFor(res.text, 'news_c')).not.toContain('/members/');
     expect(cardFor(res.text, 'news_a')).not.toContain('/members/');
   });
@@ -158,13 +163,10 @@ describe('the news landing page', () => {
     expect(cardFor(res.text, 'news_a')).not.toContain('hashtag');
   });
 
-  it('draws the entries as clickable cards in a card grid, the byline and hashtag links outside the card link', async () => {
+  it('draws the entries as clickable cards in a card grid', async () => {
     const res = await page('/news');
     expect(res.text).toContain('<div class="card-grid" id="news-items">');
-    const b = cardFor(res.text, 'news_b');
-    expect(b).toContain('<a class="card-link" href="/news/news_b">');
-    const cardLink = b.match(/<a class="card-link"[^>]*>[^<]*<\/a>/)?.[0] ?? '';
-    expect(cardLink).not.toContain('/members/');
+    expect(cardFor(res.text, 'news_b')).toContain('<a class="card-link" href="/news/news_b">');
   });
 
   it('links back to the nearest earlier year holding items, and forward to none', async () => {
@@ -248,10 +250,14 @@ describe('a news item\'s own page', () => {
     expect(html).toContain('<p class="page-back-link"><a href="/news" class="action-link">');
   });
 
-  it('bylines a Community post and links back to its own year', async () => {
+  // Defect caught: a member's post page names its author or links a
+  // member-only profile.
+  it('shows a Community post with no author or member link, and links back to its own year', async () => {
     const b = await page('/news/news_b');
     expect(b.status).toBe(200);
-    expect(b.text).toContain('href="/members/news_author"');
+    expect(b.text).toContain('<span class="badge badge-muted">Community</span>');
+    expect(b.text).not.toContain('/members/');
+    expect(b.text).not.toContain('Pat Kicker');
     expect(b.text).not.toContain('id="news-media"');
     expect(b.text).not.toContain('id="news-cover-photo"');
 

@@ -62,6 +62,7 @@ open('the public site: pages any visitor reads, with member-only enhancements sh
   'GET /net', 'GET /x-square', 'GET /golf', 'GET /consecutives', 'GET /sideline',
   'GET /rules', 'GET /rules/:categorySlug/:ruleSlug', 'GET /ifpa', 'GET /ifpa/:docSlug',
   'GET /events', 'GET /events/year/:year', 'GET /events/:eventKey',
+  'GET /news', 'GET /news/year/:year', 'GET /news/:newsId',
   'GET /history/:personId', 'GET /legal', 'GET /community-standards', 'GET /equipment');
 open('an old footbag.org address an outside page cites; it only redirects to a public page',
   ...LEGACY_REDIRECT_PATHS.map((p) => `GET ${p}`));

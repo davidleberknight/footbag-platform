@@ -93,11 +93,9 @@ const PUBLIC_NEWS_VISIBLE = `n.is_public = 1 AND n.published_at <= ?
 const PUBLIC_NEWS_SELECT = `
     SELECT n.id, n.news_type, n.title, n.body, n.published_at,
            n.entity_type, n.entity_id,
-           m.display_name AS author_display_name, m.slug AS author_slug,
            e.id AS event_id, e.title AS event_title,
            t.tag_normalized AS event_tag_normalized, t.tag_display AS event_tag_display
     FROM news_items AS n
-    LEFT JOIN members_onboarded AS m ON m.id = n.author_member_id
     LEFT JOIN events AS e ON n.entity_type = 'event' AND e.id = n.entity_id
     LEFT JOIN tags AS t ON t.id = e.hashtag_tag_id`;
 

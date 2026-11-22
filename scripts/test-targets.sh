@@ -45,11 +45,16 @@
 #   - The database module is decided the same way, one level finer: it is a
 #     flat list of statement groups, so a working-tree change inside named
 #     statements reaches only the source files using those statements, and
-#     those files are mapped in turn like any changed file. A change no
-#     statement owns (the connection, the transaction helpers, an import,
-#     module-level code, a removed or renamed group), a statement used from
-#     another high-fan-out file, or a file with no diff to read, still gets
-#     the canary sweeps and defers to the full gate.
+#     those files are mapped in turn like any changed file. A change inside a
+#     private SQL fragment or helper (`const PUBLIC_NEWS_SELECT = ...`) reaches
+#     the statements that use it. A change no statement owns (the connection,
+#     the transaction helpers, an import, module-level code, a removed or
+#     renamed group or fragment), a statement used from another high-fan-out
+#     file, or a file with no diff to read, still gets the canary sweeps and
+#     defers to the full gate.
+#   - A test asset (`src/testkit/assets/*`) is loaded by its file name, so it
+#     reaches the suites and browser specs naming it; nothing loads the folder
+#     whole.
 #   - Browser specs and the legacy pytest files are targeted too, as CHECK
 #     lines: a changed spec runs itself, a page object the specs naming it, a
 #     page template the specs named for it, a legacy Python module the pytest
@@ -60,8 +65,15 @@
 #     named in RENDERED_STYLE_VIEWS: a page template its own view, a partial
 #     every page including it, a controller the pages it renders, a service
 #     the pages its controllers render, any other module the pages it or a
-#     renderer importing it renders. The stylesheet, a layout, or a partial
-#     a layout includes reaches every page, so the whole site is measured.
+#     renderer importing it renders. A service is followed one level finer
+#     when its own diff, or the database statement that brought it in, can be
+#     pinned to its declarations: only the controllers and services naming
+#     what those declarations reach are followed, so a change to one public
+#     read does not measure every page of every service importing it for
+#     another reason. A line no declaration owns (an import, module-level
+#     code), or a service with no diff to read, follows every importer. The
+#     stylesheet, a layout, or a partial a layout includes reaches every page,
+#     so the whole site is measured.
 #   - The conventions gate and the linter read the source, and the conventions
 #     gate also the templates, the stylesheet and the tests, so a change to
 #     any of them runs that check.
@@ -116,6 +128,10 @@ fi
 
 TESTS=()
 SPECS=()
+# Set while a service is mapped as the user of one database statement: the
+# statement's member name, which is all of the service the change can reach.
+SERVICE_SEED=""
+declare -A TS_MARKERS=()
 RENDERED_STYLE=0
 LAYOUT_VIEWS=()
 PYTESTS=()
@@ -388,6 +404,179 @@ service_layout_views() {
   done
 }
 
+# Owner markers of a TypeScript module read from $1, ascending, one per line as
+# `line<TAB>owner<TAB>kind`: from that line on, a line belongs to `owner`. The
+# kind is x for an exported top-level declaration, p for a private one, m for a
+# member of a top-level object or class (owner `container.member`), i for an
+# import, and - for module-level code or the gap after a closing line.
+ts_markers() {
+  ts_load_markers "$@"
+  printf '%s' "${TS_MARKERS[$2]}"
+}
+
+# Caches the markers of $1 under the key $2, since one service is read once per
+# name followed through it. Called outside a subshell, so the cache is kept.
+ts_load_markers() {
+  local f="$1" key="$2" d line text name kind container=""
+  [ -z "${TS_MARKERS[$key]+set}" ] || return 0
+  local decl_re='^(export )?(default )?(declare )?(abstract )?(async )?(function\*?|const|let|var|class|interface|type|enum|namespace) ([A-Za-z0-9_$]+)'
+  local member_re='^  (static |public |private |protected |readonly |override |declare |async |get |set |\*)*([A-Za-z0-9_$]+)[?!]?[[:space:]]*(\(|<|:|=)'
+  local out=""
+  while IFS= read -r d; do
+    line="${d%%:*}"; text="${d#*:}"
+    case "$text" in
+      ' '*)
+        [ -n "$container" ] && [[ "$text" =~ $member_re ]] || continue
+        out+="${line}"$'\t'"${container}.${BASH_REMATCH[2]}"$'\tm\n' ;;
+      # The closing line still belongs to what it closes.
+      '}'|'};'|']'|'];'|')'|');'|'`'|'`;'|'} from '*)
+        container=""; out+="$((line + 1))"$'\t-\t-\n' ;;
+      # A multi-line signature or expression continues the declaration above.
+      ')'*|'}'*|']'*) continue ;;
+      '//'*|'/*'*|'*'*) continue ;;
+      'import '*) container=""; out+="${line}"$'\t@import\ti\n' ;;
+      *)
+        container=""
+        if [[ "$text" =~ $decl_re ]]; then
+          name="${BASH_REMATCH[7]}"; kind=p
+          [ -n "${BASH_REMATCH[1]}" ] && kind=x
+          # An object literal or a class holds members, each reached by name.
+          case "$text" in *' = {'|*'class '*'{') container="$name" ;; esac
+          out+="${line}"$'\t'"${name}"$'\t'"${kind}"$'\n'
+        else
+          out+="${line}"$'\t-\t-\n'
+        fi ;;
+    esac
+  done < <(grep -nE '^[^[:space:]]|^  [^[:space:]]' "$f" 2>/dev/null || true)
+  TS_MARKERS[$key]="$out"
+}
+
+# The owner and kind (`owner<TAB>kind`) of each line number read on stdin, in
+# ascending order, against the markers in $1.
+ts_owners() {
+  local ml=() mo=() mk=() a b c l i=0 cur="-" curk="-"
+  while IFS=$'\t' read -r a b c; do
+    [ -n "$a" ] || continue
+    ml+=("$a"); mo+=("$b"); mk+=("$c")
+  done <<<"$1"
+  while IFS= read -r l; do
+    [ -n "$l" ] || continue
+    while [ "$i" -lt "${#ml[@]}" ] && [ "${ml[i]}" -le "$l" ]; do
+      cur="${mo[i]}"; curk="${mk[i]}"; i=$((i + 1))
+    done
+    printf '%s\t%s\n' "$cur" "$curk"
+  done
+}
+
+# The owners of the code lines in the file $1 naming the word $2; a comment
+# mentioning it uses nothing.
+ts_word_owners() {
+  ts_load_markers "$1" "$1"
+  grep -nwF -- "$2" "$1" 2>/dev/null \
+    | grep -vE '^[0-9]+:[[:space:]]*(//|/\*|\*)' \
+    | cut -d: -f1 \
+    | ts_owners "${TS_MARKERS[$1]}" || true
+}
+
+# The declarations a working-tree change to the module $1 touches, as
+# `owner<TAB>kind` lines: an added line is read against the module as it is,
+# a removed one against the module at HEAD, so a removed declaration is still
+# named. A comment or blank line at the top or member level prints `.`, and a
+# line no declaration owns (an import, module-level code) `-`. Prints nothing
+# with no diff to read.
+ts_declarations_changed() {
+  local p="$1" d sign text oldpos=0 newpos=0 in_hunk=0 newl=() oldl=() o k
+  [ -f "$p" ] || return 0
+  while IFS= read -r d; do
+    if [[ "$d" =~ ^@@\ -([0-9]+)(,[0-9]+)?\ \+([0-9]+) ]]; then
+      in_hunk=1; oldpos="${BASH_REMATCH[1]}"; newpos="${BASH_REMATCH[3]}"
+      continue
+    fi
+    [ "$in_hunk" -eq 1 ] || continue
+    sign="${d:0:1}"; text="${d:1}"
+    case "$sign" in +|-) ;; *) continue ;; esac
+    if [[ "$text" =~ ^[[:space:]]{0,3}(//|/\*|\*|$) ]]; then
+      printf '.\n'
+    elif [ "$sign" = + ]; then newl+=("$newpos")
+    else oldl+=("$oldpos")
+    fi
+    if [ "$sign" = + ]; then newpos=$((newpos + 1)); else oldpos=$((oldpos + 1)); fi
+  done < <(git diff -U0 HEAD -- "$p" 2>/dev/null || true)
+  {
+    [ "${#newl[@]}" -eq 0 ] || printf '%s\n' "${newl[@]}" | ts_owners "$(ts_markers "$p" "$p")"
+    [ "${#oldl[@]}" -eq 0 ] || printf '%s\n' "${oldl[@]}" \
+      | ts_owners "$(ts_markers <(git show "HEAD:$p" 2>/dev/null) "HEAD:$p")"
+  } | while IFS=$'\t' read -r o k; do
+    case "$o" in -|@import) printf -- '-\n' ;; *) printf '%s\t%s\n' "$o" "$k" ;; esac
+  done
+}
+
+# The page views reached from the declarations read on stdin (`file<TAB>owner
+# <TAB>kind`): each is followed to the declarations of its own file naming it,
+# and an exported one or a member to the controllers naming it, whose views
+# are added, and the services naming it, followed the same way. Fails, leaving
+# the caller to follow every importer, when a line naming a followed name
+# belongs to no declaration.
+service_reach_views() {
+  local queue=() seen=" " files=" " item f w k o ok stem v x
+  mapfile -t queue
+  while [ "${#queue[@]}" -gt 0 ]; do
+    item="${queue[0]}"; queue=("${queue[@]:1}")
+    IFS=$'\t' read -r f w k <<<"$item"
+    w="${w##*.}"
+    case "$seen" in *" ${f}:${w}:${k} "*) continue ;; esac
+    seen+="${f}:${w}:${k} "
+    stem="$(basename "${f%.ts}")"
+    case "$files" in *" $f "*) ;; *)
+      files+="$f "
+      ts_load_markers "$f" "$f"
+      while IFS= read -r v; do
+        [ -n "$v" ] && add_layout_view "$v"
+      done < <(grep -oE "template:[[:space:]]*['\"][^'\"]+['\"]" "$f" 2>/dev/null \
+        | sed -E "s/^template:[[:space:]]*['\"]//; s/['\"]$//" | sort -u)
+    esac
+    while IFS=$'\t' read -r o ok; do
+      case "$o" in
+        '') ;;
+        @import) ;;
+        -) return 1 ;;
+        *) queue+=("${f}"$'\t'"${o}"$'\t'"${ok}") ;;
+      esac
+    done < <(ts_word_owners "$f" "$w")
+    case "$k" in x|m) ;; *) continue ;; esac
+    while IFS= read -r x; do
+      [ -n "$x" ] && grep -qwF -- "$w" "$x" && controller_layout_views "$x"
+    done < <(grep -lE "from ['\"][./]*services/${stem}['\"]" src/controllers/*.ts 2>/dev/null || true)
+    while IFS= read -r x; do
+      # A name used there is followed through that service's own declarations.
+      [ -n "$x" ] && grep -qwF -- "$w" "$x" && queue+=("${x}"$'\t'"${w}"$'\tr')
+    done < <(grep -lE "from ['\"]\./${stem}['\"]" src/services/*.ts 2>/dev/null || true)
+  done
+}
+
+# The page views a service change can reach: when the change is pinned to the
+# service's declarations (its own diff, or the database statement it was
+# mapped for), the views reached from them; otherwise every page each importer
+# renders.
+service_views() {
+  local p="$1" o k seeds=() unpinned=0 passed=0
+  ts_load_markers "$p" "$p"
+  while IFS=$'\t' read -r o k; do
+    case "$o" in
+      '') ;;
+      .) passed=1 ;;
+      -|@import) [ -n "$SERVICE_SEED" ] && [ "$o" = @import ] || unpinned=1 ;;
+      *) seeds+=("${p}"$'\t'"${o}"$'\t'"${k}") ;;
+    esac
+  done < <(if [ -n "$SERVICE_SEED" ]; then ts_word_owners "$p" "$SERVICE_SEED"; else ts_declarations_changed "$p"; fi)
+  if [ "$unpinned" -eq 0 ] && [ "${#seeds[@]}" -gt 0 ]; then
+    service_reach_views < <(printf '%s\n' "${seeds[@]}") && return 0
+  elif [ "$unpinned" -eq 0 ] && [ "$passed" -eq 1 ] && [ -z "$SERVICE_SEED" ]; then
+    return 0
+  fi
+  service_layout_views "$p"
+}
+
 # A controller's suites: those naming it, and the route suites of its domain.
 # Prints them; true when any were found.
 controller_suites() {
@@ -496,18 +685,22 @@ test_data_builders() {
 # transaction helpers are used by nearly every service, so a change to them is
 # `-`. A group the change removes without adding back (removed or renamed) is
 # `-` too: its users can no longer be named by the group's new name. A line
-# passed over prints `.`, so a comment-only change is told apart from no diff
-# at all, which prints nothing.
+# inside a private top-level fragment or helper (`const PUBLIC_NEWS_SELECT =`)
+# belongs to every statement naming it, through any fragment naming it in turn;
+# one named from module-level code, named nowhere, or removed without being
+# added back is `-`. A line passed over prints `.`, so a comment-only change is
+# told apart from no diff at all, which prints nothing.
 db_statements_changed() {
-  local p="$1" d line text name group="" owner="-"
-  local m_line=() m_owner=() m_group=()
+  local p="$1" d line text name group="" owner="-" priv
+  local m_line=() m_owner=() m_group=() m_priv=()
+  local priv_re='^(const|let|function) ([A-Za-z0-9_$]+)'
   local infra='^(db|transaction|rehearse|savepoint|inTransaction|checkpointAndCloseDatabase)$'
   local decl_re='^export (declare )?(async )?(function|interface|type|const|let|class|enum) ([A-Za-z0-9_$]+).*'
   local member_re='^  (get |async )?([A-Za-z0-9_$]+)[[:space:]]*(\(|:).*'
   [ -f "$p" ] || return 0
   # Owner markers, ascending: each sets the owner from its line onward.
   while IFS= read -r d; do
-    line="${d%%:*}"; text="${d#*:}"
+    line="${d%%:*}"; text="${d#*:}"; priv=""
     case "$text" in
       ' '*)
         # Matched in the shell: a module of over a thousand statements makes a
@@ -527,12 +720,15 @@ db_statements_changed() {
         group=""; owner="-"
         [[ "$text" =~ $decl_re ]] && owner="${BASH_REMATCH[4]}"
         [[ "$owner" =~ $infra ]] && owner="-" ;;
-      *) group=""; owner="-" ;;
+      *)
+        group=""; owner="-"
+        if [[ "$text" =~ $priv_re ]]; then priv="${BASH_REMATCH[2]}"; [[ "$priv" =~ $infra ]] && priv=""; fi ;;
     esac
-    m_line+=("$line"); m_owner+=("$owner"); m_group+=("$group")
+    m_line+=("$line"); m_owner+=("$owner"); m_group+=("$group"); m_priv+=("$priv")
   done < <(grep -nE "^[^[:space:]/*]|${member_re}" "$p" || true)
 
-  local i=0 cur="-" curg="" in_hunk=0 start=0 pos sign removed=() added=()
+  local i=0 cur="-" curg="" curp="" in_hunk=0 start=0 pos sign removed=() added=()
+  local privs=() p_removed=() p_added=()
   while IFS= read -r d; do
     if [[ "$d" =~ ^@@\ -[0-9,]+\ \+([0-9]+) ]]; then
       in_hunk=1; start="${BASH_REMATCH[1]}"; pos="$start"
@@ -547,7 +743,7 @@ db_statements_changed() {
       *) continue ;;
     esac
     while [ "$i" -lt "${#m_line[@]}" ] && [ "${m_line[i]}" -le "$line" ]; do
-      cur="${m_owner[i]}"; curg="${m_group[i]}"; i=$((i + 1))
+      cur="${m_owner[i]}"; curg="${m_group[i]}"; curp="${m_priv[i]}"; i=$((i + 1))
     done
     case "$text" in
       'export const '*' = {')
@@ -566,9 +762,15 @@ db_statements_changed() {
     if [ "$sign" = - ] && [ -n "$curg" ] && [[ "$text" =~ $member_re ]]; then
       # A removed member is named from the diff, so its users are still found.
       printf '%s.%s\n' "$curg" "${BASH_REMATCH[2]}"
+    elif [[ "$text" =~ $priv_re ]] && name="${BASH_REMATCH[2]}" && ! [[ "$name" =~ $infra ]]; then
+      # A private fragment's or helper's own declaration line.
+      privs+=("$name")
+      if [ "$sign" = + ]; then p_added+=("$name"); else p_removed+=("$name"); fi
     elif [[ "$text" =~ ^[^[:space:]] ]] && ! [[ "$text" =~ ^(\}|\`|\)) ]]; then
-      # Any other top-level line: an import, module-level code, a private helper.
+      # Any other top-level line: an import, module-level code.
       printf -- '-\n'
+    elif [ "$cur" = - ] && [ -n "$curp" ]; then
+      privs+=("$curp")
     else
       printf '%s\n' "$cur"
     fi
@@ -576,6 +778,35 @@ db_statements_changed() {
 
   for name in "${removed[@]+"${removed[@]}"}"; do
     [[ " ${added[*]+"${added[*]}"} " == *" $name "* ]] || printf -- '-\n'
+  done
+  for name in "${p_removed[@]+"${p_removed[@]}"}"; do
+    [[ " ${p_added[*]+"${p_added[*]}"} " == *" $name "* ]] || printf -- '-\n'
+  done
+
+  # Each changed fragment or helper reaches the owners of the lines naming it.
+  local queue=("${privs[@]+"${privs[@]}"}") seen=" " rl rt j found o op
+  while [ "${#queue[@]}" -gt 0 ]; do
+    name="${queue[0]}"; queue=("${queue[@]:1}")
+    case "$seen" in *" $name "*) continue ;; esac
+    seen+="$name "
+    found=0
+    while IFS=: read -r rl rt; do
+      [ -n "$rl" ] || continue
+      # Its own declaration, and a comment mentioning it, use nothing.
+      [[ "$rt" =~ ^(const|let|function)\ ${name}([^A-Za-z0-9_$]|$) ]] && continue
+      [[ "$rt" =~ ^[[:space:]]*(//|/\*|\*) ]] && continue
+      found=1
+      o="-"; op=""
+      for ((j = 0; j < ${#m_line[@]}; j++)); do
+        [ "${m_line[j]}" -le "$rl" ] || break
+        o="${m_owner[j]}"; op="${m_priv[j]}"
+      done
+      if [ "$o" != - ]; then printf '%s\n' "$o"
+      elif [ -n "$op" ]; then [ "$op" = "$name" ] || queue+=("$op")
+      else printf -- '-\n'
+      fi
+    done < <(grep -nwF -- "$name" "$p" 2>/dev/null || true)
+    [ "$found" -eq 1 ] || printf -- '-\n'
   done
 }
 
@@ -609,8 +840,11 @@ db_statements() {
     mapfile -t users < <(statement_users "$token" src)
     [ "${#users[@]}" -gt 0 ] || note "$p: $token has no user in src/"
     for u in "${users[@]+"${users[@]}"}"; do
-      # A high-fan-out user is reached by most of the suite in turn.
-      if is_high_fan_out "$u"; then unpinned=1; else map_path "$u"; fi
+      # A high-fan-out user is reached by most of the suite in turn. A service
+      # can show the statement only through the declarations naming it.
+      if is_high_fan_out "$u"; then unpinned=1; else
+        SERVICE_SEED="${token#*.}"; map_path "$u"; SERVICE_SEED=""
+      fi
     done
     # A suite may prepare against a statement directly rather than through
     # the service using it.
@@ -632,6 +866,8 @@ no_tests() { note "no tests found for $1; name its suites by hand"; }
 # app, routes, middleware, env config, the shared factories and test database.
 is_high_fan_out() {
   case "$1" in
+    # Test assets are loaded one by one, by file name.
+    src/testkit/assets/*) return 1 ;;
     src/db/*|database/*|src/app.ts|src/routes/*|src/middleware/*|src/config/env.ts|\
     src/services/serviceErrors.ts|src/testkit/*|tests/fixtures/factories.ts|\
     tests/fixtures/testDb.ts|tests/setup-env.ts|tests/global-setup.ts|vitest*.config.ts|\
@@ -807,6 +1043,14 @@ map_path() {
         *.hbs) collect_specs find tests/e2e -maxdepth 1 -name "*${stem}*.spec.ts" -type f || true ;;
       esac
       return ;;
+    src/testkit/assets/*)
+      # A test asset is uploaded or read by its file name, so the suites and
+      # browser specs naming it are everything it reaches.
+      local reached=1
+      if collect naming "$base"; then reached=0; fi
+      if collect_specs specs_naming "$base"; then reached=0; fi
+      [ "$reached" -eq 0 ] || note "$p: no test names it"
+      return ;;
     src/public/*)
       # A browser script or static asset is reached by the suites naming its
       # file; route suites request it by URL, which carries the same name.
@@ -820,7 +1064,7 @@ map_path() {
       [ -n "$domain" ] && { collect domain_suites "$domain" '*.test.ts' src/services || true; }
       collect service_controller_suites "$p" || true
       [ "${#TESTS[@]}" -gt "$before" ] || no_tests "$p"
-      service_layout_views "$p"
+      service_views "$p"
       return ;;
     src/controllers/*.ts)
       add_check "npm run build"; add_check "npm run typecheck:tests"

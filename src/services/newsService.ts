@@ -20,19 +20,20 @@
  *     the moment of writing.
  *   - Display shaping: the label (News for an item in IFPA's voice, written by
  *     an administrator or created automatically; Community for a member's
- *     approved post), the byline a Community post carries and no other item
- *     does, and the body rendered from Markdown to HTML.
+ *     approved post), and the body rendered from Markdown to HTML. No item
+ *     carries a byline: an author who wants their name on a Community post
+ *     writes it into the text the administrator approves.
  *   - The public news pages, for any visitor, rendered identically for every
  *     viewer whether signed in or not:
  *       - `/news`, the current UTC year's items, with an empty state when it
  *         has none; `/news/year/:year`, another year's items, which exists only
  *         while that year holds items. Items are listed newest first, each as
- *         a dated item card (date, label, headline, excerpt; a Community
- *         post's byline and an event item's hashtag on its meta line; an event
+ *         a dated item card (date, label, headline, excerpt; an event item's
+ *         hashtag on its meta line; an event
  *         item's cover as its thumbnail). The year navigation links only to
  *         years holding items, the current year by its landing address.
  *       - `/news/:newsId`, one item's page in the detail-page order: an event
- *         item's cover, the label, date and Community byline, an event item's
+ *         item's cover, the label and date, an event item's
  *         media line, the body, the link to the event, and the back link to
  *         the item's year.
  *     An item about an event carries that event's hashtag, linked to its
@@ -63,8 +64,7 @@
  *     and renders only web and site links.
  *
  * Persistence: `news_items` (insert and delete; the public reads), reading the
- *   item's author through `members_onboarded` and its event through `events`
- *   and `tags`.
+ *   item's event through `events` and `tags`.
  * Side effects: none of its own; the calling flow writes the audit row for
  *   the act that emitted the item.
  */
@@ -127,15 +127,13 @@ export interface ValidAuthoredNews {
   publishedAt: string;
 }
 
-/** A news item row as a read returns it, with its author's name and profile slug when it has one. */
+/** A news item row as a read returns it. */
 export interface NewsItemRow {
   id: string;
   news_type: NewsType;
   title: string;
   body: string;
   published_at: string;
-  author_display_name: string | null;
-  author_slug: string | null;
 }
 
 /** A public read's row: the item, plus the event it is about when it has one. */
@@ -158,7 +156,6 @@ export interface NewsYearContent {
 export interface NewsItemContent {
   label: NewsLabel;
   dateText: string;
-  byline: { text: string; profileHref: string } | null;
   bodyHtml: string;
   coverPhoto: CoverPhotoImage | null;
   /** The event the item is about, with its hashtag and gallery, or null. */
@@ -175,8 +172,6 @@ export interface NewsItemView {
   title: string;
   label: NewsLabel;
   publishedAt: string;
-  /** Present only on a Community post. */
-  byline: { displayName: string; profileHref: string } | null;
   bodyHtml: string;
 }
 
@@ -249,14 +244,10 @@ function eventHrefFromTag(tagNormalized: string): string {
   return `/events/${tagNormalized.startsWith('#') ? tagNormalized.slice(1) : tagNormalized}`;
 }
 
-function bylineText(displayName: string): string {
-  return `By ${displayName}`;
-}
-
 /**
  * One item as a list entry: its date, label, headline linking to its page and
- * excerpt; a Community post's byline, then an event item's hashtag, on the
- * meta line; and an event item's cover as the thumbnail.
+ * excerpt; an event item's hashtag on the meta line; and an event item's cover
+ * as the thumbnail.
  */
 export function toNewsDatedItem(
   row: PublicNewsItemRow,
@@ -264,7 +255,6 @@ export function toNewsDatedItem(
 ): DatedItemView {
   const view = newsService.shapeNewsItem(row);
   const meta: DatedItemMeta[] = [];
-  if (view.byline) meta.push({ text: bylineText(view.byline.displayName), href: view.byline.profileHref });
   if (row.event_id && row.event_tag_display) {
     meta.push(opts.galleryHref
       ? { text: row.event_tag_display, href: opts.galleryHref, isHashtag: true }
@@ -356,19 +346,15 @@ export const newsService = {
     return { title: cleanTitle, body: cleanBody, publishedAt };
   },
 
-  /** Shapes one item for display: its label, a Community post's byline, and its rendered body. */
+  /** Shapes one item for display: its label and its rendered body. */
   shapeNewsItem(row: NewsItemRow): NewsItemView {
     const label = newsLabelFor(row.news_type);
     const isCommunity = label === 'Community';
-    const byline = isCommunity && row.author_display_name && row.author_slug
-      ? { displayName: row.author_display_name, profileHref: `/members/${row.author_slug}` }
-      : null;
     return {
       id: row.id,
       title: row.title,
       label,
       publishedAt: row.published_at,
-      byline,
       bodyHtml: renderNewsMarkdown(row.body, { memberAuthored: isCommunity }),
     };
   },
@@ -478,7 +464,6 @@ export const newsService = {
         content: {
           label: view.label,
           dateText: newsDateText(row.published_at),
-          byline: view.byline ? { text: bylineText(view.byline.displayName), profileHref: view.byline.profileHref } : null,
           bodyHtml: view.bodyHtml,
           coverPhoto: cover ? coverPhotoImage(cover, row.event_title ?? row.title) : null,
           event,

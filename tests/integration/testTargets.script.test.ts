@@ -618,6 +618,201 @@ describe('test-targets.sh — a database statement change reaches the files usin
   });
 });
 
+describe('test-targets.sh — a database or service change measures only the pages it reaches', () => {
+  // The rendered-style check costs one page per view, so a selection that
+  // follows every importer of a service measures over a hundred pages for a
+  // change to one public read, and the per-change loop costs a full run.
+  const repo = createScratchDir('test-targets-views');
+  const dbFile = 'src/db/db.ts';
+  const newsFile = 'src/services/newsService.ts';
+  const dbBase = [
+    "import { openDatabase } from './openDatabase';",
+    '',
+    'export const db = openDatabase();',
+    '',
+    'const PUBLIC_NEWS_SELECT = `',
+    '    SELECT n.id, n.title',
+    '    FROM news_items AS n`;',
+    '',
+    'const MEMBER_COLUMNS = `id, name`;',
+    'registerFragment(MEMBER_COLUMNS);',
+    '',
+    'export const newsItems = {',
+    '  get listPublic() { return db.prepare(`',
+    '    ${PUBLIC_NEWS_SELECT}',
+    '    WHERE n.is_public = 1',
+    '  `); },',
+    '',
+    '  get countAll() { return db.prepare(`',
+    '    SELECT COUNT(*) AS n FROM news_items',
+    '  `); },',
+    '};',
+    '',
+    'export const members = {',
+    '  get listMembers() { return db.prepare(`',
+    '    SELECT ${MEMBER_COLUMNS} FROM members',
+    '  `); },',
+    '};',
+    '',
+  ].join('\n');
+  const newsBase = [
+    "import { newsItems } from '../db/db';",
+    '',
+    'export const newsService = {',
+    '  getNewsPage() {',
+    '    return newsItems.listPublic.all();',
+    '  },',
+    '',
+    '  emitItem(id: string) {',
+    '    return newsItems.countAll.get(id);',
+    '  },',
+    '};',
+    '',
+  ].join('\n');
+  const files: Record<string, string> = {
+    [dbFile]: dbBase,
+    [newsFile]: newsBase,
+    // Imports the news service only to emit items, never for the public read.
+    'src/services/eventService.ts': [
+      "import { newsService } from './newsService';",
+      '',
+      'export const eventService = {',
+      '  publish(id: string) {',
+      '    newsService.emitItem(id);',
+      '  },',
+      '};',
+      '',
+    ].join('\n'),
+    'src/services/memberService.ts': [
+      "import { members } from '../db/db';",
+      '',
+      'export const memberService = {',
+      '  listMembersPage() {',
+      '    return members.listMembers.all();',
+      '  },',
+      '};',
+      '',
+    ].join('\n'),
+    'src/controllers/newsController.ts': [
+      "import { newsService } from '../services/newsService';",
+      'export const newsController = {',
+      "  index(_req, res) { res.render('news/index', newsService.getNewsPage()); },",
+      '};',
+      '',
+    ].join('\n'),
+    'src/controllers/homeController.ts': [
+      "import { newsService } from '../services/newsService';",
+      'export const homeController = {',
+      "  home(_req, res) { res.render('public/home', { news: newsService.getNewsPage() }); },",
+      '};',
+      '',
+    ].join('\n'),
+    'src/controllers/eventController.ts': [
+      "import { eventService } from '../services/eventService';",
+      'export const eventController = {',
+      "  index(_req, res) { eventService.publish('x'); res.render('events/index', {}); },",
+      '};',
+      '',
+    ].join('\n'),
+    'src/controllers/adminMemberController.ts': [
+      "import { memberService } from '../services/memberService';",
+      'export const adminMemberController = {',
+      "  index(_req, res) { res.render('admin/members/index', memberService.listMembersPage()); },",
+      '};',
+      '',
+    ].join('\n'),
+    'src/views/news/index.hbs': '<h1>News</h1>\n',
+    'src/views/public/home.hbs': '<h1>Home</h1>\n',
+    'src/views/events/index.hbs': '<h1>Events</h1>\n',
+    'src/views/admin/members/index.hbs': '<h1>Members</h1>\n',
+  };
+  const git = (...a: string[]) =>
+    spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...a], {
+      cwd: repo,
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+  const targets = (path: string, content: string) => {
+    writeFileSync(join(repo, path), content);
+    try {
+      return run([path], join(repo, 'scripts/test-targets.sh'), repo);
+    } finally {
+      writeFileSync(join(repo, path), files[path]);
+    }
+  };
+  const measured = (checks: string[]) =>
+    (checks.find((c) => c.startsWith('RENDERED_STYLE_VIEWS=')) ?? '')
+      .replace(/^RENDERED_STYLE_VIEWS=/, '')
+      .replace(/ npm run test:rendered-style$/, '')
+      .split(',')
+      .filter(Boolean);
+  const fullGate = `${dbFile} is high fan-out; the full gate is needed at session end`;
+
+  beforeAll(() => {
+    for (const d of ['scripts', 'src/db', 'src/services', 'src/controllers', 'src/views/news', 'src/views/public', 'src/views/events', 'src/views/admin/members', 'tests/integration']) {
+      mkdirSync(join(repo, d), { recursive: true });
+    }
+    copyFileSync(SCRIPT, join(repo, 'scripts/test-targets.sh'));
+    for (const [f, c] of Object.entries(files)) writeFileSync(join(repo, f), c);
+    for (const f of CANARY) writeFileSync(join(repo, f), '// sweep\n');
+    expect(git('init', '-q').status).toBe(0);
+    expect(git('add', '.').status).toBe(0);
+    expect(git('commit', '-qm', 'base').status).toBe(0);
+  });
+  afterAll(() => removeScratch(repo));
+
+  // Defect caught: a change to a private SQL fragment of the database module
+  // is treated as unowned, so no page is measured at all, while the pages
+  // showing the read it feeds can break; and once it is attributed, following
+  // every importer of the service measures pages that never show that read.
+  it('measures the pages showing a read whose SQL fragment changed, and no other page', () => {
+    const r = targets(dbFile, dbBase.replace('SELECT n.id, n.title', 'SELECT n.id, n.title, n.body'));
+    expect(r.status).toBe(0);
+    expect(measured(r.checks).sort()).toEqual(['news/index', 'public/home']);
+    expect(r.notes).not.toContain(fullGate);
+  });
+
+  // Defect caught: a change inside one service method measures the pages of
+  // every service importing the service for another reason, the six-minute run
+  // a one-method change was costing.
+  it("measures only the pages a service's changed method reaches", () => {
+    const r = targets(newsFile, newsBase.replace('listPublic.all();', 'listPublic.all().slice(0, 10);'));
+    expect(measured(r.checks).sort()).toEqual(['news/index', 'public/home']);
+  });
+
+  // Defect caught: a hunk the narrowing cannot attribute is dropped, so the
+  // pages and suites it reaches are never checked; it must fall back to the
+  // broad selection, never to fewer pages.
+  it('falls back to the broad selection for a change it cannot attribute, keeping what it could', () => {
+    // The fragment is also handed to module-level code, which no statement owns.
+    const db = targets(dbFile, dbBase.replace('`id, name`', '`id, name, slug`'));
+    expect(measured(db.checks)).toContain('admin/members/index');
+    for (const f of CANARY) expect(db.tests, f).toContain(f);
+    expect(db.notes).toContain(fullGate);
+    // A method changes too, so only the import, which belongs to no method,
+    // decides that every importer's pages are measured.
+    const svc = targets(
+      newsFile,
+      newsBase.replace('{ newsItems }', '{ newsItems, members }').replace('listPublic.all();', 'listPublic.all().slice(0, 10);'),
+    );
+    expect(measured(svc.checks).sort()).toEqual(['events/index', 'news/index', 'public/home']);
+  });
+});
+
+describe('test-targets.sh — a test asset reaches the tests loading it by name', () => {
+  // Defect caught: a changed or deleted upload fixture under the testkit is
+  // treated as shared code, so the browser spec uploading it is never run and
+  // the change is sent to the full gate instead.
+  it('runs the browser spec naming the asset, with no full-gate note', () => {
+    const asset = 'src/testkit/assets/chinlone_clip.mp4';
+    const r = run([asset]);
+    expect(e2eCheck(r.checks)).toContain('tests/e2e/click-through.spec.ts');
+    // No suite names the asset but this one, so the app-wide sweeps would be noise.
+    for (const f of CANARY) expect(r.tests, f).not.toContain(f);
+    expect(r.notes).not.toContain(`${asset} is high fan-out; the full gate is needed at session end`);
+  });
+});
+
 describe('test-targets.sh — reading the working tree', () => {
   const repo = createScratchDir('test-targets-repo');
   afterAll(() => removeScratch(repo));

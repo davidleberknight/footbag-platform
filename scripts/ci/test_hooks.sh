@@ -2154,7 +2154,7 @@ expect_bt "$(bt_event "$bt_dev" 'All done.')" block 'dev server task'
 expect_bt "$(bt_event "$bt_shell" 'Nothing is Still running: honest.')" block 'marker only mid-line'
 # The block asks for the closing status beside the Still running line, so the
 # closing-status check never bounces the continuation it asked for.
-if ! printf '%s' "$(bt_event "$bt_shell" 'All done.')" | ".claude/hooks/$B" | grep -q 'Not done:'; then
+if ! grep -q 'Not done:' <<< "$(printf '%s' "$(bt_event "$bt_shell" 'All done.')" | ".claude/hooks/$B")"; then
   echo "[hooks] FAIL ($B): in-flight block does not ask for the Not done list with the Still running line" >&2
   fail=1
 fi

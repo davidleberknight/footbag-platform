@@ -2,7 +2,7 @@
  * The news service's core: automatic items, one per source entity however
  * often the emitting flow runs; an entity's items removed with it; the rules
  * an authored item must meet; and how an item is shaped for display, its label
- * set by whose voice it is and a byline only on a member's Community post.
+ * set by whose voice it is.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -197,19 +197,15 @@ describe('validateAuthoredInput', () => {
 describe('shapeNewsItem', () => {
   const row = (newsType: 'announcement' | 'community_post' | 'event_published') => ({
     id: 'news_x', news_type: newsType, title: 'T', body: '[link](https://example.com)',
-    published_at: NOW, author_display_name: 'Pat Kicker', author_slug: 'news_author',
+    published_at: NOW,
   });
 
   // Defect: a Community post is shown as IFPA's voice, or an administrator's
-  // or automatic item carries a personal byline.
-  it('labels by voice and gives a byline only to a Community post', () => {
-    const community = newsMod.newsService.shapeNewsItem(row('community_post'));
-    expect(community.label).toBe('Community');
-    expect(community.byline).toEqual({ displayName: 'Pat Kicker', profileHref: '/members/news_author' });
+  // or automatic item as a member's.
+  it('labels by voice', () => {
+    expect(newsMod.newsService.shapeNewsItem(row('community_post')).label).toBe('Community');
     for (const t of ['announcement', 'event_published'] as const) {
-      const shaped = newsMod.newsService.shapeNewsItem(row(t));
-      expect(shaped.label, t).toBe('News');
-      expect(shaped.byline, t).toBeNull();
+      expect(newsMod.newsService.shapeNewsItem(row(t)).label, t).toBe('News');
     }
   });
 

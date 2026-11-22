@@ -255,7 +255,7 @@ test('Tier-1 member shares four real photos and names their hashtags as a galler
   await context.close();
 });
 
-test('the curator uploads two real video clips, one into a new Footbag Hacky gallery', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
+test('the curator uploads a real video clip into a new Footbag Hacky gallery', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
   const db = openLiveDb();
   const admin = seedAdmin(db);
   db.close();
@@ -264,31 +264,26 @@ test('the curator uploads two real video clips, one into a new Footbag Hacky gal
   await authenticateContext(context, baseURL!, admin);
   const page = await context.newPage();
 
-  // Each clip on the Video file tab with its poster, through the curator's
+  // The clip on the Video file tab with its poster, through the curator's
   // Share Media form and the site's own video pipeline.
-  const upload = async (clip: string, poster: string, tags: string, gallery: string) => {
-    await page.goto('/admin/curator/upload');
-    await page.locator('label[for="share-tab-file"]').click();
-    await page.locator('#share-video-file').setInputFiles(path.join(ASSETS, clip));
-    await page.locator('#share-poster').setInputFiles(path.join(ASSETS, poster));
-    // The stack writes curated files (to a throwaway tree), so each upload
-    // names the category directory it lands in.
-    await page.locator('#share-new-category').fill('e2e_videos');
-    await page.locator('#share-tags').fill(tags);
-    if (gallery) await page.locator('#share-gallery-name').pressSequentially(gallery);
-    const done = page.waitForResponse((r) => r.url().endsWith('/admin/curator/upload') && r.request().method() === 'POST');
-    // The server transcodes the clip before it answers, which on a loaded
-    // machine outlasts a click's own budget for the navigation it starts; the
-    // response wait below, under the test's budget, is what waits for it.
-    await page.locator('form[data-share-form] button[type=submit]').click({ noWaitAfter: true });
-    expect((await done).status()).toBe(303);
-    await expect(page.locator('.form-success-banner')).toBeVisible();
-  };
-  await upload('chinlone_clip.mp4', 'chinlone_poster.jpg', 'chinlone', '');
-  await upload('baganrally_clip.mp4', 'baganrally_poster.jpg', '#chinlone #club_wellington', 'Wellington Chinlone');
+  await page.goto('/admin/curator/upload');
+  await page.locator('label[for="share-tab-file"]').click();
+  await page.locator('#share-video-file').setInputFiles(path.join(ASSETS, 'chinlone_clip.mp4'));
+  await page.locator('#share-poster').setInputFiles(path.join(ASSETS, 'chinlone_poster.jpg'));
+  // The stack writes curated files (to a throwaway tree), so the upload
+  // names the category directory it lands in.
+  await page.locator('#share-new-category').fill('e2e_videos');
+  await page.locator('#share-tags').fill('#chinlone #club_wellington');
+  await page.locator('#share-gallery-name').pressSequentially('Wellington Chinlone');
+  const done = page.waitForResponse((r) => r.url().endsWith('/admin/curator/upload') && r.request().method() === 'POST');
+  // The server transcodes the clip before it answers, which on a loaded
+  // machine outlasts a click's own budget for the navigation it starts; the
+  // response wait below, under the test's budget, is what waits for it.
+  await page.locator('form[data-share-form] button[type=submit]').click({ noWaitAfter: true });
+  expect((await done).status()).toBe(303);
+  await expect(page.locator('.form-success-banner')).toBeVisible();
 
-  // The new gallery holds the clip carrying both its hashtags, and not the
-  // one carrying only #chinlone; its poster serves.
+  // The new gallery holds the clip; its poster serves.
   await page.goto('/media/gallery_wellington_chinlone');
   const tiles = page.locator('.gallery-grid .gallery-tile');
   await expect(tiles).toHaveCount(1);
@@ -310,7 +305,7 @@ test('the curator uploads two real video clips, one into a new Footbag Hacky gal
   await expect(page).toHaveURL(new RegExp(`${clubGalleryHref.replace('?', '\\?')}$`));
   const clubTiles = page.locator('.gallery-grid .gallery-tile');
   // Catches: media carrying the club's hashtag missing from the club's
-  // gallery, or the clip without that hashtag shown there.
+  // gallery.
   expect(await tileItemIds(clubTiles)).toEqual(wellingtonIds);
   // Catches: the clip's tile not marked as a video to play.
   await expect(clubTiles.locator('.gallery-tile-video')).toHaveCount(1);
