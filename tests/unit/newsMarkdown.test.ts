@@ -6,7 +6,7 @@
  * ordinary Markdown not formatted at all.
  */
 import { describe, it, expect } from 'vitest';
-import { newsExcerpt, newsMarkdownToPlainText, renderNewsMarkdown } from '../../src/lib/newsMarkdown';
+import { escapeNewsMarkdown, newsExcerpt, newsMarkdownToPlainText, renderNewsMarkdown } from '../../src/lib/newsMarkdown';
 
 const news = (md: string): string => renderNewsMarkdown(md, { memberAuthored: false });
 const community = (md: string): string => renderNewsMarkdown(md, { memberAuthored: true });
@@ -152,6 +152,38 @@ describe('newsMarkdownToPlainText: the words a reader sees, on one line', () => 
   it('is empty for an empty body', () => {
     expect(newsMarkdownToPlainText('')).toBe('');
     expect(newsMarkdownToPlainText('\n\n   \n')).toBe('');
+  });
+});
+
+describe('escapeNewsMarkdown: text typed elsewhere renders as typed', () => {
+  // An event title carrying every construct an organizer could slip into an
+  // automatic item's body: emphasis, raw HTML, a Markdown link, bare web and
+  // mail addresses, a heading marker, a list marker, code and an entity.
+  const TYPED = '# **Big** _Jam_ <b>x</b> [go](https://evil.example) www.evil.example http://evil.example a@b.example 1. `c` &lt; ~~s~~ |t|';
+
+  // Defect: an organizer's title becomes a link, a heading, emphasis or markup
+  // in a news post the platform publishes in IFPA's voice.
+  it('renders the typed text as one plain paragraph with no element but the paragraph', () => {
+    const html = news(`Before ${escapeNewsMarkdown(TYPED)} after.`);
+    expect(tagNames(html)).toEqual(['p', 'p']);
+    expect(html).toContain('&lt;b&gt;x&lt;/b&gt;');
+    expect(html).toContain('&amp;lt;');
+  });
+
+  // Defect: a list entry's excerpt shows the escaping backslashes instead of the title.
+  it('leaves the plain-text form the text exactly as typed', () => {
+    expect(newsMarkdownToPlainText(`Before ${escapeNewsMarkdown(TYPED)} after.`)).toBe(`Before ${TYPED} after.`);
+  });
+
+  // Defect: a line break in a title starts a new block, which Markdown may read as a heading.
+  it('keeps the text on one line, so it cannot open a block of its own', () => {
+    const html = news(escapeNewsMarkdown('Jam\n\n# Heading\n- item'));
+    expect(tagNames(html)).toEqual(['p', 'p']);
+  });
+
+  // Defect: ordinary text is changed, so a title shows differently in the news than on its event.
+  it('changes nothing in text with no Markdown punctuation', () => {
+    expect(escapeNewsMarkdown('Portland Spring Footbag Jam')).toBe('Portland Spring Footbag Jam');
   });
 });
 

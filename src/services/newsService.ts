@@ -9,6 +9,10 @@
  *     `emitAutomaticItem`, inside that flow's own transaction. One source
  *     entity yields at most one automatic item of each type, however often
  *     its flow runs: a repeat leaves the first item standing and returns it.
+ *   - The wording of the automatic event items (`eventItemText`): a free
+ *     event's opening, a sanction grant, and the first results. Each names the
+ *     event, its dates and its location, the organizer's words escaped so the
+ *     body renders them exactly as typed.
  *   - Removal of an entity's items with it: deleting an event deletes every
  *     item about it.
  *   - The authored-item rules: a title of at most 200 characters and a
@@ -66,13 +70,13 @@
  */
 import { randomUUID } from 'node:crypto';
 import { newsItems } from '../db/db';
-import { newsExcerpt, renderNewsMarkdown } from '../lib/newsMarkdown';
+import { escapeNewsMarkdown, newsExcerpt, renderNewsMarkdown } from '../lib/newsMarkdown';
+import { personLocation } from './countryUtils';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import type { DatedItemMeta, DatedItemView } from '../types/datedItem';
 import type { PageViewModel } from '../types/page';
 import { coverPhotoImage, eventCoverPhotos, type CoverPhotoImage, type CoverPhotoView } from './entityCoverPhoto';
-import { eventDateRange } from './eventListing';
-import { getAdjacentArchiveYears } from './eventService';
+import { eventDateRange, getAdjacentArchiveYears } from './eventListing';
 import { mediaService } from './mediaService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
@@ -174,6 +178,47 @@ export interface NewsItemView {
   /** Present only on a Community post. */
   byline: { displayName: string; profileHref: string } | null;
   bodyHtml: string;
+}
+
+/** The three moments an event emits an automatic item. */
+export type EventNewsKind = 'opened' | 'sanctioned' | 'results';
+
+/** The event fields an automatic item's wording names. */
+export interface EventNewsFacts {
+  title: string;
+  start_date: string;
+  end_date: string;
+  city: string;
+  region: string | null;
+  country: string;
+}
+
+/**
+ * An automatic event item's title and Markdown body. The title is plain text,
+ * shown escaped; inside the body the organizer's own words (the title and the
+ * location) are escaped so they render exactly as typed.
+ */
+export function eventItemText(kind: EventNewsKind, event: EventNewsFacts): { title: string; body: string } {
+  const name = escapeNewsMarkdown(event.title);
+  const dates = escapeNewsMarkdown(eventDateRange(event.start_date, event.end_date));
+  const where = escapeNewsMarkdown(personLocation(event.city, event.region, event.country)?.text ?? '');
+  switch (kind) {
+    case 'opened':
+      return {
+        title: `New event: ${event.title}`,
+        body: `${name} runs ${dates} in ${where}. Details and registration are on the event page.`,
+      };
+    case 'sanctioned':
+      return {
+        title: `${event.title} is sanctioned by IFPA`,
+        body: `IFPA has sanctioned ${name}, which runs ${dates} in ${where}. Details and registration are on the event page.`,
+      };
+    case 'results':
+      return {
+        title: `Results posted for ${event.title}`,
+        body: `The results of ${name}, held ${dates} in ${where}, are now on the event page.`,
+      };
+  }
 }
 
 function newNewsItemId(): string {

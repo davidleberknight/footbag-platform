@@ -8,7 +8,7 @@
  * cleanup is only needed when a test mutates shared state that a later test reads.
  * For mutation tests, use a fresh per-test DB or wrap in a transaction and roll back.
  */
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { signJwtLocalSync } from './signJwt';
 import { DAY_MS } from './clock';
@@ -360,7 +360,7 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
 export interface VideoMediaItemOverrides {
   id?: string;
   uploader_member_id: string;
-  video_platform: 's3' | 'youtube' | 'vimeo';
+  video_platform: 's3' | 'youtube' | 'vimeo' | 'tiktok' | 'instagram';
   video_id: string;
   video_url?: string | null;
   thumbnail_url?: string | null;
@@ -1218,6 +1218,13 @@ export function insertMediaSource(
     o.creator ?? null,
   );
   return sourceId;
+}
+
+// A distinct, well-formed YouTube video id (eleven URL-safe characters) per
+// seed, so a fixture link passes the site's video-platform check as a real
+// one would while staying unique to its case.
+export function youTubeIdFor(seed: string): string {
+  return createHash('sha1').update(seed).digest('base64url').slice(0, 11);
 }
 
 export function insertCuratorUrlReference(

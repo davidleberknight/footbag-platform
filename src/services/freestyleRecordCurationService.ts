@@ -47,6 +47,7 @@ import { randomUUID } from 'node:crypto';
 import { freestyleRecords, historicalPersonLookup, transaction } from '../db/db';
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
+import { parseVideoLink } from '../lib/videoPlatforms';
 import { PageViewModel } from '../types/page';
 import { PICKER_LIMIT, buildRecordPicker, type MemberPickerView, type PickIntent } from './memberPicker';
 import { adminHistoricalRecordService } from './adminHistoricalRecordService';
@@ -707,6 +708,11 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
     }
   }
 
+  const videoUrl = emptyToNull(input.videoUrl);
+  if (videoUrl !== null && !parseVideoLink(videoUrl)) {
+    fieldErrors.videoUrl = 'Use a YouTube, Vimeo, TikTok or Instagram link.';
+  }
+
   if (Object.keys(fieldErrors).length > 0) {
     throw new ValidationError('Some fields need attention.', { fieldErrors });
   }
@@ -724,7 +730,7 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
     datePrecision,
     source,
     confidence,
-    videoUrl:      emptyToNull(input.videoUrl),
+    videoUrl,
     videoTimecode,
     notes,
     curatorReviewNote,

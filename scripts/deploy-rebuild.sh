@@ -841,7 +841,8 @@ FOOTBAG_DB_PATH="$LOCAL_DB" \
 if (( MEDIA_CHECK_STATUS == 1 )); then
   cr_error "media integrity check failed against s3://$MEDIA_BUCKET."
   echo "       The live database references objects that are not in the bucket, so" >&2
-  echo "       those images, posters or videos will 404." >&2
+  echo "       those images, posters or videos will 404, or holds a video link outside" >&2
+  echo "       YouTube, Vimeo, TikTok and Instagram; the check's output above says which." >&2
   if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
     echo "       This deploy synced media, so the sync itself did not deliver them;" >&2
     echo "       the sync output above says why. Re-run the deploy with the sync." >&2

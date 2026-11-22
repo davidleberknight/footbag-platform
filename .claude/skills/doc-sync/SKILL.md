@@ -1,6 +1,6 @@
 ---
 name: doc-sync
-description: Detect documentation drift against current code and confirmed decisions, then propose only the smallest accurate doc updates. Never edit docs without explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation. Not the whole-repository audit, which is the separate extended-doc-sync skill.
+description: Detect documentation drift against current code and confirmed decisions, then apply or propose only the smallest accurate doc updates. Settled drift your own change caused is applied and shown; any other edit needs explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation. Not the whole-repository audit, which is the separate extended-doc-sync skill.
 ---
 
 # Doc Sync
@@ -48,7 +48,7 @@ So when current code or infra disagrees with a canonical doc, **the default is N
 
 A recommended case is always derived from the intent down, never defaulted to the code, even for a renamed identifier, a changed method signature or a schema column.
 
-Never silently pick. After verifying each gap, bring it to the human with the passages behind it and the case you recommend; where the sources make the case certain, present it as settled, asking only to validate it. Name-only gaps from one run go in one table, each row ruled on individually. Either way, a doc edit lands only under the documentation-edit approval in `.claude/rules/asking.md`. Editing a final-design doc to match a current shortcut destroys the design of record.
+Never silently pick, and never silently edit: every applied edit is shown. A case 1 gap that this change caused, which the passages plainly settle, is applied and shown as literal BEFORE/AFTER citing the passage (the own-change settled drift class in `.claude/rules/asking.md`). Every other gap goes to the human with the passages behind it and the case you recommend. Name-only gaps from one run go in one table. Editing a final-design doc to match a current shortcut destroys the design of record.
 
 ## Read first
 
@@ -112,8 +112,8 @@ Do not treat these as drift:
 - wording differences that preserve meaning
 - missing nice-to-have explanation when the docs are still accurate
 
-### 4) Bring every discrepancy to the human
-Every discrepancy goes to the human to adjudicate, with one recommended answer derived from the intent down, under `.claude/rules/asking.md`.
+### 4) Classify each discrepancy
+Settled drift this change caused is applied (step 7). Every other discrepancy goes to the human to adjudicate, with one recommended answer derived from the intent down, under `.claude/rules/asking.md`.
 
 ### 5) Propose the smallest correct fix
 When a doc update is appropriate, propose only the minimum necessary changes.
@@ -133,8 +133,8 @@ For each edit, have ready (the ask and the applied record follow the documentati
 - precise before text
 - precise after text
 
-### 6) Human-in-the-loop requirement
-Edit documentation only under the documentation-edit rule in `.claude/rules/asking.md`: one batch ask for the pass, or a pre-approval in force. If the human declines an edit, ask why and adjust. If approval is missing or ambiguous, stop after presenting the findings.
+### 6) Approval
+Edit documentation only under the documentation-edit rule in `.claude/rules/asking.md`: own-change settled drift is applied and shown; any other edit needs one batch ask for the pass, or a pre-approval in force. If the human declines an edit, ask why and adjust. If approval is missing or ambiguous for an edit outside that class, stop after presenting the findings.
 
 ### 7) Apply only what was approved
 Change only the approved edits, or under a pre-approval only the edits this pass found: no opportunistic cleanup, no adjacent rewriting, no unrelated docs in the same pass. When a file is done, re-read the modified text for layout, formatting, and numbered-heading damage, then show every applied edit as the documentation-edit rule requires.

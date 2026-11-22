@@ -293,6 +293,7 @@ gallery-tile
 gallery-tile-caption
 gallery-tile-caption-mask
 gallery-tile-date
+gallery-tile-platform
 gallery-tile-play
 gallery-tile-set-link
 gallery-tile-tag

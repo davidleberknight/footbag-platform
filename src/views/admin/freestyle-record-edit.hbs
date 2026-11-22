@@ -85,6 +85,7 @@
         <div class="form-field">
           <label for="record-videoUrl">Video URL</label>
           <input type="text" id="record-videoUrl" name="videoUrl" value="{{content.fields.videoUrl}}" />
+          <p class="form-hint">YouTube, Vimeo, TikTok or Instagram only.</p>
           {{#if content.fieldErrors.videoUrl}}<p class="form-field-error" role="alert">{{content.fieldErrors.videoUrl}}</p>{{/if}}
         </div>
         <div class="form-field">

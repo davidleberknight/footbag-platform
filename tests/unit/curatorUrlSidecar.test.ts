@@ -50,8 +50,33 @@ describe('validateUrlSidecarData', () => {
 
   it('rejects unsupported videoPlatform', () => {
     const d = youtubeBase();
-    (d as unknown as { videoPlatform: string }).videoPlatform = 'tiktok';
+    (d as unknown as { videoPlatform: string }).videoPlatform = 'facebook';
     expect(() => validateUrlSidecarData(d)).toThrow(/videoPlatform/);
+  });
+
+  // Defect caught: a curator cannot author a link-only Instagram or TikTok
+  // item, such as a record video posted only on Instagram.
+  it.each([
+    ['instagram', 'https://www.instagram.com/p/DGlbm3quyxE/'],
+    ['tiktok', 'https://www.tiktok.com/@footbagger/video/7301234567890123456'],
+  ] as const)('accepts a well-formed %s sidecar with no thumbnail', (videoPlatform, videoUrl) => {
+    expect(() => validateUrlSidecarData({ ...youtubeBase(), videoPlatform, videoUrl })).not.toThrow();
+  });
+
+  // Defect caught: a sidecar naming one platform carries a link to another
+  // host, so the stored platform and the link disagree or the link is
+  // off-platform.
+  it('rejects a sidecar whose videoUrl is not a link on its videoPlatform', () => {
+    const d = youtubeBase();
+    d.videoUrl = 'https://www.instagram.com/p/DGlbm3quyxE/';
+    expect(() => validateUrlSidecarData(d)).toThrow(/not a youtube video link/);
+  });
+
+  // Defect caught: a link-only sidecar carries a thumbnail the platform
+  // never supplied, which the tile would then try to load.
+  it('rejects an Instagram sidecar with thumbnailUrl set', () => {
+    const d: UrlSidecarData = { ...youtubeBase(), videoPlatform: 'instagram', videoUrl: 'https://www.instagram.com/p/DGlbm3quyxE/', thumbnailUrl: 'https://example.com/t.jpg' };
+    expect(() => validateUrlSidecarData(d)).toThrow(/thumbnailUrl must NOT appear/);
   });
 
   it('rejects YouTube sidecar with thumbnailUrl set', () => {

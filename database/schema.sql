@@ -3012,7 +3012,8 @@ CREATE TABLE media_items (
   height_px      INTEGER,
 
   -- Video fields (required when media_type = 'video')
-  video_platform TEXT CHECK (video_platform IN ('youtube','vimeo','s3')),
+  -- TikTok and Instagram rows are link-only posts: never embedded.
+  video_platform TEXT CHECK (video_platform IN ('youtube','vimeo','tiktok','instagram','s3')),
   video_id       TEXT,
   video_url      TEXT,
   thumbnail_url  TEXT,

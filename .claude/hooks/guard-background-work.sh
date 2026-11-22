@@ -43,7 +43,7 @@ if [ -n "$tasks" ]; then
     [ "$claims_done" -eq 1 ] && contra='Your message says "Session done" while this work is still registered, which is not true yet. '
     reason="This session still has background work in flight:
 ${tasks}
-${contra}Before ending the turn, stop each task whose work is finished or no longer needed with TaskStop, including a subagent that has already reported back.${dev} Keep one running only if you are waiting on its result for the current task or the maintainer asked for it to stay up; then name each one you are leaving, and why, on a line starting \"Still running:\" placed above any question to the human, never after it. If you already asked a question, do not repeat or re-ask it: write only the Still running line. Then finish the turn."
+${contra}Before ending the turn, stop each task whose work is finished or no longer needed with TaskStop, including a subagent that has already reported back.${dev} Keep one running only if you are waiting on its result for the current task or the maintainer asked for it to stay up; then name each one you are leaving, and why, on a line starting \"Still running:\" placed above any question to the human, never after it. If you already asked a question, do not repeat or re-ask it: write the Still running line and, below it, a \"Not done:\" list if the message had no closing status. Then finish the turn."
     jq -cn --arg r "$reason" '{decision:"block",reason:$r}'
     exit 0
   fi

@@ -1066,6 +1066,18 @@ section { margin-top: var(--space-2xl); }
   object-fit: cover;
 }
 .gallery-tile-video img { filter: brightness(0.85); }
+/* A link-only video's tile: the platform name fills the square in place of a
+   thumbnail, since TikTok and Instagram supply none dependably. */
+.gallery-tile-platform {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  background: var(--primary-ink);
+  color: var(--white);
+  font-weight: 600;
+}
 .gallery-tile-play {
   position: absolute;
   top: 50%;

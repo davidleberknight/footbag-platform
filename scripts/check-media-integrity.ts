@@ -10,8 +10,8 @@
  * Adapter-backed on purpose: it asks `adapter.exists(key)`, so it works against
  * S3 (production/staging) and the local store (dev) identically, with no
  * filesystem or `/curated` assumptions, and respects the dev curated read-lane.
- * YouTube/Vimeo videos are skipped — they have no stored bytes (the embed lives
- * on the platform).
+ * Linked videos (YouTube, Vimeo, TikTok, Instagram) are skipped here — they have
+ * no stored bytes (the video lives on the platform).
  *
  * It additionally asserts that every fixed site-content slot in the typed
  * registry (`src/content/siteMedia.ts`) resolves to a seeded FH media row of the
@@ -19,8 +19,16 @@
  * a renamed or un-seeded landing/mosaic/promo asset fails here instead of
  * rendering an empty feature in production.
  *
- * Read-only. Exits 0 when every referenced object resolves, 1 when any are
- * missing, 2 on a setup error.
+ * It also holds every video link in the database to the site's video-platform
+ * rule: each linked video in media_items, and each freestyle record's video
+ * link, must be a YouTube, Vimeo, TikTok or Instagram video link by the shared
+ * platform check, and a media row's stored platform must agree with its link.
+ * Seeded rows reach the database without passing a form, so this is where an
+ * off-platform link in a sidecar or the records file is refused.
+ *
+ * Read-only. Exits 0 when every referenced object resolves and every video
+ * link is on an allowed platform, 1 when any object is missing or any link is
+ * off-platform, 2 on a setup error.
  */
 // Load the same `.env` the app uses, before any module that reads process.env
 // (the storage adapter resolves its config — local store dir or S3 bucket — at
@@ -28,6 +36,7 @@
 import 'dotenv/config';
 import BetterSqlite3 from 'better-sqlite3';
 import { allSiteMediaSlots, siteMediaSlotIdentity } from '../src/content/siteMedia';
+import { parseVideoLink } from '../src/lib/videoPlatforms';
 
 const DB = process.env.FOOTBAG_DB_PATH ?? './database/footbag.db';
 
@@ -83,6 +92,32 @@ async function main(): Promise<void> {
     const tags = row ? (tagStmt.all(row.id) as { tag: string }[]).map((r) => r.tag) : [];
     return { slot, row, tags };
   });
+
+  // Every linked video, member and curator alike, and every record video link.
+  const linkFailures: string[] = [];
+  const linkedVideos = db.prepare(`
+    SELECT id, video_platform, video_url FROM media_items
+    WHERE media_type = 'video' AND video_platform <> 's3'
+  `).all() as { id: string; video_platform: string; video_url: string | null }[];
+  for (const v of linkedVideos) {
+    const parsed = v.video_url ? parseVideoLink(v.video_url) : null;
+    if (!parsed) linkFailures.push(`  OFF-PLATFORM media ${v.id}  ->  ${v.video_url ?? '(no link)'}`);
+    else if (parsed.platform !== v.video_platform) {
+      linkFailures.push(`  PLATFORM MISMATCH media ${v.id}: stored ${v.video_platform}, link is ${parsed.platform}`);
+    }
+  }
+  const hasRecords = db.prepare(
+    `SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'freestyle_records'`,
+  ).get() !== undefined;
+  const recordVideos = hasRecords
+    ? db.prepare(`
+        SELECT id, video_url FROM freestyle_records
+        WHERE video_url IS NOT NULL AND trim(video_url) <> ''
+      `).all() as { id: string; video_url: string }[]
+    : [];
+  for (const r of recordVideos) {
+    if (!parseVideoLink(r.video_url)) linkFailures.push(`  OFF-PLATFORM record ${r.id}  ->  ${r.video_url}`);
+  }
   db.close();
 
   // Imported here rather than at the top of the file so that a configuration
@@ -131,19 +166,22 @@ async function main(): Promise<void> {
   console.log(
     `check-media-integrity: checked=${rows.length}  missing=${missing}  ` +
     `site-slots=${slotChecks.length}  slot-failures=${slotFailures.length}  ` +
-    `(YouTube/Vimeo skipped — no stored bytes)`,
+    `video-links=${linkedVideos.length + recordVideos.length}  off-platform=${linkFailures.length}  ` +
+    `(linked videos have no stored bytes)`,
   );
-  if (missing > 0 || slotFailures.length > 0) {
+  if (missing > 0 || slotFailures.length > 0 || linkFailures.length > 0) {
     if (samples.length > 0) console.error(samples.join('\n'));
     if (missing > 10) console.error(`  ... and ${missing - 10} more`);
     if (slotFailures.length > 0) console.error(slotFailures.join('\n'));
+    if (linkFailures.length > 0) console.error(linkFailures.join('\n'));
     console.error(
       `check-media-integrity: FAIL — ${missing} stored media objects absent, ` +
-      `${slotFailures.length} site-slot problems.`,
+      `${slotFailures.length} site-slot problems, ` +
+      `${linkFailures.length} video links outside YouTube, Vimeo, TikTok and Instagram.`,
     );
     process.exit(1);
   }
-  console.log('check-media-integrity: OK — every referenced object and site-content slot resolves through the adapter.');
+  console.log('check-media-integrity: OK — every referenced object and site-content slot resolves through the adapter, and every video link is on an allowed platform.');
 }
 
 main().catch((err) => {

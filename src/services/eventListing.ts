@@ -11,8 +11,11 @@
  * a member could take, refuses a registration, so its badge says registration
  * is closed rather than promising what the form will refuse.
  *
- * Pure shaping over flat rows, with no database access, so the member service
- * and the event service both use it without importing each other.
+ * Also the year navigation between archive years, which the news year pages
+ * share with the event year pages.
+ *
+ * Pure shaping over flat rows, with no database access, so the member, event
+ * and news services all use it without importing each other.
  */
 import { formatDateRange } from '../lib/handlebarsHelpers';
 import { personLocation } from './countryUtils';
@@ -33,6 +36,33 @@ const EVENT_STATUS_BADGE_CLASSES: Record<string, string> = {
   closed: 'badge-closed',
   completed: 'badge-completed',
 };
+
+/**
+ * Resolve sibling-archive-year navigation for a given year.
+ *
+ * `previousYear` is the year immediately older than `year`; `nextYear` is
+ * the year immediately newer. The helper sorts its input DESC internally
+ * so the result is independent of the caller's ordering.
+ */
+export function getAdjacentArchiveYears(
+  archiveYears: number[],
+  year: number,
+): { previousYear: number | null; nextYear: number | null } {
+  const sorted = [...archiveYears].sort((a, b) => b - a);
+  const index = sorted.indexOf(year);
+
+  if (index === -1) {
+    return {
+      previousYear: null,
+      nextYear: null,
+    };
+  }
+
+  return {
+    previousYear: index < sorted.length - 1 ? sorted[index + 1] : null,
+    nextYear: index > 0 ? sorted[index - 1] : null,
+  };
+}
 
 /** The last day online registration is accepted: the deadline, else the start date. */
 export function registrationCutoff(event: { registration_deadline: string | null; start_date: string }): string {

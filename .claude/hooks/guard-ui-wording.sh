@@ -35,6 +35,7 @@
 #
 # Every ask says why: the text was in no message the human typed or plan they approved,
 # and either no pre-approval is in force or the one in force does not cover prose.
+# Every shown unit is cut at 200 characters and at most six are shown.
 #
 # Fails to "ask": any internal error (bad input, missing node, unreadable transcript)
 # prompts the human. It never denies and never lets a wording change through unseen.
@@ -65,8 +66,15 @@ if (!kind) process.exit(0);
 // Prose string literals: a space and a word, not SQL or a directive, outside comments and log lines.
 function codeUnits(s) {
   s = s.replace(/\/\*[\s\S]*?\*\//g, ' ')
-    .split('\n').filter((l) => !/^\s*(\/\/|\*)|logger\.|console\./.test(l)).join('\n');
-  const lits = s.match(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g) || [];
+    .split('\n').filter((l) => !/^\s*(\/\/|\*)|logger\.|console\./.test(l)).join('\n')
+    // A regex literal (after an operator, bracket or return) is code: it can hold a quote or backtick.
+    .replace(/(^|[=(,:;!&|?{}[>]\s*|return\s+)\/(?![\/*])(?:[^\/\\\n[]|\\.|\[(?:[^\]\\\n]|\\.)*\])+\/[a-z]*/gm, '$1 ')
+    // A trailing line comment (whitespace, //, whitespace) is dropped when the quotes before it balance.
+    .split('\n').map((l) => { const i = l.search(/\s\/\/\s/); if (i < 0) return l; const p = l.slice(0, i);
+      return ["'", '"', '`'].every((q) => (p.split('\\' + q).join('').split(q).length - 1) % 2 === 0) ? p : l; }).join('\n');
+  const lits = (s.match(/"(?:[^"\\\n]|\\.)*"|'(?:[^'\\\n]|\\.)*'|`(?:[^`\\]|\\.)*`/g) || [])
+    // A backtick span that holds code is a mis-pairing, not copy.
+    .filter((l) => l[0] !== '`' || !/=>|;\s*\n|\)\s*\{/.test(l));
   return lits.map((l) => l.slice(1, -1).replace(/\$\{[^}]*\}/g, ' ').replace(/\\n/g, ' ').replace(/\\(.)/g, '$1'))
     .filter((l) => /[A-Za-z]{2,}\s+[A-Za-z]/.test(l) && !/^\s*(SELECT|INSERT|UPDATE|DELETE|WITH|CREATE)\b/i.test(l)
       && !/^\s*use (strict|client|server)\s*$/.test(l));
@@ -191,10 +199,13 @@ for (const m of msgs) {
   else if (grant.test(m.raw)) preApproved = true;
 }
 const quote = (s) => '"' + s + '"';
+// Every shown unit is cut at 200 characters and at most six are shown, so no reason can grow with the file.
+const cap = (s) => quote(s.length > 200 ? s.slice(0, 200) + '...' : s);
+const more = (n) => (n > 6 ? ' (and ' + (n - 6) + ' more)' : '');
 if (preApproved && !todo.some(isProse)) {
   process.stdout.write(JSON.stringify({ systemMessage: 'UI copy changed in ' + rel
     + ' under your pre-approval of technical UI words. New text: '
-    + todo.map((u) => quote(u.raw)).join('; ') }) + '\n');
+    + todo.slice(0, 6).map((u) => cap(u.raw)).join('; ') + more(todo.length) }) + '\n');
   process.exit(0);
 }
 if (preApproved) todo = todo.filter(isProse);
@@ -214,8 +225,8 @@ const reason = 'HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors
     : 'no pre-approval of technical UI words is in force.\n')
   + (lineBefore.length ? 'Line before: ' + shown(lineBefore) + '\n' : '')
   + (lineAfter.length ? 'Line after: ' + shown(lineAfter) + '\n' : '')
-  + (gone.length ? 'Text it replaces or removes: ' + gone.map(quote).join('; ') + '\n' : '')
-  + 'New text: ' + todo.map((u) => quote(u.raw)).join('; ')
+  + (gone.length ? 'Text it replaces or removes: ' + gone.slice(0, 6).map(cap).join('; ') + more(gone.length) + '\n' : '')
+  + 'New text: ' + todo.slice(0, 6).map((u) => cap(u.raw)).join('; ') + more(todo.length)
   + (preApproved || todo.every(isProse) ? ''
     : '\nTo let technical UI words (labels, buttons, badges, short status words) through for the rest of this session, say "approve all technical UI wording"; prose always needs its own approval.');
 process.stdout.write(JSON.stringify({ systemMessage: reason,

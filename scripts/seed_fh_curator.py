@@ -65,6 +65,9 @@ DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
 # URL-reference freestyle media — embed-eligible hosts only.
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
+# The four platforms a URL-reference sidecar may name. YouTube and Vimeo play
+# embedded; TikTok and Instagram are link-only.
+URL_REF_PLATFORMS = ("youtube", "vimeo", "tiktok", "instagram")
 
 # Public named galleries owned by the FH system member are defined as
 # JSON sidecars under /curated/galleries/<slug>.json (one file per
@@ -648,7 +651,8 @@ def seed_item(
 # ── URL-reference freestyle trick reference media ──────────────────────────
 # The hardcoded CURATOR_ITEMS pipeline above handles file-backed binary
 # (member-uploaded MP4/photos transcoded into the local-FS adapter). The
-# helpers below handle URL-reference YouTube/Vimeo embeds owned by the
+# helpers below handle URL-reference video links (YouTube, Vimeo, TikTok,
+# Instagram) owned by the
 # system member account, sourced from /curated/freestyle_tricks/*.meta.json
 # sidecars. This is the only path for curator reference videos.
 
@@ -683,6 +687,18 @@ def _parse_video_id(url: str, platform: str) -> str | None:
         for part in reversed([p for p in parsed.path.strip("/").split("/") if p]):
             if part.isdigit():
                 return part
+        return None
+    # TikTok: /@user/video/ID. Instagram: /p/CODE/ or /reel/CODE/. Link-only
+    # posts; the media integrity check holds every stored link to the site's
+    # one platform check after seeding.
+    parts = [p for p in parsed.path.strip("/").split("/") if p]
+    if platform == "tiktok":
+        if len(parts) == 3 and parts[0].startswith("@") and parts[1] == "video" and parts[2].isdigit():
+            return parts[2]
+        return None
+    if platform == "instagram":
+        if len(parts) == 2 and parts[0] in ("p", "reel"):
+            return parts[1]
         return None
     return None
 
@@ -747,10 +763,10 @@ def _seed_one_sidecar(
 
     url = sidecar["videoUrl"]
     platform = sidecar["videoPlatform"]
-    if platform not in ("youtube", "vimeo"):
+    if platform not in URL_REF_PLATFORMS:
         raise ValueError(
             f"{sidecar_path.name}: unsupported videoPlatform={platform!r} "
-            "(URL-ref curator content must be youtube or vimeo)"
+            "(URL-ref curator content must be youtube, vimeo, tiktok or instagram)"
         )
     video_id = _parse_video_id(url, platform)
     if not video_id:
@@ -770,13 +786,13 @@ def _seed_one_sidecar(
     # Vimeo thumbnails are NOT derivable from the video id (the CDN id is
     # separate), so the sidecar must supply the public thumbnail URL. The
     # seeder stays offline-deterministic — no Vimeo oEmbed call at seed.
+    # TikTok and Instagram items are link-only and carry no thumbnail.
     sidecar_thumb = sidecar.get("thumbnailUrl")
-    if platform == "youtube":
+    if platform != "vimeo":
         if sidecar_thumb is not None:
             raise ValueError(
                 f"{sidecar_path.name}: thumbnailUrl must NOT appear in a "
-                "youtube sidecar; the gallery service derives the thumbnail "
-                "from the video id at render time"
+                f"{platform} sidecar"
             )
         thumbnail_url = None
     else:  # vimeo
@@ -1291,7 +1307,7 @@ def seed_freestyle_tricks_sidecars(
         f"""
         DELETE FROM media_items
         WHERE uploader_member_id = ?
-          AND video_platform IN ('youtube','vimeo')
+          AND video_platform IN ('youtube','vimeo','tiktok','instagram')
           AND (video_platform || '|' || video_url) NOT IN ({placeholders})
         """,
         [fh_id, *seen_keys],

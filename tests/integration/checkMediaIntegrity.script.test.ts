@@ -23,6 +23,7 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { SITE_MEDIA_SLOTS } from '../../src/content/siteMedia';
+import { insertMember, insertVideoMediaItem, insertFreestyleRecord } from '../fixtures/factories';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
@@ -73,6 +74,35 @@ describe('check-media-integrity.sh exit contract', () => {
     // A slot hosted on YouTube is checked too, named by its watch URL; skipping
     // it would let a page lose a featured video with the deploy gate green.
     expect(res.stderr).toContain(`SLOT ${SITE_MEDIA_SLOTS.net_singles.videoUrl}: no active FH media row`);
+  });
+
+  // Defect caught: a seeded record or curated sidecar carrying a video link
+  // outside YouTube, Vimeo, TikTok and Instagram reaches the site, because
+  // seeded rows never pass a form. An allowed link must not be named.
+  it('names every off-platform video link and platform mismatch, and no allowed link', () => {
+    const dbPath = path.join(workDir, 'fixture.db');
+    buildSchemaDb(dbPath);
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: 'member-integrity-fh', slug: 'integrity_fh', is_system: 1 });
+    insertVideoMediaItem(db, {
+      id: 'media-ok-instagram', uploader_member_id: 'member-integrity-fh',
+      video_platform: 'instagram', video_id: 'DGlbm3quyxE', video_url: 'https://www.instagram.com/p/DGlbm3quyxE/',
+    });
+    insertVideoMediaItem(db, {
+      id: 'media-mismatch', uploader_member_id: 'member-integrity-fh',
+      video_platform: 'youtube', video_id: 'DGlbm3quyxE', video_url: 'https://www.instagram.com/p/DGlbm3quyxE/',
+    });
+    insertFreestyleRecord(db, { id: 'rec-facebook', video_url: 'https://www.facebook.com/watch/?v=1234567890' });
+    insertFreestyleRecord(db, { id: 'rec-short', video_url: 'https://www.youtube.com/shorts/nLm3UtIzOc4' });
+    db.close();
+
+    const res = run(dbPath);
+    expect(res.status, res.stdout + res.stderr).toBe(1);
+    expect(res.stderr).toContain('OFF-PLATFORM record rec-facebook');
+    expect(res.stderr).toContain('PLATFORM MISMATCH media media-mismatch');
+    expect(res.stderr).not.toContain('rec-short');
+    expect(res.stderr).not.toContain('media-ok-instagram');
+    expect(res.stderr).toContain('2 video links outside YouTube, Vimeo, TikTok and Instagram');
   });
 
   it('exits 2 when it cannot open the database at all', () => {

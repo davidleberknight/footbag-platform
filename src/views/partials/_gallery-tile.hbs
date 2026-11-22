@@ -2,10 +2,15 @@
       video, links to that item's own in-site viewer page (itemHref); video tiles
       add the play-overlay affordance and the viewer page hosts playback. The
       service sets itemHref on every list surface, so a tile never links to a raw
-      media-store file. --}}
+      media-store file. A link-only video (linkOut) has no thumbnail, so its
+      tile shows the platform name; its viewer page links out to the post. --}}
 <li class="gallery-tile">
   <a href="{{itemHref}}" class="gallery-tile-media{{#if media}} gallery-tile-video{{/if}}">
+    {{#if linkOut}}
+    <span class="gallery-tile-platform">{{linkOut.platformLabel}}</span>{{#if caption}}<span class="visually-hidden"> {{caption}}</span>{{/if}}
+    {{else}}
     <img src="{{thumbnailUrl}}" alt="{{caption}}" loading="lazy" />
+    {{/if}}
     {{#if media}}<span class="gallery-tile-play" aria-hidden="true"><svg viewBox="0 0 24 24" width="48" height="48" focusable="false"><path d="M8 5v14l11-7z" fill="currentColor"/></svg></span>{{/if}}
     {{#if captionMask}}{{> _caption-mask caption=caption}}{{/if}}
   </a>

@@ -161,7 +161,7 @@ When system events require administrator attention (event sanction requests, fla
 - Multi-language support (English only, except event info).
 - Advanced analytics and BI.
 - Third-party REST API.
-- Member video uploads in version one (members link YouTube or Vimeo; the platform hosts only the system account's curated video and the legacy archive's videos). Version two adds hosting for Tier 2 members an administrator grants it to, under the Community Standards.
+- Member video uploads in version one (members link YouTube, Vimeo, TikTok or Instagram; the platform hosts only the system account's curated video and the legacy archive's videos). Version two adds hosting for Tier 2 members an administrator grants it to, under the Community Standards.
 - Animated GIFs (use video links).
 - Direct organizer payouts (Stripe Connect).
 - Archive search.
@@ -631,7 +631,7 @@ Members (Tier 1+) can upload photos in JPEG or PNG format, with maximum 25MB fil
 
 Processing eliminates malware through re-encoding that converts images to raw pixels and back, discarding everything except visual content. This approach removes the need for antivirus scanning infrastructure. All metadata (EXIF, GPS, camera information, ICC profiles) is stripped for privacy and security. Original uploaded files are discarded after processing, reducing storage requirements.
 
-Members do not upload video files; they embed videos from YouTube or Vimeo instead. Curated tutorial video uploaded by the system account is the one hosted video, re-encoded through a full transcode that strips anything but the video and audio streams. Animated GIFs are not supported due to processing library limitations. Members can view and share processed images but cannot download original high-resolution versions.
+Members do not upload video files; they link videos on YouTube, Vimeo, TikTok or Instagram instead, and YouTube and Vimeo videos play embedded. Curated tutorial video uploaded by the system account is the one hosted video, re-encoded through a full transcode that strips anything but the video and audio streams. Animated GIFs are not supported due to processing library limitations. Members can view and share processed images but cannot download original high-resolution versions.
 
 Benefits Gained: Zero antivirus maintenance, Standardized image quality, Simple deployment, Photo data size reduction.
 
@@ -651,7 +651,7 @@ Uniqueness is enforced via database constraints and case-insensitive unique inde
 
 ## 6.4 Video Content 
 
-The platform does not host member-uploaded video files; the system account's curated tutorial video is the one exception. Instead, members submit YouTube or Vimeo links, the system validates those URLs, extracts the video IDs, and embeds sandboxed players. This approach avoids the storage and transcoding complexity of hosting video, reduces infrastructure costs, and takes advantage of the global delivery and playback features provided by YouTube and Vimeo. In version two, a Tier 2 member an administrator has granted video hosting may upload video files through the same cleaning and conversion as curated video, within member limits on size and storage; their first video is reviewed before it is public.
+The platform does not host member-uploaded video files; the system account's curated tutorial video is the one exception. Instead, members submit YouTube, Vimeo, TikTok or Instagram links, the system validates those URLs and extracts the video IDs, embeds sandboxed players for YouTube and Vimeo, and links out to TikTok and Instagram posts. This approach avoids the storage and transcoding complexity of hosting video, reduces infrastructure costs, and takes advantage of the global delivery and playback features provided by YouTube and Vimeo. In version two, a Tier 2 member an administrator has granted video hosting may upload video files through the same cleaning and conversion as curated video, within member limits on size and storage; their first video is reviewed before it is public.
 
 The legacy videos that have been hosted on footbag.org for decades are hosted on the archive. These have all been converted to mp4 format by the mirror program.
 

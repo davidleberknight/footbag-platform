@@ -44,7 +44,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import sharp from 'sharp';
 
-import { insertMember, createTestSessionJwt, insertCuratorUrlReference, insertMediaSource, insertSystemConfig } from '../fixtures/factories';
+import { insertMember, createTestSessionJwt, insertCuratorUrlReference, insertMediaSource, insertSystemConfig, youTubeIdFor } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 import { defaultSubmitButton } from '../fixtures/defaultSubmitButton';
 
@@ -543,7 +543,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
 
   function seedSidecarRow(slug: string): { mediaId: string; sidecarPath: string; sidecarFilename: string; videoUrl: string } {
     const db = new BetterSqlite3(dbPath);
-    const videoUrl = `https://www.youtube.com/watch?v=ROUTE_${slug}`;
+    const videoUrl = `https://www.youtube.com/watch?v=${youTubeIdFor(slug)}`;
     const result = insertCuratorUrlReference(db, {
       uploaderMemberId: SYSTEM_ID,
       curatedRoot,
@@ -551,7 +551,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
       primarySlug: slug,
       videoUrl,
       videoPlatform: 'youtube',
-      videoId: `ROUTE_${slug}`,
+      videoId: youTubeIdFor(slug),
       caption: `Title for ${slug}`,
       sourceId: 'src_route',
       tags: ['#freestyle', '#trick', `#${slug}`, '#tutorial'],
@@ -581,7 +581,7 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.text).not.toContain('name="tier"');
     // The URL is rendered inside <code>; Handlebars HTML-escapes `=` to
     // `&#x3D;`. Match on the unique YouTube id portion instead.
-    expect(res.text).toContain(`ROUTE_${slug}`);
+    expect(res.text).toContain(youTubeIdFor(slug));
     // YouTube: thumbnailUrl input is not rendered (Vimeo-only).
     expect(res.text).not.toContain('name="thumbnailUrl"');
     // Where the authoring tree is written, the page says the edit writes through

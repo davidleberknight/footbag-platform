@@ -259,6 +259,12 @@ expect_wording() {
       "HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors read in "*"New text: "*) : ;;
       *) echo "[hooks] FAIL ($H): reason does not say a human must approve the UI copy and name it" >&2; fail=1 ;;
     esac
+    # A reason too long to read is a prompt the human cannot judge.
+    local reason
+    reason="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason')"
+    if [ "${#reason}" -gt 2400 ]; then
+      echo "[hooks] FAIL ($H): reason is ${#reason} characters; it must stay under 2400" >&2; fail=1
+    fi
   fi
 }
 V=src/views/clubs/detail.hbs
@@ -270,6 +276,20 @@ expect_wording "$(uw_edit src/services/clubService.ts 'failed for id' 'failed')"
 expect_wording "$(uw_edit curated/email_templates/club_join.json '"club_join"' '"club_join_v2"')" "" defer
 expect_wording "$(uw_edit src/public/js/club.js 'function g() {' "'use strict';
 function g() {")" "" defer
+# A regex literal holding a quote and a backtick, beside a prose JSDoc, is code, not
+# wording: the backtick must not pair with a later one and swallow code as a string.
+uw_rx="$(cat <<'RX'
+const RX = /[\\`*_{}"']/g;
+/** Text escaped for a body, so it renders exactly as typed. */
+export function esc(text: string): string {
+  return text.replace(RX, (ch) => `\\${ch}`);
+}
+export function f(n: number) {
+RX
+)"
+expect_wording "$(uw_edit src/services/clubService.ts 'export function f(n: number) {' "$uw_rx")" "" defer
+# A trailing comment with an apostrophe and quotes on a code line is not wording either.
+expect_wording "$(uw_edit src/services/clubService.ts 'count: n' "count: n, ok: 1 // it's the \"first row\" here")" "" defer
 # Text deleted, moved, or repeated from elsewhere in the same file is not new wording.
 expect_wording "$(uw_edit "$V" '<p>This club is not accepting new members at the moment.</p>' '')" "" defer
 expect_wording "$(uw_edit "$V" '<h1 class="title">Club details</h1>' '<h1 class="title">Club details</h1>
@@ -283,6 +303,9 @@ expect_wording "$(uw_edit src/services/clubService.ts "'Join this club'" "'Becom
 expect_wording "$(uw_edit curated/email_templates/club_join.json 'You joined.' 'You are now a member.')" "" ask
 expect_wording "$(jq -cn --arg p "$uw_dir/src/views/new.hbs" '{file_path:$p,content:"<h2>Fresh words here</h2>"}')" "" ask
 expect_wording "$(uw_edit "$V" 'is not accepting' 'is accepting')" "" ask
+# Many long prose units still ask with a short reason: each is cut and at most six shown.
+uw_wall="$(printf 'Brand new sentence number %s about this club. ' 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20)"
+expect_wording "$(uw_edit src/services/clubService.ts "heading: 'Join this club', count: n" "heading: '$uw_wall', a: '$uw_wall a', b: '$uw_wall b', c: '$uw_wall c', d: '$uw_wall d', e: '$uw_wall e', g: '$uw_wall g', count: n")" "" ask
 # A sentence an inline expression splits is still shown whole, before and after, so the
 # prompt reads as the line a visitor sees rather than its fragments.
 uw_out="$(jq -cn --argjson i "$(uw_edit "$V" 'meets weekly.' 'meets {{freq}} each week.')" '{tool_input:$i,transcript_path:"",session_id:"s1"}' | ".claude/hooks/$H")"
@@ -1760,6 +1783,11 @@ expect_q $'- Settled from the sources: the story fixes the order.\nShip the fix 
 expect_q 'Open /freestyle/tricks?view=family to see the family list.' defer
 expect_q $'Done.\n```\nShip it?\n```' defer
 expect_q $'Should I read docs/SOME_PLAN.md first?\n```\nAFTER: plain text\n```' block
+# A path named as an identifier the human acts on is not a pointer to go read a doc.
+expect_q "${settled}"$'\nShould I rename src/services/foo.ts?' defer
+expect_q "${settled}"$'\nIs the table in docs/DATA_MODEL.md still right?' defer
+# A question mark inside a line, as in a web address, asks nothing.
+expect_q 'See https://example.com/run?id=4 for the log, it is green.' defer
 # The final message in the hook input wins over a transcript that lacks it.
 tr="$(mktemp)"
 jq -cn '{type:"assistant",message:{content:[{type:"text",text:"All done."}]}}' > "$tr"
@@ -2034,6 +2062,12 @@ expect_ds() {
     echo "[hooks] FAIL (require-doc-sync.sh): want $3, got $got: $4" >&2
     fail=1
   fi
+  # A block tells Claude to apply settled drift, never to put every discrepancy to the human.
+  if [ "$got" = block ] && { ! grep -q 'Apply settled drift this change caused' <<< "$out" \
+    || grep -q 'bring every discrepancy' <<< "$out"; }; then
+    echo "[hooks] FAIL (require-doc-sync.sh): block reason does not say to apply settled drift: $4" >&2
+    fail=1
+  fi
 }
 ds_receipt() {
   # $1 = session id: write the receipt the diff script writes, for the tree as it is now
@@ -2118,6 +2152,12 @@ expect_bt "$(bt_event "$bt_shell" 'All done.')" block 'background shell task'
 expect_bt "$(bt_event "$bt_agent" 'All done.')" block 'subagent still registered'
 expect_bt "$(bt_event "$bt_dev" 'All done.')" block 'dev server task'
 expect_bt "$(bt_event "$bt_shell" 'Nothing is Still running: honest.')" block 'marker only mid-line'
+# The block asks for the closing status beside the Still running line, so the
+# closing-status check never bounces the continuation it asked for.
+if ! printf '%s' "$(bt_event "$bt_shell" 'All done.')" | ".claude/hooks/$B" | grep -q 'Not done:'; then
+  echo "[hooks] FAIL ($B): in-flight block does not ask for the Not done list with the Still running line" >&2
+  fail=1
+fi
 expect_bt "$(jq -cn --argjson t "$bt_shell" '{session_id:"s1",stop_hook_active:true,last_assistant_message:"Done.",background_tasks:$t}')" block 'stop_hook_active does not exempt'
 # A "Still running:" line naming what is left up lets the turn end.
 expect_bt "$(bt_event "$bt_shell" $'Tests are running.\nStill running: the unit tests, which I report on when they finish.')" defer 'marker line'

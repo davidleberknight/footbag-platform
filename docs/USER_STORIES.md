@@ -333,7 +333,7 @@ Photos (Hosted Content): Members upload photos (JPEG and PNG only; GIF not suppo
 
 Captions, Descriptions and other Text: All user-submitted text fields (captions, descriptions, names) undergo input validation before storage. Input sanitization removes HTML tags and normalizes Unicode to prevent homograph attacks; output encoding via Handlebars templates prevents script execution; length limits enforce practical constraints (captions 500 characters, descriptions 2000 characters, people's names per the registration limits, other names 100 characters, all after normalization). This multi-layer approach prevents injection attacks (XSS, CSV formulas, template code) while maintaining usability for legitimate international content.
 
-Videos (External Links): Members submit YouTube or Vimeo links rather than uploading video files. The system validates URL patterns (youtube.com/watch?v=, youtu.be/, vimeo.com/), extracts video IDs via regex, and stores metadata only. Videos stream directly from their hosting platforms, eliminating storage and transcoding complexity.
+Videos (External Links): Members submit video links rather than uploading video files. A video link may point to YouTube, Vimeo, TikTok or Instagram and to no other host; the rule holds for every video link the site accepts or shows, members' and curators' media and freestyle record videos alike. YouTube and Vimeo videos play embedded on the site; TikTok and Instagram items are link-only, their page on the site linking out to the post. The system validates URL patterns (youtube.com/watch?v=, youtu.be/, vimeo.com/, tiktok.com/@user/video/, instagram.com/p/, instagram.com/reel/), extracts video IDs, and stores metadata only. Videos stream directly from their hosting platforms, eliminating storage and transcoding complexity.
 
 Both photos and video links support:
 
@@ -1677,16 +1677,16 @@ Success Criteria:
 
 Access: Members with Tier 1 benefits can submit video links, one per submit.
 
-Story: As a member, I can submit YouTube or Vimeo video links so that I share video content.
+Story: As a member, I can submit YouTube, Vimeo, TikTok or Instagram video links so that I share video content.
 
 Success Criteria:
 
-- Accept URL patterns: youtube.com/watch?v=, youtu.be/, vimeo.com/
+- Accept URL patterns: youtube.com/watch?v=, youtu.be/, vimeo.com/, tiktok.com/@user/video/, instagram.com/p/, instagram.com/reel/. A link to any other host is refused. YouTube and Vimeo links play embedded; TikTok and Instagram links are link-only: the item's tile opens its page on the site, which links out to the post. The form names the four platforms and says which play on the site.
 - System validates URL format and extracts video ID.
 - Video metadata is stored as a row in the shared `media_items` table (uploaderId, platform, videoId, videoUrl, thumbnailUrl, caption, moderationStatus), with hashtags held in the separate `media_tags` table.
 - Optional external URL on each submitted video (for example a link to the creator's page or an article about the video), validated at the service boundary (see DD §3.17). The submission form works without JavaScript.
-- Video thumbnails fetched from YouTube/Vimeo APIs for preview.
-- Members submit video as YouTube or Vimeo links only; binary video upload (MP4/WebM/MOV) is the admin/curator path (see A_Upload_Curated_Media). The member video path rejects a binary-upload submission at the service boundary (see DD §6.8).
+- Video thumbnails fetched from YouTube/Vimeo APIs for preview; a TikTok or Instagram item shows its platform name in place of a thumbnail.
+- Members submit video as links only; binary video upload (MP4/WebM/MOV) is the admin/curator path (see A_Upload_Curated_Media). The member video path rejects a binary-upload submission at the service boundary (see DD §6.8).
 - Hashtag matching is case-insensitive for video hashtag operations (example: Tutorial and tutorial match identically).
 - Video link submissions are rate-limited per member to prevent abuse (for example, up to 5 submissions per hour).
 - Hashtag suggestions follow the §3.8 popular-hashtag rule; clicking a suggested hashtag inserts it into the field, and the field suggests matching hashtags already in use as the member types.
@@ -3279,11 +3279,11 @@ Story: As an admin, I can manage curated photos and videos that the platform att
 Success Criteria, Upload:
 
 - Admin upload UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
-- Admin can upload photos (JPEG, PNG; same format whitelist and image dimension limits as M_Upload_Photo) and videos (formats per DD §6.8 Curator Media Processing). MP4 binary upload is admin-only; members cannot upload MP4. URL-only video references (YouTube, Vimeo) are also supported: admin pastes the video URL, the system extracts platform and video_id, and no binary upload is required. sourceId and clip ranges (startSeconds, endSeconds) are optional for URL-only references. Posters for video are provided as a companion image upload.
+- Admin can upload photos (JPEG, PNG; same format whitelist and image dimension limits as M_Upload_Photo) and videos (formats per DD §6.8 Curator Media Processing). MP4 binary upload is admin-only; members cannot upload MP4. URL-only video references (YouTube, Vimeo, TikTok, Instagram; the last two link-only, as in M_Submit_Video) are also supported: admin pastes the video URL, the system extracts platform and video_id, and no binary upload is required. sourceId and clip ranges (startSeconds, endSeconds) are optional for URL-only references. Posters for video are provided as a companion image upload.
 - Uploaded photos go through the standard Sharp pipeline (DD §6.8): re-encode, strip metadata, generate thumb + display variants.
 - Uploaded videos go through the curator video pipeline (DD §6.8): ffmpeg full transcode with explicit malware-stripping options, producing a single standardized output rendition. Companion poster goes through the Sharp pipeline.
 - The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.
-- Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo), an optional source id for YouTube and Vimeo URL references (it must name a source already in the media-source registry; an unknown id is refused), and clip ranges (startSeconds, endSeconds) for video reference media. Where a clip's source matters to members and admins, it is recorded as a hashtag.
+- Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo), an optional source id for URL references (it must name a source already in the media-source registry; an unknown id is refused), and clip ranges (startSeconds, endSeconds) for video reference media. Where a clip's source matters to members and admins, it is recorded as a hashtag.
 - Before go-live, on a developer machine, admin assigns the upload to a category subdirectory under /curated/; a deployed host stores the upload in the database and media bucket with no category directory. The admin UI accepts an existing category or a new category name; entering a name not yet used creates the subdirectory on next deploy. Filesystem-driven; any /curated/{name}/ subdirectory is a valid category.
 - Admin can specify hashtags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per the Hashtags section. Freeform hashtags are browsable via the hashtag gallery at /media/browse?tag=<tag>. The `#curated` hashtag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Filtering by `#curated` returns the all-FH gallery.
 - Admin can specify an optional external URL on each uploaded item (media_items.external_url; e.g. link to creator page, source article, related event). Validated at the service boundary per DD §3.17. Persists on the row, and before go-live on a developer machine also on the file-paired sidecar (DD §1.13). The upload form works without JavaScript for photo and URL-reference uploads; admin S3-mode video uploads require JavaScript (the noscript banner warns).
@@ -3304,14 +3304,14 @@ Success Criteria, Edit:
 - File replacement is not supported in-place. To change the file bytes, admin deletes the existing item and uploads a new one.
 - The `#curated` hashtag is auto-applied on every save and rejected if supplied in the hashtags input.
 - Hashtags are rewritten atomically: the existing hashtag set is replaced by the new set in a single transaction. The auto-applied hashtags are preserved across edits.
-- For URL-reference items (YouTube, Vimeo), edit updates the `media_items` row directly; this DB write is the contract. Before go-live, where sidecar writes are enabled, the edit also writes through to the `/curated/` sidecar (DD §1.13) so the git-tracked authoring source stays in step. Caption maps to `sidecar.title`; URL-reference fields (sourceId, startSeconds, endSeconds, Vimeo thumbnailUrl) merge into the sidecar.
+- For URL-reference items (YouTube, Vimeo, TikTok, Instagram), edit updates the `media_items` row directly; this DB write is the contract. Before go-live, where sidecar writes are enabled, the edit also writes through to the `/curated/` sidecar (DD §1.13) so the git-tracked authoring source stays in step. Caption maps to `sidecar.title`; URL-reference fields (sourceId, startSeconds, endSeconds, Vimeo thumbnailUrl) merge into the sidecar.
 - Editing a media item that does not exist (or is not FH-owned) returns 404.
 
 Success Criteria, Delete:
 
 - Admin delete UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
 - Deletion is hard delete (per DD §2.3 hard-delete rule for media): the media_items row is removed, all associated media_tags rows are cascaded, and the underlying S3 keys (variants and poster) are removed.
-- For URL-reference items (YouTube, Vimeo), delete removes the `media_items` row directly. Before go-live, where sidecar writes are enabled, delete also unlinks the `/curated/` sidecar (DD §1.13) so the authoring source stays in step.
+- For URL-reference items (YouTube, Vimeo, TikTok, Instagram), delete removes the `media_items` row directly. Before go-live, where sidecar writes are enabled, delete also unlinks the `/curated/` sidecar (DD §1.13) so the authoring source stays in step.
 - Deletion is permanent. There is no soft-delete or restore. The admin sees a confirmation gate before the operation runs.
 - Deleting a media item that does not exist (or is not FH-owned) returns 404.
 

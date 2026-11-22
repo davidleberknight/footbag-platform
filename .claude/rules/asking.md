@@ -39,7 +39,7 @@ to a user story, a governance document, or an explicit human decision, and never
 work inside a fix or remediation batch.
 
 Bright line: if analysis makes the answer certain, do not ask; act on it or state it settled. Never reverse a design decision without asking.
-The one exception is a disagreement between code, a code comment, a document and the intent:
+The one exception is a disagreement between code, a code comment, a document and the intent that is not own-change settled drift (Documentation edits below):
 it always goes to the human to adjudicate, never settled silently, with one recommended answer
 derived from the intent down: the functional requirements and the solution architecture that
 supports them first; then the design decisions, probably right but possibly stale; then the
@@ -106,7 +106,7 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
 
 - Approval is explicit. Any reasonable affirmation counts; silence, a bare Enter, plan approval and
   approval of a different edit do not.
-- One ask may cover a whole batch: every doc edit for a task, a card or a doc-sync pass. It is one
+- One ask may cover a whole batch of the edits the own-change bullet below does not cover: every doc edit for a task, a card or a doc-sync pass. It is one
   decision. It opens with what Claude wants to edit and why, the point and the big picture, then a
   concise summary of each edit: the document and section in words, and what changes. The literal
   text need not be in the ask, except for a harness edit; show it first if the human asks.
@@ -119,6 +119,15 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
   wording (its own technical-words pre-approval is in the wording guard), `.github/` or the harness, unless the human names that class. Each of those gets its own
   ask; a harness ask carries the literal before/after, under the harness governance rule. A
   tool-level "allow edits to .claude this session" answer is not a pre-approval.
+- Own-change settled drift needs no ask and no pre-approval. When a doc, rule, skill or comment
+  went stale because of the change Claude just made, the governing story, decision or data model
+  plainly settles the correct text, and the edit is surgical and is not a change of meaning or
+  design, user-facing prose, an IFPA governing document, `.github/` or the harness, Claude applies
+  it and in the same turn shows it as literal BEFORE/AFTER, naming the settling passage. This is
+  not silent: the show is the control. A pre-existing discrepancy, an implementation deviation
+  from the design, and anything the intent leaves open still go to the human, with the
+  recommendation. Never put a settled instance to the human as a question, and never add a
+  question to ratify it.
 - One standing pre-approval: the maintainer's working walk file in the private operations
   checkout, `footbag_private_repo/issue_review.md`, is edited without an ask, whatever the edit.
 - Every applied edit is surgical: the smallest change, untouched text left as it was. In the same
@@ -134,6 +143,6 @@ continuation or trivial review. Re-gate only for a real reason:
 - A new material decision the plan did not anticipate, or a finding that contradicts the plan's premise or makes the work materially larger or different than approved.
 - Finished UI work: have the human review the new or changed UI visually, giving them `./run_dev.sh` to start it (or starting it if they ask); discuss significant visual changes before building them.
 - Destructive, irreversible, or outward-facing actions (deleting data, overwriting, retiring resources, sending mail, deploying), behind one consolidated approval per batch, never many prompts. Exception: when a plan or runbook names its own per-step approval points (an arming table's approver column, a phase marked "each its own approval"), those override the batch default; ask at each named point, and never treat one go for a sequence as consent to every irreversible step inside it.
-- Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so an edit a pre-approval in force covers needs no re-gate), or user-facing wording the approved plan did not show literally and no technical-words pre-approval covers.
+- Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so own-change settled drift and an edit a pre-approval in force covers need no re-gate), or user-facing wording the approved plan did not show literally and no technical-words pre-approval covers.
 - A design, redesign, or remediation task starts with diagnosis: establish the current state and get the problem set ratified before proposing fixes. Plan approval is not blanket consent to mutate canonical docs.
 - On a review or audit punch-list, apply the best fix and show the diff without asking per item; pause only for a genuine design choice, a destructive or outward-facing action, a scope change, or anything touching AWS or production.

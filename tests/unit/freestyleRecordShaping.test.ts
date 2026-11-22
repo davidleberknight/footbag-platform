@@ -69,13 +69,24 @@ describe('shapeFreestyleRecord', () => {
     expect(vm.dateApproximate).toBe(false);
   });
 
-  // video_url is curator/CSV-writable and lands in an href. Only http(s)
-  // absolute URLs survive; everything else maps to null so the template hides it.
-  it('preserves http and https video URLs', () => {
-    expect(shapeFreestyleRecord(makeRow({ video_url: 'https://youtu.be/abc' })).videoUrl)
-      .toBe('https://youtu.be/abc');
-    expect(shapeFreestyleRecord(makeRow({ video_url: 'http://example.com/v' })).videoUrl)
-      .toBe('http://example.com/v');
+  // video_url is curator/CSV-writable and lands in an href. Only a video link
+  // on YouTube, Vimeo, TikTok or Instagram survives; everything else maps to
+  // null so the template hides it.
+  it('preserves a video link on an allowed platform, http or https', () => {
+    expect(shapeFreestyleRecord(makeRow({ video_url: 'https://youtu.be/dQw4w9WgXcQ' })).videoUrl)
+      .toBe('https://youtu.be/dQw4w9WgXcQ');
+    expect(shapeFreestyleRecord(makeRow({ video_url: 'http://youtube.com/watch?v=8WQ_bzl2I80' })).videoUrl)
+      .toBe('http://youtube.com/watch?v=8WQ_bzl2I80');
+    expect(shapeFreestyleRecord(makeRow({ video_url: 'https://www.instagram.com/p/DGlbm3quyxE/?img_index=3' })).videoUrl)
+      .toBe('https://www.instagram.com/p/DGlbm3quyxE/?img_index=3');
+  });
+
+  // Defect caught: a record row carrying an off-platform link (a stale row,
+  // or a curator save restored without the editor's check) shows it anyway.
+  it('drops a video link on any other host', () => {
+    for (const bad of ['http://example.com/v', 'https://www.facebook.com/watch/?v=1234567890']) {
+      expect(shapeFreestyleRecord(makeRow({ video_url: bad })).videoUrl, bad).toBeNull();
+    }
   });
 
   it('rejects javascript:, data:, vbscript:, and protocol-relative video URLs', () => {

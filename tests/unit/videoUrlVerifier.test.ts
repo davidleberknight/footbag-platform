@@ -163,6 +163,35 @@ describe('verifyExternalVideoUrl', () => {
   });
 });
 
+describe('verifyExternalVideoUrl for the link-only platforms', () => {
+  // Defect caught: a dead TikTok link is accepted because its availability is
+  // never asked of TikTok's own oEmbed endpoint.
+  it('TikTok asks TikTok oEmbed and passes its refusal through', async () => {
+    let calledUrl = '';
+    const fetchImpl: typeof fetch = async (input) => {
+      calledUrl = String(input);
+      return emptyResponse(404);
+    };
+    const url = 'https://www.tiktok.com/@footbagger/video/7301234567890123456';
+    const result = await verifyExternalVideoUrl(url, 'tiktok', { fetchImpl });
+    expect(calledUrl).toBe(`https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`);
+    expect(result).toEqual({ ok: false, status: 404 });
+  });
+
+  // Defect caught: an Instagram link triggers a network call to Meta's
+  // embedding endpoint the site is not licensed to use, or a link that is not
+  // an Instagram post passes as one.
+  it('Instagram is decided on its URL pattern with no network call', async () => {
+    let calls = 0;
+    const fetchImpl: typeof fetch = async () => { calls += 1; return emptyResponse(200); };
+    expect(await verifyExternalVideoUrl('https://www.instagram.com/p/DGlbm3quyxE/', 'instagram', { fetchImpl }))
+      .toEqual({ ok: true, status: 200 });
+    expect(await verifyExternalVideoUrl('https://www.instagram.com/someone/', 'instagram', { fetchImpl }))
+      .toEqual({ ok: false, status: 400 });
+    expect(calls).toBe(0);
+  });
+});
+
 describe('parseYouTubeVideoId', () => {
   it('extracts id from watch?v= form', () => {
     expect(parseYouTubeVideoId('https://www.youtube.com/watch?v=Dmr7zj_c7cY')).toBe('Dmr7zj_c7cY');

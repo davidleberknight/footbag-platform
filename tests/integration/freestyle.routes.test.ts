@@ -68,7 +68,7 @@ beforeAll(async () => {
     trick_name:   'Torque',
     value_numeric: 42,
     confidence:   'probable',
-    video_url:    'https://youtu.be/abc123',
+    video_url:    'https://youtu.be/abc123defgh',
   });
 
   // Public record — display_name only (no person_id)
@@ -114,7 +114,7 @@ beforeAll(async () => {
     trick_name:    'Pixie',
     value_numeric: 55,
     confidence:    'probable',
-    video_url:     'https://youtu.be/pixie123',
+    video_url:     'https://youtu.be/pixie123abc',
     video_timecode: '0:42',
   });
   insertFreestyleRecord(db, {
@@ -304,7 +304,7 @@ describe('GET /freestyle/records', () => {
   // the symbol's name and no idea what the link opens.
   it('draws every Video cell as the play symbol alone, with a spoken form', async () => {
     const res = await page('/freestyle/records');
-    const link = res.text.match(/<a href="https:\/\/youtu\.be\/pixie123"[^>]*>(.*?)<\/a>/s);
+    const link = res.text.match(/<a href="https:\/\/youtu\.be\/pixie123abc"[^>]*>(.*?)<\/a>/s);
     expect(link).not.toBeNull();
     expect(link![1]).not.toContain('0:42');
     expect(link![1]).toMatch(/<span aria-hidden="true">▶<\/span>/);
@@ -371,7 +371,7 @@ describe('GET /freestyle/records', () => {
 
   it('shows video link when video_url is present', async () => {
     const res = await page('/freestyle/records');
-    expect(res.text).toContain('https://youtu.be/abc123');
+    expect(res.text).toContain('https://youtu.be/abc123defgh');
   });
 });
 
@@ -842,7 +842,7 @@ describe('GET /freestyle/tricks/:slug', () => {
 
   it('shows video link when present', async () => {
     const res = await page('/freestyle/tricks/torque');
-    expect(res.text).toContain('https://youtu.be/abc123');
+    expect(res.text).toContain('https://youtu.be/abc123defgh');
   });
 
   it('shows Record Progression section when superseded records exist', async () => {
@@ -904,7 +904,7 @@ describe('GET /history/:personId — freestyle records section', () => {
   // one record's video link reads differently depending on the page.
   it('shows the video link on the player freestyle section without its timecode', async () => {
     const res = await page(`/history/${FREESTYLE_PLAYER_ID}`);
-    expect(res.text).toContain('https://youtu.be/pixie123');
+    expect(res.text).toContain('https://youtu.be/pixie123abc');
     expect(res.text).not.toContain('0:42');
   });
 

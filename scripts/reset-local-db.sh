@@ -304,7 +304,7 @@ fi
 # exports CURATOR_SEED=yes by default and CURATOR_SEED=no when
 # --no-curator-seed is passed. Local dev with the env unset also defaults to
 # yes. The S3 cycle (wipe + rsync) is governed independently by SYNC_MEDIA;
-# URL-reference sidecars (YouTube/Vimeo) need no S3 bytes and reach the live
+# URL-reference sidecars (YouTube, Vimeo, TikTok, Instagram) need no S3 bytes and reach the live
 # site on every DB-bearing deploy (a code-only deploy ships no DB, so no
 # curator rows change).
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
@@ -331,9 +331,10 @@ if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   MEDIA_CHECK_STATUS=0
   FOOTBAG_DB_PATH="${DB_FILE}" bash "${MEDIA_CHECK_CMD}" || MEDIA_CHECK_STATUS=$?
   if (( MEDIA_CHECK_STATUS == 1 )); then
-    cr_error "seeded media rows name files the local media store does not hold."
-    echo "       Those images, posters or videos will not load. The missing keys are" >&2
-    echo "       listed above; re-run this reset once the curator seed can write them." >&2
+    cr_error "seeded media rows name files the local media store does not hold, or a video link is off-platform."
+    echo "       Missing images, posters or videos will not load. The missing keys and" >&2
+    echo "       any video link outside YouTube, Vimeo, TikTok and Instagram are listed" >&2
+    echo "       above; fix the sidecar or record named, then re-run this reset." >&2
     exit 1
   elif (( MEDIA_CHECK_STATUS != 0 )); then
     cr_error "the media integrity check could not run (exit ${MEDIA_CHECK_STATUS})."

@@ -23,7 +23,7 @@ Read only what the task needs, starting with the requirement passages the pre-de
 
 ## Non-negotiable rules
 
-1. Never edit documentation, `.github/`, or `.claude/` files without explicit human approval, given and shown as `.claude/rules/asking.md` sets out. This includes `.claude/settings.local.json`; Claude proposes the change and the human applies it.
+1. Never edit documentation, `.github/`, or `.claude/` files without explicit human approval, given and shown as `.claude/rules/asking.md` sets out (settled drift from your own change: apply and show). This includes `.claude/settings.local.json`; Claude proposes the change and the human applies it.
 2. Never take a destructive or risky action without explicit human approval.
 3. Asking the human is the last resort, not the first move. When and how to ask, including when two interpretations survive: `.claude/rules/asking.md`.
 4. Do not change user-facing wording, in any medium (pages, emails, anything a visitor or member reads), unless the human approved the literal text, by a message or an approved plan showing it, or pre-approved technical UI words and the change is no prose (no silent editing).

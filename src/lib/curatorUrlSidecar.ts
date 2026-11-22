@@ -1,5 +1,5 @@
-// Sidecar JSON file model for curator URL-reference media (YouTube /
-// Vimeo). Distinct from the file-paired sidecar schema in
+// Sidecar JSON file model for curator URL-reference media (YouTube,
+// Vimeo, TikTok, Instagram). Distinct from the file-paired sidecar schema in
 // `curatorSidecar.ts`: URL-ref sidecars are standalone (no source
 // binary), and carry platform metadata used by the seeder
 // (`scripts/seed_fh_curator.py::_seed_one_sidecar`) to populate
@@ -17,10 +17,11 @@
 import { createHash } from 'crypto';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { isVideoLinkPlatform, parseVideoLink, type VideoLinkPlatform } from './videoPlatforms';
 
 export interface UrlSidecarData {
   videoUrl: string;
-  videoPlatform: 'youtube' | 'vimeo';
+  videoPlatform: VideoLinkPlatform;
   title: string | null;
   sourceId?: string | null;
   thumbnailUrl?: string | null;
@@ -43,17 +44,24 @@ export function validateUrlSidecarData(data: UrlSidecarData): void {
   if (!data.videoUrl || typeof data.videoUrl !== 'string') {
     throw new UrlSidecarValidationError('videoUrl is required.');
   }
-  if (data.videoPlatform !== 'youtube' && data.videoPlatform !== 'vimeo') {
+  if (!isVideoLinkPlatform(data.videoPlatform)) {
     throw new UrlSidecarValidationError(
-      `videoPlatform must be "youtube" or "vimeo": got ${JSON.stringify(data.videoPlatform)}.`,
+      `videoPlatform must be "youtube", "vimeo", "tiktok" or "instagram": got ${JSON.stringify(data.videoPlatform)}.`,
+    );
+  }
+  if (parseVideoLink(data.videoUrl)?.platform !== data.videoPlatform) {
+    throw new UrlSidecarValidationError(
+      `videoUrl is not a ${data.videoPlatform} video link: got ${JSON.stringify(data.videoUrl)}.`,
     );
   }
 
   // Platform-conditional thumbnailUrl rule (DD §6.8 + seeder enforcement).
-  if (data.videoPlatform === 'youtube') {
+  // YouTube derives its thumbnail from the video id; TikTok and Instagram
+  // items show their platform name and carry none.
+  if (data.videoPlatform !== 'vimeo') {
     if (data.thumbnailUrl != null && data.thumbnailUrl !== '') {
       throw new UrlSidecarValidationError(
-        'thumbnailUrl must NOT appear in a youtube sidecar; the gallery service derives it from the video id.',
+        `thumbnailUrl must NOT appear in a ${data.videoPlatform} sidecar.`,
       );
     }
   } else {
@@ -213,7 +221,7 @@ export async function resolveSidecarForRow(
   curatedRootDir: string,
   row: { video_platform: string | null; video_url: string | null },
 ): Promise<string | null> {
-  if (row.video_platform !== 'youtube' && row.video_platform !== 'vimeo') return null;
+  if (!isVideoLinkPlatform(row.video_platform)) return null;
   if (!row.video_url) return null;
   const hash8 = createHash('sha1').update(row.video_url).digest('hex').slice(0, 8);
 

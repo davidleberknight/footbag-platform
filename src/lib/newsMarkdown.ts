@@ -93,6 +93,22 @@ function buildRenderer(memberAuthored: boolean): Marked {
 const newsRenderer = buildRenderer(false);
 const communityRenderer = buildRenderer(true);
 
+// Every ASCII punctuation character Markdown can read as syntax, including
+// the dots, colons and at signs a bare web or mail address is recognised by.
+const MARKDOWN_PUNCTUATION = /[\\`*_{}[\]()<>#+\-.!|~&:@^=$%"']/g;
+
+/**
+ * Text a person typed elsewhere (an event's title or location), escaped for
+ * placing inside a news body, so it renders exactly as typed: never as
+ * emphasis, a heading, a list, raw HTML or a link. Markdown reads each
+ * escape back as its own character, so the rendered body and its plain-text
+ * form show the original text. Line breaks become spaces, keeping the text
+ * inside its sentence.
+ */
+export function escapeNewsMarkdown(text: string): string {
+  return text.replace(/\s+/g, ' ').replace(MARKDOWN_PUNCTUATION, (ch) => `\\${ch}`);
+}
+
 export function renderNewsMarkdown(markdown: string, options: NewsMarkdownOptions): string {
   const renderer = options.memberAuthored ? communityRenderer : newsRenderer;
   return renderer.parse(markdown, { async: false }) as string;
@@ -109,6 +125,10 @@ function tokenText(token: Token): string {
       return '';
     case 'br':
       return ' ';
+    // An escape's own text is HTML-escaped already; the reader sees the
+    // character after the backslash.
+    case 'escape':
+      return (token as Tokens.Escape).raw.slice(1);
     case 'table':
       return (token as Tokens.Table).raw;
     case 'list':

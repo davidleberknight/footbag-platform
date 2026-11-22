@@ -47,6 +47,10 @@
  *     statuses resolve through standard not-found behavior.
  *   - HD guard: an event is hard-deleted only if it never took a registration, has no
  *     result rows and sent no participant email, and is not pending_approval or completed.
+ *   - Each way an event goes public (a free event's creation, a sanction
+ *     grant) and its first results publication emits one news item in the
+ *     same transaction, so the item never outlives a rolled-back act and the
+ *     act never lands without it. A later upload keeps the first item.
  *   - Creating a free event takes Tier 1 benefits and opens it at once
  *     (`draft -> reg_open` in the creating transaction, emailing its organizers).
  *     Choosing the sanctioned path, and with it any registration fee, takes Tier 2
@@ -230,7 +234,7 @@
  *   work_queue_items, active_player_grants (through ActivePlayerService),
  *   member_announcements (read: whether an after-event summary was sent),
  *   media_items and media_tags (read for the cover; a cover upload writes them
- *   through CuratorMediaService).
+ *   through CuratorMediaService), news_items (through NewsService).
  *
  * Side effects:
  *   - audit_entries append (event.created, event.details_edited,
@@ -258,6 +262,10 @@
  *   - work_queue_items insert (`sanction_request`, routine: read on the queue and
  *     rolled up in the administrators' digest), resolved on its decision and
  *     dismissed when the event is canceled
+ *   - news emission through NewsService, inside the act's transaction: an
+ *     `event_published` item when a free event is created and when a sanction
+ *     is granted (approval or the Board's award), an `event_results` item on
+ *     the first results upload; deleting an event deletes its items
  *
  * Service shape: singleton object. It reaches the payment provider only through
  * PaymentService, the outbox only through EmailService and the
@@ -303,14 +311,15 @@ import { slugifyForTag } from './slugify';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { canonicalCountryName, personLocation } from './countryUtils';
 import {
-  EVENT_STATUS_LABELS, eventDateRange, eventStatusBadge, isRegistrationOffered, isRegistrationOpen,
-  offeredRegistrationTypes, registrationCutoff, toEventDatedItem,
+  EVENT_STATUS_LABELS, eventDateRange, eventStatusBadge, getAdjacentArchiveYears, isRegistrationOffered,
+  isRegistrationOpen, offeredRegistrationTypes, registrationCutoff, toEventDatedItem,
 } from './eventListing';
 import type { DatedItemView } from '../types/datedItem';
 import { CURRENT_SPORTS, sportLabel, sportOptions } from './sportCategories';
 import { medalClass } from './playerShaping';
 import { COUNTRY_CHOICE_MESSAGE } from './memberLocationRules';
 import { emailService } from './emailService';
+import { eventItemText, newsService } from './newsService';
 import { locationPickers, memberService } from './memberService';
 import {
   PICKER_LIMIT, buildMemberPicker, pickerSearchOutcome,
@@ -804,35 +813,6 @@ export function isFeaturedPromoCurrent(endDate: string, nowIso: string): boolean
   return nowIso.slice(0, 10) <= endDate;
 }
 
-/**
- * Resolve sibling-archive-year navigation for a given year. Exported for
- * unit testing.
- *
- * `previousYear` is the year immediately older than `year`; `nextYear` is
- * the year immediately newer. The helper sorts its input DESC internally
- * so the result is independent of the caller's ordering. The current
- * production caller is `listPublicArchiveYears()` which returns DESC, but
- * a future change to ASC would otherwise silently invert previous/next.
- */
-export function getAdjacentArchiveYears(
-  archiveYears: number[],
-  year: number,
-): { previousYear: number | null; nextYear: number | null } {
-  const sorted = [...archiveYears].sort((a, b) => b - a);
-  const index = sorted.indexOf(year);
-
-  if (index === -1) {
-    return {
-      previousYear: null,
-      nextYear: null,
-    };
-  }
-
-  return {
-    previousYear: index < sorted.length - 1 ? sorted[index + 1] : null,
-    nextYear: index > 0 ? sorted[index - 1] : null,
-  };
-}
 
 function toPublicEventPage(
   eventRow: PublicEventDetailRow,
@@ -3908,6 +3888,18 @@ export class EventService {
             memberId: actorMemberId,
             idempotencyKey: `event-created:${eventId}:${actorMemberId}`,
           });
+          newsService.emitAutomaticItem({
+            newsType: 'event_published',
+            entityType: 'event',
+            entityId: eventId,
+            ...eventItemText('opened', {
+              title: details.title, start_date: details.startDate, end_date: details.endDate,
+              city: details.city, region: details.region, country: details.country,
+            }),
+            publishedAt: now,
+            actorId: actorMemberId,
+            nowIso: now,
+          });
         }
       });
     } catch (err) {
@@ -4825,6 +4817,15 @@ export class EventService {
       reasonText: reason,
       metadata: { work_queue_item_id: queueItemId, payment_enabled: paymentEnabled === 1 },
     });
+    newsService.emitAutomaticItem({
+      newsType: 'event_published',
+      entityType: 'event',
+      entityId: event.id,
+      ...eventItemText('sanctioned', event),
+      publishedAt: now,
+      actorId: adminMemberId,
+      nowIso: now,
+    });
     const organizers = eventOrganizers.listForEvent.all(event.id) as Array<{ member_id: string }>;
     for (const o of organizers) {
       emailService.sendActNotice({
@@ -4998,6 +4999,7 @@ export class EventService {
       if (this.deletionBlockedText(event)) return;
       eventWrites.deleteDivisionsForEvent.run(event.id);
       eventWrites.deleteOrganizersForEvent.run(event.id);
+      newsService.deleteItemsForEntity('event', event.id);
       deleted = eventWrites.deleteEvent.run(event.id).changes === 1;
       if (!deleted) throw new Error(`event ${event.id} changed between its read and its deletion`);
       appendAuditEntry({
@@ -6314,6 +6316,17 @@ export class EventService {
           after_status: completed ? 'completed' : event.status,
           file_sha256: fileHash,
         },
+      });
+      // Every upload emits; the one item per event and type keeps the first
+      // publication's, so a later upload or correction adds nothing.
+      newsService.emitAutomaticItem({
+        newsType: 'event_results',
+        entityType: 'event',
+        entityId: event.id,
+        ...eventItemText('results', event),
+        publishedAt: now,
+        actorId: memberId,
+        nowIso: now,
       });
     });
     return { branch: 'committed', rowCount: preview.rowCount, attendedCount };

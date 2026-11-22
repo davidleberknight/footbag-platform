@@ -1,15 +1,15 @@
 /**
- * Unit tests for getAdjacentArchiveYears (eventService internal helper).
+ * Unit tests for getAdjacentArchiveYears, the year navigation the event and
+ * news year pages share.
  *
  * Guards order-independence: the helper must not assume its `archiveYears`
- * input was DESC-ordered. The current caller `listPublicArchiveYears()`
- * returns DESC, but a future change to ASC would have silently inverted
- * previousYear (older) and nextYear (newer) on every event-archive page.
- * The defensive sort inside the helper makes the result independent of
- * the caller's ordering.
+ * input was DESC-ordered, or a list that arrived ASC would silently invert
+ * previousYear (older) and nextYear (newer) on every year page. The
+ * defensive sort inside the helper makes the result independent of the
+ * caller's ordering.
  */
 import { describe, it, expect } from 'vitest';
-import { getAdjacentArchiveYears } from '../../src/services/eventService';
+import { getAdjacentArchiveYears } from '../../src/services/eventListing';
 
 describe('getAdjacentArchiveYears', () => {
   it('returns previousYear (older) and nextYear (newer) for a year in the middle (DESC input)', () => {

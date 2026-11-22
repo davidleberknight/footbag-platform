@@ -104,6 +104,11 @@ beforeAll(async () => {
     id: 'rec_clean', record_type: 'trick_consecutive', display_name: 'Clean Holder',
     trick_name: 'Clean Trick', value_numeric: 7, confidence: 'probable',
   });
+  // The row the Instagram video-link case saves.
+  insertFreestyleRecord(db, {
+    id: 'rec_video', record_type: 'trick_consecutive', display_name: 'Video Holder',
+    trick_name: 'Video Trick', value_numeric: 7, confidence: 'probable',
+  });
   // The row the curator-review-note case sets and then clears.
   insertFreestyleRecord(db, {
     id: 'rec_review', record_type: 'trick_consecutive', display_name: 'Review Holder',
@@ -324,6 +329,28 @@ describe('POST /admin/freestyle/records/:id/edit — validation', () => {
     const res = await post('/admin/freestyle/records/rec_guard/edit', admin(), validBody({ confidence: 'legendary' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('Confidence must be');
+  });
+
+  // Defect caught: an admin saves a record video link to a host outside
+  // YouTube, Vimeo, TikTok and Instagram, which the record tables then show.
+  it('rejects an off-platform video link on the video field and keeps the stored link', async () => {
+    const videoBefore = (db.prepare('SELECT video_url FROM freestyle_records WHERE id = ?').get('rec_guard') as { video_url: string | null }).video_url;
+    const res = await post('/admin/freestyle/records/rec_guard/edit', admin(),
+      validBody({ videoUrl: 'https://www.facebook.com/watch/?v=1234567890' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/id="record-videoUrl"[\s\S]*?class="form-field-error"/);
+    expect((db.prepare('SELECT video_url FROM freestyle_records WHERE id = ?').get('rec_guard') as { video_url: string | null }).video_url)
+      .toBe(videoBefore);
+  });
+
+  // Defect caught: the platform rule refuses a link-only platform, so a
+  // record posted only on Instagram cannot carry its video.
+  it('accepts an Instagram record video link', async () => {
+    const res = await post('/admin/freestyle/records/rec_video/edit', admin(),
+      validBody({ videoUrl: 'https://www.instagram.com/p/DGlbm3quyxE/' }));
+    expect(res.status).toBe(303);
+    expect((db.prepare('SELECT video_url FROM freestyle_records WHERE id = ?').get('rec_video') as { video_url: string | null }).video_url)
+      .toBe('https://www.instagram.com/p/DGlbm3quyxE/');
   });
 
   it('rejects a bad date precision', async () => {

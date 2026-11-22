@@ -1,6 +1,6 @@
 {{!--
   The Share Media form, the one interface the member and the curator share.
-  Photos (several at once), a YouTube or Vimeo link, and for the curator a
+  Photos (several at once), a YouTube, Vimeo, TikTok or Instagram link, and for the curator a
   video file; one set of hashtags for everything in the submit; and an
   optional step that names those hashtags as a gallery. The tabs are the
   CSS-only pattern (hidden radios, :checked ~ sibling selectors), and the form
@@ -50,9 +50,10 @@
 
       <div class="upload-tab-panel upload-tab-panel-url">
         <div class="form-field">
-          <label for="share-video-url">YouTube or Vimeo link:</label>
+          <label for="share-video-url">Video link:</label>
           <input type="url" id="share-video-url" name="videoUrl" value="{{c.formValues.videoUrl}}"
                  placeholder="https://www.youtube.com/watch?v=...">
+          <p class="form-hint">YouTube, Vimeo, TikTok or Instagram. YouTube and Vimeo videos play here; TikTok and Instagram posts open on their own site.</p>
           {{#if c.fieldErrors.videoUrl}}
           <p class="form-field-error" role="alert">{{c.fieldErrors.videoUrl}}</p>
           {{/if}}

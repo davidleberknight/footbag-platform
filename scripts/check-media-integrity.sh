@@ -5,8 +5,9 @@
 # stored-bytes reference through the MediaStorageAdapter — so it works against
 # S3 (production/staging) and the local store (dev, including the curated
 # read-lane) identically, with no filesystem or `/curated` assumptions, and
-# skips YouTube/Vimeo (no stored bytes). Read-only; exits 0 OK, 1 on missing
-# objects, 2 on setup error.
+# skips linked videos (no stored bytes), whose links it holds to YouTube, Vimeo,
+# TikTok and Instagram. Read-only; exits 0 OK, 1 on missing objects or an
+# off-platform video link, 2 on setup error.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 exec npx tsx scripts/check-media-integrity.ts "$@"

@@ -38,6 +38,11 @@
  *     actor is recorded only in `audit_entries`.
  *   - Curator video bytes use `video_platform='s3'`; member video routes reject `s3`
  *     as a defensive boundary.
+ *   - Every video link, member or curator, passes the shared platform check
+ *     (`parseVideoLink` in `src/lib/videoPlatforms.ts`): YouTube, Vimeo, TikTok
+ *     or Instagram, on that platform's own hosts, and nothing else. TikTok and
+ *     Instagram items are link-only, stored at the post's canonical address with
+ *     no thumbnail.
  *   - `media_items.mime_type` records the served content type of the stored object
  *     (`video/<transcode outputFormat>` for curator video, the JPEG rendition type
  *     for photos); URL-reference rows leave it NULL.
@@ -89,7 +94,7 @@
  *     mints the job and its storage keys and signs the two PUTs;
  *     `finalizeCuratorVideoUpload` measures the uploaded bytes and dispatches the
  *     job to the worker; `finalizeTranscodeForJob` is the worker-side finalize.
- *   - URL-reference rows (`video_platform IN ('youtube','vimeo')`): where the
+ *   - URL-reference rows (`video_platform IN ('youtube','vimeo','tiktok','instagram')`): where the
  *     authoring tree is writable, edits and deletes resolve the sidecar from
  *     `(video_platform, video_url)`, rewrite or unlink atomically, then update
  *     the DB row. Where it is not, no filesystem path is touched and the DB
@@ -245,12 +250,15 @@ import {
   type VideoTranscodingAdapter,
 } from '../adapters/videoTranscodingAdapter';
 import {
-  parseVimeoVideoId,
-  parseYouTubeVideoId,
   verifyExternalVideoUrl,
   type VideoVerifyResult,
   type VideoPlatform,
 } from '../lib/videoUrlVerifier';
+import { isVideoLinkPlatform, parseVideoLink } from '../lib/videoPlatforms';
+
+// The refusal for a video link the shared platform check rejects, on every
+// Share Media path, members' and curators' alike.
+const VIDEO_LINK_REFUSAL = 'Paste a YouTube, Vimeo, TikTok or Instagram link.';
 import {
   validateUrlSidecarData,
   deriveUrlSidecarFilename,
@@ -664,7 +672,7 @@ export interface CuratorUrlReferenceInput {
   adminMemberId: string;
   category: string;
   videoUrl: string;
-  videoPlatform: 'youtube' | 'vimeo';
+  videoPlatform: VideoPlatform;
   primarySlug: string;
   title: string | null;
   sourceId: string | null;
@@ -720,8 +728,8 @@ export interface MemberVideoInput {
   // for the role flag.
   actorIsAdmin?: boolean;
   slug: string;
-  // YouTube or Vimeo URL; service extracts the video id and verifies
-  // availability via oEmbed. Member video flow is URL-reference only
+  // YouTube, Vimeo, TikTok or Instagram URL; service extracts the video id
+  // and verifies availability (oEmbed, or the URL pattern for Instagram). Member video flow is URL-reference only
   // (no upload of bytes), per US M_Submit_Video.
   videoUrl: string;
   videoPlatform: VideoPlatform;
@@ -1334,7 +1342,7 @@ export interface CuratorMediaEditInput {
   caption?: string | null;
   tags?: string[];
   // URL-ref sidecar fields (only honored when the row is sidecar-backed,
-  // i.e. video_platform IN ('youtube','vimeo')). The service merges these
+  // i.e. a YouTube, Vimeo, TikTok or Instagram link). The service merges these
   // into the sidecar JSON; ignored on DB-direct rows. `sourceId` accepts
   // null to clear the field; absent (undefined) leaves the existing
   // sidecar value alone. `startSeconds`/`endSeconds` follow the same rule.
@@ -1387,7 +1395,7 @@ export interface CuratorMediaListItem {
   videoId: string | null;
   videoUrl: string | null;
   // Sidecar-only fields. Populated by getMediaItem when the row is
-  // URL-reference-backed (videoPlatform IN ('youtube','vimeo')) and the
+  // URL-reference-backed (a YouTube, Vimeo, TikTok or Instagram link) and the
   // sidecar file is present on disk; null otherwise. listMedia leaves
   // these null to avoid 94+ filesystem reads per page render — the edit
   // form is the only consumer that needs them.
@@ -2414,8 +2422,8 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
       assertKnownSourceId(input.sourceId);
 
-      if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
-        throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
+      if (!isVideoLinkPlatform(input.videoPlatform)) {
+        throw new ValidationError('Choose YouTube, Vimeo, TikTok or Instagram for the video platform.');
       }
       // The category names a subdirectory of the authoring tree, so it is only
       // meaningful where that tree is written. Where it is not, the database row
@@ -2431,6 +2439,17 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
       if (!input.videoUrl || !/^https?:\/\//.test(input.videoUrl)) {
         throw new ValidationError('Video URL must start with http:// or https://.');
+      }
+      const parsedLink = parseVideoLink(input.videoUrl);
+      if (!parsedLink || parsedLink.platform !== input.videoPlatform) {
+        throw new ValidationError(
+          `Could not extract a ${input.videoPlatform} video id from the URL.`,
+        );
+      }
+      // A link-only post is stored at its canonical address, so the same post
+      // pasted with tracking parameters lands on the same item.
+      if (!parsedLink.embeddable) {
+        input = { ...input, videoUrl: parsedLink.canonicalUrl };
       }
 
       // A video's id is derived from its platform and URL, so a link already in
@@ -2490,15 +2509,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         throw err;
       }
 
-      const videoId =
-        input.videoPlatform === 'youtube'
-          ? parseYouTubeVideoId(input.videoUrl)
-          : parseVimeoVideoId(input.videoUrl);
-      if (!videoId) {
-        throw new ValidationError(
-          `Could not extract a ${input.videoPlatform} video id from the URL.`,
-        );
-      }
+      const videoId = parsedLink.videoId;
 
       const systemMemberId = resolveSystemMemberIdOrThrow();
       const mediaId = urlRefMediaId(input.videoPlatform, input.videoUrl);
@@ -2610,7 +2621,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       const now = new Date().toISOString();
-      const isUrlReference = row.video_platform === 'youtube' || row.video_platform === 'vimeo';
+      const isUrlReference = isVideoLinkPlatform(row.video_platform);
 
       // Where the authoring tree is writable, it is the source of truth: rewrite
       // the JSON first, then update the DB inline so the list view reflects the
@@ -2758,7 +2769,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         throw new NotFoundError(`Curator media not found: ${input.mediaId}`);
       }
 
-      const isSidecarBacked = row.video_platform === 'youtube' || row.video_platform === 'vimeo';
+      const isSidecarBacked = isVideoLinkPlatform(row.video_platform);
 
       // For sidecar-backed rows (URL-ref): no S3 keys to clean up; resolve
       // the sidecar path now so we can unlink the file after the DB
@@ -4014,7 +4025,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
 
-      // Member media is a photo (stored bytes) or a YouTube/Vimeo URL
+      // Member media is a photo (stored bytes) or a video-platform URL
       // reference (no stored bytes); collect storage keys for the photo case.
       const keysToDelete: string[] = [];
       if (row.s3_key_thumb) keysToDelete.push(row.s3_key_thumb);
@@ -4074,21 +4085,20 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
     async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
       assertTier1Benefits(input.memberId);
-      if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
-        throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
+      if (!isVideoLinkPlatform(input.videoPlatform)) {
+        throw new ValidationError('Choose YouTube, Vimeo, TikTok or Instagram for the video platform.');
       }
       if (!input.videoUrl || !/^https?:\/\//.test(input.videoUrl)) {
         throw new ValidationError('Video URL must start with http:// or https://.');
       }
 
-      const videoId = input.videoPlatform === 'youtube'
-        ? parseYouTubeVideoId(input.videoUrl)
-        : parseVimeoVideoId(input.videoUrl);
-      if (!videoId) {
+      const parsedLink = parseVideoLink(input.videoUrl);
+      if (!parsedLink || parsedLink.platform !== input.videoPlatform) {
         throw new ValidationError(
           `Could not extract a ${input.videoPlatform} video id from the URL.`,
         );
       }
+      const videoId = parsedLink.videoId;
 
       // The same video submitted twice is the item the first submit made:
       // matched on the platform's own video id, caption, tags and link before
@@ -4130,14 +4140,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
 
-      // Store the canonical platform URL reconstructed from the parsed id,
-      // not the member-typed string: the raw string renders verbatim as an
-      // anchor href (video facade), and the id parsers substring-match, so
-      // a wrapper URL on a foreign host could otherwise carry a valid id
-      // and become a member-authored off-platform link.
-      const canonicalVideoUrl = input.videoPlatform === 'youtube'
-        ? `https://www.youtube.com/watch?v=${videoId}`
-        : `https://vimeo.com/${videoId}`;
+      // Store the canonical platform URL rebuilt from the parsed link, not
+      // the member-typed string, which renders as an anchor href: the stored
+      // link then carries none of the typed tracking parameters.
+      const canonicalVideoUrl = parsedLink.canonicalUrl;
 
       let thumbnailUrl: string | null = null;
       if (input.videoPlatform === 'vimeo') {
@@ -4978,8 +4984,8 @@ export async function shareMemberMedia(
   let videoPlatform: VideoPlatform | null = null;
   const videoUrl = input.videoUrl.trim();
   if (!isPhoto && videoUrl.length > 0) {
-    videoPlatform = parseYouTubeVideoId(videoUrl) ? 'youtube' : parseVimeoVideoId(videoUrl) ? 'vimeo' : null;
-    if (!videoPlatform || !/^https?:\/\//.test(videoUrl)) return refuse('Paste a YouTube or Vimeo link.', 'videoUrl');
+    videoPlatform = parseVideoLink(videoUrl)?.platform ?? null;
+    if (!videoPlatform) return refuse(VIDEO_LINK_REFUSAL, 'videoUrl');
   }
 
   const overLimit = isPhoto ? sharePhotoLimitRefusal(input.photos) : null;
@@ -5011,7 +5017,7 @@ export async function shareMemberMedia(
     ? input.photos.length > 0 || input.limitExceeded
     : videoUrl.length > 0;
   if (!hasMedia && !galleryName) {
-    return refuse(isPhoto ? 'Choose at least one photo, or name a gallery.' : 'Paste a YouTube or Vimeo link.', isPhoto ? 'photoFiles' : 'videoUrl');
+    return refuse(isPhoto ? 'Choose at least one photo, or name a gallery.' : VIDEO_LINK_REFUSAL, isPhoto ? 'photoFiles' : 'videoUrl');
   }
 
   const { rejected, goodPhotos } = isPhoto
@@ -5240,7 +5246,7 @@ export const GALLERY_SLUG_NO_ADDRESS_MESSAGE =
 /** What the curator Share Media form posts, as the controller read it. */
 export interface ShareCuratorMediaInput {
   adminMemberId: string;
-  /** `photo`, `url_reference` (a YouTube or Vimeo link) or `video` (a video file). */
+  /** `photo`, `url_reference` (a YouTube, Vimeo, TikTok or Instagram link) or `video` (a video file). */
   mediaType: string | undefined;
   photos: SharedPhotoFile[];
   videoFile: { filename: string; buffer: Buffer } | null;
@@ -5378,7 +5384,7 @@ function clipSeconds(raw: string): number | null | 'invalid' {
 }
 
 /**
- * The curator's Share Media submit: several photos, one YouTube or Vimeo link,
+ * The curator's Share Media submit: several photos, one YouTube, Vimeo, TikTok or Instagram link,
  * or one video file, carrying one set of hashtags, and optionally a Footbag
  * Hacky gallery named from those hashtags. The same order as a member's share:
  * every local check first, writing nothing; a named gallery whose recorded
@@ -5429,8 +5435,8 @@ export async function shareCuratorMedia(
   let startSeconds: number | null = null;
   let endSeconds: number | null = null;
   if (mediaType === 'url_reference' && videoUrl.length > 0) {
-    videoPlatform = parseYouTubeVideoId(videoUrl) ? 'youtube' : parseVimeoVideoId(videoUrl) ? 'vimeo' : null;
-    if (!videoPlatform || !/^https?:\/\//.test(videoUrl)) return refuse('Paste a YouTube or Vimeo link.', 'videoUrl');
+    videoPlatform = parseVideoLink(videoUrl)?.platform ?? null;
+    if (!videoPlatform) return refuse(VIDEO_LINK_REFUSAL, 'videoUrl');
     const start = clipSeconds(input.startSeconds);
     const end = clipSeconds(input.endSeconds);
     if (start === 'invalid' || end === 'invalid') return refuse('A clip starts and ends at a whole number of seconds.', 'startSeconds');
@@ -5449,7 +5455,7 @@ export async function shareCuratorMedia(
     : mediaType === 'url_reference' ? videoUrl.length > 0 : input.videoFile !== null;
   if (!hasMedia && !plan) {
     if (isPhoto) return refuse('Choose at least one photo, or name a gallery.', 'photoFiles');
-    if (mediaType === 'url_reference') return refuse('Paste a YouTube or Vimeo link.', 'videoUrl');
+    if (mediaType === 'url_reference') return refuse(VIDEO_LINK_REFUSAL, 'videoUrl');
     return refuse('Please select a video to upload.', 'videoFile');
   }
   if (mediaType === 'video' && input.videoFile && (!input.poster || input.poster.length === 0)) {
@@ -5540,7 +5546,7 @@ export async function shareCuratorMedia(
       adminMemberId: input.adminMemberId,
       category: category ?? '',
       videoUrl,
-      videoPlatform: videoPlatform as 'youtube' | 'vimeo',
+      videoPlatform: videoPlatform as VideoPlatform,
       // Folded by the one slug rule, so "Food-Processor" files as food_processor.
       primarySlug: slugifyForTag(input.primarySlug.trim()),
       title: caption(input.videoCaption),
@@ -5957,7 +5963,7 @@ function curatorMediaEditFields(item: CuratorMediaListItem): CuratorMediaEditFie
     caption: item.caption ?? '',
     tagsString: item.tags.filter((t) => t !== '#curated').join(' '),
     thumbnailUrl: item.thumbnailUrl,
-    isSidecarBacked: item.videoPlatform === 'youtube' || item.videoPlatform === 'vimeo',
+    isSidecarBacked: isVideoLinkPlatform(item.videoPlatform),
     videoPlatform: item.videoPlatform,
     videoUrl: item.videoUrl,
     sourceId: item.sourceId ?? '',
@@ -5997,7 +6003,7 @@ export async function getCuratorMediaEditPage(
 /**
  * The edit form re-rendered after a refusal: the stored item's type and
  * fields, with what the curator typed laid over them, so a refused edit of a
- * YouTube or Vimeo item still shows its URL-reference fields. Null when the
+ * URL-reference item still shows its URL-reference fields. Null when the
  * item is gone.
  */
 export async function getCuratorMediaEditErrorPage(
@@ -6651,7 +6657,7 @@ export function curatorShareNotices(outcome: ShareOutcome, sidecarWritesEnabled:
 
 /**
  * The curator's Share Media form: the member's form with the curator's
- * differences. Photos, a YouTube or Vimeo link (with its source and clip
+ * differences. Photos, a YouTube, Vimeo, TikTok or Instagram link (with its source and clip
  * range under Advanced) and a video file; the locked `#curated` in place of
  * `#by_`; Footbag Hacky's galleries as quick-add chips; and, where sidecar
  * writes are on, the category and primary slug that name the sidecar. A
@@ -6689,7 +6695,7 @@ export function getCuratorSharePage(
     page: {
       sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media',
       instructions: {
-        what: 'Uploads curated photos and videos, or adds a YouTube or Vimeo link, credited to the platform\'s curator account, and can name their hashtags as one of its galleries.',
+        what: 'Uploads curated photos and videos, or adds a YouTube, Vimeo, TikTok or Instagram link, credited to the platform\'s curator account, and can name their hashtags as one of its galleries.',
         why: 'To publish IFPA\'s own media alongside what members share.',
         how: 'Choose the kind of media, add the files or link, their captions and hashtags, and upload. To make a gallery, name the hashtags under the last step.',
         headsUp: [

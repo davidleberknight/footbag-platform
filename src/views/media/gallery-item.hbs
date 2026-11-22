@@ -48,7 +48,11 @@
           </div>
         {{else}}
           <div class="gallery-item-media">
-            {{#if content.item.media}}
+            {{#if content.item.linkOut}}
+              {{! A link-only video (TikTok, Instagram) is never embedded: the page
+                  links out to the post on its own site. }}
+              <p>{{{externalLink content.item.linkOut.href label=content.item.linkOut.label class="action-link"}}}</p>
+            {{else if content.item.media}}
               {{> video-facade media=content.item.media eager=true}}
             {{else}}
               {{! Clicking the photo goes where Next goes, so a reader can step through

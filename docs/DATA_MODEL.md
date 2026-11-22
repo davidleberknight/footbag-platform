@@ -361,8 +361,8 @@ An item written by a person records its author, and a Community post records the
 
 | Value | Triggering action |
 |-------|------------------|
-| `event_published` | Event reaches published status |
-| `event_results` | Results uploaded for a completed event |
+| `event_published` | A free event is created, or an event's sanction is granted (approval or the Board's award) |
+| `event_results` | An event's results are published for the first time |
 | `club_created` | New club created on the platform |
 | `club_archived` | Admin archives a club (`A_Archive_Club`) |
 | `member_honor` | HoF induction, BAP award, or board appointment |

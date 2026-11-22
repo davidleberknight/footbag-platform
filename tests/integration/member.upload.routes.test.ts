@@ -1448,33 +1448,63 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
     expect(res.status).toBe(422);
   });
 
-  it('stores the canonical platform URL, never the member-typed string: a foreign-host wrapper URL carrying a valid id must not become the rendered href', async () => {
-    const app = createApp();
-    // The verifier stub accepts this (worst case: the platform oEmbed lets a
-    // wrapper through); the persisted URL must still be canonical.
-    const res = await request(app)
+  // Defect caught: a page on another host whose address carries a YouTube
+  // path is accepted as a YouTube video, so an off-platform link is stored.
+  it('a foreign-host wrapper URL carrying a YouTube address -> 422, nothing written, verifier not asked', async () => {
+    const before = videoVerifierCalls;
+    const res = await request(createApp())
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'video')
-      .field('videoPlatform', 'youtube')
       .field('videoUrl', 'https://evil.example/redirect?u=https://www.youtube.com/watch?v=wRaPPeRiD11')
       .field('videoCaption', 'wrapped')
       .field('tags', '');
-    expect(res.status).toBe(303);
+    expect(res.status).toBe(422);
+    expect(videoVerifierCalls).toBe(before);
+    expect(ownerVideoRows('wRaPPeRiD11')).toHaveLength(0);
+  });
 
+  // Defect caught: a TikTok or Instagram link is refused, stored under the
+  // wrong platform, keeps its tracking parameters, or gains a thumbnail the
+  // platform never supplied.
+  it.each([
+    ['tiktok', 'https://www.tiktok.com/@footbagger/video/7301234567890123456?is_from_webapp=1', '7301234567890123456', 'https://www.tiktok.com/@footbagger/video/7301234567890123456'],
+    ['instagram', 'https://www.instagram.com/reel/C1a2B3c4D5e/?igsh=abc', 'C1a2B3c4D5e', 'https://www.instagram.com/reel/C1a2B3c4D5e/'],
+  ])('a %s link is stored as a link-only item at its canonical address', async (platform, url, videoId, canonicalUrl) => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoUrl', url)
+      .field('tags', '');
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
     try {
       const row = db.prepare(`
-        SELECT video_id, video_url
-        FROM media_items
-        WHERE uploader_member_id = ? AND media_type = 'video' AND caption = 'wrapped'
-      `).get(OWNER_ID) as { video_id: string; video_url: string } | undefined;
-      expect(row?.video_id).toBe('wRaPPeRiD11');
-      expect(row?.video_url).toBe('https://www.youtube.com/watch?v=wRaPPeRiD11');
-      expect(row?.video_url).not.toContain('evil.example');
-    } finally {
-      db.close();
-    }
+        SELECT video_platform, video_url, thumbnail_url FROM media_items
+        WHERE uploader_member_id = ? AND media_type = 'video' AND video_id = ?
+      `).get(OWNER_ID, videoId) as { video_platform: string; video_url: string; thumbnail_url: string | null } | undefined;
+      expect(row).toEqual({ video_platform: platform, video_url: canonicalUrl, thumbnail_url: null });
+    } finally { db.close(); }
+  });
+
+  // Defect caught: a Facebook video link, the host the rule names as refused,
+  // is accepted.
+  it('a Facebook video link -> 422 on the video link field, nothing written', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoUrl', 'https://www.facebook.com/watch/?v=1234567890')
+      .field('tags', '');
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/id="share-video-url"[^>]*value="https:\/\/www\.facebook\.com/);
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const n = db.prepare("SELECT COUNT(*) AS n FROM media_items WHERE uploader_member_id = ? AND media_type = 'video'")
+        .get(OWNER_ID) as { n: number };
+      expect(n.n).toBe(0);
+    } finally { db.close(); }
   });
 
   it('Vimeo URL with thumbnail body -> 303 + thumbnail_url stored', async () => {
@@ -1507,7 +1537,7 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       .set('Cookie', ownerCookie())
       .field('mediaType', 'video')
       .field('videoPlatform', 'youtube')
-      .field('videoUrl', 'https://www.youtube.com/watch?v=removed12345');
+      .field('videoUrl', 'https://www.youtube.com/watch?v=removed1234');
     expect(res.status).toBe(422);
     expect(res.text).toContain('not available');
   });

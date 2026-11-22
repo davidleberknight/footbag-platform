@@ -5982,7 +5982,7 @@ export const media = {
               'active', ?, ?)
   `); },
 
-  // Curator URL-reference video (YouTube/Vimeo): no hosted bytes, so no
+  // Curator URL-reference video (YouTube, Vimeo, TikTok, Instagram): no hosted bytes, so no
   // s3_key/width/height; carries the platform video id, the URL, the
   // (Vimeo-only) thumbnail, plus the curator provenance/clip-range columns
   // the seeder also writes. id is the deterministic (platform, video_url) id
@@ -6039,11 +6039,11 @@ export const media = {
     LIMIT 1
   `); },
 
-  // Member-submitted video: a YouTube or Vimeo URL reference. The
-  // platform never hosts member video bytes (per US M_Submit_Video);
-  // video_platform is constrained to 'youtube'|'vimeo' here even though
-  // the schema CHECK also allows 's3' (reserved for curator-transcoded
-  // assets).
+  // Member-submitted video: a YouTube, Vimeo, TikTok or Instagram URL
+  // reference. The platform never hosts member video bytes (per US
+  // M_Submit_Video); the service passes only those four platforms here even
+  // though the schema CHECK also allows 's3' (reserved for
+  // curator-transcoded assets).
   get insertMemberVideo() { return db.prepare(`
     INSERT INTO media_items (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -8213,7 +8213,7 @@ export const mediaJobs = {
 export interface CuratorSlotMediaRow {
   id: string;
   media_type: 'photo' | 'video';
-  video_platform: 'youtube' | 'vimeo' | 's3' | null;
+  video_platform: 'youtube' | 'vimeo' | 'tiktok' | 'instagram' | 's3' | null;
   video_id: string | null;
   video_url: string | null;
   thumbnail_url: string | null;
@@ -8235,6 +8235,10 @@ export interface CuratorSlotMediaRow {
 //               vimeo.com URL; thumbnail_url holds the sidecar-supplied
 //               i.vimeocdn.com poster URL (Vimeo thumbnails are NOT derivable
 //               from the video id).
+//   'tiktok', 'instagram' → video_id holds the post's id (TikTok's numeric
+//               id, Instagram's shortcode); video_url holds the canonical
+//               post URL; thumbnail_url is NULL. These are link-only items:
+//               never embedded, their page links out to the post.
 // Shaping must branch on media_type and, for videos, on video_platform.
 export interface CuratorGalleryRow {
   id: string;
@@ -8243,7 +8247,7 @@ export interface CuratorGalleryRow {
   uploaded_at: string;
   s3_key_thumb: string | null;
   s3_key_display: string | null;
-  video_platform: 'youtube' | 'vimeo' | 's3' | null;
+  video_platform: 'youtube' | 'vimeo' | 'tiktok' | 'instagram' | 's3' | null;
   video_id: string | null;
   video_url: string | null;
   thumbnail_url: string | null;

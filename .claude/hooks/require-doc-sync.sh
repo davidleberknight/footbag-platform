@@ -26,5 +26,5 @@ if [ -f "$receipt" ] && [ "$(jq -r '.hash // empty' "$receipt" 2>/dev/null)" = "
   exit 0
 fi
 changed="$(sort -u "$marker" | head -8 | paste -sd, - | sed 's/,/, /g')"
-jq -cn --arg r "$receipt" --arg c "$changed" '{decision:"block",reason:("Code changed since the per-change doc sync last checked it (" + $c + "). Run `npx tsx scripts/doc-sync-diff.ts --receipt " + $r + "`, follow the doc-sync skill on what it prints, and bring every discrepancy to the human with a recommended answer. Then finish the turn.")}'
+jq -cn --arg r "$receipt" --arg c "$changed" '{decision:"block",reason:("Code changed since the per-change doc sync last checked it (" + $c + "). Run `npx tsx scripts/doc-sync-diff.ts --receipt " + $r + "`, follow the doc-sync skill on what it prints. Apply settled drift this change caused and show it as literal BEFORE/AFTER; ask only about what the intent leaves open. Then finish the turn.")}'
 exit 0

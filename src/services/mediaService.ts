@@ -189,6 +189,7 @@ import { personHref } from './personLink';
 import { buildMediaFlagBlock, type MediaFlagBlockViewModel } from './mediaModerationService';
 import { PageViewModel } from '../types/page';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
+import { isLinkOnlyPlatform, videoPlatformLabel } from '../lib/videoPlatforms';
 import {
   hashtagDiscoveryService,
   tagToBrowseHref,
@@ -546,8 +547,12 @@ export interface GalleryItem {
   // (unknown/utility tags stay plain, never a broken link).
   destinations: MediaDestination[];
   // Video tiles render a click-to-play facade via partials/video-facade.hbs
-  // fed by this canonical shape. Null for photos.
+  // fed by this canonical shape. Null for photos and for link-only videos.
   media: VideoMedia | null;
+  // A link-only video (TikTok, Instagram) is never embedded: its tile shows
+  // the platform name in place of a thumbnail, and its item page links out to
+  // the post. Null for every other item.
+  linkOut: { href: string; label: string; platformLabel: string } | null;
   // Link to the in-site viewer page for this item. Every list surface sets it
   // so a tile always opens the viewer rather than a raw media-store file: the
   // named-gallery context uses `/media/{galleryId}/{mediaId}`; browse, profile,
@@ -1038,8 +1043,14 @@ function shapeItem(
   let thumbnailUrl: string;
   let displayHref: string;
   let media: VideoMedia | null = null;
+  let linkOut: GalleryItem['linkOut'] = null;
 
-  if (row.media_type === 'video') {
+  if (row.media_type === 'video' && isLinkOnlyPlatform(row.video_platform) && row.video_url) {
+    const platformLabel = videoPlatformLabel(row.video_platform);
+    linkOut = { href: row.video_url, label: `Watch on ${platformLabel}`, platformLabel };
+    thumbnailUrl = '';
+    displayHref = row.video_url;
+  } else if (row.media_type === 'video') {
     media = expandVideoFromMediaItem(row, {
       constructURL,
       videoTitle: row.caption ?? '',
@@ -1066,6 +1077,7 @@ function shapeItem(
     tags,
     destinations: [],   // resolved in a batch by attachDestinations()
     media,
+    linkOut,
     itemHref: null,
   };
 }
@@ -1324,6 +1336,7 @@ function shapeFoundations(): FreestyleFoundationsView | null {
       tags: [],
       destinations: [{ kind: 'trick', kindLabel: 'Trick', label: atom.label, href: `/freestyle/tricks/${atom.slug}` }],
       media: video,
+      linkOut: null,
       itemHref: `/media/item/${encodeURIComponent(row.id)}`,
       captionMask: true,
     }];

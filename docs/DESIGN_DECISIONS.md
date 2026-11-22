@@ -275,7 +275,7 @@ Paths are stored as data, not calculated at runtime based on the member id and g
 
 CloudFront serves media directly from the primary bucket via the `/media-store/*` cache behavior on the single site distribution. The `/media-store/` URL prefix is dedicated to binary storage and is disjoint from the `/media` user-facing app section so app routes and storage URLs do not share a namespace. The cache-bust mechanism is URL-versioned via a `?v={media_id}` query string (a fresh UUID per upload), and the cache key includes the query string. S3 PUT sets `Cache-Control: public, max-age=31536000, immutable`. Media objects are immutable from any cache's point of view because each emitted URL is unique to its upload; the URL is the cache identity, the S3 key is the storage location, decoupled.
 
-Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains embed-only (YouTube/Vimeo per `M_Submit_Video`); only the system member account uploads video bytes (see the System Member Account section and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per the Legacy Archive (old footbag.org) section. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in DEVOPS_GUIDE.md (private GitHub repo).
+Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains a platform link (YouTube, Vimeo, TikTok or Instagram per `M_Submit_Video`); only the system member account uploads video bytes (see the System Member Account section and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per the Legacy Archive (old footbag.org) section. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in DEVOPS_GUIDE.md (private GitHub repo).
 
 Local filesystem mounted as Docker volume mirrors production S3 directory structure exactly. The media storage adapter reads identical database paths and constructs local URLs. No AWS credentials required for basic media operations in development. Path literals deferred alongside the adapter and env-var rename.
 
@@ -2314,7 +2314,7 @@ Impact:
 
 Decision:
 
-User-supplied external URLs are validated through one shared validation pipeline. The validation contract applies to all external URL fields: member profile external links, club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). Interactive ingestion (member, admin, and curator form writes) runs the pipeline at the service boundary at submit time. Seeded and curated-sidecar ingestion does not pass through a form: the club seed built from the legacy mirror and the curator gallery sidecars run the same pipeline at data-prep / authoring time, and the resulting verdict is committed beside the data and stamped onto the row at load. Application startup and deploys therefore make no external-URL network callout. YouTube and Vimeo curator-content URLs use the oEmbed availability check from the Image Processing section instead and are not subject to the generic reachability policy below.
+User-supplied external URLs are validated through one shared validation pipeline. The validation contract applies to all external URL fields: member profile external links, club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). Interactive ingestion (member, admin, and curator form writes) runs the pipeline at the service boundary at submit time. Seeded and curated-sidecar ingestion does not pass through a form: the club seed built from the legacy mirror and the curator gallery sidecars run the same pipeline at data-prep / authoring time, and the resulting verdict is committed beside the data and stamped onto the row at load. Application startup and deploys therefore make no external-URL network callout. Video-platform URLs (YouTube, Vimeo, TikTok, Instagram) use the platform check from the Image Processing section instead and are not subject to the generic reachability policy below.
 
 Scheme allowlist:
 
@@ -2367,7 +2367,7 @@ Rationale:
 Requirements:
 
 - A single URL-validator helper module exports the validation pipeline. Controllers call the helper, not ad-hoc URL inspection. Data-prep tooling that verifies seeded or curated-sidecar URLs invokes the same helper (never a reimplementation), so the scheme, SSRF, Safe Browsing, and reachability rules have one source of truth.
-- The validator distinguishes platform URLs (YouTube, Vimeo) from generic external URLs and routes platform URLs to the §6.8 oEmbed check.
+- The validator distinguishes video-platform URLs (YouTube, Vimeo, TikTok, Instagram) from generic external URLs and routes them to the §6.8 platform check.
 - The redirect-follow guard is implemented as a re-resolution at each hop, not a one-time check on the original host.
 - A template helper renders external links with the safe attribute set. Direct `<a href="{{url}}">` markup that bypasses the helper is rejected at code review.
 - Safe Browsing integration uses the deterministic dev stub in development and test, and the live API in every deployed environment whose URL screening switch is armed, staging included; the adapter contract follows §5.3 and the switch is §5.8.
@@ -2382,7 +2382,7 @@ Trade-offs:
 Impact:
 
 - Adding a new external-URL field requires invoking the validator helper at the service boundary and rendering output via the safe-attributes template helper.
-- §6.8 (oEmbed for YouTube and Vimeo) and §3.17 (for all other external URLs) are the two complementary external-URL contracts.
+- §6.8 (the video-platform check) and §3.17 (for all other external URLs) are the two complementary external-URL contracts.
 
 # 4. Front-End / UI Technology
 
@@ -4160,7 +4160,7 @@ Trade-offs Accepted:
 
 - No animated GIF support (use video embedding instead)
 
-- No video file uploads from members in version one (YouTube/Vimeo embedding reduces complexity and cost). System-account video bytes are accepted via the curator path with full ffmpeg transcode for malware sanitization; see Curator Media Processing below. In version two, a Tier 2 member an administrator has granted video hosting uploads through the same pipeline, within member limits on size, duration and total storage that are configured values.
+- No video file uploads from members in version one (links to YouTube, Vimeo, TikTok or Instagram reduce complexity and cost). System-account video bytes are accepted via the curator path with full ffmpeg transcode for malware sanitization; see Curator Media Processing below. In version two, a Tier 2 member an administrator has granted video hosting uploads through the same pipeline, within member limits on size, duration and total storage that are configured values.
 
 - Members cannot download original high-resolution photos (only processed variants available)
 
@@ -4299,6 +4299,8 @@ Named galleries are URL bookmarks, not buckets. A `member_galleries` row provide
 External-platform reference video thumbnails are fetched directly from the platform CDN (`i.ytimg.com` for YouTube, derivable from the video id; `i.vimeocdn.com` for Vimeo, supplied per-asset because Vimeo thumbnails are not derivable). The CSP `img-src` allowlist permits both CDNs.
 
 Availability of external-platform reference URLs is verified via the platform oEmbed endpoint (`https://www.youtube.com/oembed?url=...&format=json` for YouTube; `https://vimeo.com/api/oembed.json?url=...` for Vimeo) at every ingestion path (operator-run curator seed, admin act-as upload, one-shot migration scripts). Page-URL HEAD checks are insufficient because both platforms serve HTTP 200 for removed, private, or unavailable videos, and YouTube serves a generic placeholder for the derived `i.ytimg.com/vi/{video_id}/hqdefault.jpg` thumbnail of some removed videos. Sidecars whose oEmbed call fails are rejected at ingestion. Verification runs at ingest only; stale URLs that decay post-ingest surface as broken thumbnails and are corrected by removing or rehosting the affected sidecar.
+
+One shared URL check in code decides the platform of every video link the site accepts or shows (member and curator media, curated sidecars, freestyle record videos), tied to each platform's own hosts, and the media integrity check refuses a database holding a video link outside YouTube, Vimeo, TikTok and Instagram. TikTok reference URLs are verified through TikTok's public oEmbed endpoint (`https://www.tiktok.com/oembed?url=...`) like the other two. Instagram reference URLs are checked by URL pattern only, because Meta licenses its oEmbed endpoint for embedding, which this site does not do. TikTok and Instagram items carry no thumbnail and are never embedded.
 
 Requirements:
 

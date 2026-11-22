@@ -1,5 +1,6 @@
 import { FreestyleRecordRow } from '../db/db';
 import { personHref } from './personLink';
+import { parseVideoLink } from '../lib/videoPlatforms';
 
 export function trickNameToSlug(name: string): string {
   // The slug is the lexical form of the name only: lowercase, non-alphanumeric
@@ -103,17 +104,18 @@ function achievedDateForPrecision(iso: string, precision: string): string {
 }
 
 /**
- * Drop any video URL that is not an http(s) absolute URL before it reaches an
- * href. The source is migrated CSV / curator-writable, so a `javascript:` (or
- * other scheme) value would otherwise survive HTML-escaping inside the
- * attribute. Mirrors the allowlist in src/web/helpers/externalLink.ts. Returns
- * null on rejection so the templates' existing `{{#if videoUrl}}` guard hides
- * the link.
+ * Drop any video URL that is not a video link on one of the four platforms the
+ * site allows (YouTube, Vimeo, TikTok, Instagram) before it reaches an href.
+ * The source is migrated CSV / curator-writable, so a `javascript:` (or other
+ * scheme) value would otherwise survive HTML-escaping inside the attribute, and
+ * a link to any other host breaks the site's video-platform rule. Returns null
+ * on rejection so the templates' existing `{{#if videoUrl}}` guard hides the
+ * link.
  */
 function safeVideoUrl(raw: string | null): string | null {
   if (!raw) return null;
   const trimmed = raw.trim();
-  return /^https?:\/\//i.test(trimmed) ? trimmed : null;
+  return parseVideoLink(trimmed) ? trimmed : null;
 }
 
 /**

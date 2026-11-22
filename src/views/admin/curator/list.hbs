@@ -15,7 +15,7 @@
     {{#> outcome-notice tone='ok'}}
       <p>
       {{#if content.sidecarWritesEnabled}}
-        Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
+        Saved. If this was a URL-reference (YouTube, Vimeo, TikTok or Instagram) item, the sidecar under <code>/curated/</code> was rewritten;
         run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
       {{else}}
         Saved.
@@ -27,7 +27,7 @@
   {{#if content.savedWasDelete}}
     {{#> outcome-notice tone='ok'}}
       {{#if content.sidecarWritesEnabled}}
-        Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
+        Deleted. If this was a URL-reference (YouTube, Vimeo, TikTok or Instagram) item, the sidecar under <code>/curated/</code> was removed;
         run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
       {{else}}
         Deleted.

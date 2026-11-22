@@ -1,12 +1,17 @@
-// Verifies external-platform video URLs (YouTube and Vimeo) via the
-// platform's oEmbed endpoint, per DD §6.8. oEmbed is the authoritative
-// availability signal: the YouTube and Vimeo page URLs both serve HTTP
-// 200 for removed, private, or unavailable videos, but oEmbed returns
-// 4xx for the same. The Vimeo oEmbed body also carries the public
-// thumbnail URL which Vimeo callers must store in the sidecar (Vimeo
-// thumbnails are not derivable from the video id).
+// Verifies external-platform video URLs via the platform's oEmbed endpoint,
+// per DD §6.8. oEmbed is the authoritative availability signal: the YouTube
+// and Vimeo page URLs both serve HTTP 200 for removed, private, or
+// unavailable videos, but oEmbed returns 4xx for the same. The Vimeo oEmbed
+// body also carries the public thumbnail URL which Vimeo callers must store
+// in the sidecar (Vimeo thumbnails are not derivable from the video id).
+// TikTok's public oEmbed endpoint is checked the same way. Instagram links
+// are accepted on their URL pattern alone with no network call, because
+// Meta licenses its oEmbed endpoint for embedding, which this site does not
+// do with Instagram posts.
 
-export type VideoPlatform = 'youtube' | 'vimeo';
+import { parseVideoLink, type VideoLinkPlatform } from './videoPlatforms';
+
+export type VideoPlatform = VideoLinkPlatform;
 
 export interface VideoVerifyResult {
   ok: boolean;
@@ -16,26 +21,24 @@ export interface VideoVerifyResult {
 
 const DEFAULT_TIMEOUT_MS = 10_000;
 
-const OEMBED_ENDPOINTS: Record<VideoPlatform, (url: string) => string> = {
+const OEMBED_ENDPOINTS: Record<VideoPlatform, ((url: string) => string) | null> = {
   youtube: (url) =>
     `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`,
   vimeo: (url) =>
     `https://vimeo.com/api/oembed.json?url=${encodeURIComponent(url)}`,
+  tiktok: (url) =>
+    `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
+  instagram: null,
 };
 
-const YOUTUBE_ID_PATTERN =
-  /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/|youtube\.com\/v\/)([A-Za-z0-9_-]{11})/;
-
-const VIMEO_ID_PATTERN = /vimeo\.com\/(?:video\/)?(\d+)/;
-
 export function parseYouTubeVideoId(url: string): string | null {
-  const m = url.match(YOUTUBE_ID_PATTERN);
-  return m ? m[1] : null;
+  const parsed = parseVideoLink(url);
+  return parsed?.platform === 'youtube' ? parsed.videoId : null;
 }
 
 export function parseVimeoVideoId(url: string): string | null {
-  const m = url.match(VIMEO_ID_PATTERN);
-  return m ? m[1] : null;
+  const parsed = parseVideoLink(url);
+  return parsed?.platform === 'vimeo' ? parsed.videoId : null;
 }
 
 export async function verifyExternalVideoUrl(
@@ -43,9 +46,15 @@ export async function verifyExternalVideoUrl(
   platform: VideoPlatform,
   opts: { fetchImpl?: typeof fetch; timeoutMs?: number } = {},
 ): Promise<VideoVerifyResult> {
+  const endpointFor = OEMBED_ENDPOINTS[platform];
+  if (!endpointFor) {
+    return parseVideoLink(videoUrl)?.platform === platform
+      ? { ok: true, status: 200 }
+      : { ok: false, status: 400 };
+  }
   const fetchImpl = opts.fetchImpl ?? fetch;
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const endpoint = OEMBED_ENDPOINTS[platform](videoUrl);
+  const endpoint = endpointFor(videoUrl);
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

@@ -27,6 +27,7 @@ import type { VideoTranscodingAdapter } from '../../src/adapters/videoTranscodin
 import type { TranscodedVideo } from '../../src/lib/videoProcessing';
 import { formatGallerySidecarJson } from '../../src/lib/curatorGallerySidecar';
 import { urlRefMediaId } from '../../src/lib/curatorUrlSidecar';
+import { youTubeIdFor } from '../fixtures/factories';
 import { ValidationError } from '../../src/services/serviceErrors';
 
 const { dbPath } = setTestEnv('3091');
@@ -704,7 +705,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
   it('caption edit rewrites sidecar.title AND updates DB row inline', async () => {
     const db = openDb();
     const slug = `urledit_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const url = `https://www.youtube.com/watch?v=YT_${slug}`;
+    const url = `https://www.youtube.com/watch?v=${youTubeIdFor(slug)}`;
     const { mediaId, sidecarPath, sidecarFilename } = insertCuratorUrlReference(db, {
       uploaderMemberId: SYSTEM_ID,
       curatedRoot,
@@ -712,7 +713,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
       primarySlug: slug,
       videoUrl: url,
       videoPlatform: 'youtube',
-      videoId: `YT_${slug}`,
+      videoId: youTubeIdFor(slug),
       caption: 'Original title',
       tags: ['#freestyle', '#trick', `#${slug}`, '#tutorial'],
     });
@@ -744,7 +745,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
   it('tag edit rewrites sidecar.tags (sorted, deduped, #curated filtered)', async () => {
     const db = openDb();
     const slug = `urltags_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const url = `https://www.youtube.com/watch?v=TAGS_${slug}`;
+    const url = `https://www.youtube.com/watch?v=${youTubeIdFor(slug)}`;
     const { mediaId, sidecarPath } = insertCuratorUrlReference(db, {
       uploaderMemberId: SYSTEM_ID,
       curatedRoot,
@@ -752,7 +753,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
       primarySlug: slug,
       videoUrl: url,
       videoPlatform: 'youtube',
-      videoId: `TAGS_${slug}`,
+      videoId: youTubeIdFor(slug),
       caption: 'tags only',
       tags: ['#freestyle', '#trick', `#${slug}`],
     });
@@ -784,7 +785,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
   it('throws when sidecar file is missing on disk (corruption guard)', async () => {
     const db = openDb();
     const slug = `nofile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const url = `https://www.youtube.com/watch?v=NOFILE_${slug}`;
+    const url = `https://www.youtube.com/watch?v=${youTubeIdFor(slug)}`;
     const { mediaId, sidecarPath } = insertCuratorUrlReference(db, {
       uploaderMemberId: SYSTEM_ID,
       curatedRoot,
@@ -792,7 +793,7 @@ describe('curatorMediaService.editMedia — sidecar-backed', () => {
       primarySlug: slug,
       videoUrl: url,
       videoPlatform: 'youtube',
-      videoId: `NOFILE_${slug}`,
+      videoId: youTubeIdFor(slug),
       caption: 'will lose its sidecar',
       tags: ['#freestyle', '#trick', `#${slug}`],
     });
@@ -902,7 +903,7 @@ describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
   it('removes sidecar file + DB row + audit-logs (no S3 traffic)', async () => {
     const db = openDb();
     const slug = `urldel_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const url = `https://www.youtube.com/watch?v=DEL_${slug}`;
+    const url = `https://www.youtube.com/watch?v=${youTubeIdFor(slug)}`;
     const { mediaId, sidecarPath, sidecarFilename } = insertCuratorUrlReference(db, {
       uploaderMemberId: SYSTEM_ID,
       curatedRoot,
@@ -910,7 +911,7 @@ describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
       primarySlug: slug,
       videoUrl: url,
       videoPlatform: 'youtube',
-      videoId: `DEL_${slug}`,
+      videoId: youTubeIdFor(slug),
       caption: 'doomed',
       tags: ['#freestyle', '#trick', `#${slug}`],
     });
@@ -941,7 +942,7 @@ describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
   it('still removes DB row + audit-logs when sidecar file is missing on disk (graceful)', async () => {
     const db = openDb();
     const slug = `delnofile_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-    const url = `https://www.youtube.com/watch?v=DELNOFILE_${slug}`;
+    const url = `https://www.youtube.com/watch?v=${youTubeIdFor(slug)}`;
     const { mediaId, sidecarPath } = insertCuratorUrlReference(db, {
       uploaderMemberId: SYSTEM_ID,
       curatedRoot,
@@ -949,7 +950,7 @@ describe('curatorMediaService.deleteMedia — sidecar-backed', () => {
       primarySlug: slug,
       videoUrl: url,
       videoPlatform: 'youtube',
-      videoId: `DELNOFILE_${slug}`,
+      videoId: youTubeIdFor(slug),
       caption: null,
       tags: ['#freestyle', '#trick', `#${slug}`],
     });
@@ -1194,7 +1195,7 @@ function makeUrlVerifierStub(opts: {
 }) {
   let calls = 0;
   return {
-    impl: async (_url: string, _platform: 'youtube' | 'vimeo') => {
+    impl: async (_url: string, _platform: 'youtube' | 'vimeo' | 'tiktok' | 'instagram') => {
       calls++;
       const out: { ok: boolean; status: number; body?: Record<string, unknown> } = {
         ok: opts.ok,
@@ -1295,6 +1296,41 @@ describe('curatorMediaService.uploadUrlReference', () => {
     expect(audit).toBeDefined();
     expect(audit!.actor_member_id).toBe(ADMIN_ID);
     db.close();
+  });
+
+  // Defect caught: a curator cannot add a link-only Instagram item (the record
+  // videos posted only on Instagram), or it is stored with its tracking query,
+  // a thumbnail, or an id that does not match the seeder's for the same post.
+  it('Instagram link-only reference: canonical URL in the row and sidecar, no thumbnail', async () => {
+    const verifier = makeUrlVerifierStub({ ok: true, status: 200 });
+    const svc = svcModule.createCuratorMediaService({
+      storage: makeStubStorage(),
+      imageProcessor: makeStubImageProcessor(),
+      videoUrlVerifier: verifier.impl,
+      curatedRootDir: curatedRoot,
+    });
+    const canonical = 'https://www.instagram.com/p/DGlbm3quyxE/';
+    const result = await svc.uploadUrlReference({
+      adminMemberId: ADMIN_ID,
+      category: 'freestyle_tricks',
+      videoUrl: 'https://www.instagram.com/p/DGlbm3quyxE/?img_index=3',
+      videoPlatform: 'instagram',
+      primarySlug: 'mirage',
+      title: 'Instagram record',
+      sourceId: null,
+      startSeconds: null,
+      endSeconds: null,
+      tags: ['#freestyle', '#record'],
+    });
+    expect(result.mediaId).toBe(urlRefMediaId('instagram', canonical));
+    const sidecar = JSON.parse(readFileSync(result.filePath!, 'utf-8'));
+    expect(sidecar).toMatchObject({ videoUrl: canonical, videoPlatform: 'instagram' });
+    expect(sidecar.thumbnailUrl).toBeUndefined();
+    const db = openDb();
+    const row = db.prepare(`SELECT video_platform, video_id, video_url, thumbnail_url FROM media_items WHERE id = ?`)
+      .get(result.mediaId);
+    db.close();
+    expect(row).toEqual({ video_platform: 'instagram', video_id: 'DGlbm3quyxE', video_url: canonical, thumbnail_url: null });
   });
 
   it('Vimeo happy path: pulls thumbnail_url from oEmbed body and writes it into sidecar', async () => {
@@ -1485,14 +1521,14 @@ describe('curatorMediaService.uploadUrlReference', () => {
       category: 'freestyle_tricks',
       videoUrl: 'https://example.com/x',
       // @ts-expect-error testing runtime validation of bad platform
-      videoPlatform: 'tiktok',
+      videoPlatform: 'facebook',
       primarySlug: 'illusion',
       title: 'X',
       sourceId: null,
       startSeconds: null,
       endSeconds: null,
       tags: ['#freestyle', '#trick', '#illusion'],
-    })).rejects.toThrow(/YouTube or Vimeo/);
+    })).rejects.toThrow(/YouTube, Vimeo, TikTok or Instagram/);
     expect(verifier.callCount()).toBe(0);
   });
 
