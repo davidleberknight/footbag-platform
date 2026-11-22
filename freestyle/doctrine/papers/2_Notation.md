@@ -68,8 +68,9 @@ inherits them.
 - **Cross-body and side are independent.** The `[XBD]` cross-body flag does not by
   itself imply an `OP` side; a component's side is read only from its explicit
   `SAME` or `OP` token, and a cross-body terminal is written on either side (both
-  `SAME ... [XBD]` and `OP ... [XBD]` are valid). This is settled; its
-  authoritative home is the positional-identity doctrine.
+  `SAME ... [XBD]` and `OP ... [XBD]` are valid). This is the working reading,
+  recorded in the positional-identity doctrine, and it awaits the rules expert's
+  confirmation in the open queue ("Cross-body and OP").
 - **Notation uniqueness is a target invariant.** Complete operational notation
   should uniquely represent each ruled structural movement. Aliases and alternate
   names for the same movement may share notation. When distinct canonical

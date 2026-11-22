@@ -2,7 +2,7 @@
 
 The human-readable list of every open freestyle doctrine question awaiting the
 rules expert (Red Husted) or the curator. `QUESTION_REGISTRY.csv` is the
-machine-readable grain (Q01 through Q14); this document enumerates the same open
+machine-readable grain (Q01 through Q15); this document enumerates the same open
 work by subject, one entry per operator, so each question can be answered on its
 own. Each entry names the rows or names it affects, the exact fact that unlocks it,
 and the condition that closes it.
@@ -97,24 +97,14 @@ defines the movement, and its weight where the weight is not yet evidenced.
   Mirage, Pixie Wonton Butterfly.
 - **Wrecking.** Undefined. Affected names: Wrecking Mirage, Wrecking Pickup, Wrecking
   Torque.
-- **Floating.** Undefined. Affected row: floating mirage (active canonical; the
-  floating contribution is not independently verified).
 - **Slicing.** Undefined. Affected names: Slicing Butterfly, Slicing far Butterfly,
   Slicing Infinity (Lawn Moir's base reading, pending a notation authoring attempt).
-- **Splicing.** Undefined. Affected row: splicing paradox mirage (active canonical;
-  the splicing contribution is not independently verified).
 - **Spyro.** Spyro is ruled a trick, not a general modifier; the open question is
   what a spyro prefix means (registry Q14). Affected held names: spyro illusion,
   spyro mirage, spyro whirl, fairy spyro mirage. The active row Colossus
   (`colossus`, 6 ADD, technical name Spyro Diving Symposium Whirl) waits on the same
   answer: its opening stays held until the prefix is ruled.
-- **Surfing.** The operator form is undefined. Affected rows: surfing osis, surfing
-  pickup same side (active canonical; the surfing contribution is not independently
-  verified).
 - **Zipper.** Undefined. Affected name: Zipper Stepping Op Butterfly Zipper.
-- **Symp.** Clarify whether the folk "symp" (or "symp.") token ever denotes anything
-  other than an abbreviation of the defined symposium operator; in the corpus it
-  appears only as that abbreviation.
 - **Blistering.** Undefined, and open since the batch that answered its paired
   question (sailing) left this one unanswered; the ask is the movement. No canonical
   row; ADD unevidenced.
@@ -184,16 +174,6 @@ defines the movement, and its weight where the weight is not yet evidenced.
   not a ruling. Chainsaw Massacre's own opening and Difficulty breakdown wait on the
   same answer. Unlock: the prefix contribution, which authors the Bubba-prefixed band
   off the settled bubba structure. Close: Red rules what the bubba prefix contributes.
-- **The alpine prefix.** Define, as an operator: what does the alpine prefix
-  contribute across the many bases it attaches to? Its separate directional-syntax
-  facet (the inward and outward-style tokens the alpine rows carry) is the
-  directional-syntax notation question below, not this one. Affected names: Alpine
-  Atomsmasher, Alpine Big Apple, Alpine Blurry Whirl, Alpine Fusion, Alpine Magellan,
-  Alpine PLO, Alpine Paste, Alpine Pigbeater, Alpine Ripwalk, Alpine Sidewalk, Alpine
-  Smog, Alpine Smudge, Alpine Spinning Whirl, Alpine Super Mario, Alpine Superduperfly,
-  Alpine Void. No canonical row; ADD unevidenced. Unlock: the movement and weight,
-  which authors the alpine band. Close: Red defines the alpine prefix (its directional
-  syntax resolves separately under the notation question).
 
 ## Notation and positional questions
 

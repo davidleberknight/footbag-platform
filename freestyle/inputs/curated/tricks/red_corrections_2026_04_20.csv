@@ -4158,7 +4158,6 @@ hurl,review_aspect,,positional,Open question still pending; clear once ruled.
 id,review_aspect,,add,Open question still pending; clear once ruled.
 jani_walker,review_aspect,,identity,Open question still pending; clear once ruled.
 miraging_symposium_mirage,review_aspect,,identity,Open question still pending; clear once ruled.
-nemesis,review_aspect,,add,Open question still pending; clear once ruled.
 nuclear_rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
 osis,review_aspect,,positional,Open question still pending; clear once ruled.
 paradon,review_aspect,,identity,Open question still pending; clear once ruled.
@@ -4173,8 +4172,6 @@ plasma,review_aspect,,notation,Open question still pending; clear once ruled.
 probe,review_aspect,,identity,Open question still pending; clear once ruled.
 quantum_butterfly,review_aspect,,identity,Open question still pending; clear once ruled.
 reactor,review_aspect,,add,Open question still pending; clear once ruled.
-reaper,review_aspect,,identity,Open question still pending; clear once ruled.
-refraction,review_aspect,,identity,Open question still pending; clear once ruled.
 rev_whirl,review_aspect,,notation,Open question still pending; clear once ruled.
 reverse_drifter,review_aspect,,positional,Open question still pending; clear once ruled.
 reverse_magellan,review_aspect,,notation,Open question still pending; clear once ruled.
@@ -4244,3 +4241,4 @@ terraging_opposite_clipper,review_status,expert_reviewed,pending,Held out of the
 terraging_same_clipper,is_active,1,0,"Held out of the main dictionary: its notation scores two dexterities at 4 ADD against the registry's +3 terraging weight, which the terraging-chain question has not ruled. Listed in Emerging Vocabulary until ruled."
 terraging_same_clipper,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
 terrage,review_aspect,,notation,"Kept in the main dictionary despite an incomplete formula, because it carries a world record: its ADD is ruled, but its only notation scores three brackets and it has no execution notation. Clear once the terraging-chain question is ruled and the notation is written."
+blurrier,description,,"A barfly with a stepping set: one dexterity off the clipper as the support foot relocates, then the barfly's two out-to-in circles, caught on a clipper.","Opening carried from the folded Stepping Barfly row: Blurrier is Stepping Barfly by the curator's ruling, and the text still holds (footbag.org's barfly circles out to in twice; Blurrier's notation plants after the first dexterity and catches on a clipper)."

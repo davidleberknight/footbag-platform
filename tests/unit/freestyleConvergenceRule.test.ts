@@ -262,6 +262,32 @@ describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
     expect(result.diagnostic).not.toBe('workbook doctrine blocker');
   });
 
+  // Defect caught: Nemesis held as an ADD mismatch after furious was ruled a
+  // two-dex set, so its barfly(4) + furious(+2) = 6 is reported blocked.
+  it('nemesis converges once furious scores +2, and is not doctrine-blocked', () => {
+    const result = assertFirstClassConvergence(
+      'nemesis',
+      { canonical_name: 'nemesis', adds: 6, base_trick: 'barfly', notation: 'NEMESIS' },
+      ['barraging'],
+      modifierTable,
+      4,
+    );
+    expect(result.status).not.toBe('governance-blocked');
+    expect(result.diagnostic).not.toBe('workbook doctrine blocker');
+  });
+
+  // Defect caught: Reaper or Refraction kept off a first-class page by a
+  // placeholder hold whose questions their footbag.org notation now answers.
+  it('reaper and refraction are not doctrine-blocked', () => {
+    for (const slug of ['reaper', 'refraction']) {
+      const result = assertFirstClassConvergence(
+        slug, { canonical_name: slug, adds: 3, base_trick: slug, notation: slug.toUpperCase() },
+        [], modifierTable, null,
+      );
+      expect(result.diagnostic, slug).not.toBe('workbook doctrine blocker');
+    }
+  });
+
   it('guay is NOT in DOCTRINE_BLOCKED_SLUGS anymore (curator resolution)', () => {
     // Released from curator_hold and promoted to first-class with
     // pickup-pattern dex + inside-stall decomposition.

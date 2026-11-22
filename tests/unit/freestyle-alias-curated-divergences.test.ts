@@ -30,6 +30,8 @@ const SHOWN_CLASSES = ['common', 'structural'];
 const defaultDisplayFor = (aliasType: string): number => (SHOWN_CLASSES.includes(aliasType) ? 1 : 0);
 /** The reason a shown-class name carries while its question is open. */
 const PENDING = 'Pending ruling:';
+/** The reason a structural name carries when a curator ruling keeps it hidden. */
+const RULED_HIDDEN = 'Hidden by ruling:';
 
 interface Override {
   aliasSlug: string;
@@ -84,12 +86,29 @@ const RULED = [
 
 /** Structural names held hidden while the question that bears on them is open. */
 const pendingHolds = () => diverging().filter(o => o.note.startsWith(PENDING));
+/** Structural names a curator ruling keeps hidden for good, each saying why. */
+const ruledHidden = () => diverging().filter(o => o.note.startsWith(RULED_HIDDEN));
 
 describe('the curated overrides that diverge from their class', () => {
-  it('are exactly the ruled exceptions and the names held pending a ruling', () => {
-    const pending = pendingHolds().map(o => o.aliasSlug);
+  it('are exactly the ruled exceptions and the names held pending or by a ruling', () => {
+    const held = [...pendingHolds(), ...ruledHidden()].map(o => o.aliasSlug);
     expect(diverging().map(o => o.aliasSlug).sort())
-      .toEqual([...RULED.map(r => r.slug), ...pending].sort());
+      .toEqual([...RULED.map(r => r.slug), ...held].sort());
+  });
+
+  // Defect caught: a name resting on Red's list alone shown as a public
+  // alternate name, against the ruling that the list is not naming evidence.
+  it('keeps the Red-only structural names hidden by ruling, each still a structural name', () => {
+    const hidden = ruledHidden();
+    expect(hidden.map(o => o.aliasSlug).sort()).toEqual([
+      'atomic_double_leg_over', 'furious_barfly', 'furious_paradox_mirage',
+      'pixie_double_leg_over', 'pixie_ducking_double_leg_over', 'spinning_symposium_whirl',
+      'stepping_barrage', 'stepping_double_leg_over', 'stepping_illusion', 'surging_ducking_blender',
+    ].sort());
+    for (const o of hidden) {
+      expect(o.aliasType, o.aliasSlug).toBe('structural');
+      expect(o.aliasDisplay, o.aliasSlug).toBe(0);
+    }
   });
 
   // Defect caught: a name hidden while it waits on a question, filed as anything
@@ -106,8 +125,9 @@ describe('the curated overrides that diverge from their class', () => {
 
   // Defect caught: a genuine structural name hidden from its trick's page with
   // no recorded reason, which is how the old default hid almost all of them.
-  it('hides no structural name without a pending ruling', () => {
-    const silent = diverging().filter(o => o.aliasType === 'structural' && !o.note.startsWith(PENDING));
+  it('hides no structural name without a pending or settled ruling', () => {
+    const silent = diverging().filter(o => o.aliasType === 'structural'
+      && !o.note.startsWith(PENDING) && !o.note.startsWith(RULED_HIDDEN));
     expect(silent.map(o => o.aliasSlug)).toEqual([]);
   });
 
@@ -126,7 +146,7 @@ describe('the curated overrides that diverge from their class', () => {
   });
 
   it('leaves every other override agreeing with its class', () => {
-    const held = new Set(pendingHolds().map(o => o.aliasSlug));
+    const held = new Set([...pendingHolds(), ...ruledHidden()].map(o => o.aliasSlug));
     const rest = retypes().filter(o => !RULED.some(r => r.slug === o.aliasSlug) && !held.has(o.aliasSlug));
     const disagreeing = rest.filter(o => o.aliasDisplay !== defaultDisplayFor(o.aliasType));
     expect(disagreeing.map(o => o.aliasSlug)).toEqual([]);

@@ -3310,7 +3310,9 @@ export const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // witchdoctor excluded: ruling
   // (atomic-mirage(4) + symposium(+1) = 5) now mechanically supported
   // via COMPOSITE_DERIVATIONS map + deriveComputedAddFromComposite.
-  'nemesis', 'sumo',
+  // nemesis excluded: furious is a two-dex set (+2), so barfly(4) +
+  // furious(+2) = 6 now converges.
+  'sumo',
   // wave2_blocked
   'bullwhip', 'terrage',
   // add_disagreement (open; not doctrine-locked)
@@ -3318,7 +3320,10 @@ export const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // curator_hold
   // guay released: curator resolved as pickup-pattern dex
   // primitive with inside-stall terminus; promoted to first-class.
-  'jani_walker', 'reaper', 'refraction',
+  // reaper and refraction released: footbag.org's notation for each now
+  // answers the question the workbook hold recorded (reaper's dex directions,
+  // refraction's decomposition).
+  'jani_walker',
 ]);
 
 // Curator-published flag-component decompositions for atomic singletons.

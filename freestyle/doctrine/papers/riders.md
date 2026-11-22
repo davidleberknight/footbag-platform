@@ -34,6 +34,10 @@ Each of these is a row-level movement question the rules expert owns.
    no exemplar — Toe Spinning Toe and the "What!?" name hang on it. And what does a
    spyro prefix mean, given that spyro is ruled a trick rather than a general
    modifier?
+5. **The bubba prefix (Q15).** Bubba is a settled standalone trick (bubba is 2 ADD,
+   symposium bubba 3), so this is not a define-the-movement question: what does bubba
+   contribute when it prefixes another base? The answer authors the bubba-prefixed
+   band, Chainsaw Massacre's breakdown among it.
 
 ## Operational riders
 
@@ -65,9 +69,10 @@ comes to cite one as its blocker, it is promoted into `QUESTION_REGISTRY.csv` fi
   The chassis runs atomic dex, then a no-plant symposium dex, then the base, and a
   qualifier could attach to any of the three. None of the six published
   atomic-symposium compounds carries a positional form, so the corpus cannot answer
-  it. The count is not in question: Bill Ted's Excellent Adventure, recorded as
-  "flailing ss symposium eggbeater", is published at 5, and eggbeater 3 plus flailing
-  2 gives exactly 5. Only the placement of `ss` is missing.
+  it. Bill Ted's Excellent Adventure, recorded as "flailing ss symposium eggbeater",
+  is published at 5 (eggbeater 3 plus flailing 2), but FootbagMoves gives it 7 with
+  two no-plant steps and an X-Dex; that count is its own open question in the queue.
+  This rider asks only where `ss` lands.
 
   Between them the two answers affect ten rows whose notation is blank or held — the
   eight blazing compounds, the bare blazing row, and Bill Ted — and additionally make
