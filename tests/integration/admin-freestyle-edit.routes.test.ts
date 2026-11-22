@@ -193,11 +193,11 @@ beforeAll(async () => {
     is_active: 1,
   });
   insertFreestyleTrickAlias(db, 'rm_me', 'alias_host', 'Remove Me');
-  // A displayed nickname and a hidden decomposition, for the reclassify tests.
+  // A displayed nickname and a hidden old name, for the reclassify tests.
   insertFreestyleTrickAlias(db, 'retype_me', 'alias_host', 'Retype Me',
     { alias_type: 'common', alias_display: 1 });
-  insertFreestyleTrickAlias(db, 'hidden_structural', 'alias_host', 'Hidden Structural',
-    { alias_type: 'structural', alias_display: 0 });
+  insertFreestyleTrickAlias(db, 'hidden_oldname', 'alias_host', 'Hidden Old Name',
+    { alias_type: 'historical', alias_display: 0 });
 
   // Two known registry sources for the source-link attach/detach tests, plus the
   // tricks they write against: source_host (pre-linked to src_a), source_host2
@@ -1337,13 +1337,13 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     // Publishing a class the default would hide is allowed, and now has to carry
     // the judgement the class cannot record. The reason is stored on the row, so
     // a later reader finds the exception explained rather than bare.
-    const reason = 'the orbit page is poorer without the reading that names the trick';
-    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: reason });
+    const reason = 'the page is poorer without the old name readers still search for';
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical', aliasDisplay: 'on', divergenceReason: reason });
     expect(res.status).toBe(303);
 
-    const row = aliasRow('hidden_structural')!;
-    expect(row.alias_type).toBe('structural');
+    const row = aliasRow('hidden_oldname')!;
+    expect(row.alias_type).toBe('historical');
     expect(row.alias_display).toBe(1);
     expect(row.display_reason).toBe(reason);
   });
@@ -1356,16 +1356,16 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     // Put the row back to what its class implies first, which clears any reason
     // an earlier case left standing. Without this the fallback to the standing
     // reason would carry the save, and the test would depend on file order.
-    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural' });
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical' });
 
-    const before = aliasRow('hidden_structural')!;
-    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on' });
+    const before = aliasRow('hidden_oldname')!;
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical', aliasDisplay: 'on' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('needs a reason');
 
-    const after = aliasRow('hidden_structural')!;
+    const after = aliasRow('hidden_oldname')!;
     expect(after.alias_display).toBe(before.alias_display);
     expect(after.alias_type).toBe(before.alias_type);
   });
@@ -1378,19 +1378,19 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
   });
 
   it('rejects a reason too short to carry a judgement', async () => {
-    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: 'because' });
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical', aliasDisplay: 'on', divergenceReason: 'because' });
     expect(res.status).toBe(422);
   });
 
   // Defect caught: markup pads a reason past the minimum length, so an exception
   // is stored with an explanation too short to carry a judgement.
   it('judges the reason by its cleaned text, so markup cannot pad it past the minimum', async () => {
-    const before = aliasRow('hidden_structural');
-    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: '<strong>because</strong>' });
+    const before = aliasRow('hidden_oldname');
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical', aliasDisplay: 'on', divergenceReason: '<strong>because</strong>' });
     expect(res.status).toBe(422);
-    expect(aliasRow('hidden_structural')).toEqual(before);
+    expect(aliasRow('hidden_oldname')).toEqual(before);
   });
 
   it('needs no reason when the publication state follows the class', async () => {
@@ -1413,22 +1413,22 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     // The field is not a re-confirmation. An edit that does not touch it must not
     // erase the explanation that is still true.
     const reason = 'the page needs the reading that names this trick beside it';
-    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: reason });
-    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on' });
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical', aliasDisplay: 'on', divergenceReason: reason });
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical', aliasDisplay: 'on' });
     expect(res.status).toBe(303);
-    expect(aliasRow('hidden_structural')!.display_reason).toBe(reason);
+    expect(aliasRow('hidden_oldname')!.display_reason).toBe(reason);
   });
 
   it('clears the reason when the exception it explained is withdrawn', async () => {
     // A stale explanation outliving its exception is worse than none: it would
     // describe a state the row no longer holds.
-    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: 'published on purpose for now' });
-    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
-      { aliasType: 'structural' });   // back to what the class implies
-    expect(aliasRow('hidden_structural')!.display_reason).toBeNull();
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical', aliasDisplay: 'on', divergenceReason: 'published on purpose for now' });
+    await post('/admin/freestyle/tricks/alias_host/aliases/hidden_oldname', admin(),
+      { aliasType: 'historical' });   // back to what the class implies
+    expect(aliasRow('hidden_oldname')!.display_reason).toBeNull();
   });
 
   it('rejects an unrecognized class with 422 and writes nothing', async () => {
@@ -1555,7 +1555,7 @@ describe('alias provenance, judgement and ownership are three separate facts', (
   it('stores the divergence reason apart from the provenance note', async () => {
     const reason = 'this reading names the trick and readers look for it';
     await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(),
-      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: reason });
+      { aliasType: 'historical', aliasDisplay: 'on', divergenceReason: reason });
     const row = aliasRow('provenanced')!;
     expect(row.display_reason).toBe(reason);
     expect(row.provenance_note).toBe('PROV abbreviation of provenanced');

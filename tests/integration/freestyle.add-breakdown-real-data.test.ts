@@ -89,7 +89,7 @@ const heldProseStructure: string[] = [];
 // each with the aspect its open question could change.
 const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   ['reactor', 'add'],              // the atomic-whirl X-Dex question
-  ['mind_bender', 'identity'],     // possibly Ducking Paradox Blender
+  ['voodoo', 'identity'],          // possibly Paradox Merlin
   ['tap', 'positional'],           // tapping side registration
   ['butterfly', 'notation'],       // shares its notation with the reverse whirl
   // Kept in the dictionary with an incomplete formula only because each carries

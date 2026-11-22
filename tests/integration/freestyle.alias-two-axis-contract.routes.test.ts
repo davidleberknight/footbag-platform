@@ -11,8 +11,10 @@
  *
  * The two are not duplicates of one judgement, and the cases below that matter
  * most are the ones where they disagree on purpose: a real community nickname
- * held back because a reader could reconstruct it from the canonical name, and a
- * structural reading published because the page would be poorer without it.
+ * held back because a reader could reconstruct it from the canonical name, a
+ * structural name held back while the question that bears on it is open, and an
+ * old name published because the page would be poorer without it. A shown
+ * structural name appears on the trick's page, never beside its name on a list.
  * Testing only the agreeing majority would pass equally well against a model
  * that collapsed the two, which is the model this pins the door shut on.
  *
@@ -63,21 +65,24 @@ beforeAll(async () => {
     operational_notation: 'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]',
   });
 
-  // The agreeing majority: a nickname published, everything else held back.
+  // The agreeing majority: a nickname and a structural name published, every
+  // search-only class held back.
   insertFreestyleTrickAlias(db, 'shownnickname', HOST, 'Shown Nickname',
     { alias_type: 'common', alias_display: 1 });
-  insertFreestyleTrickAlias(db, 'hiddendecomposition', HOST, 'Hidden Decomposition',
-    { alias_type: 'structural', alias_display: 0 });
+  insertFreestyleTrickAlias(db, 'publisheddecomposition', HOST, 'Published Decomposition',
+    { alias_type: 'structural', alias_display: 1 });
   insertFreestyleTrickAlias(db, 'hiddenabbreviation', HOST, 'Hidden Abbreviation',
     { alias_type: 'technical', alias_display: 0 });
   insertFreestyleTrickAlias(db, 'hiddenoldname', HOST, 'Hidden Old Name',
     { alias_type: 'historical', alias_display: 0 });
 
-  // The two deliberate exceptions, which are the point of the file.
+  // The deliberate exceptions, which are the point of the file.
   insertFreestyleTrickAlias(db, 'heldbacknickname', HOST, 'Held Back Nickname',
     { alias_type: 'common', alias_display: 0 });
-  insertFreestyleTrickAlias(db, 'publisheddecomposition', HOST, 'Published Decomposition',
-    { alias_type: 'structural', alias_display: 1 });
+  insertFreestyleTrickAlias(db, 'hiddendecomposition', HOST, 'Hidden Decomposition',
+    { alias_type: 'structural', alias_display: 0 });
+  insertFreestyleTrickAlias(db, 'publishedoldname', HOST, 'Published Old Name',
+    { alias_type: 'historical', alias_display: 1 });
 
   db.close();
   createApp = await importApp();
@@ -107,9 +112,11 @@ describe('the publication state decides what a reader sees', () => {
     expect(await detailPage()).toContain('Shown Nickname');
   });
 
-  it('keeps a structural decomposition off the page', async () => {
-    expect(await browseRow()).not.toContain('Hidden Decomposition');
-    expect(await detailPage()).not.toContain('Hidden Decomposition');
+  // Defect caught: a trick's genuine structural name searchable but missing from
+  // its page, or printed beside the name on the list as if it were a nickname.
+  it('shows a structural name at its default on the trick page only', async () => {
+    expect(await detailPage()).toContain('Published Decomposition');
+    expect(await browseRow()).not.toContain('Published Decomposition');
   });
 
   it('keeps an abbreviation off the page', async () => {
@@ -127,11 +134,18 @@ describe('a deliberate divergence between the two judgements is honoured', () =>
     expect(await detailPage()).not.toContain('Held Back Nickname');
   });
 
-  it('publishes a structural reading the curator chose to show', async () => {
-    // The mirror case: a decomposition on the page on purpose, because the
-    // trick's page is poorer without the reading that names it.
-    expect(await browseRow()).toContain('Published Decomposition');
-    expect(await detailPage()).toContain('Published Decomposition');
+  it('holds back a structural name while its question is open', async () => {
+    // The structural class is shown by default; a name held pending a ruling
+    // stays off the page until the hold is lifted.
+    expect(await browseRow()).not.toContain('Hidden Decomposition');
+    expect(await detailPage()).not.toContain('Hidden Decomposition');
+  });
+
+  it('publishes an old name the curator chose to show, on the trick page', async () => {
+    // The mirror case: a search-only class on the page on purpose, because the
+    // trick's page is poorer without it. A list prints community nicknames only.
+    expect(await detailPage()).toContain('Published Old Name');
+    expect(await browseRow()).not.toContain('Published Old Name');
   });
 });
 
