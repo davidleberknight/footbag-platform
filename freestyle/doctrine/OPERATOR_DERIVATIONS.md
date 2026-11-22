@@ -261,8 +261,8 @@ the written symposium a second scored treatment the row would be 6, contradictin
 its own published count.
 
 So the folk names unpack the set rather than stacking on it: Flailing Symposium
-Mirage is mirage 2 plus flailing 2 = 4, Flailing Symposium Whirl is 5, and
-Flailing Symposium Eggbeater is 5. No repeated-operator question arises.
+Whirl is 5, and Flailing Symposium Eggbeater is 5. No repeated-operator question
+arises.
 
 **Not derived here, but since ruled: the positional qualifier.** Several flailing
 names carry `ss` or `far`, and nothing in the arithmetic above says what that
