@@ -248,6 +248,16 @@ const FOLDS = [
     // Barraging is the old name of furious, so the name is kept search-only.
     oldName: true,
   },
+  {
+    retired: 'blazing_mirage',
+    retiredName: 'blazing mirage',
+    survivor: 'blaze',
+    dependants: [],
+    movedFields: [],
+    // Blaze takes the blazing link the retired row carried, on its mirage base.
+    movedLinks: 'blazing',
+    shown: true,
+  },
 ];
 
 // The override a fold's retired name takes: a genuine structural name the

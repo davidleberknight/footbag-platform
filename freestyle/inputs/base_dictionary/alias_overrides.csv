@@ -379,9 +379,10 @@ two_bag,retype,technical,0,truncation of the canonical
 two_bag_juggling,retype,technical,0,spelling variant of the canonical
 warping_mirage,retype,structural,1,genuine decomposition name of the same movement
 weaving_pigbeater,retype,structural,0,Pending ruling: what this name denotes.
-whirling_mirage,retype,structural,0,"Pending ruling: the notation Blaze, Blazing Mirage, Blazing Butterfly and Bling Blang share."
+whirling_mirage,retype,suppressed,0,"Misleading: Blaze opens on the blazing set, and whirling is the body modifier, not that set, so the name reads as a different movement; it stays searchable."
+blazing_mirage,retype,structural,1,"Shown: the decomposition name of Blaze, which carried it as a second canonical row. FootbagMoves gives Blazing Mirage as Blaze's technical name and the Stanford list spells it Blazing Mirage (Blaze)."
 whirling_osis,retype,structural,1,genuine decomposition name of the same movement
-whirling_reverse_whirl,retype,structural,0,"Pending ruling: the notation Blaze, Blazing Mirage, Blazing Butterfly and Bling Blang share."
+whirling_reverse_whirl,retype,structural,0,"Pending ruling: the notation Blazing Butterfly and Bling Blang share."
 whirling_rev_whirl,retype,technical,0,"Technical name of Bling Blang, which carried it as a second canonical row: FootbagMoves gives Whirling Reverse Whirl as Bling Blang's technical name and a Stanford list pairs the two. Folded into Bling Blang by the maintainer's identity ruling, Bling Blang taking the row's reverse-whirl base, family and cell; carried inline on the surviving Red row and retyped here to a non-display technical redirect."
 spinning_legover,retype,technical,0,"Technical name of Merkon, which carried it as a second canonical row: the rules expert ruled Merkon = spinning legover, and footbag.org move 205 gives it as Merkon's other name with the same notation. Folded into Merkon by the maintainer's identity ruling, Merkon taking the row's technique notes; carried inline on the surviving row and retyped here to a non-display technical redirect."
 stepping_barfly,retype,structural,1,"Shown: the decomposition name of Blurrier, which carried it as a second canonical row. footbag.org's Blurrier notation is one stepping dexterity on the clipper-set Down cell, Barfly; the Stepping Barfly row had no source of its own. Folded into Blurrier by the maintainer's identity ruling; carried inline on the surviving row and shown in Also called."
