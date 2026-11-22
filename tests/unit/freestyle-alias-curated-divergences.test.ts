@@ -1,18 +1,20 @@
 /**
- * The six aliases whose publication state is set against their class on purpose.
+ * The aliases whose publication state is set against their class on purpose.
  *
  * Every other curated override agrees with the state its class implies, so these
- * six are the whole evidence that the two are separate judgements rather than
- * one judgement stored twice. Each was ruled individually, and the reasons are
+ * are the whole evidence that the two are separate judgements rather than one
+ * judgement stored twice. Each was ruled individually, and the reasons are
  * specific: two are community nicknames a reader can reconstruct from the
  * canonical name, one is held pending doctrine, one names a narrower move than
  * the trick it points at, one is a structural reading published because the
- * page would be poorer without it, and one is footbag.org's technical name for
- * a trick stored under its community name, shown beside it.
+ * page would be poorer without it, one is footbag.org's technical name for a
+ * trick stored under its community name, shown beside it, and two are genuine
+ * decomposition names the maintainer ruled shown on their trick's page (Gyro
+ * Torque on Mobius, Ducking Paradox Blender on Mind Bender).
  *
  * They are pinned here because a later change that quietly brought them into
  * line with their classes would look like tidying and would silently reverse
- * six decisions. Anything moving them has to say so.
+ * these decisions. Anything moving them has to say so.
  *
  * The reasons are asserted as present, not as exact text. Rewording a ruling is
  * a curator's business; leaving one unexplained is not.
@@ -80,10 +82,12 @@ const RULED = [
   { slug: 'whirlwalk',                type: 'common',     display: 0 },
   { slug: 'reverse_around_the_world', type: 'structural', display: 1 },
   { slug: 'stepping_superfly',        type: 'structural', display: 1 },
+  { slug: 'gyro_torque',              type: 'structural', display: 1 },
+  { slug: 'ducking_paradox_blender',  type: 'structural', display: 1 },
 ];
 
 describe('the curated overrides that diverge from their class', () => {
-  it('are exactly the six that were ruled', () => {
+  it('are exactly the ones that were ruled', () => {
     expect(diverging().map(o => o.aliasSlug).sort()).toEqual(RULED.map(r => r.slug).sort());
   });
 

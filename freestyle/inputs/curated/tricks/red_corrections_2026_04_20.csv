@@ -121,7 +121,7 @@ phoenix,notation,,PIXIE DUCKING BUTTERFLY,"Decomposition form per JOB_NOTATION: 
 phoenix,operational_notation,,TOE > SAME IN [DEX] >> DUCK [BOD] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
 phoenix,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Pixie Ducking Butterfly"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
 mind-bender,notation,,DUCKING PARADOX BLENDER,"Decomposition form per JOB_NOTATION: stacked modifiers + base; FootbagMoves technical name ""Ducking Paradox Blender"" corroborates; editorial decomposition agrees."
-mind-bender,operational_notation,,CLIP >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
+mind-bender,operational_notation,,CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Curator ruling: Mind Bender and Ducking Paradox Blender are one trick, folded into Mind Bender. The dexterity after the duck is written OP IN, as footbag.org's Stepping Ducking Paradox Blender writes it, in place of FootbagMoves' Same Front Whirl."
 mind-bender,operational_notation_source,,"Source: FootbagMoves.com (curator-reviewed 2026-05-11). Wave-2 Tier-1 federation-not-adoption: FM technical_name ""Ducking Paradox Blender"" matches IFPA semantic decomposition; operational notation IFPA-normalized (ALL-CAPS + [brackets]) from FM raw paste data.",Wave-2 Tier-1 operational notation provenance 2026-05-11.
 tripwalk,notation,,QUANTUM BUTTERFLY,"Value held pending the ""Quantum butterfly's derived formula"" question in RED_QUEUE.md: tripwalk shares the QUANTUM BUTTERFLY label with the distinct canonical quantum-butterfly, whose chassis is unresolved. Not grounded by the JOB_NOTATION default."
 tripwalk,operational_notation,,TOE > OP IN [DEX] >> OP OUT [DEX] > OP CLIP [XBD] [DEL],Wave-2 Tier-1 operational notation seeding 2026-05-11: FM-derived; IFPA-normalized casing/brackets; federation-not-adoption preserved.
@@ -1054,8 +1054,6 @@ ducking-eclipse,notation,,DUCKING ECLIPSE,W8c 2026-05-27: JOB per mechanical upp
 ducking-eclipse,operational_notation,,TOE > DUCK [BOD] JUMP [BOD] > SAME INSIDE [DEL] > SAME TOE [DEL],W8c 2026-05-27: jump-class chassis with DUCK [BOD] pre-jump. 4 brackets matches 4 ADD.
 stepping-ducking-torque,notation,,STEPPING DUCKING TORQUE,W8c 2026-05-27: JOB per mechanical uppercase rule.
 stepping-ducking-torque,operational_notation,,CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL],W8c 2026-05-27: stepping-ducking chassis + torque chain. 6 brackets matches 6 ADD.
-ducking-paradox-blender,notation,,DUCKING PARADOX BLENDER,W8c 2026-05-27: JOB per mechanical uppercase rule.
-ducking-paradox-blender,operational_notation,,CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],W8c 2026-05-27: ducking-paradox chassis + blender chain. 6 brackets matches 6 ADD.
 stepping-barfly,notation,,STEPPING BARFLY,W9a 2026-05-27: JOB per mechanical uppercase rule.
 stepping-barfly,operational_notation,,CLIP > OP IN [DEX] >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD],W9a 2026-05-27: stepping leading-[DEX] + barfly's no-plant out-dex chain. 5 brackets matches 5 ADD.
 stepping-pickup,notation,,STEPPING PICKUP,W9a 2026-05-27: JOB per mechanical uppercase rule.
@@ -2078,7 +2076,6 @@ double-spinning-clipper,base_trick,clipper-stall,spinning-clipper,"Base trick se
 double-spinning-mirage,base_trick,mirage,spinning-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 double-spinning-osis,base_trick,osis,spinning-osis,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 double-spinning-whirl,base_trick,whirl,spinning-whirl,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-ducking-paradox-blender,base_trick,blender,paradox-blender,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 ducking-paradox-drifter,base_trick,drifter,paradox-drifter,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 ducking-paradox-flail,base_trick,flail,paradox-flail,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 ducking-paradox-illusion,base_trick,illusion,paradox-illusion,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -2195,7 +2192,7 @@ stepping-ducking-double-leg-over,base_trick,double-leg-over,ducking-double-leg-o
 stepping-ducking-drifter,base_trick,drifter,ducking-drifter,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-ducking-mirage,base_trick,mirage,ducking-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-ducking-osis,base_trick,osis,ducking-osis,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-stepping-ducking-paradox-blender,base_trick,blender,ducking-paradox-blender,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
+stepping-ducking-paradox-blender,base_trick,blender,mind-bender,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family; Ducking Paradox Blender is folded into Mind Bender"
 stepping-ducking-paradox-symposium-whirl,base_trick,whirl,mullet,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family; that parent is Mullet, the ducking paradox symposium whirl"
 stepping-paradox-torque,base_trick,torque,paradox-torque,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 stepping-symposium-mirage,base_trick,mirage,symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -3373,7 +3370,6 @@ symposium_mobius,description,Symposium-modified mobius.,"A mobius done without p
 irish_cream,description,Tapping-modified mobius.,"A mobius with a tap in front: a quick extra dexterity off the toe, then the mobius's half turn, dexterity and spin to an osis catch.","Opening rewrite: composed from the mobius opening, the stored tapping note and the stored execution notation."
 paradox_symposium_torque,description,Paradox + symposium on torque base. 6 ADD = paradox(+1) + symposium(+1) + torque(4); JOB CLIP (plant) > (no plant while) OP IN [PDX] [BOD] [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL].,"A symposium torque in which the hips switch sides on the dexterity: plant the setting foot, then the leg passes over the bag with the support leg off the ground and the body changing sides, before the torque's spin to an osis catch.","Opening rewrite: composed from the symposium torque opening, the stored paradox and symposium notes and the stored execution notation."
 spinning_symposium_torque,description,Spinning-modified symposium torque.,"A symposium torque with a full body spin first: spin off the set, then the leg passes over the bag while the support leg stays off the ground, and the torque's spin finishes on an osis catch.","Opening rewrite: composed from the symposium torque opening, the stored spinning note and the stored execution notation."
-ducking_paradox_blender,description,Ducking + paradox on blender base. 6 ADD = ducking(+1) + paradox(+1) + blender(4); JOB CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]. Double-body-event compound (duck dip + blender's own back-spin).,"A paradox blender with a duck first: duck under the bag off the clipper set, then the dexterity with the hips switching sides and the blender's turn to a same-side clipper.","Opening rewrite: composed from the paradox blender opening, the stored ducking note and the stored execution notation."
 fairy_ducking_torque,description,Fairy + ducking on torque base. 6 ADD = fairy(+1) + ducking(+1) + torque(4); JOB TOE > SAME OUT [DEX] >> DUCK [BOD] >> OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL].,"A torque with a fairy set and a duck in front: the bag is circled once on an outside path from the toe, you duck under it, then the torque's dexterity and spin finish on an osis catch.","Opening rewrite: composed from the torque description, the stored fairy and ducking notes and the stored execution notation."
 nuclear_torque,description,Nuclear on torque. 6 ADD = nuclear(2) + torque(4).,"A torque with a nuclear set in front: an outward dexterity off the clipper with the hips switching sides, then the torque's dexterity and spin to an osis catch.","Opening rewrite: composed from the torque description, the stored nuclear note and the stored execution notation."
 stepping_ducking_torque,description,Stepping + ducking on torque base. 6 ADD = stepping(+1) + ducking(+1) + torque(4); JOB CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]. Double-body-event compound.,"A torque with a stepping dexterity and a duck in front: one dexterity off the clipper set, a duck under the bag, then the torque's dexterity and spin to an osis catch.","Opening rewrite: composed from the torque description, the stored stepping and ducking notes and the stored execution notation."
@@ -4155,7 +4151,6 @@ double_spinning_whirl,review_aspect,,add,Open question still pending; clear once
 double_swirl_dragon,review_aspect,,add,Open question still pending; clear once ruled.
 double_switch_over,review_aspect,,add,Open question still pending; clear once ruled.
 double_whirl,review_aspect,,add,Open question still pending; clear once ruled.
-ducking_paradox_blender,review_aspect,,identity,Open question still pending; clear once ruled.
 ego,review_aspect,,add,Open question still pending; clear once ruled.
 fairy_butterfly,review_aspect,,notation,Open question still pending; clear once ruled.
 fairy_double_leg_over_same_side,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4174,7 +4169,6 @@ gyro_symposium_swirl,review_aspect,,notation,Open question still pending; clear 
 hurl,review_aspect,,positional,Open question still pending; clear once ruled.
 id,review_aspect,,add,Open question still pending; clear once ruled.
 jani_walker,review_aspect,,identity,Open question still pending; clear once ruled.
-mind_bender,review_aspect,,identity,Open question still pending; clear once ruled.
 miraging_dragon,review_aspect,,add,Open question still pending; clear once ruled.
 miraging_dyno,review_aspect,,add,Open question still pending; clear once ruled.
 miraging_eclipse,review_aspect,,add,Open question still pending; clear once ruled.

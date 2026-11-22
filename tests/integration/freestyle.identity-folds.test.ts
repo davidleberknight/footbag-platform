@@ -219,7 +219,22 @@ const FOLDS = [
     dependants: [],
     movedFields: ['description', 'execution_summary', 'learning_notes', 'prerequisite_notes'],
   },
+  {
+    retired: 'ducking_paradox_blender',
+    retiredName: 'ducking paradox blender',
+    survivor: 'mind_bender',
+    dependants: ['stepping_ducking_paradox_blender'],
+    movedFields: ['operational_notation'],
+    // A genuine decomposition name of the survivor, so it is shown on its page.
+    shown: true,
+  },
 ];
+
+// The override a fold's retired name takes: a genuine structural name the
+// survivor's page shows, or a hidden technical redirect.
+function expectedOverride(f: (typeof FOLDS)[number]): string[] {
+  return 'shown' in f && f.shown ? ['retype', 'structural', '1'] : ['retype', 'technical', '0'];
+}
 
 describe('identity folds: committed source outcomes', () => {
   it.each(FOLDS)('$retired leaves no row and no correction behind', (f) => {
@@ -227,14 +242,14 @@ describe('identity folds: committed source outcomes', () => {
     expect(corrections.filter(r => toSlug(r[0]) === f.retired)).toEqual([]);
   });
 
-  it.each(FOLDS)('$retired is carried on $survivor and retyped to a hidden redirect', (f) => {
+  it.each(FOLDS)('$retired is carried on $survivor and retyped for display or redirect', (f) => {
     const rows = [...additions, ...baseTricks].filter(r => toSlug(r[0]) === f.survivor);
     expect(rows.length, f.survivor).toBeGreaterThan(0);
     const carried = rows.flatMap(r => (r[4] ?? '').split('|').map(s => s.trim()));
     expect(carried).toContain(f.retiredName);
     const ov = aliasOverrides.find(r => r[0] === f.retired);
     expect(ov, `override for ${f.retired}`).toBeTruthy();
-    expect([ov![1], ov![2], ov![3]]).toEqual(['retype', 'technical', '0']);
+    expect([ov![1], ov![2], ov![3]]).toEqual(expectedOverride(f));
   });
 
   it.each(FOLDS)('the tricks built on $retired now name $survivor as their base', (f) => {
@@ -266,8 +281,9 @@ describe('identity folds: the retired address redirects', () => {
         slug: f.survivor, canonical_name: f.survivor, adds: '6',
         category: 'compound', review_status: 'expert_reviewed', is_active: 1,
       });
+      const [, aliasType, display] = expectedOverride(f);
       insertFreestyleTrickAlias(db, f.retired, f.survivor, f.retiredName, {
-        alias_type: 'technical', alias_display: 0,
+        alias_type: aliasType, alias_display: display === '1' ? 1 : 0,
       });
     }
     db.close();
@@ -280,5 +296,14 @@ describe('identity folds: the retired address redirects', () => {
     const res = await request(createApp()).get(`/freestyle/tricks/${f.retired}`);
     expect(res.status).toBe(301);
     expect(res.headers.location).toBe(`/freestyle/tricks/${f.survivor}`);
+  });
+
+  // Defect caught: a genuine structural name of the trick searchable but missing
+  // from its page, or a hidden redirect name printed there.
+  it.each(FOLDS)('$survivor shows $retiredName only when it is a shown name', async (f) => {
+    const res = await request(createApp()).get(`/freestyle/tricks/${f.survivor}`);
+    expect(res.status).toBe(200);
+    const shown = 'shown' in f && f.shown === true;
+    expect(res.text.toLowerCase().includes(f.retiredName), f.survivor).toBe(shown);
   });
 });

@@ -1882,7 +1882,7 @@
 "description": null,
 "aliases_json": null,
 "notation": "DUCKING PARADOX BLENDER",
-"operational_notation": "CLIP >> DUCK [BOD] >> SAME FRONT WHIRL [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
+"operational_notation": "CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1117
 },
 {
@@ -2175,7 +2175,7 @@
 "slug": "stepping_ducking_paradox_blender",
 "canonical_name": "stepping ducking paradox blender",
 "adds": "7",
-"base_trick": "ducking_paradox_blender",
+"base_trick": "mind_bender",
 "trick_family": "blender",
 "category": "compound",
 "description": null,
@@ -5524,19 +5524,6 @@
 "notation": "STEPPING DUCKING TORQUE",
 "operational_notation": "CLIP > OP IN [DEX] > DUCK [BOD] > OP IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
 "sort_order": 1404
-},
-{
-"slug": "ducking_paradox_blender",
-"canonical_name": "ducking paradox blender",
-"adds": "6",
-"base_trick": "paradox_blender",
-"trick_family": "blender",
-"category": "compound",
-"description": null,
-"aliases_json": null,
-"notation": "DUCKING PARADOX BLENDER",
-"operational_notation": "CLIP > DUCK [BOD] > OP IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]",
-"sort_order": 1405
 },
 {
 "slug": "stepping_barfly",
