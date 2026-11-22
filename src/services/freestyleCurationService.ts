@@ -142,10 +142,11 @@
  * canonical trick slug (checked across every row regardless of status) or an
  * existing alias slug (the global primary key); it leaves source_id and notes
  * unset, and writes the alias's public-display state from the class the curator
- * picked rather than letting it take the column default, so the nickname class is
- * the only one a reader sees by default. updateAlias sets both fields on an
- * existing alias, keeping the class editable for the life of the row and letting a
- * curator display a non-nickname alias, or hide a nickname, as a deliberate
+ * picked rather than letting it take the column default, so a community name or a
+ * genuine structural name is shown by default and every other class is
+ * search-only. updateAlias sets both fields on an existing alias, keeping the class
+ * editable for the life of the row and letting a curator show a search-only class,
+ * or hide a shown one (a structural name held pending a ruling), as a deliberate
  * exception; where the display state disagrees with what the class implies it
  * requires a reason and writes it to the alias's notes in the same statement, so
  * an exception and its explanation cannot be stored apart, and it clears that note
@@ -757,18 +758,19 @@ const ALIAS_TYPE_LABELS: Record<string, string> = {
 };
 const ALIAS_TYPES = Object.keys(ALIAS_TYPE_LABELS);
 
-// The nickname class, and the only one a reader sees by default. Public "Also
-// called" display follows the class: an alias's type decides its display state
-// when it is created, and a curator changes that state only as a deliberate
-// exception (a structural reading a trick's page genuinely needs beside it).
-const NICKNAME_ALIAS_TYPES = ['common'];
+// The classes a reader sees by default: a community name and a genuine
+// structural name of the same movement. Every other class resolves in search but
+// is never shown. Public "Also called" display follows the class: an alias's type
+// decides its display state when it is created, and a curator changes that state
+// only as a deliberate exception (a structural name held hidden pending a ruling).
+const SHOWN_ALIAS_TYPES = ['common', 'structural'];
 // The single definition of what a class implies about publication. Both the add
 // and the edit path read it, and the curated-override loader carries the same
 // rule in Python because the two cannot share an implementation; a test pins the
 // two definitions equivalent rather than a configuration layer existing to hold
 // one line.
 const displayDefaultForAliasType = (aliasType: string): number =>
-  (NICKNAME_ALIAS_TYPES.includes(aliasType) ? 1 : 0);
+  (SHOWN_ALIAS_TYPES.includes(aliasType) ? 1 : 0);
 /** Shortest reason that can carry a judgement rather than a keystroke. */
 const ALIAS_REASON_MIN = 12;
 const ALIAS_REASON_MAX = 500;

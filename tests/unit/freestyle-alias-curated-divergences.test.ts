@@ -1,16 +1,14 @@
 /**
  * The aliases whose publication state is set against their class on purpose.
  *
- * Every other curated override agrees with the state its class implies, so these
- * are the whole evidence that the two are separate judgements rather than one
- * judgement stored twice. Each was ruled individually, and the reasons are
- * specific: two are community nicknames a reader can reconstruct from the
- * canonical name, one is held pending doctrine, one names a narrower move than
- * the trick it points at, one is a structural reading published because the
- * page would be poorer without it, one is footbag.org's technical name for a
- * trick stored under its community name, shown beside it, and two are genuine
- * decomposition names the maintainer ruled shown on their trick's page (Gyro
- * Torque on Mobius, Ducking Paradox Blender on Mind Bender).
+ * A community name and a genuine structural name are shown by default; every
+ * other class is search-only. Two kinds of override depart from that. Four
+ * community nicknames are hidden, each ruled individually: two a reader can
+ * reconstruct from the canonical name, one held pending doctrine, one naming a
+ * narrower move than the trick it points at. And a structural name whose display
+ * would settle an open question early is held hidden pending a ruling; it keeps
+ * its class and says which question holds it, so lifting the hold lets the class
+ * decide again.
  *
  * They are pinned here because a later change that quietly brought them into
  * line with their classes would look like tidying and would silently reverse
@@ -28,8 +26,10 @@ const REPO_ROOT = join(__dirname, '..', '..');
 const OVERRIDES = join(REPO_ROOT, 'freestyle', 'inputs', 'base_dictionary', 'alias_overrides.csv');
 
 /** The publication state a class implies when nobody has ruled otherwise. */
-const NICKNAME_CLASS = 'common';
-const defaultDisplayFor = (aliasType: string): number => (aliasType === NICKNAME_CLASS ? 1 : 0);
+const SHOWN_CLASSES = ['common', 'structural'];
+const defaultDisplayFor = (aliasType: string): number => (SHOWN_CLASSES.includes(aliasType) ? 1 : 0);
+/** The reason a shown-class name carries while its question is open. */
+const PENDING = 'Pending ruling:';
 
 interface Override {
   aliasSlug: string;
@@ -74,21 +74,41 @@ function overrides(): Override[] {
 const retypes = () => overrides().filter(o => o.action === 'retype');
 const diverging = () => retypes().filter(o => o.aliasDisplay !== defaultDisplayFor(o.aliasType));
 
-/** What was ruled, and the shape of each ruling. */
+/** The individually ruled exceptions, and the shape of each ruling. */
 const RULED = [
   { slug: 'big_applesauce',           type: 'common',     display: 0 },
   { slug: 'frigidosis',               type: 'common',     display: 0 },
   { slug: 'infinity',                 type: 'common',     display: 0 },
   { slug: 'whirlwalk',                type: 'common',     display: 0 },
-  { slug: 'reverse_around_the_world', type: 'structural', display: 1 },
-  { slug: 'stepping_superfly',        type: 'structural', display: 1 },
-  { slug: 'gyro_torque',              type: 'structural', display: 1 },
-  { slug: 'ducking_paradox_blender',  type: 'structural', display: 1 },
 ];
 
+/** Structural names held hidden while the question that bears on them is open. */
+const pendingHolds = () => diverging().filter(o => o.note.startsWith(PENDING));
+
 describe('the curated overrides that diverge from their class', () => {
-  it('are exactly the ones that were ruled', () => {
-    expect(diverging().map(o => o.aliasSlug).sort()).toEqual(RULED.map(r => r.slug).sort());
+  it('are exactly the ruled exceptions and the names held pending a ruling', () => {
+    const pending = pendingHolds().map(o => o.aliasSlug);
+    expect(diverging().map(o => o.aliasSlug).sort())
+      .toEqual([...RULED.map(r => r.slug), ...pending].sort());
+  });
+
+  // Defect caught: a name hidden while it waits on a question, filed as anything
+  // but a structural name, so lifting the hold would not let the class show it.
+  it('holds only structural names pending, each hidden and saying which question holds it', () => {
+    const holds = pendingHolds();
+    expect(holds.length).toBeGreaterThan(0);
+    for (const o of holds) {
+      expect(o.aliasType, `${o.aliasSlug} is held under a search-only class`).toBe('structural');
+      expect(o.aliasDisplay, `${o.aliasSlug} is held but shown`).toBe(0);
+      expect(o.note.length, `${o.aliasSlug} names no question`).toBeGreaterThan(PENDING.length + 10);
+    }
+  });
+
+  // Defect caught: a genuine structural name hidden from its trick's page with
+  // no recorded reason, which is how the old default hid almost all of them.
+  it('hides no structural name without a pending ruling', () => {
+    const silent = diverging().filter(o => o.aliasType === 'structural' && !o.note.startsWith(PENDING));
+    expect(silent.map(o => o.aliasSlug)).toEqual([]);
   });
 
   it.each(RULED)('keeps $slug as ruled', ({ slug, type, display }) => {
@@ -106,7 +126,8 @@ describe('the curated overrides that diverge from their class', () => {
   });
 
   it('leaves every other override agreeing with its class', () => {
-    const rest = retypes().filter(o => !RULED.some(r => r.slug === o.aliasSlug));
+    const held = new Set(pendingHolds().map(o => o.aliasSlug));
+    const rest = retypes().filter(o => !RULED.some(r => r.slug === o.aliasSlug) && !held.has(o.aliasSlug));
     const disagreeing = rest.filter(o => o.aliasDisplay !== defaultDisplayFor(o.aliasType));
     expect(disagreeing.map(o => o.aliasSlug)).toEqual([]);
   });

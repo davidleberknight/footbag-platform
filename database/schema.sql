@@ -5652,14 +5652,21 @@ CREATE INDEX idx_freestyle_trick_source_links_source ON freestyle_trick_source_l
 
 -- v2.1: First-class alias table. Replaces the aliases_json column on
 -- freestyle_tricks (the column is retained during migration for backwards
--- compat; new code reads this table). alias_type is one of 'common' (an
--- established alternate name, the community-nickname class and the only one
--- displayed by default), 'historical' (a renamed-from name), 'technical' (an
--- abbreviation, slug form, or orthographic variant that must resolve but must
--- not display), 'structural' (a decomposition used as a name), 'typo' (never
--- displayed), 'suppressed', 'positional', or 'ambiguous'. alias_display below
--- follows the class: a curator sets it against the class only as a deliberate,
--- reason-carrying exception.
+-- compat; new code reads this table). alias_type is one of eight classes.
+-- Shown by default: 'common' (an established alternate community name for the
+-- same movement) and 'structural' (a genuine decomposition or technical name
+-- for the same movement: a full-word noun phrase of its real parts that people
+-- use or a source prints, e.g. Gyro Torque for mobius). Search-only (resolve
+-- and redirect, never shown): 'technical' (an abbreviation, slug form,
+-- spelling, hyphenation or word-order variant, or a trivial variant of the
+-- canonical name), 'historical' (an older or superseded name or terminology),
+-- 'positional' (a side-qualified notation phrase), 'typo' (a misspelling),
+-- 'suppressed' (a misleading name that breaks down into a different movement
+-- or asserts an equivalence that is not one), and 'ambiguous' (a name whose
+-- meaning depends on an open question). alias_display below follows the class:
+-- a curator sets it against the class only as a deliberate, reason-carrying
+-- exception, and a shown-class alias held hidden while a question is open keeps
+-- its class with a display_reason beginning "Pending ruling:".
 CREATE TABLE freestyle_trick_aliases (
   alias_slug   TEXT PRIMARY KEY,                   -- normalized alias key, e.g. 'bw'
   alias_text   TEXT NOT NULL,                      -- display form, e.g. 'BW'

@@ -25,43 +25,50 @@ const CLASSES = ['common', 'historical', 'technical', 'structural',
   'positional', 'typo', 'suppressed', 'ambiguous'];
 
 /**
- * The nickname classes the TypeScript side names.
+ * The shown-by-default classes the TypeScript side names.
  *
  * Read from the source rather than imported, because importing the service pulls
  * in a database connection this test has no need of, and because the point is to
  * compare two written expressions rather than to exercise one of them.
  */
-function typescriptNicknameClasses(): string[] {
+function typescriptShownClasses(): string[] {
   const src = readFileSync(SERVICE, 'utf8');
-  const m = src.match(/const NICKNAME_ALIAS_TYPES\s*=\s*\[([^\]]*)\]/);
-  expect(m, 'the application no longer names its nickname classes in one place').not.toBeNull();
+  const m = src.match(/const SHOWN_ALIAS_TYPES\s*=\s*\[([^\]]*)\]/);
+  expect(m, 'the application no longer names its shown classes in one place').not.toBeNull();
   return [...m![1].matchAll(/'([a-z]+)'/g)].map(x => x[1]);
 }
 
-/** The same judgement as the loader expresses it, in its exception test. */
-function pythonNicknameClasses(): string[] {
+/** The same judgement as the loader expresses it. */
+function pythonShownClasses(): string[] {
   const src = readFileSync(LOADER, 'utf8');
-  // Both the per-row exception check and the closing report compare display
-  // against membership of one class; either spelling yields the class name.
-  const inline = src.match(/\(adisplay == 1\) != \(atype == "([a-z]+)"\)/);
-  const report = src.match(/\(alias_display = 1\) <> \(alias_type = '([a-z]+)'\)/);
-  expect(inline, 'the loader no longer decides exceptions from the class').not.toBeNull();
-  expect(report, 'the loader no longer reports exceptions from the class').not.toBeNull();
-  expect(inline![1], 'the loader disagrees with itself between its check and its report')
-    .toBe(report![1]);
-  return [inline![1]];
+  const m = src.match(/^SHOWN_ALIAS_TYPES\s*=\s*\(([^)]*)\)/m);
+  expect(m, 'the loader no longer names its shown classes in one place').not.toBeNull();
+  // Both the per-row exception check and the closing report must decide from
+  // that one list, or the loader disagrees with itself.
+  expect(src, 'the loader no longer decides exceptions from the list')
+    .toMatch(/\(adisplay == 1\) != \(atype in SHOWN_ALIAS_TYPES\)/);
+  expect(src, 'the loader no longer reports exceptions from the list')
+    .toMatch(/<> \(alias_type IN \(\{shown\}\)\)[\s\S]{0,80}SHOWN_ALIAS_TYPES\)/);
+  return [...m![1].matchAll(/"([a-z]+)"/g)].map(x => x[1]);
 }
 
 describe('the class-to-publication default, in both languages', () => {
-  it('names the same classes as publishable', () => {
-    expect(pythonNicknameClasses().sort()).toEqual(typescriptNicknameClasses().sort());
+  it('names the same classes as shown by default', () => {
+    expect(pythonShownClasses().sort()).toEqual(typescriptShownClasses().sort());
   });
 
-  it('agrees on every class the column stores, not only the publishable one', () => {
+  it('shows community and structural names and nothing else', () => {
+    // Defect caught: a structural name of a trick hidden from its page by
+    // default, or a search-only class (abbreviation, old term, misspelling)
+    // printed there.
+    expect(typescriptShownClasses().sort()).toEqual(['common', 'structural']);
+  });
+
+  it('agrees on every class the column stores, not only the shown ones', () => {
     // Stated over the whole vocabulary so adding a ninth class cannot pass by
     // being absent from both lists for different reasons.
-    const ts = new Set(typescriptNicknameClasses());
-    const py = new Set(pythonNicknameClasses());
+    const ts = new Set(typescriptShownClasses());
+    const py = new Set(pythonShownClasses());
     for (const cls of CLASSES) {
       expect(ts.has(cls), `the two disagree about ${cls}`).toBe(py.has(cls));
     }

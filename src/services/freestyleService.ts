@@ -4068,9 +4068,10 @@ function buildTrickIndexShapingContext(
     statusBySlug.set(r.slug, { isActive: r.is_active, reviewStatus: r.review_status });
   }
 
-  // Aliases via the canonical table; one round trip, group by slug.
-  const aliasRows = runSqliteRead('freestyleTrickAliases.listAll', () =>
-    freestyleTrickAliases.listAll.all() as FreestyleTrickAliasRow[],
+  // A browse row prints community nicknames only; a trick's shown structural
+  // names appear on its own page. One round trip, group by slug.
+  const aliasRows = runSqliteRead('freestyleTrickAliases.listAllNicknames', () =>
+    freestyleTrickAliases.listAllNicknames.all() as FreestyleTrickAliasRow[],
   );
   const aliasesByTrickSlug = new Map<string, string[]>();
   for (const ar of aliasRows) {

@@ -1,5 +1,5 @@
 alias_slug,action,alias_type,alias_display,note
-atomic_dlo,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_dlo,retype,technical,0,modifier-stack decomposition rather than a nickname
 atomic_dod,retype,technical,0,abbreviation for fusion
 back,delete,,,junk alias to inactive/notation-phrase (back)
 blurry_dlo,retype,technical,0,abbreviation for fog
@@ -56,63 +56,63 @@ ducking_paradox_symposium_whirl,retype,technical,0,"Technical name of Mullet, wh
 2_bag_juggle,retype,technical,0,numeric/spelling variant of the canonical
 3_bag_juggle,retype,technical,0,numeric/spelling variant of the canonical; maintainer-confirmed on review
 3atw,retype,technical,0,abbreviation of the canonical
-alpine_atomsmasher,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_big_apple,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_fusion,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_ripwalk,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_sidewalk,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_spinning_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_super_mario,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_superduperfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-alpine_void,retype,structural,0,modifier-stack decomposition rather than a nickname
+alpine_atomsmasher,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_big_apple,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_fusion,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_ripwalk,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_sidewalk,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_spinning_whirl,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_super_mario,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_superduperfly,retype,structural,0,Pending ruling: the alpine prefix.
+alpine_void,retype,structural,0,Pending ruling: the alpine prefix.
 armaggedon,retype,typo,0,misspelling that collides with the armageddon trick
 assassin_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
-atomic_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_down_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_ducking_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_ducking_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_double_leg_over,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+atomic_double_over_down,retype,structural,0,"Pending ruling: the three-outward-dexterities-into-a-clipper line (Fusion, Cold Fusion, Id)."
+atomic_down_over_down,retype,technical,0,modifier-stack decomposition rather than a nickname
+atomic_ducking_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+atomic_ducking_whirl,retype,structural,0,Pending ruling: the atomic-whirl X-Dex.
+atomic_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 atomic_far_symp_double_down,retype,technical,0,abbreviation of the canonical name
-atomic_gyro_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-atomic_os_symposium_double_over_down,retype,structural,0,modifier-stack decomposition
-atomic_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+atomic_gyro_torque,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+atomic_legover,retype,structural,1,genuine decomposition name of the same movement
+atomic_mirage,retype,structural,1,genuine decomposition name of the same movement
+atomic_os_symposium_double_over_down,retype,suppressed,0,modifier-stack decomposition
+atomic_osis,retype,structural,1,genuine decomposition name of the same movement
 atomsmasher,retype,technical,0,spacing or spelling variant of the canonical name
 atw,retype,technical,0,abbreviation of the canonical name
 atw_heel,retype,technical,0,abbreviation of the canonical name
 atw_kick,retype,technical,0,abbreviation of the canonical name
-backside_symposium_toe_blur,retype,structural,0,modifier-stack decomposition rather than a nickname
+backside_symposium_toe_blur,retype,structural,0,Pending ruling: legacy toe titles that do not break down into their quantum target.
 bar_fly,retype,technical,0,spacing or spelling variant of the canonical name
 barraging_barfly_swirl,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_butterfly,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_butterfly_swirl,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_double_leg_over,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_drifter,retype,historical,0,former canonical name; Barraging compounds take the Furious name
-barraging_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 barraging_illusion,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_legover,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_mirage,retype,historical,0,former canonical name; Barraging compounds take the Furious name
-barraging_near_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_near_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 barraging_osis,retype,historical,0,former canonical name; Barraging compounds take the Furious name
-barraging_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_paradox_mirage,retype,historical,0,modifier-stack decomposition rather than a nickname
 barraging_pickup,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_symposium_eggbeater,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_symposium_legover,retype,historical,0,former canonical name; Barraging compounds take the Furious name
-barraging_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_whirl,retype,historical,0,modifier-stack decomposition rather than a nickname
 barroque,retype,typo,0,misspelling of baroque
 blurr_iest,retype,typo,0,misspelling of the canonical name
-blurry_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-blurry_blender,retype,structural,0,modifier-stack decomposition rather than a nickname
-blurry_dim_walk,retype,structural,0,modifier-stack decomposition rather than a nickname
+blurry_barfly,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+blurry_blender,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+blurry_dim_walk,retype,technical,0,modifier-stack decomposition rather than a nickname
 blurry_w,retype,technical,0,abbreviation of the canonical name
 bw,retype,technical,0,abbreviation of the canonical name
 clipper_delay,retype,historical,0,delay-form of the canonical stall name; maintainer-confirmed on review (stall and delay name the same thing)
-clipper_ducking_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-clipper_far_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-clipper_kick,retype,structural,0,modifier-stack decomposition rather than a nickname
-clipper_near_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+clipper_ducking_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+clipper_far_symposium_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+clipper_kick,retype,technical,0,modifier-stack decomposition rather than a nickname
+clipper_near_symposium_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 clipper_set_illusion,retype,historical,0,the formal footbag.org move name the Bubba nickname displaced; a superseded name that resolves but does not display
 clipper_set_ss_symposium_double_over_down,retype,positional,0,same-side / opposite-side marker on the canonical name
 clipper_stall_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
@@ -121,86 +121,86 @@ cross_body_sole_delay,retype,historical,0,delay-form of the canonical stall name
 da_da_curve,retype,technical,0,spacing or spelling variant of the canonical name
 da_da_curve_swirl,retype,technical,0,spacing or spelling variant of the canonical name
 dim_walk,retype,technical,0,spacing or spelling variant of the canonical name
-diving_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+diving_down_double_down,retype,structural,0,Pending ruling: the Down-family coordinate frame and the spun Downs.
 dod_reverse_swirl,retype,technical,0,abbreviation of the canonical name
 double_atw,retype,technical,0,abbreviation of the canonical name; maintainer-confirmed on review
 double_atw_heel,retype,technical,0,abbreviation of the canonical name
-double_down_near_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+double_down_near_osis,retype,positional,0,modifier-stack decomposition rather than a nickname
 double_leg_over_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
-double_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-double_swirling_dragon,retype,structural,0,modifier-stack decomposition rather than a nickname
+double_swirl,retype,structural,1,genuine decomposition name of the same movement
+double_swirling_dragon,retype,technical,0,modifier-stack decomposition rather than a nickname
 double_switchover,retype,technical,0,spacing or spelling variant of the canonical name
 doublespinning_kick,retype,technical,0,spelling variant of the canonical
 dragonfly,retype,technical,0,truncation of the canonical
-ducking_paradox_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+ducking_paradox_whirl,retype,structural,1,genuine decomposition name of the same movement
 dyno_op,retype,positional,0,same-side / opposite-side marker on the canonical name
 eclipse_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 egg_beater,retype,technical,0,spacing or spelling variant of the canonical name
 eggbeater_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 enterrage,retype,technical,0,contraction derivable from the canonical
-fairy_beater,retype,structural,0,modifier-stack decomposition rather than a nickname
+fairy_beater,retype,suppressed,0,modifier-stack decomposition rather than a nickname
 fairy_double_leg_over_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 fairy_legover_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 fairy_pickup_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
-fairy_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-fairy_spyro_symposium_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
-far_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+fairy_reverse_whirl,retype,technical,0,modifier-stack decomposition rather than a nickname
+fairy_spyro_symposium_torque,retype,structural,0,Pending ruling: the spyro prefix.
+far_butterfly,retype,positional,0,modifier-stack decomposition rather than a nickname
 flail_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 flailing_ss_symposium_eggbeater,retype,positional,0,same-side / opposite-side marker on the canonical name
 flapper_delay,retype,historical,0,delay-form of the canonical stall name
 flapper_stall,retype,historical,0,stall-form of the flapper nickname
-floating_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+floating_butterfly,retype,structural,1,genuine decomposition name of the same movement
 forehead_delay,retype,historical,0,delay-form of the canonical stall name
-furious_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_double_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_symposium_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+furious_barfly,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+furious_double_legover,retype,structural,1,genuine decomposition name of the same movement
+furious_eggbeater,retype,structural,1,genuine decomposition name of the same movement
+furious_paradox_mirage,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+furious_symposium_mirage,retype,structural,1,genuine decomposition name of the same movement
+furious_whirl,retype,structural,1,genuine decomposition name of the same movement
 gdlo,retype,technical,0,abbreviation of the canonical name
-gyro_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
-gyro_flurry,retype,structural,0,modifier-stack decomposition rather than a nickname
-gyro_shooting_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+gyro_drifter,retype,structural,1,genuine decomposition name of the same movement
+gyro_flurry,retype,structural,1,genuine decomposition name of the same movement
+gyro_shooting_double_down,retype,technical,0,modifier-stack decomposition rather than a nickname
 gyro_torque,retype,structural,1,"Shown: Gyro Torque is the genuine decomposition name of Mobius (gyro plus torque), and the maintainer rules that a trick's genuine structural names are shown in Also called, not only searched."
-gyro_torque_screw,retype,structural,0,modifier-stack decomposition rather than a nickname
-gyro_torquescrew,retype,structural,0,modifier-stack decomposition rather than a nickname
+gyro_torque_screw,retype,technical,0,modifier-stack decomposition rather than a nickname
+gyro_torquescrew,retype,structural,1,genuine decomposition name of the same movement
 head_delay,retype,historical,0,delay-form of the canonical stall name
 heel_delay,retype,historical,0,delay-form of the canonical stall name
 high_stepping_ddd,retype,technical,0,abbreviation of the canonical name
 illusion_kick,retype,technical,0,spelling variant of the canonical; maintainer-confirmed on review
-illusioning_flail,retype,structural,0,modifier-stack decomposition rather than a nickname
-illusioning_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
-illusioning_symposium_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-illusioning_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
-illusioning_symposium_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-infinity_swirl,retype,structural,0,decomposition built on the butterfly nickname
+illusioning_flail,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+illusioning_osis,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+illusioning_symposium_butterfly,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+illusioning_symposium_eggbeater,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+illusioning_symposium_mirage,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+infinity_swirl,retype,structural,0,Pending ruling: what this name denotes.
 inside_atw,retype,technical,0,abbreviation of the canonical name
 inside_datw,retype,technical,0,abbreviation of the canonical name
 inside_delay,retype,historical,0,delay-form of the canonical stall name
-inspinning_same_side_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
+inspinning_same_side_butterfly,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
 inspinning_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
 inspinning_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name; maintainer-confirmed on review (ss is not a nickname)
 knee_delay,retype,historical,0,delay-form of the canonical stall name
 leg_over,retype,technical,0,spacing or spelling variant of the canonical name
-miraging_clipper,retype,structural,0,modifier-stack decomposition rather than a nickname
+miraging_clipper,retype,structural,0,Pending ruling: miraging carries no registry weight.
 miraging_far_symp_double_down,retype,technical,0,abbreviation of the canonical name
-miraging_far_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-miraging_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
-miraging_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+miraging_far_symposium_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+miraging_legover,retype,structural,0,Pending ruling: miraging carries no registry weight.
+miraging_osis,retype,structural,0,Pending ruling: miraging carries no registry weight.
 mobiusscrew,retype,technical,0,spelling variant of gyro torquescrew
 neck_catch,retype,historical,0,delay-form of the canonical stall name
 neck_delay,retype,historical,0,delay-form of the canonical stall name
-neutron_drifter,retype,structural,0,modifier-stack decomposition
-neutron_torque,retype,structural,0,modifier-stack decomposition
+neutron_drifter,retype,ambiguous,0,modifier-stack decomposition
+neutron_torque,retype,ambiguous,0,modifier-stack decomposition
 nuclear_ddd,retype,technical,0,abbreviation of the canonical name
-nuclear_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-nuclear_far_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-nuclear_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-nuclear_far_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-nuclear_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-nuclear_near_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-nuclear_nova,retype,structural,0,modifier-stack decomposition rather than a nickname
-nuclear_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
+nuclear_double_over_down,retype,structural,0,"Pending ruling: the three-outward-dexterities-into-a-clipper line (Fusion, Cold Fusion, Id)."
+nuclear_far_butterfly,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
+nuclear_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+nuclear_far_mirage,retype,positional,0,modifier-stack decomposition rather than a nickname
+nuclear_mirage,retype,structural,0,Pending ruling: Sumo's X-Dex.
+nuclear_near_butterfly,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
+nuclear_nova,retype,structural,1,genuine decomposition name of the same movement
+nuclear_osis,retype,structural,1,genuine decomposition name of the same movement
 nuclear_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
 nuclear_ss_dyno,retype,positional,0,same-side / opposite-side marker on the canonical name
 nuclear_ss_guay,retype,positional,0,same-side / opposite-side marker on the canonical name
@@ -212,17 +212,17 @@ nuclear_ss_reverse_whirl,retype,positional,0,same-side / opposite-side marker on
 nuclear_ss_whirl,retype,positional,0,same-side / opposite-side marker on the canonical name
 outside_atw,retype,technical,0,abbreviation of the canonical name; maintainer-confirmed on review (atw is not a nickname)
 outside_delay,retype,historical,0,delay-form of the canonical stall name
-outside_in_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+outside_in_mirage,retype,technical,0,modifier-stack decomposition rather than a nickname
 p_blender,retype,technical,0,abbreviation of the canonical name
 p_drifter,retype,technical,0,abbreviation of the canonical name
 p_mirage,retype,technical,0,abbreviation of the canonical name; maintainer-confirmed on review
 p_s_whirl,retype,technical,0,abbreviation of the canonical name
 p_torque,retype,technical,0,abbreviation of the canonical name
 p_whirl,retype,technical,0,abbreviation of the canonical name
-paradox_double_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
-paradox_fusion,retype,structural,0,modifier-stack decomposition rather than a nickname
-paradox_grifter,retype,structural,0,modifier-stack decomposition rather than a nickname
-paradox_miraging_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
+paradox_double_drifter,retype,structural,1,genuine decomposition name of the same movement
+paradox_fusion,retype,structural,0,"Pending ruling: the three-outward-dexterities-into-a-clipper line (Fusion, Cold Fusion, Id)."
+paradox_grifter,retype,structural,0,Pending ruling: Royale's paradox marker.
+paradox_miraging_symposium_eggbeater,retype,structural,0,Pending ruling: how a breakdown writes a leading dexterity no scored operator names.
 paradox_t,retype,technical,0,abbreviation of the canonical name
 park_walk,retype,technical,0,spacing or spelling variant of the canonical name
 paste_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
@@ -230,42 +230,42 @@ peak,retype,technical,0,truncation of the canonical
 peak_delay,retype,historical,0,delay-form of the canonical stall name
 pickup_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 pigbeater_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
-pincher_squeeze,retype,structural,0,the pincher nickname compounded with the canonical
-pixie_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_diving_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_double_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+pincher_squeeze,retype,technical,0,the pincher nickname compounded with the canonical
+pixie_butterfly,retype,structural,1,genuine decomposition name of the same movement
+pixie_diving_butterfly,retype,structural,1,genuine decomposition name of the same movement
+pixie_double_leg_over,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+pixie_double_legover,retype,technical,0,modifier-stack decomposition rather than a nickname
 pixie_double_pickup_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 pixie_double_switchover,retype,technical,0,spacing or spelling variant of the canonical name
-pixie_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_ducking_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_ducking_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_opposite_side_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_same_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_drifter,retype,structural,1,genuine decomposition name of the same movement
+pixie_ducking_double_leg_over,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+pixie_ducking_mirage,retype,structural,1,genuine decomposition name of the same movement
+pixie_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+pixie_illusion,retype,structural,1,genuine decomposition name of the same movement
+pixie_opposite_side_butterfly,retype,positional,0,modifier-stack decomposition rather than a nickname
+pixie_reverse_whirl,retype,technical,0,modifier-stack decomposition rather than a nickname
+pixie_same_legover,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
 pixie_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
-pixie_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
-pixie_symposium_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+pixie_symposium_eggbeater,retype,structural,1,genuine decomposition name of the same movement
+pixie_symposium_reverse_whirl,retype,technical,0,modifier-stack decomposition rather than a nickname
 pod,retype,technical,0,abbreviation of the canonical name
-pogo_far_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-pogo_nuclear_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+pogo_far_mirage,retype,positional,0,modifier-stack decomposition rather than a nickname
+pogo_nuclear_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 pogo_ss_flail,retype,positional,0,same-side / opposite-side marker on the canonical name
 pogo_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
 pogo_ss_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
 pogo_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
 pogo_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
 pogo_ss_symposium_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
-quantum_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-quantum_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-quantum_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-railing_ducking_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-railing_ducking_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+quantum_double_down,retype,technical,0,modifier-stack decomposition rather than a nickname
+quantum_double_over_down,retype,structural,0,Pending ruling: the Down-family coordinate frame and the spun Downs.
+quantum_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+railing_ducking_butterfly,retype,structural,1,genuine decomposition name of the same movement
+railing_ducking_mirage,retype,structural,1,genuine decomposition name of the same movement
 railing_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
 railing_ss_dlo,retype,positional,0,same-side / opposite-side marker on the canonical name
 railing_ss_double_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
-railing_symposium_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+railing_symposium_mirage,retype,structural,1,genuine decomposition name of the same movement
 ratw,retype,technical,0,abbreviation of the canonical name
 red_wetter,retype,technical,0,spacing or spelling variant of the canonical name
 rev_atw,retype,technical,0,abbreviation of the canonical name
@@ -273,10 +273,10 @@ rev_whirl_op,retype,positional,0,same-side / opposite-side marker on the canonic
 reverse_around_the_world,retype,structural,1,"structural name kept as an alias and surfaced publicly: orbit stays canonical, and a reader on the orbit page needs to see that the reverse-around-the-world reading names this trick"
 reverse_atw,retype,technical,0,abbreviation of the canonical name
 reverse_atw_kick,retype,technical,0,abbreviation of the canonical name
-reverse_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-reverse_swirling_dragon,retype,structural,0,modifier-stack decomposition rather than a nickname
+reverse_swirl,retype,technical,0,modifier-stack decomposition rather than a nickname
+reverse_swirling_dragon,retype,technical,0,modifier-stack decomposition rather than a nickname
 revwhirl,retype,technical,0,spacing or spelling variant of the canonical name
-sail_down,retype,structural,0,modifier-stack decomposition
+sail_down,retype,structural,0,Pending ruling: what this name denotes.
 sailing_dod,retype,technical,0,abbreviation of the canonical name
 sailing_ss_butterfly,retype,positional,0,same-side / opposite-side marker on the canonical name
 sailing_ss_dlo,retype,positional,0,same-side / opposite-side marker on the canonical name
@@ -285,10 +285,10 @@ sailing_ss_illusion,retype,positional,0,same-side / opposite-side marker on the 
 sailing_ss_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
 sailing_ss_mirage,retype,positional,0,same-side / opposite-side marker on the canonical name
 sailing_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
-shooting_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-shooting_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-shooting_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
-shooting_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+shooting_double_over_down,retype,structural,0,Pending ruling: the Down-family coordinate frame and the spun Downs.
+shooting_down_double_down,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+shooting_eggbeater,retype,structural,1,genuine decomposition name of the same movement
+shooting_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 shooting_ss_clipper,retype,positional,0,same-side / opposite-side marker on the canonical name
 shooting_ss_illusion,retype,positional,0,same-side / opposite-side marker on the canonical name
 shooting_ss_legover,retype,positional,0,same-side / opposite-side marker on the canonical name
@@ -301,87 +301,87 @@ smog_ss,retype,positional,0,same-side / opposite-side marker on the canonical na
 smudge_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 sole_delay,retype,historical,0,delay-form of the canonical stall name
 spikehammer,retype,technical,0,spacing or spelling variant of the canonical name
-spinning_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-spinning_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-spinning_kick,retype,structural,0,modifier-stack decomposition rather than a nickname
-spinning_near_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_down_double_down,retype,structural,0,Pending ruling: the Down-family coordinate frame and the spun Downs.
+spinning_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+spinning_kick,retype,technical,0,modifier-stack decomposition rather than a nickname
+spinning_near_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 spinning_paradox_miraging_symposium_torque,retype,technical,0,spacing or spelling variant of the canonical name
-spinning_paradox_symposium_whirling_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-spinning_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-spinning_symposium_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+spinning_paradox_symposium_whirling_swirl,retype,structural,1,genuine decomposition name of the same movement
+spinning_reverse_whirl,retype,technical,0,modifier-stack decomposition rather than a nickname
+spinning_symposium_whirl,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
 spinning_symposium_wirl,retype,typo,0,misspelling of the canonical name
 splicing_ss_blender,retype,positional,0,same-side / opposite-side marker on the canonical name
 step_over,retype,technical,0,spelling variant of the canonical
-stepping_barrage,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_ducking_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_ducking_far_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_ducking_paradox_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_barrage,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+stepping_double_leg_over,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+stepping_drifter,retype,structural,0,Pending ruling: post-plant side re-registration (Tombstone and the tapping rows).
+stepping_ducking_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+stepping_ducking_far_double_over_down,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
+stepping_ducking_paradox_torque,retype,technical,0,modifier-stack decomposition rather than a nickname
+stepping_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 stepping_far_symp_double_down,retype,technical,0,abbreviation of the canonical name
-stepping_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_near_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_opposite_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_opposite_reaper,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_opposite_side_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_opposite_side_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_paradox_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_paradox_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_paradox_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-stepping_same_side_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_illusion,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+stepping_legover,retype,structural,1,genuine decomposition name of the same movement
+stepping_near_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+stepping_opposite_osis,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
+stepping_opposite_reaper,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
+stepping_opposite_side_butterfly,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
+stepping_opposite_side_reverse_whirl,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
+stepping_paradox_double_leg_over,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+stepping_paradox_eggbeater,retype,structural,0,Pending ruling: whether Bedwetter and Shooting Legover are one movement.
+stepping_paradox_mirage,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+stepping_paradox_whirl,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+stepping_reverse_whirl,retype,technical,0,modifier-stack decomposition rather than a nickname
+stepping_same_side_torque,retype,positional,0,modifier-stack decomposition rather than a nickname
 stepping_superfly,retype,structural,1,"footbag.org's technical name for Torch-r Rack (move 281), kept as an alias and shown beside the community name, as Gyro Torque is beside Mobius"
-stepping_torque,retype,structural,0,modifier-stack decomposition rather than a nickname
+stepping_torque,retype,structural,1,genuine decomposition name of the same movement
 super_fly,retype,technical,0,spacing or spelling variant of the canonical name
 superdeeduperfly,retype,technical,0,spelling variant of superduperfly
 superduperfly,retype,technical,0,elongation derivable from the canonical
 surfing_ss_blender,retype,positional,0,same-side / opposite-side marker on the canonical name
 surfing_ss_pickup,retype,positional,0,same-side / opposite-side marker on the canonical name
-surging_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-surging_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-surging_ducking_blender,retype,structural,0,modifier-stack decomposition rather than a nickname
-surging_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-surging_paradox_blender,retype,structural,0,modifier-stack decomposition rather than a nickname
-surging_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-surging_paradox_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_barfly,retype,structural,0,Pending ruling: the Down-family coordinate frame and the spun Downs.
+surging_butterfly,retype,structural,1,genuine decomposition name of the same movement
+surging_ducking_blender,retype,structural,0,Pending ruling: the name rests on Red's list alone; held until the maintainer rules whether that list is sufficient naming evidence.
+surging_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+surging_paradox_blender,retype,structural,1,genuine decomposition name of the same movement
+surging_paradox_mirage,retype,structural,0,Pending ruling: whether Surging and Spinning Mirage are distinct.
+surging_paradox_whirl,retype,structural,1,genuine decomposition name of the same movement
 surging_ss_osis,retype,positional,0,same-side / opposite-side marker on the canonical name
-surging_symposium_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
-swirling_dragon,retype,structural,0,modifier-stack decomposition rather than a nickname
-symposium_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-symposium_double_leg_over,retype,structural,0,modifier-stack decomposition rather than a nickname
-symposium_down_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-symposium_furious_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
-symposium_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
+surging_symposium_reverse_whirl,retype,structural,1,genuine decomposition name of the same movement
+swirling_dragon,retype,technical,0,modifier-stack decomposition rather than a nickname
+symposium_barfly,retype,structural,1,genuine decomposition name of the same movement
+symposium_double_leg_over,retype,structural,1,genuine decomposition name of the same movement
+symposium_down_double_down,retype,structural,0,Pending ruling: the Down-family coordinate frame and the spun Downs.
+symposium_furious_legover,retype,technical,0,modifier-stack decomposition rather than a nickname
+symposium_illusion,retype,structural,1,genuine decomposition name of the same movement
 symposium_mirage_ss,retype,positional,0,same-side / opposite-side marker on the canonical name
 symposium_swirl_op,retype,positional,0,same-side / opposite-side marker on the canonical name
-tapping_gyro_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
-tapping_mobius,retype,structural,0,modifier-stack decomposition rather than a nickname
+tapping_gyro_drifter,retype,structural,0,Pending ruling: post-plant side re-registration (Tombstone and the tapping rows).
+tapping_mobius,retype,structural,0,Pending ruling: post-plant side re-registration (Tombstone and the tapping rows).
 tatw,retype,technical,0,abbreviation of the canonical name
 three_bag,retype,technical,0,truncation of the canonical; maintainer-confirmed on review
 three_bag_juggling,retype,technical,0,spelling variant of the canonical; maintainer-confirmed on review (3 spells three rather than naming anything)
 toe,retype,ambiguous,0,bare surface word; too generic to display
-toe_barrage,retype,structural,0,modifier-stack decomposition rather than a nickname
-toe_blizzard,retype,structural,0,modifier-stack decomposition rather than a nickname
-toe_blur,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_barrage,retype,structural,0,Pending ruling: the terraging structure and scoring.
+toe_blizzard,retype,structural,0,Pending ruling: legacy toe titles that do not break down into their quantum target.
+toe_blur,retype,structural,0,Pending ruling: legacy toe titles that do not break down into their quantum target.
 toe_delay,retype,historical,0,delay-form of the canonical stall name
-toe_far_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-toe_mobius,retype,structural,0,modifier-stack decomposition rather than a nickname
-toe_near_barrage,retype,structural,0,modifier-stack decomposition rather than a nickname
-toe_near_symposium_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
-toe_set_spinning_double_over_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+toe_far_symposium_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+toe_mobius,retype,suppressed,0,modifier-stack decomposition rather than a nickname
+toe_near_barrage,retype,positional,0,modifier-stack decomposition rather than a nickname
+toe_near_symposium_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
+toe_set_spinning_double_over_down,retype,suppressed,0,modifier-stack decomposition rather than a nickname
 torture_rack,retype,historical,0,"how the community name Torch-r Rack is pronounced (footbag.org move 281); kept so a search for it still finds the trick, hidden so one nickname shows; ratified by the maintainer"
 triple_atw,retype,technical,0,abbreviation of the canonical name
-triple_spinning_kick,retype,structural,0,modifier-stack decomposition rather than a nickname
+triple_spinning_kick,retype,technical,0,modifier-stack decomposition rather than a nickname
 two_bag,retype,technical,0,truncation of the canonical
 two_bag_juggling,retype,technical,0,spelling variant of the canonical
-warping_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-weaving_pigbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
-whirling_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-whirling_osis,retype,structural,0,modifier-stack decomposition rather than a nickname
-whirling_reverse_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
+warping_mirage,retype,structural,1,genuine decomposition name of the same movement
+weaving_pigbeater,retype,structural,0,Pending ruling: what this name denotes.
+whirling_mirage,retype,structural,0,"Pending ruling: the notation Blaze, Blazing Mirage, Blazing Butterfly and Bling Blang share."
+whirling_osis,retype,structural,1,genuine decomposition name of the same movement
+whirling_reverse_whirl,retype,structural,0,"Pending ruling: the notation Blaze, Blazing Mirage, Blazing Butterfly and Bling Blang share."
 whirling_rev_whirl,retype,technical,0,"Technical name of Bling Blang, which carried it as a second canonical row: FootbagMoves gives Whirling Reverse Whirl as Bling Blang's technical name and a Stanford list pairs the two. Folded into Bling Blang by the maintainer's identity ruling, Bling Blang taking the row's reverse-whirl base, family and cell; carried inline on the surviving Red row and retyped here to a non-display technical redirect."
 spinning_legover,retype,technical,0,"Technical name of Merkon, which carried it as a second canonical row: the rules expert ruled Merkon = spinning legover, and footbag.org move 205 gives it as Merkon's other name with the same notation. Folded into Merkon by the maintainer's identity ruling, Merkon taking the row's technique notes; carried inline on the surviving row and retyped here to a non-display technical redirect."
 ducking_paradox_blender,retype,structural,1,"Shown: the decomposition name of Mind Bender, which carried it as a second canonical row. FootbagMoves gives Ducking Paradox Blender as Mind Bender's technical name and the Stanford list writes Ducking Paradox Blender (Mind Bender). Folded into Mind Bender by the maintainer's identity ruling; carried inline on the surviving row and shown in Also called, since the maintainer rules that a trick's genuine structural names are shown."
@@ -398,8 +398,8 @@ ducking_barfly,retype,technical,0,"Decomposition name of Spanishfly, which carri
 stepping_near_butterfly,retype,positional,0,"same-side / opposite-side marker on the canonical name: PassBack's Stepping near Butterfly is Sidewalk (near = same side, per the ratified positional mapping), carried explicitly once the either-side stepping butterfly row retired into Ripwalk so the near form never falls through to the far-side Ripwalk."
 stepping_butterfly_same_side,retype,positional,0,"same-side / opposite-side marker on the canonical name: FootbagMoves' Stepping Butterfly (same side) is Sidewalk, carried explicitly once the either-side stepping butterfly row retired into Ripwalk so the same-side form never falls through to the far-side Ripwalk."
 furious_double_leg_over,retype,technical,0,"Technical name of Nebula, which carried it as a second canonical row: FootbagMoves gives Nebula as Furious DLO. Folded into Nebula by the maintainer's identity ruling, Nebula taking the row's furious notation, link and opening; carried inline on the surviving row and retyped here to a non-display technical redirect."
-zulu_far_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
-zulu_far_pickup,retype,structural,0,modifier-stack decomposition rather than a nickname
+zulu_far_legover,retype,positional,0,modifier-stack decomposition rather than a nickname
+zulu_far_pickup,retype,positional,0,modifier-stack decomposition rather than a nickname
 big_applesauce,retype,common,0,"curator ruling: a play on the big apple family rather than an independent name. It stays a community name, so the class is unchanged and only the display is turned off; search and record resolution keep it."
 frigidosis,retype,common,0,"curator ruling: folk-name overload, not a clean equivalence, held out of display pending doctrine. Brings the row into agreement with the suppression already enforced on the rendered surfaces. It is a community name, not a misspelling or an abbreviation, so the class is unchanged."
 infinity,retype,common,0,"curator ruling: Infinity names the clipper-set Butterfly, so it is not displayed as an exact alias of Butterfly; what distinguishes it is the set it opens from rather than the side, since the far execution is the Butterfly default and only a same-side execution needs asserting. The Butterfly page carries a naming note instead. Brings the row into agreement with the suppression already enforced on the rendered surfaces. Class unchanged: it is a community name. Do not re-enable the display."

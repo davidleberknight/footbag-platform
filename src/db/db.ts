@@ -3184,6 +3184,16 @@ export const freestyleTrickAliases = {
     ORDER BY trick_slug, alias_text COLLATE NOCASE
   `); },
 
+  // The community nicknames for all tricks: the shown names a browse row prints
+  // beside the trick name. A shown structural name belongs on the trick's own
+  // page only, so it is left out here; the service groups by trick_slug.
+  get listAllNicknames() { return db.prepare(`
+    SELECT alias_text, trick_slug
+    FROM freestyle_trick_aliases
+    WHERE alias_display = 1 AND alias_type = 'common'
+    ORDER BY trick_slug, alias_text COLLATE NOCASE
+  `); },
+
   // Every trick slug the alias table holds a row for, whatever the display
   // gate says. Read alongside listAll so a caller can tell "this trick has no
   // aliases recorded" from "this trick's aliases are all curated out of

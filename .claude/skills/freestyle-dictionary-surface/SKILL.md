@@ -74,7 +74,7 @@ The single-mapping-site pattern: status enums, alias categories, media tier orde
 
 ### Search resolves all aliases; display surfaces only what helps
 
-An alias carries a curator-set type (the `alias_type` classes in `database/schema.sql`) and, separately, a display flag (`alias_display`). Search resolves any alias to the canonical trick regardless of the flag, so a misspelling or an internal shorthand still finds the move. Public surfaces render one "Also called" list holding exactly the aliases whose display flag is set; the type is curator metadata and does not by itself decide what a reader sees.
+An alias carries a curator-set type (the `alias_type` classes in `database/schema.sql`) and, separately, a display flag (`alias_display`). Search resolves any alias to the canonical trick regardless of the flag, so a misspelling or an internal shorthand still finds the move. A trick's page renders one "Also called" list holding exactly the aliases whose display flag is set; a browse row prints only a shown community nickname beside the trick name. The type sets the flag's default (common and structural shown, every other class search-only), and a curator sets the flag against it only with a recorded reason.
 
 ### The ontology is the joint model
 
@@ -110,11 +110,16 @@ Same source data; different curatorial choice. The family page wants breadth; th
 
 | Category | Render rule | Example |
 |---|---|---|
-| Common alias | Displayed when flagged | `Whip` → rev_whirl; `Reverse Mirage` → illusion |
-| Historical name | Displayed when flagged; carries provenance | `Toe Delay` → toe_stall; `Clipper Delay` → clipper_stall |
-| **Structural alias** | Displayed when flagged, alongside the decomposition block | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater |
-| Technical decomposition | Search-only in practice; not flagged for display | `pdx_whirl`, `BW`, `bs_magellan` |
-| Typo / misspelling | Search-only; never flagged for display | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
+| Common alias | Shown by default | `Whip` → rev_whirl; `Reverse Mirage` → illusion |
+| **Structural alias** | Shown by default, alongside the decomposition block | `Gyro Torque` → mobius; `Ducking Paradox Blender` → mind_bender |
+| Historical name | Search-only; carries provenance | `Toe Delay` → toe_stall; the barraging forms of furious tricks |
+| Technical | Search-only: abbreviation, slug form, spelling or trivial variant | `pdx_whirl`, `BW`, `atomic dlo` |
+| Positional | Search-only: a side-qualified notation phrase | `stepping far double down`, `flail (ss)` |
+| Suppressed | Search-only: misleading, names a different movement | `toe mobius`, `illusioning osis` |
+| Ambiguous | Search-only: its meaning hangs on an open question | `toe`, `neutron torque` |
+| Typo / misspelling | Search-only | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
+
+A shown class can be held hidden while a question is open: the alias keeps its class and carries a display reason beginning "Pending ruling:"; lifting the hold lets the class decide again.
 
 Direction-reversed tricks are their own canonical entries, so a "Reverse X" string is only ever an alias when the folk name is canonical. `Reverse Whirl` is the canonical name of `rev_whirl`, not an alias of it; `Whip` is that row's displayed community alias. Where the folk name is canonical, the structural reading is the alias: `Reverse Around-the-World` is a displayed structural alias of `orbit`, and `Reverse Mirage` a displayed common alias of `illusion`.
 
@@ -136,7 +141,7 @@ Validated examples from the alias audit:
 | Atomic Legover | eggbeater | atomic(+1) + legover(2) = 3 |
 | Atomic Mirage | atom_smasher | atomic(+1) + mirage(2) + [XDEX](1) = 4 |
 
-The class is large and most structural aliases are not displayed (`alias_display = 0`); the examples illustrate the class, not a display list. The schema carries further classes (`suppressed`, `positional`, `ambiguous`); their meaning is in the comment above `freestyle_trick_aliases` in `database/schema.sql`.
+A structural alias is shown unless it is held pending a ruling. A name that is not a genuine same-movement decomposition does not belong in this class; it goes to the search-only class that says why. Every class is defined in the comment above `freestyle_trick_aliases` in `database/schema.sql`.
 
 #### Render rule for Structural aliases
 
@@ -144,7 +149,7 @@ The class is large and most structural aliases are not displayed (`alias_display
   - The formula reaches structural / curator audiences
   - The noun-phrase name reaches community-vocabulary audiences
 - **Search resolves them.** A user typing "Atomic Legover" lands on `eggbeater`, just as one typing "eggbeater" does.
-- **Flag them for display sparingly.** The canonical name carries the authority; surfacing both `Eggbeater` and `Atomic Legover` everywhere risks confusing beginners.
+- **Shown by default.** A genuine structural name is part of the public vocabulary, so it appears in Also called beside the canonical name, which keeps the authority as the page's title.
 
 #### Heuristic for auto-classification
 

@@ -37,6 +37,11 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 OVERRIDES_CSV = SCRIPT_DIR.parent / "inputs" / "base_dictionary" / "alias_overrides.csv"
 DEFAULT_DB = SCRIPT_DIR.parent.parent / "database" / "footbag.db"
 
+# The classes a reader sees by default: a community name and a genuine structural
+# name of the same movement. The application decides the same thing in its alias
+# editor; a test pins the two lists equal.
+SHOWN_ALIAS_TYPES = ("common", "structural")
+
 
 def apply_overrides(db_path: str) -> None:
     with open(OVERRIDES_CSV, newline="", encoding="utf-8") as f:
@@ -128,7 +133,7 @@ def apply_overrides(db_path: str) -> None:
                 # in this file, so carry them into the table: otherwise every
                 # pre-existing exception would look unexplained after cutover,
                 # when this loader no longer runs and the note is all that is left.
-                if (adisplay == 1) != (atype == "common"):
+                if (adisplay == 1) != (atype in SHOWN_ALIAS_TYPES):
                     note = (r.get("note") or "").strip()
                     if not note:
                         sys.exit(
@@ -170,14 +175,16 @@ def apply_overrides(db_path: str) -> None:
                          f"(allowed: retype, delete)")
         conn.commit()
 
-        # The class decides display: 'common' is the nickname class and the only one
-        # a reader sees by default. Both directions of disagreement are deliberate
-        # curator exceptions and both are listed here rather than left to sit
-        # invisibly in the table, so a wrong class is visible as a wrong class: a
-        # displayed row of another class, and a nickname a curator holds back.
+        # The class decides display: the shown classes are the ones a reader sees by
+        # default. Both directions of disagreement are deliberate curator exceptions
+        # and both are listed here rather than left to sit invisibly in the table, so
+        # a wrong class is visible as a wrong class: a displayed row of a search-only
+        # class, and a shown-class name a curator holds back pending a ruling.
+        shown = ", ".join("?" for _ in SHOWN_ALIAS_TYPES)
         exceptions = list(conn.execute(
             "SELECT alias_slug, alias_type, alias_display FROM freestyle_trick_aliases "
-            "WHERE (alias_display = 1) <> (alias_type = 'common') ORDER BY alias_slug"))
+            f"WHERE (alias_display = 1) <> (alias_type IN ({shown})) ORDER BY alias_slug",
+            SHOWN_ALIAS_TYPES))
     finally:
         conn.close()
 

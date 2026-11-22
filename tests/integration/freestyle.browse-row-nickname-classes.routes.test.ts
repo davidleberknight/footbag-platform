@@ -1,15 +1,14 @@
 /**
- * Browse-row nicknames: only the community-nickname class reaches a reader.
+ * Browse-row nicknames: only the community-nickname class reaches a browse row.
  *
  * An alias carries a semantic class (alias_type) and a public-display state
- * (alias_display). The class decides the display state: 'common' is the nickname
- * class and the only one a reader sees beside a trick name on a browse row. An
- * abbreviation, a decomposition used as a name, a same-side marker and a
+ * (alias_display). A browse row prints only a shown community nickname beside a
+ * trick name. An abbreviation, a hidden decomposition, a same-side marker and a
  * misspelling all resolve in search and none of them appear beside the name.
  *
- * A curator may display an alias of another class as a deliberate exception,
- * where a trick's page genuinely needs the other reading beside it; that
- * exception is asserted here too, so the rule is pinned in both directions.
+ * A shown structural name (a genuine decomposition name of the same movement)
+ * belongs on the trick's own page, not beside its name on the list; that is
+ * asserted here too, on both pages, so the rule is pinned in both directions.
  *
  * These assertions read the rendered page rather than the table, because a table
  * assertion passes while a service fallback quietly republishes what curation
@@ -74,7 +73,7 @@ beforeAll(async () => {
   insertFreestyleTrickAlias(db, 'nicknme_host', 'nickname_host', 'Nicknme Host',
     { alias_type: 'typo', alias_display: 0 });
 
-  // The deliberate exception: a structural reading a curator chose to display.
+  // A shown structural name: on the trick's page, never on its browse row.
   insertFreestyleTrickAlias(db, 'reverse_exception_host', 'exception_host', 'Reverse Exception Host',
     { alias_type: 'structural', alias_display: 1 });
 
@@ -111,8 +110,19 @@ describe('GET /freestyle/tricks — which alias classes reach a browse row', () 
     expect(res.text).not.toContain('Nicknme Host');
   });
 
-  it('shows a non-nickname class a curator displayed deliberately', async () => {
+  // Defect caught: a structural name printed in quotes beside the trick on the
+  // list, where a reader takes it for a community nickname.
+  it('keeps a shown structural name off the browse row', async () => {
     const res = await page('/freestyle/tricks');
+    expect(res.text).toContain('exception host');
+    expect(res.text).not.toContain('Reverse Exception Host');
+  });
+
+  // Defect caught: a trick's genuine structural name searchable but missing from
+  // its own page.
+  it('shows that structural name on the trick page', async () => {
+    const res = await page('/freestyle/tricks/exception_host');
+    expect(res.status).toBe(200);
     expect(res.text).toContain('Reverse Exception Host');
   });
 });
