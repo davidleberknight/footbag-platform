@@ -85,6 +85,14 @@ silently reshaping either side.
   Torque. A trailing swirl dexterity is written "out dex(1)", as Double Over
   Down Swirl and Pixie Quantum Double Over Down Swirl do. Home: the curated
   formulas, regression in `tests/unit/freestyle-resolved-formula-arithmetic.test.ts`.
+- **Flying is an unnamed body event** (curator ruling). The modifier registry
+  holds no flying operator; a flying move scores as the body event its notation
+  writes, `BOD(1)`, as Flying Clipper's breakdown shows. Home: the curated
+  formulas.
+- **Miraging Dragon is filed on Dragon** (curator ruling). Like Drifter on
+  Clipper Stall, it is filed on the catch its notation lands on; its breakdown
+  is leading dexterity(+1) + dragon(2). Home: its additions row, regression in
+  `tests/unit/freestyle-resolved-formula-arithmetic.test.ts`.
 - **Blurrier is Stepping Barfly** (curator ruling). footbag.org's Blurrier notation is
   one stepping dexterity on the clipper-set Down cell, which the ratified grid makes
   Barfly; the 5 ADD is stepping plus barfly. The unsourced Stepping Barfly row is
