@@ -583,7 +583,10 @@ Each is separable and answered on its own.
   the same two no-plant steps. Ask for the rules expert: is Bill and Ted 5 ADD
   (flailing on eggbeater) or 7 (flailing, a symposium eggbeater and an X-Dex), and
   does the redundancy ruling stand? The row (`bill_ted_s_excellent_adventure`, 5 ADD,
-  no notation) stays held, with no opening, until that is ruled.
+  no notation) stays held, with no opening, until that is ruled. The same answer
+  decides Atom Bomb (`atom_bomb`, 6 ADD), whose FootbagMoves technical name is
+  Flailing Symposium Mirage and whose notation carries the same two no-plant steps
+  and an X-Dex: 6 if they count, 4 if the redundancy ruling stands.
 - **Whether Blizzard is already a symposium move.** Blizzard (`blizzard`, 3 ADD,
   stepping on illusion) stores `SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]`, with
   the support foot planted, while its own opening, footbag.org's description, calls it
