@@ -39,6 +39,7 @@ export interface StagedGlossaryTerm {
 const CONCEPTS = '/freestyle/concepts';
 const COMBO = '/freestyle/combo-analysis';
 const HISTORY = '/freestyle/history';
+const ADD_ANALYSIS = '/freestyle/add-analysis';
 
 export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   // ── Equipment and physical vocabulary ─────────────────────────────────
@@ -653,6 +654,20 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   },
 
   // ── Notation ───────────────────────────────────────────────────────────
+  {
+    term: 'Paradox',
+    slug: 'paradox',
+    definition: 'A dexterity done from a set on one side, with the body switching to the opposite side to finish it; it adds 1 ADD, and notation marks it [PDX].',
+    aliases: ['PDX'],
+    moreHref: `${ADD_ANALYSIS}#how-add-is-built`, moreLabel: 'How ADD is built',
+  },
+  {
+    term: 'Unusual surface',
+    slug: 'unusual-surface',
+    definition: 'A move ended on a surface other than the inside, outside, toe or knee, such as the sole, heel or upper body; it adds 1 ADD, and notation marks it [UNS].',
+    aliases: ['UNS'],
+    moreHref: `${ADD_ANALYSIS}#how-add-is-built`, moreLabel: 'How ADD is built',
+  },
   {
     term: 'Operational notation',
     slug: 'operational-notation',
