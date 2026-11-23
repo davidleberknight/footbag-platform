@@ -646,7 +646,6 @@ trick-prose-paragraph
 trick-quantity-ladder
 trick-set-group
 trick-shell
-trick-sort-name
 trick-structural-facts
 trick-structural-facts-list
 trick-technique-heading

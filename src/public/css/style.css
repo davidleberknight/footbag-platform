@@ -3552,13 +3552,6 @@ main pre[role="region"] { overflow-x: auto; }
   display: block;
   font-weight: 500;
 }
-.trick-sort-name {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin-top: var(--space-xs);
-}
-
 /* Record under curator review: a small status pill plus the open question,
    shown in place of a canonical-trick link. */
 .record-review-flag {
@@ -4033,8 +4026,8 @@ a.hashtag--media:hover {
   white-space: nowrap;
 }
 
-/* Where ADD shows, Trick and ADD fit their content and sit together, and the
-   spare width goes to the columns after them. */
+/* Where they show, Trick and ADD fit their content, and the spare width goes
+   to the other columns. */
 @media (min-width: 768px) {
   .records-by-trick .col-trick,
   .records-by-trick .col-adds { width: 1%; white-space: nowrap; }

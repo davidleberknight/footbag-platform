@@ -39,45 +39,7 @@
   {{#if content.freestyleRecords.length}}
   <section>
     <div class="section-heading"><h2>Freestyle Records</h2></div>
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle Records">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Trick</th>
-          <th class="col-num">Count</th>
-          <th>Adds</th>
-          <th>Date</th>
-          <th>Video</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each content.freestyleRecords}}
-        <tr>
-          <td>
-            {{#if trickHref}}<a href="{{siteHref trickHref}}"><span class="trick-name">{{trickName}}</span></a>{{else}}<span class="trick-name">{{trickName}}</span>{{/if}}
-            {{#if sortName}}<span class="trick-sort-name">{{sortName}}</span>{{/if}}
-          </td>
-          <td class="col-num">{{valueNumeric}}</td>
-          <td>{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
-          <td>
-            {{#if achievedDate}}
-              {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
-            {{else}}
-              &mdash;
-            {{/if}}
-          </td>
-          <td>
-            {{#if videoUrl}}
-              <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▶</span><span class="visually-hidden">Watch {{trickName}} record video</span></a>
-            {{else}}
-              &mdash;
-            {{/if}}
-          </td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
-    </div>
+    {{> freestyle-record-table records=content.freestyleRecords label="Freestyle Records" showTrick=true showAdds=true}}
     <p class="source-note">
       Records sourced from the freestyle passback video archive.
       <a href="/freestyle/records">View all freestyle records</a>

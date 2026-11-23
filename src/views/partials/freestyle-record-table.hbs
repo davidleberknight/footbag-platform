@@ -1,0 +1,45 @@
+{{!--
+  The one freestyle record table: every page that lists freestyle records draws
+  them here, in one column order (Trick, Holder, Count, ADD, Date, Video,
+  Status), with one header wording, one empty marker and one video link. A page
+  shows only the columns that mean something on it: showTrick, showHolder,
+  showAdds and showStatus. label names the scroll box.
+--}}
+<div class="records-table-wrap" tabindex="0" role="region" aria-label="{{label}}">
+  <table class="data-table records-by-trick">
+    <thead>
+      <tr>
+        {{#if showTrick}}<th class="col-trick">Trick</th>{{/if}}
+        {{#if showHolder}}<th class="col-holder">Holder</th>{{/if}}
+        <th class="col-num">Count</th>
+        {{#if showAdds}}<th class="col-adds">ADD</th>{{/if}}
+        <th class="col-date">Date</th>
+        <th>Video</th>
+        {{#if showStatus}}<th>Status</th>{{/if}}
+      </tr>
+    </thead>
+    <tbody>
+      {{#each records}}
+      <tr>
+        {{#if ../showTrick}}
+        <td class="col-trick">
+          {{#if trickHref}}<a href="{{siteHref trickHref}}" class="trick-name">{{trickName}}</a>{{else}}<span class="trick-name">{{trickName}}</span>{{/if}}
+          {{#if reviewNote}}
+          <span class="record-review-flag">Needs curator review</span>
+          <span class="record-review-note">{{reviewNote}}</span>
+          {{/if}}
+        </td>
+        {{/if}}
+        {{#if ../showHolder}}
+        <td class="col-holder">{{#if holderHref}}<a href="{{siteHref holderHref}}">{{holderName}}</a>{{else}}{{holderName}}{{/if}}</td>
+        {{/if}}
+        <td class="col-num">{{valueNumeric}}</td>
+        {{#if ../showAdds}}<td class="col-adds">{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>{{/if}}
+        <td class="col-date">{{#if achievedDate}}{{formatDate achievedDate}}{{else}}&mdash;{{/if}}</td>
+        <td>{{#if videoUrl}}<a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▶</span><span class="visually-hidden">Watch {{holderName}} {{trickName}} record video</span></a>{{else}}&mdash;{{/if}}</td>
+        {{#if ../showStatus}}<td>{{statusLabel}}</td>{{/if}}
+      </tr>
+      {{/each}}
+    </tbody>
+  </table>
+</div>

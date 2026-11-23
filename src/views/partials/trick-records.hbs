@@ -5,47 +5,6 @@
 {{#if content.records.length}}
 <section id="passback-records" class="content-section">
 <div class="section-heading"><h2>Consecutive Records</h2></div>
-<div class="records-table-wrap" tabindex="0" role="region" aria-label="Consecutive Records">
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>Holder</th>
-        <th class="col-num">Count</th>
-        <th>Date</th>
-        <th>Video</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each content.records}}
-      <tr>
-        <td class="col-holder">
-          {{#if holderHref}}
-            <a href="{{holderHref}}">{{holderName}}</a>
-          {{else}}
-            {{holderName}}
-          {{/if}}
-        </td>
-        <td class="col-num">{{valueNumeric}}</td>
-        <td class="col-date">
-          {{#if achievedDate}}
-            {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
-          {{else}}
-            &mdash;
-          {{/if}}
-        </td>
-        <td>
-          {{#if videoUrl}}
-            <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">&#9654;</span><span class="visually-hidden">Watch {{holderName}} {{../page.title}} record video</span></a>
-          {{else}}
-            &mdash;
-          {{/if}}
-        </td>
-        <td>{{statusLabel}}</td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
-</div>
+{{> freestyle-record-table records=content.records label="Consecutive Records" showHolder=true showStatus=true}}
 </section>
 {{/if}}

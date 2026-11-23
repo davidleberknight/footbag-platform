@@ -42,62 +42,7 @@
     <section class="records-group">
       <h2 class="section-heading">{{label}}</h2>
 
-      <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{label}}">
-        <table class="data-table records-by-trick">
-          <thead>
-            <tr>
-              <th class="col-trick">Trick</th>
-              <th class="col-adds">ADD (recorded)</th>
-              <th class="col-num">Count</th>
-              <th>Holder</th>
-              <th>Date</th>
-              <th>Video</th>
-            </tr>
-          </thead>
-          <tbody>
-            {{#each records}}
-            <tr>
-              <td class="col-trick">
-                {{#if trickHref}}
-                  <a href="{{trickHref}}" class="trick-name">{{trickName}}</a>
-                {{else}}
-                  <span class="trick-name">{{trickName}}</span>
-                {{/if}}
-                {{#if reviewNote}}
-                <span class="record-review-flag">Needs curator review</span>
-                <span class="record-review-note">{{reviewNote}}</span>
-                {{/if}}
-              </td>
-              <td class="col-adds">
-                {{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}
-              </td>
-              <td class="col-num">{{valueNumeric}}</td>
-              <td class="col-holder">
-                {{#if holderHref}}
-                  <a href="{{holderHref}}">{{holderName}}</a>
-                {{else}}
-                  {{holderName}}
-                {{/if}}
-              </td>
-              <td class="col-date">
-                {{#if achievedDate}}
-                  {{formatDate achievedDate}}
-                {{else}}
-                  &mdash;
-                {{/if}}
-              </td>
-              <td>
-                {{#if videoUrl}}
-                  <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer"><span aria-hidden="true">▶</span><span class="visually-hidden">Watch {{holderName}} {{trickName}} record video</span></a>
-                {{else}}
-                  &mdash;
-                {{/if}}
-              </td>
-            </tr>
-            {{/each}}
-          </tbody>
-        </table>
-      </div>
+      {{> freestyle-record-table records=records label=label showTrick=true showHolder=true showAdds=true}}
 
     </section>
     {{/each}}

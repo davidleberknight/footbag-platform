@@ -351,12 +351,35 @@ describe('GET /freestyle/records', () => {
   });
 
   it('shows the records without the recorded-versus-canonical ADD caveat', async () => {
-    // The table already labels its column "ADD (recorded)"; the paragraph
-    // ranking that value against the canonical ADD is page furniture.
+    // The table carries an ADD column; the paragraph ranking that value
+    // against the canonical ADD is page furniture.
     const res = await page('/freestyle/records');
-    expect(res.text).toContain('<th class="col-adds">ADD (recorded)</th>');
+    expect(res.text).toContain('<th class="col-adds">ADD</th>');
     expect(res.text).not.toContain('the canonical ADD is authoritative');
     expect(res.text).not.toContain('the recording source assigned');
+  });
+
+  // Defect caught: the pages that list freestyle records drift apart again,
+  // one table ordering or naming its columns differently from another, so a
+  // reader moving between them has to re-learn each table.
+  it('draws every freestyle record table in one column order with one set of headers', async () => {
+    const ORDER = ['Trick', 'Holder', 'Count', 'ADD', 'Date', 'Video', 'Status'];
+    const headersOf = (html: string) => {
+      const table = html.match(/<table class="data-table records-by-trick">\s*<thead>([\s\S]*?)<\/thead>/);
+      expect(table, 'a freestyle record table').not.toBeNull();
+      return [...table![1].matchAll(/<th[^>]*>([^<]+)<\/th>/g)].map(m => m[1]);
+    };
+    const pages = {
+      records: headersOf((await page('/freestyle/records')).text),
+      history: headersOf((await page(`/history/${PERSON_ID}`)).text),
+      trick:   headersOf((await page('/freestyle/tricks/torque')).text),
+    };
+    expect(pages.records).toEqual(['Trick', 'Holder', 'Count', 'ADD', 'Date', 'Video']);
+    expect(pages.history).toEqual(['Trick', 'Count', 'ADD', 'Date', 'Video']);
+    expect(pages.trick).toEqual(['Holder', 'Count', 'Date', 'Video', 'Status']);
+    for (const headers of Object.values(pages)) {
+      expect(headers).toEqual(ORDER.filter(h => headers.includes(h)));
+    }
   });
 
   it('links resolved person_id to /history/:personId', async () => {
@@ -922,7 +945,7 @@ describe('GET /freestyle/tricks/:slug', () => {
   it('lists the records in one table, the current one first, a beaten one after it labelled earlier', async () => {
     // Torque: Alice Shredder's 42 stands; Old Record Holder's 30 was beaten by it.
     const res = await page('/freestyle/tricks/torque');
-    expect(res.text.match(/<table class="data-table">/g) ?? []).toHaveLength(1);
+    expect(res.text.match(/<table class="data-table[" ]/g) ?? []).toHaveLength(1);
     const rows = [...res.text.matchAll(/<tr>\s*<td class="col-holder">([\s\S]*?)<\/tr>/g)].map(m => m[1]);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toContain('Alice Shredder');
@@ -937,7 +960,7 @@ describe('GET /freestyle/tricks/:slug', () => {
     const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('Earlier record');
-    expect(res.text.match(/<table class="data-table">/g) ?? []).toHaveLength(1);
+    expect(res.text.match(/<table class="data-table[" ]/g) ?? []).toHaveLength(1);
   });
 
   it('shows records without the authority caveat, and ends the page on the two links alone', async () => {
