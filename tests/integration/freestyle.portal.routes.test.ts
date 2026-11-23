@@ -630,6 +630,14 @@ describe('GET /freestyle/partnerships', () => {
     expect(res.text).toContain('All Partnerships');
   });
 
+  // Defect caught: the page repeats the same pairs in short highlight tables
+  // lifted from the full list, so one list reads as four.
+  it('shows the partnerships as one ranked table, each pair once', async () => {
+    const res = await page('/freestyle/partnerships');
+    expect(res.text.match(/<table class="data-table">/g) ?? []).toHaveLength(1);
+    expect(res.text.match(new RegExp(`href="/history/${PERSON_A}">Vera Champion</a> / `, 'g')) ?? []).toHaveLength(1);
+  });
+
   it('offers a back link to /freestyle', async () => {
     const res = await page('/freestyle/partnerships');
     expect(res.text).toContain('<a href="/freestyle" class="action-link">');

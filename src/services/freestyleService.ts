@@ -2187,13 +2187,7 @@ export interface FreestylePartnershipViewModel {
   yearSpan:        string | null;
 }
 
-export interface FreestylePartnershipBucket {
-  title:        string;
-  partnerships: FreestylePartnershipViewModel[];
-}
-
 export interface FreestylePartnershipsContent {
-  buckets:      FreestylePartnershipBucket[];
   allRanked:    FreestylePartnershipViewModel[];
   totalShown:   number;
   dataNote:     string;
@@ -6054,27 +6048,6 @@ export const freestyleService = {
 
     const allRanked = rows.map(shapePartnership);
 
-    // Build notable buckets (same pattern as net)
-    const BUCKET_SIZE = 5;
-
-    const byWins = [...rows].sort((a, b) =>
-      b.win_count - a.win_count || b.podium_count - a.podium_count || b.appearance_count - a.appearance_count);
-    const byPodiums = [...rows].sort((a, b) =>
-      b.podium_count - a.podium_count || b.win_count - a.win_count || b.appearance_count - a.appearance_count);
-    const bySpan = [...rows].sort((a, b) => {
-      const sa = (a.last_year ?? 0) - (a.first_year ?? 0);
-      const sb = (b.last_year ?? 0) - (b.first_year ?? 0);
-      return sb - sa || b.appearance_count - a.appearance_count;
-    });
-
-    const buckets: FreestylePartnershipBucket[] = [];
-    const wB = byWins.slice(0, BUCKET_SIZE).map(shapePartnership);
-    if (wB.length) buckets.push({ title: 'Most Wins', partnerships: wB });
-    const pB = byPodiums.slice(0, BUCKET_SIZE).map(shapePartnership);
-    if (pB.length) buckets.push({ title: 'Most Podium Finishes', partnerships: pB });
-    const sB = bySpan.slice(0, BUCKET_SIZE).map(shapePartnership);
-    if (sB.length) buckets.push({ title: 'Longest Spans', partnerships: sB });
-
     return {
       seo: {
         title: 'Freestyle Partnerships',
@@ -6090,7 +6063,6 @@ export const freestyleService = {
         contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
-        buckets,
         allRanked,
         totalShown: allRanked.length,
         dataNote: 'Freestyle doubles and team routines only. Trick contests, shred, and circle contests are excluded.',
