@@ -6133,11 +6133,10 @@ export const freestyleService = {
     // ---- Family groups (preserved for ?view=family) -------------------
     //
     // Each group also emits a `cards: DictionaryTrickCard[]`
-    // array using anchor-first ordering (the family base trick first when
-    // present, then ADD ascending, then name alphabetical) and an optional
-    // crossLink to a symbolic educational surface (e.g., butterfly family →
-    // the Butterfly family page). The legacy `members` array is preserved
-    // for backwards compatibility while other surfaces migrate.
+    // array in sortFamilyEntries order (the family base trick first when
+    // present, then operator rung ascending, then name alphabetical) and an
+    // optional crossLink to a symbolic educational surface (e.g., butterfly
+    // family → the Butterfly family page).
     // Bucketing (overrides, sub-label folds, ancestor containment, umbrella
     // aggregation) lives in the builder shared with the family-detail page.
     const familyMap = buildFamilyMembershipMap(activeRows);

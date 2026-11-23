@@ -1,3 +1,19 @@
+/**
+ * Freestyle record shaping, shared by every surface that shows a record: the
+ * records page, a trick's records, a person's history page and the admin record
+ * lists.
+ *
+ * Owns the one record view model (shapeFreestyleRecord), the plain name of each
+ * record type, and the name-to-slug and slug-to-hashtag rules the record pages
+ * and the dictionary share. A record's trick links only when its name resolves
+ * to an active trick and the record is not under curator review; a "Unique ..."
+ * record names a competition entry, not a trick, so it never links. A record's
+ * ADD is the dictionary's value for the trick it resolves to; a record under
+ * review, a "Unique ..." record, or one whose trick does not resolve keeps the
+ * count stored on the record.
+ *
+ * Pure functions over rows the caller has read; no database access here.
+ */
 import { FreestyleRecordRow } from '../db/db';
 import { personHref } from './personLink';
 import { parseVideoLink } from '../lib/videoPlatforms';

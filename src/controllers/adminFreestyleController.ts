@@ -1,3 +1,17 @@
+/**
+ * Admin freestyle editors, under /admin/freestyle/* behind the admin mount's gate.
+ *
+ * HTTP glue for the curator's screens: tricks (scalar fields, aliases, sources,
+ * modifier links), the notation backlog with its author and publish steps, the
+ * notation drafts, freestyle records, consecutive-kicks records, sources,
+ * modifiers, families, sets, glossary terms and operators. Each handler parses
+ * its form, calls the owning curation service (freestyleCurationService,
+ * freestyleRecordCurationService or consecutiveKicksCurationService), and either
+ * re-renders the form with the service's field errors or redirects with the
+ * outcome message. The business rules, validation and audit rows live in those
+ * services, never here. The Emerging Vocabulary workbench is a separate
+ * controller.
+ */
 import { Request, Response, NextFunction } from 'express';
 import {
   freestyleCurationService,
