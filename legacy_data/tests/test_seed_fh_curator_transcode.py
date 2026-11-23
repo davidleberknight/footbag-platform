@@ -55,6 +55,9 @@ def stub_ffmpeg(tmp_path, monkeypatch):
     stub.write_text(
         "#!/usr/bin/env bash\n"
         f"printf '%s\\n' \"$@\" > {json.dumps(str(log))}\n"
+        # A real encoder that succeeds leaves a non-empty file at its output
+        # path, the last argument; the transcode refuses an empty one.
+        "if [ \"${STUB_EXIT:-0}\" = 0 ]; then printf 'mp4' > \"${@: -1}\"; fi\n"
         "exit \"${STUB_EXIT:-0}\"\n"
     )
     stub.chmod(0o755)
@@ -71,7 +74,12 @@ def test_seeder_runs_the_application_transcode_arguments(tmp_path, stub_ffmpeg):
     seed_fh_curator.transcode_video(source, target)
 
     recorded = stub_ffmpeg.read_text().rstrip("\n").split("\n")
-    assert recorded == application_args(source, target)
+    # The encoder writes beside the target and the result is moved into place,
+    # so the arguments name that partial file and the target ends up holding it.
+    partial = tmp_path / ".out-video.partial.mp4"
+    assert recorded == application_args(source, partial)
+    assert target.read_bytes() == b"mp4"
+    assert not partial.exists()
 
 
 def test_seeder_fails_the_item_when_the_encoder_fails(tmp_path, stub_ffmpeg, monkeypatch):

@@ -12,7 +12,7 @@ nothing, and it proves things that do not imply each other:
 
   Projection equivalence — a generator run emits content byte-identical to the
   committed module, which was generated before the authority moved. This is a
-  claim about 964 rows composed from the corpus, most of which carry a ruling and
+  claim about 968 rows composed from the corpus, most of which carry a ruling and
   some of which carry none.
 
   Authority — the generator reads the table and nothing else. Editing the ledger
@@ -200,10 +200,10 @@ def test_the_notation_required_cohort_is_the_same_thirty_six(ledger_rows, seeded
     assert from_table == from_ledger
 
 
-def test_the_blocked_cohort_is_the_same_two_hundred_and_twenty(ledger_rows, seeded_rows):
+def test_the_blocked_cohort_is_the_same_two_hundred_and_nineteen(ledger_rows, seeded_rows):
     from_ledger = {r["normalized_name"] for r in ledger_rows if r["ev_state"] in BLOCKED_STATES}
     from_table = {r["normalized_name"] for r in seeded_rows if r["ev_state"] in BLOCKED_STATES}
-    assert len(from_ledger) == 220
+    assert len(from_ledger) == 219
     assert from_table == from_ledger
 
 
@@ -348,9 +348,9 @@ def test_the_database_authority_emits_the_committed_module_byte_for_byte(regener
 
 def test_the_emitted_corpus_has_the_same_shape(regenerated_from_db, committed_module_rows):
     rows = _module_rows(regenerated_from_db)
-    assert len(rows) == len(committed_module_rows) == 964
-    assert sum(1 for r in rows if r["layer"] == "frontier") == 203
-    assert sum(1 for r in rows if r["layer"] == "archive") == 761
+    assert len(rows) == len(committed_module_rows) == 968
+    assert sum(1 for r in rows if r["layer"] == "frontier") == 206
+    assert sum(1 for r in rows if r["layer"] == "archive") == 762
 
 
 def test_every_emitted_row_matches_the_committed_one_in_order(

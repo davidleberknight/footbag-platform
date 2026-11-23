@@ -10695,6 +10695,14 @@ export const newsItems = {
     WHERE n.id = ? AND ${PUBLIC_NEWS_VISIBLE}
   `); },
 
+  // The newest public items, for the home page band. Params: (nowIso, limit).
+  get listPublicNewest() { return db.prepare(`
+    ${PUBLIC_NEWS_SELECT}
+    WHERE ${PUBLIC_NEWS_VISIBLE}
+    ORDER BY n.published_at DESC, n.id DESC
+    LIMIT ?
+  `); },
+
   // Every year holding a public item, newest first. Params: (nowIso).
   get listPublicYears() { return db.prepare(`
     SELECT DISTINCT CAST(substr(n.published_at, 1, 4) AS INTEGER) AS year

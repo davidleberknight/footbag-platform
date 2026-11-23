@@ -262,6 +262,11 @@ def _override_slugs() -> set:
     return {r["alias_slug"].strip() for r in _override_rows()}
 
 
+# The classes a reader sees by default: a community name and a genuine structural
+# name of the same movement. Every other class is search-only.
+SHOWN_ALIAS_TYPES = ("common", "structural")
+
+
 def _diverging_overrides() -> list:
     """Override rows whose display state is set against what their class implies."""
     out = []
@@ -270,7 +275,7 @@ def _diverging_overrides() -> list:
             continue
         atype = r["alias_type"].strip()
         adisplay = int(r["alias_display"].strip())
-        if (adisplay == 1) != (atype == "common"):
+        if (adisplay == 1) != (atype in SHOWN_ALIAS_TYPES):
             out.append(r)
     return out
 

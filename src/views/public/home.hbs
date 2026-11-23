@@ -8,6 +8,22 @@
 
 <div class="wrapper">
 
+  {{! The band under the hero: the newest news items as compact dated items,
+      ending in a link to the news page. }}
+  <section id="home-news">
+    <div class="section-heading">
+      <h2>Footbag News</h2>
+    </div>
+    {{#if newsBand.news.length}}
+      <div class="dated-list">
+        {{#each newsBand.news}}{{> dated-item this compact=true}}{{/each}}
+      </div>
+    {{else}}
+      <p class="empty-state">No news yet.</p>
+    {{/if}}
+    <p class="mt-4"><a class="action-link" href="{{siteHref newsBand.newsHref}}">More News</a></p>
+  </section>
+
   <section>
     <div class="section-heading">
       <h2>Explore the World of Footbag</h2>

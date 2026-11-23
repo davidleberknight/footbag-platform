@@ -104,6 +104,7 @@ describe('the curated overrides that diverge from their class', () => {
       'atomic_double_leg_over', 'furious_barfly', 'furious_paradox_mirage',
       'pixie_double_leg_over', 'pixie_ducking_double_leg_over', 'spinning_symposium_whirl',
       'stepping_barrage', 'stepping_double_leg_over', 'stepping_illusion', 'surging_ducking_blender',
+      'symposium_hatchet',
     ].sort());
     for (const o of hidden) {
       expect(o.aliasType, o.aliasSlug).toBe('structural');

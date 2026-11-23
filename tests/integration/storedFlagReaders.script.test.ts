@@ -122,6 +122,7 @@ const READERS: Record<string, { file: string; read: (dbPath: string, envPath: st
 /** Files that name the marker without deciding anything from it. */
 const NOT_READERS: Record<string, string> = {
   'scripts/_freestyle_db.py': 'names the marker in its header; the decision is the shared seeder guard\'s',
+  'src/db/db.ts': 'the production-copy rewrite sets a copy\'s marker to not cut over, and its residue check refuses a copy where that rewrite did not hold; it reads only the copy\'s own write, never a stored form',
   'scripts/internal/assert-db-pre-cutover.sh': 'a wrapper that runs the shared seeder guard as a script',
   'scripts/internal/cutover-marker-remote.sh': 'relays the marker script\'s own status line from the host',
   'scripts/internal/rehearse-curation-cutover-remote.sh': 'records the raw stored value for the curation rehearsal report, run over ssh on a staging host; it decides nothing about running a destructive step',

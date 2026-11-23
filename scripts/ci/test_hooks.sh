@@ -2210,6 +2210,11 @@ expect_cl "$(jq -cn '{session_id:"s1",stop_hook_active:true,last_assistant_messa
 expect_cl "$(cl_event $'Done.\n```\nWhy?\n```\nSession done.')" quiet 'question only inside a fence'
 expect_cl "$(cl_event 'Plan drafted.' plan)" quiet 'plan mode'
 expect_cl "$(cl_event $'Done.\n```\nSession done.\n```')" nudge 'done line only inside a fence'
+cl_note="$(printf '%s' "$(cl_event $'Fixed the bug.')" | ".claude/hooks/$B")"
+if ! grep -q 'never list or mention them as owed' <<< "$cl_note"; then
+  echo "[hooks] FAIL ($B): closing nudge does not say commits, pushes and CI are never owed" >&2
+  fail=1
+fi
 expect_cl "$(jq -cn '{session_id:"s1",last_assistant_message:"Fixed."}')" nudge 'no registry still checks the status'
 expect_bt "$(bt_event "$bt_shell" $'Not done:\n- Still running: the unit tests.\nSession done.')" block 'session done while a task runs'
 # Status sits above the question: a Still running line after it blocks, above it passes,

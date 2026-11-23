@@ -30,7 +30,13 @@ _ROOT = Path(__file__).resolve().parents[2]
 _LOADER = _ROOT / "freestyle" / "loaders" / "21b_apply_alias_overrides.py"
 _OVERRIDES = _ROOT / "freestyle" / "inputs" / "base_dictionary" / "alias_overrides.csv"
 
-NICKNAME_CLASS = "common"
+# The classes a reader sees by default: a community name and a genuine structural
+# name of the same movement. Every other class is search-only.
+SHOWN_ALIAS_TYPES = ("common", "structural")
+
+# The reasons a structural name carries while it is held hidden: an open question
+# that bears on it, or a curator ruling that keeps it hidden.
+HELD_STRUCTURAL_PREFIXES = ("Pending ruling:", "Hidden by ruling:")
 
 
 def _rows() -> list[dict]:
@@ -40,7 +46,7 @@ def _rows() -> list[dict]:
 
 def _diverging(rows: list[dict]) -> list[dict]:
     return [r for r in rows
-            if (int(r["alias_display"].strip()) == 1) != (r["alias_type"].strip() == NICKNAME_CLASS)]
+            if (int(r["alias_display"].strip()) == 1) != (r["alias_type"].strip() in SHOWN_ALIAS_TYPES)]
 
 
 def test_every_diverging_override_carries_a_reason():
@@ -94,7 +100,8 @@ def test_only_diverging_rows_get_a_note_written():
     src = _LOADER.read_text(encoding="utf-8")
     # The reason-writing branch sits under the divergence test, and the ordinary
     # branch clears the reason without naming provenance at all.
-    assert re.search(r'if \(adisplay == 1\) != \(atype == "common"\):', src)
+    assert re.search(r'if \(adisplay == 1\) != \(atype in SHOWN_ALIAS_TYPES\):', src)
+    assert re.search(r'SHOWN_ALIAS_TYPES = \("common", "structural"\)', src)
     assert "SET alias_type = ?, alias_display = ?, display_reason = NULL" in src
     ordinary = src[src.index("SET alias_type = ?, alias_display = ?, display_reason = NULL"):]
     assert "provenance_note" not in ordinary[:400]
@@ -107,12 +114,19 @@ def test_the_rows_the_copy_targets_are_the_ruled_ones():
     conditional on one existing. It carried a skip that named the built
     dictionary, which meant this list went unchecked on any checkout without one.
 
-    These are the adjudicated exceptions. If the set changes, the change is a
-    curator decision and should be visible as one.
+    These are the adjudicated exceptions: four community nicknames hidden by
+    individual ruling, and the structural names held hidden, each saying which
+    question or ruling holds it. If the set changes, the change is a curator
+    decision and should be visible as one.
     """
-    ruled = {"big_applesauce", "frigidosis", "infinity", "whirlwalk",
-             "reverse_around_the_world", "stepping_superfly"}
-    assert {r["alias_slug"] for r in _diverging(_rows())} == ruled
+    ruled = {"big_applesauce", "frigidosis", "infinity", "whirlwalk"}
+    diverging = _diverging(_rows())
+    held = {r["alias_slug"] for r in diverging
+            if r["alias_type"].strip() == "structural"
+            and int(r["alias_display"].strip()) == 0
+            and (r.get("note") or "").strip().startswith(HELD_STRUCTURAL_PREFIXES)}
+    assert held, "no structural name is held, so the held branch checks nothing"
+    assert {r["alias_slug"] for r in diverging} == ruled | held
 
 
 # The check that each divergent override's reason actually reaches its row now

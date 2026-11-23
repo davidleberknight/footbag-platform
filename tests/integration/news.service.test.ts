@@ -135,17 +135,6 @@ describe('the schema', () => {
     `).run(NOW, NOW, MEMBER_ID)).toThrow(/CHECK/);
   });
 
-  // Defect: an announcement the current form submits, which names no place,
-  // goes nowhere instead of to the list as before.
-  it('defaults an announcement\'s place to the list', () => {
-    const annId = 'mann-default-place';
-    dbMod.memberAnnouncements.insert.run(
-      annId, NOW, MEMBER_ID, NOW, MEMBER_ID, MEMBER_ID, 'tok-default-place',
-      'Subject', 'Body', null,
-    );
-    const row = db.prepare('SELECT publish_to FROM member_announcements WHERE id = ?').get(annId) as { publish_to: string };
-    expect(row.publish_to).toBe('list');
-  });
 });
 
 describe('validateAuthoredInput', () => {

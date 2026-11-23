@@ -36,6 +36,8 @@
  *         item's cover, the label and date, an event item's
  *         media line, the body, the link to the event or the club, and the
  *         back link to the item's year.
+ *       - The home page band: the three newest items, each with its date,
+ *         label and headline (an event item's hashtag on its meta line).
  *     An item about an event carries that event's hashtag, linked to its
  *     gallery only while media carries it, and the event's honoured cover; a
  *     news item has no hashtag or cover of its own. An item about a club
@@ -383,6 +385,21 @@ export const newsService = {
   /** The year whose news the landing page shows: the current UTC year. */
   currentNewsYear(nowIso: string): number {
     return newsYearOf(nowIso);
+  },
+
+  /**
+   * The newest public items as compact list entries, for the home page band:
+   * date, label, headline and an event item's hashtag. The compact form draws
+   * no thumbnail, so no cover is looked up.
+   */
+  listNewestItems(nowIso: string, count: number): DatedItemView[] {
+    return runSqliteRead('listNewestNewsItems', () => {
+      const rows = newsItems.listPublicNewest.all(nowIso, count) as PublicNewsItemRow[];
+      return rows.map((row) => toNewsDatedItem(row, {
+        galleryHref: row.event_tag_normalized ? mediaService.getEntityGalleryHref(row.event_tag_normalized) : null,
+        thumbUrl: null,
+      }));
+    });
   },
 
   /**

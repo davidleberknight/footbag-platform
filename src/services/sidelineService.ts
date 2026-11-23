@@ -47,7 +47,7 @@ export const sidelineService = {
         sectionKey: 'sideline',
         pageKey: 'sideline_home',
         title: 'Sideline',
-        intro: 'Open play that anyone can join, starting with getting a hack: the cooperative circle game most of the world knows as "Hacky Sack."',
+        intro: 'Open play that anyone can join, starting with getting a hack: the cooperative circle game commonly known as "Hacky Sack."',
       },
       content: {
         mascot: { src: '/img/sideline-hackysack-hero.svg', alt: 'Two figures circle-kicking a footbag' },
@@ -55,7 +55,7 @@ export const sidelineService = {
           id: 'hack',
           heading: 'Getting a Hack',
           paragraphs: [
-            [{ text: 'Getting a hack is the original footbag game and how most players first picked up a footbag. A group stands in a circle and keeps the footbag off the ground without using their hands. It is cooperative, not competitive: everyone plays together. The game\'s inventors called it "hacking the sack"; "Hacky Sack" is the brand name that followed.' }],
+            [{ text: 'Getting a hack is the original footbag game and how most players first picked up a footbag. A group stands in a circle and keeps the footbag off the ground without using their hands. It is cooperative, not competitive, and everyone plays together. The game\'s inventors called it "hacking the sack," and the brand name "Hacky Sack" came later. Many players today call it free flow footbag as well.' }],
             [
               { text: 'Getting a hack is part of sideline play, the casual and social side of the sport: anyone can turn up and join in, with nothing to register for and no bracket. Sideline also includes the ' },
               { text: 'X-Square games', href: '/x-square' },

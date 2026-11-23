@@ -1,5 +1,6 @@
-import { PublicEventSummary } from './eventService';
+import { newsService } from './newsService';
 import { SeoMeta } from '../types/page';
+import type { DatedItemView } from '../types/datedItem';
 import { VideoMedia } from './videoMedia';
 import { config } from '../config/env';
 
@@ -35,12 +36,23 @@ export interface HomePageViewModel {
   };
   hero: HomeHero;
   primaryLinks: HomePrimaryLink[];
-  featuredUpcomingEvents?: PublicEventSummary[];
+  newsBand: HomeNewsBand;
   featurePanels?: HomeFeaturePanel[];
 }
 
+/**
+ * The band under the hero: the newest news items as compact dated items,
+ * ending in a link to the news page. It renders identically for every viewer.
+ */
+interface HomeNewsBand {
+  news: DatedItemView[];
+  newsHref: string;
+}
+
+const HOME_BAND_SIZE = 3;
+
 export const homeService = {
-  getPublicHomePage(_nowIso: string): HomePageViewModel {
+  getPublicHomePage(nowIso: string): HomePageViewModel {
     return {
       seo: { title: '' },
       page: {
@@ -52,6 +64,10 @@ export const homeService = {
       hero: {
         heading: 'Footbag Worldwide',
         subheading: 'The official home of footbag sports and recreational "Hacky Sack."',
+      },
+      newsBand: {
+        news: newsService.listNewestItems(nowIso, HOME_BAND_SIZE),
+        newsHref: '/news',
       },
       primaryLinks: [
         {
@@ -97,7 +113,7 @@ export const homeService = {
         {
           label: 'Sideline',
           href: '/sideline',
-          description: 'Open play that anyone can join, starting with getting a hack: the cooperative circle game known around the world as "Hacky Sack."',
+          description: 'Open play that anyone can join, starting with getting a hack: the cooperative circle game commonly known as "Hacky Sack."',
         },
         {
           label: 'Rules',
