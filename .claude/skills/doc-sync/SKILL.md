@@ -8,15 +8,7 @@ description: Detect documentation drift against current code and confirmed decis
 ## Purpose
 Check whether documentation still matches the current codebase and confirmed decisions, and propose the smallest precise edits that restore alignment. Maintenance and synchronization, not broad rewriting.
 
-## Use when
-- code behavior changed
-- interfaces changed
-- identifiers changed
-- boundaries changed
-- assumptions or contracts changed
-- the human asks whether docs need to be updated
-- you suspect code and docs no longer match
-- a public route was added, removed, renamed, or changed indexability: the sitemap's hand-maintained `STATIC_PUBLIC_PATHS` in `src/services/siteMetaService.ts` does not auto-discover routes, so a new public hub or editorial page must be added there. Entity-detail pages update automatically: events, clubs, net teams and tricks from the database, and rules and IFPA documents from their files in `ifpa/`; the static list is the part that drifts.
+Beyond the description's triggers, a changed boundary, assumption or contract also qualifies, and so does a public route added, removed, renamed or changed in indexability: the sitemap's hand-maintained `STATIC_PUBLIC_PATHS` drifts (the `add-public-page` skill, Step 5).
 
 Do not use this skill for:
 - formatting-only changes
@@ -48,7 +40,7 @@ So when current code or infra disagrees with a canonical doc, **the default is N
 
 A recommended case is always derived from the intent down, never defaulted to the code, even for a renamed identifier, a changed method signature or a schema column.
 
-Never silently pick, and never silently edit: every applied edit is shown. A case 1 gap that this change caused, which the passages plainly settle, is applied and shown as literal BEFORE/AFTER citing the passage (the own-change settled drift class in `.claude/rules/asking.md`). Every other gap goes to the human with the passages behind it and the case you recommend. Name-only gaps from one run go in one table. Editing a final-design doc to match a current shortcut destroys the design of record.
+Never silently pick, and never silently edit. Which gaps are applied and shown and which go to the human, with the passages and the case you recommend, is "Documentation edits" in `.claude/rules/asking.md`. Name-only gaps from one run go in one table. Editing a final-design doc to match a current shortcut destroys the design of record.
 
 ## Read first
 
@@ -61,7 +53,7 @@ Before making any recommendation, read selectively:
 - the touched code files
 - the file-header JSDoc of any touched service (the authoritative service contract; JSDoc that no longer matches the service is drift to fix in the same pass)
 - the path-scoped rules in `.claude/rules/*` and the `.claude/skills/*` procedures relevant to the touched area; these are canonical and are drift-checked like any doc
-- the private operations docs, whenever the change touches infrastructure, the deploy path, host configuration, a credential, or an operator procedure: `AWS_OPERATIONS.md` for concrete AWS facts, `DEVOPS_GUIDE.md` for runbooks, `VAULT_README_V<n>.md` for the vault's entry map and schema, whose filename carries the vault version it describes, so the highest n in that checkout is the current one, `VAULT_GOVERNANCE.md` for custody rulings, and `GO_LIVE_PLAN.md` for gate rows. Reach them through the `footbag_private_repo/` symlink; when it is absent, say so in one line and continue with the public half.
+- the private operations docs (the `tracker-ops` skill names them), whenever the change touches infrastructure, the deploy path, host configuration, a credential, or an operator procedure; when the checkout is absent, say so in one line and continue with the public half.
 - any schema/configuration needed to understand the change
 
 ## Workflow
@@ -84,9 +76,9 @@ Locate the most relevant existing document or section for the affected topic.
 
 The matching documentation is not only prose docs. The path-scoped `.claude/rules/*` files whose glob covers the touched code, the `.claude/skills/*` procedures for that area, and the touched service's file-header JSDoc are all canonical and drift like any doc. For every changed behavior, identifier, boundary, or contract, grep these for the OLD behavior or identifier and drift-check each hit, the same as a prose doc: a change under `src/services/**` is drift in `service-layer.md` if that rule still states the old contract; a renamed identifier is drift wherever a rule or skill still names the old one. This grep is mandatory, not optional, because reading a rule for context does not by itself surface a stale clause buried in it; skipping it is how rule and skill drift survives a doc-sync pass.
 
-Extend that same grep to code comments in the touched area. A comment that names the renamed identifier or describes the superseded behavior is a stale comment to fix in the same change. For comments that cite a design-doc section, apply `.claude/rules/comments.md` rather than treating every reference as a violation: a doc PATH (`docs/<file>.md`) is always forbidden, and a bare shorthand (`// per DD §<n>`) is forbidden only when it substitutes for the explanation; a bare shorthand sitting beside a complete self-contained explanation is tolerated in `src/` (tests are stricter and allow none). Where the touched change renames a symbol or renumbers a section, the bare locators pointing at it rot with no compile-time signal, so reword those to state the reason in words.
+Extend that same grep to code comments in the touched area: a comment that names the renamed identifier or describes the superseded behavior is stale and fixed in the same change, judged by `.claude/rules/comments.md`. Where the change renames a symbol or renumbers a section, reword the bare locators pointing at it to state the reason in words.
 
-Run the same grep across the private operations docs whenever the change touches infrastructure, the deploy path, host configuration, a credential, or an operator procedure. They are the likeliest home for stale text and the least likely to be noticed, because they describe how a thing is done rather than what it is, they sit outside the public tree where no test or gate reads them, and a wrong runbook is followed rather than merely read. The failure mode is specific: a procedure that instructs an operator to hand-edit a value the deploy now owns, or to create a resource the design has since consolidated, reads as authoritative and produces a broken host. Treat an operator instruction that contradicts current code as drift of the same severity as a wrong statement in a canonical doc, not as a lower tier.
+Run the same grep across the private operations docs whenever the change touches infrastructure, the deploy path, host configuration, a credential, or an operator procedure; an operator instruction that contradicts current code is drift of the same severity as a wrong statement in a canonical doc, because a wrong runbook is followed rather than merely read.
 
 Prefer updating the current authoritative location rather than inventing a new place.
 
@@ -124,17 +116,10 @@ Requirements:
 - group all edits needed for one issue together
 - review the whole doc to include every place that must change for consistency
 - do not propose to rewrite entire sections when a few lines will do
-- the edit must not introduce a banned stale-language token (`Last updated:`, `as of <date>`, `currently`, sprint/slice labels) or a broken internal reference, and where it cites another section, prefer that section's durable title over a bare number, which rots on renumber (per `.claude/rules/doc-governance.md`)
-
-For each edit, have ready (the ask and the applied record follow the documentation-edit rule in `.claude/rules/asking.md`):
-- file path
-- section or location
-- why the edit is required or recommended, plus important context
-- precise before text
-- precise after text
+- the edit meets `.claude/rules/doc-governance.md` (no stale-language token, no broken reference)
 
 ### 6) Approval
-Edit documentation only under the documentation-edit rule in `.claude/rules/asking.md`: own-change settled drift is applied and shown; any other edit needs one batch ask for the pass, or a pre-approval in force. If the human declines an edit, ask why and adjust. If approval is missing or ambiguous for an edit outside that class, stop after presenting the findings.
+Edit documentation only under "Documentation edits" in `.claude/rules/asking.md`. If the human declines an edit, ask why and adjust. If approval is missing or ambiguous for an edit that needs one, stop after presenting the findings.
 
 ### 7) Apply only what was approved
 Change only the approved edits, or under a pre-approval only the edits this pass found: no opportunistic cleanup, no adjacent rewriting, no unrelated docs in the same pass. When a file is done, re-read the modified text for layout, formatting, and numbered-heading damage, then show every applied edit as the documentation-edit rule requires.
@@ -143,7 +128,6 @@ Change only the approved edits, or under a pre-approval only the edits this pass
 Do not:
 - infer intent not supported by the design sources or explicit human direction
 - treat a comment as authoritative over the code it describes, except a `Current:`/`Target:` deviation comment, which states intent (`.claude/rules/comments.md`)
-- edit a canonical (final-design) doc to match current code or infrastructure; an implementation that diverges from the final design is a deviation to record as a private-tracker issue, not a reason to rewrite the doc
 - mix confirmed drift with speculative improvements
 - expand scope beyond the area actually under review
 - introduce implementation-status language into canonical docs (the canonical-vs-active-slice separation rule and the full list of protected docs live in `.claude/rules/doc-governance.md`)

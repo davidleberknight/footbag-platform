@@ -52,6 +52,8 @@ interface World {
   /** The snapshot bucket and its recovery copy, as Terraform's JSON outputs. */
   snapOutput?: string;
   snapDestOutput?: string;
+  /** The legacy mirror cold copy bucket, as Terraform's JSON output. */
+  coldOutput?: string;
   replication: unknown | null;
   trustServices: string[];
   caller: string;
@@ -93,6 +95,7 @@ function run(args: string[], w: World) {
   writeFileSync(f('archive'), w.archiveOutput);
   writeFileSync(f('snap'), w.snapOutput ?? 'null');
   writeFileSync(f('snapdest'), w.snapDestOutput ?? 'null');
+  writeFileSync(f('cold'), w.coldOutput ?? 'null');
   writeFileSync(f('snapreport'), JSON.stringify({ bucket: SNAP_SOURCE, prefix: 'batch-replication' }));
   // The source buckets' own names, which head-object answers replication status for.
   writeFileSync(f('srcnames'), [w.archiveOutput, w.snapOutput ?? '']
@@ -152,6 +155,7 @@ function run(args: string[], w: World) {
     '  *"-json snapshots_bucket_name"*) cat "$F/snap" ;;',
     '  *"-json dr_bucket_name"*) cat "$F/snapdest" ;;',
     '  *"-json snapshots_batch_replication_report"*) cat "$F/snapreport" ;;',
+    '  *"-json legacy_mirror_backup_bucket_name"*) cat "$F/cold" ;;',
     '  *) exit 1 ;;',
     'esac',
   ].join('\n'));
@@ -481,6 +485,106 @@ describe('backfilling the database snapshots', () => {
   // nowhere, reaches AWS looking for a rule that cannot exist.
   it('refuses the snapshots on staging before calling anything', () => {
     const res = run(['--target', 'staging', '--source', 'snapshots', '--dry-run'], snapshots());
+
+    expect(res.status).toBe(2);
+    expect(res.stderr).toContain('production only');
+    expect(calls()).toBe('');
+  });
+});
+
+describe('backfilling the archive into the legacy mirror cold copy', () => {
+  const COLD = 'footbag-env-legacy-mirror-backup';
+  const COLD_RUN = ['--target', 'production', '--source', 'archive-cold-copy'];
+
+  function coldCopy(): World {
+    // The archive replicates through two rules, the replica's listed first, as
+    // production's configuration declares them.
+    const w = healthy();
+    w.coldOutput = JSON.stringify(COLD);
+    w.replication = {
+      ReplicationConfiguration: {
+        Role: ROLE,
+        Rules: [
+          { ID: 'replicate-all-to-archive-dr', Status: 'Enabled', Destination: { Bucket: `arn:aws:s3:::${DEST}` } },
+          { ID: 'replicate-writes-to-legacy-mirror-backup', Status: 'Enabled', Destination: { Bucket: `arn:aws:s3:::${COLD}` } },
+        ],
+      },
+    };
+    return w;
+  }
+
+  // Defects caught: the cold-copy rule arrives after the archive is loaded, so
+  // every archive object already reports COMPLETED from the replica; a job
+  // taking only never-replicated or failed objects finds nothing, and the run
+  // reports nothing missing while the cold copy is empty. Or the run is refused
+  // because the cold copy's rule is not the first one the source lists.
+  it('targets the cold copy through its own rule and takes objects the replica already holds', () => {
+    const res = run(COLD_RUN.concat('--dry-run'), coldCopy());
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain(`${SRC} -> ${COLD} (production)`);
+    expect(res.stdout).toContain('replication status is NONE, FAILED, COMPLETED');
+    expect(res.stdout).toContain(`s3://${LOGS}/batch-replication/`);
+    expect(calls()).not.toContain('create-job');
+  });
+
+  // Defect caught: an archive backfill into the replica re-copies every object
+  // it already holds once the cold copy's rule sits beside it.
+  it('leaves the replica backfill taking only what never replicated or failed', () => {
+    const res = run(PRODUCTION.concat('--dry-run'), coldCopy());
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toContain(`${SRC} -> ${DEST} (production)`);
+    expect(res.stdout).toContain('replication status is NONE, FAILED\n');
+  });
+
+  // Defect caught: the proof samples the replica, which holds every key, and
+  // passes a backfill that never reached the cold copy.
+  it('proves the copy by sampling the cold copy', () => {
+    const w = coldCopy();
+    w.present = w.keys.filter((k) => k !== 'index.html');
+    const res = run(COLD_RUN.concat('--status', 'job-cold-0001'), w);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(`index.html is missing from ${COLD}`);
+
+    const ok = coldCopy();
+    rmSync(join(dir, 'polls'), { force: true });
+    const passed = run(COLD_RUN.concat('--status', 'job-cold-0001'), ok);
+    expect(passed.status, passed.stderr).toBe(0);
+    expect(passed.stdout).toContain(`3 sampled key(s) from ${SRC} are in ${COLD}`);
+  });
+
+  // Defect caught: a job created while the archive has no rule to the cold
+  // copy would copy only to the replica, and the run would report the cold
+  // copy filled.
+  it('refuses when no enabled rule on the archive names the cold copy', () => {
+    const w = coldCopy();
+    (w.replication as { ReplicationConfiguration: { Rules: Array<{ Status: string }> } })
+      .ReplicationConfiguration.Rules[1].Status = 'Disabled';
+    const res = run(COLD_RUN.concat('--dry-run'), w);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(`not ${COLD}`);
+    expect(calls()).not.toContain('create-job');
+  });
+
+  // Defect caught: with the cold copy off, the run reaches AWS for a bucket
+  // that does not exist rather than saying the gate is off.
+  it('refuses, without touching AWS, when the cold copy is off', () => {
+    const w = coldCopy();
+    w.coldOutput = 'null';
+    const res = run(COLD_RUN.concat('--dry-run'), w);
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('output legacy_mirror_backup_bucket_name is null');
+    expect(calls()).toBe('');
+  });
+
+  // Defect caught: a staging run, where no cold copy exists, reaches AWS
+  // looking for one.
+  it('refuses the cold copy on staging before calling anything', () => {
+    const res = run(['--target', 'staging', '--source', 'archive-cold-copy', '--dry-run'], coldCopy());
 
     expect(res.status).toBe(2);
     expect(res.stderr).toContain('production only');

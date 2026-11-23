@@ -49,13 +49,12 @@ historical pipeline). They meet only where member accounts link to people.
   every launch, and a launch during a rebuild makes the results load refuse.
 - A figure moved by a ruling made in the same session is re-audited with that
   reason.
-- Ask only about people or clubs the facts cannot settle; never about mechanical
-  consequences.
 
 ## Ask the maintainer
 
-Only what a person with the facts would decide: two accounts that may or may not be
-one human, a person who may or may not own an account, a club that would be lost.
+Only what a person with the facts would decide, never a mechanical consequence: two
+accounts that may or may not be one human, a person who may or may not own an account, a
+club that would be lost.
 One per message, naming the people or club, the evidence from each record, and a
 recommended ruling. Never bare ids.
 

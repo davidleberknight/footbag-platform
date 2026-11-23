@@ -5,7 +5,7 @@ description: "Change this repo's Claude Code harness: root and nested CLAUDE.md 
 
 # update-config (footbag-platform)
 
-A harness change is reviewed like code. Follow `.claude/rules/claude-harness-governance.md` (it auto-loads on `.claude/**` and `CLAUDE.md` edits; if you have only grepped a path, Read it): Plan Mode first for anything non-trivial, literal before/after with explicit human approval, a statically-expressible guard in `permissions.deny`/`ask` with hooks as defense-in-depth, a fixture test for every new or changed hook, and a note of the CI check for every new deterministic rule (`scripts/ci/assert_claude_harness.sh`). Update `docs/CLAUDE_CODE_GUIDE.md` in the same change whenever the edit alters behavior it describes.
+A harness change follows `.claude/rules/claude-harness-governance.md` (it auto-loads on `.claude/**` and `CLAUDE.md` edits; if you have only grepped a path, Read it).
 
 ## Instruction text
 

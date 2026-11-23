@@ -813,6 +813,30 @@ simulate_allowed "staging refresh" cloudfront:GetDistribution "*"
 simulate_allowed "staging refresh" cloudfront:GetKeyGroup "*"
 simulate_allowed "staging refresh" lightsail:GetStaticIp "*"
 
+# ── 18. The Legacy Archive ───────────────────────────────────────────────────
+#
+# A developer's copy of the archive comes from production's archive bucket
+# through the governed fetch. Staging's copy holds the same capture, so the
+# staging-bucket read is refused on it, except for the gate pages Terraform
+# placed there, which every staging plan refreshes and which carry its
+# ManagedBy tag. The tag is passed as simulator context, as the bucket's object
+# tags are what S3 evaluates.
+
+echo ""
+echo "The Legacy Archive"
+ARCHIVE_TF_TAG='ContextKeyName=s3:ExistingObjectTag/ManagedBy,ContextKeyValues=terraform,ContextKeyType=string'
+simulate_allowed "developer archive copy" s3:GetObject \
+  "arn:aws:s3:::footbag-production-archive/index.html"
+simulate_allowed "developer archive copy" s3:ListBucket \
+  "arn:aws:s3:::footbag-production-archive"
+simulate_denied "staging archive capture" \
+  "arn:aws:s3:::footbag-staging-archive/index.html" s3:GetObject s3:GetObjectVersion
+simulate_denied "staging archive replica" \
+  "arn:aws:s3:::footbag-staging-archive-dr/index.html" s3:GetObject
+simulate_allowed "staging refresh of the archive gate pages" s3:GetObject \
+  "arn:aws:s3:::footbag-staging-archive/_gate/denied.html" \
+  --context-entries "$ARCHIVE_TF_TAG"
+
 # ── Verdict ──────────────────────────────────────────────────────────────────
 
 echo ""

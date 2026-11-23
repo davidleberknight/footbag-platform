@@ -7,11 +7,8 @@ tools:
   - Glob
   - Bash
 model: sonnet
-# Current Claude Code fires project settings.json hooks for a subagent's tool calls, but that
-# has varied across client versions, so the Bash guard chain and the read-only auto-approver are
-# also declared here to run for THIS agent's Bash calls even on a client that does not: the
-# secret-read block and destructive-command guards, and prompt-free read-only research. Mirrors
-# the PreToolUse Bash chain in .claude/settings.json; the permission rules remain the version-proof floor.
+# Mirrors the PreToolUse Bash chain in .claude/settings.json (Subagent safety in
+# .claude/rules/claude-harness-governance.md).
 hooks:
   PreToolUse:
     - matcher: "Bash"

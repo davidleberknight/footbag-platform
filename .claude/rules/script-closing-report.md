@@ -57,9 +57,6 @@ success is a failed check.
   `cr_run_marked` or `cr_tolerate_marked`, which keep only the marked lines
   (`.claude/rules/script-secret-safety.md`).
 - The mechanism is `scripts/lib/closing-report.sh` (and `closing-report-remote.sh` for a remote
-  half); the conventions gate (`scripts/ci/check_closing_report.sh`) refuses an in-scope script
-  that does not use it, against a baseline that only shrinks: a script moved onto the library has
-  its baseline line deleted in the same change.
-- Sourced libraries and sourced pieces (first line `# shellcheck shell=bash`), and CI gates whose
-  single verdict line is their whole output, are exempt. A runbook verdict script whose single
-  verdict line already decides its exit may stay on the baseline.
+  half); `scripts/ci/check_closing_report.sh` refuses an in-scope script that does not use it, and
+  its header owns the scope, the exemptions and the shrink-only baseline. A runbook verdict script
+  whose single verdict line already decides its exit may stay on the baseline.

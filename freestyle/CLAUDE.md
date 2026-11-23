@@ -15,7 +15,7 @@ read only from `freestyle/inputs/` and `freestyle/symbolic_grammar/` (and
 - **No live fetch, no mirror.** The footbag.org move corpus is the committed
   `inputs/footbag_org_moves_snapshot.csv`. A refresh is an explicit, reviewed
   `scripts/18_scrape_footbag_org_moves.py --live` run that overwrites the
-  snapshot; the rebuild never scrapes. The `check_no_live_pipeline_fetch.sh`
+  snapshot; the rebuild never scrapes. The `scripts/ci/check_no_live_pipeline_fetch.sh`
   guard enforces no new live fetch.
 - **Two kinds of data live in these tables.** Everything built from `freestyle/inputs/`
   is reproducible: delete it and a refresh puts it back. Curator-authored work (movement
@@ -75,5 +75,4 @@ layer, not the table rebuild).
 
 ## Never
 
-- Never reach back into `legacy_data/` for inputs or code at build or request time.
 - Never commit `out/` or `reports/` (gitignored build artifacts).

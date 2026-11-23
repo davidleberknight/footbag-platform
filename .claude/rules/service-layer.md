@@ -42,7 +42,7 @@ All thrown errors are subclasses of `ServiceError` from `src/services/serviceErr
 - `ValidationError` -- user-fixable input errors; carries optional `fieldErrors: Record<string,string>`.
 - `NotFoundError` -- missing resources (controller maps to 404, including anti-enumeration cases).
 - `ServiceUnavailableError` -- a transient outage the caller can retry (database contention, a dependency down); controller maps to 503.
-- `ConflictError` -- unique-constraint or business-conflict situations. A repeat of an action whose result already holds is not a conflict and never throws: on a path the submitted-twice rule covers, the method returns `own_repeat` or `already_held`; elsewhere it returns its own no-op result (an administrator's second revert of an automatic link answers `already_reverted`).
+- `ConflictError` -- unique-constraint or business-conflict situations. A repeat of an action whose result already holds is not a conflict and never throws: on a path the submitted-twice rule covers it returns the repeat result below; elsewhere it returns its own no-op result (an administrator's second revert of an automatic link answers `already_reverted`).
 - `RateLimitedError` -- throttle hits; carries `retryAfterSeconds`.
 - `ForbiddenError` -- explicit authorization denials.
 
@@ -59,7 +59,7 @@ When a catch block writes a `*_failed` audit row, it uses `recordOperationalErro
 - Reuse the established `action_type` vocabulary — lowercase, dotted, domain-prefixed (`tier.purchase_grant`, `admin.role_granted`, `legacy.auto_link_revert`). For the same event reuse the existing `action_type`; do not coin a synonym. `action_type` is a closed vocabulary that downstream queries, metric filters, and reviews match on, so renaming an existing one means updating every matcher in the same change. Every `action_type` is namespaced; `appendAuditEntry` rejects a value that is not lowercase dotted `domain.event` (`assertCanonicalActionType`), and the convention gate rejects any non-namespaced `action_type` literal in `src/` at build time.
 - Never pass a `category`: `appendAuditEntry` derives it from the action type through the one map in `src/services/auditTopics.ts`. Record `actor_type`, `actor_member_id`, `entity_type`, and `entity_id` faithfully (a member is referenced by id).
 - Never write a secret, token, decrypted ballot, or password into `reason_text` or `metadata_json`. Never write an IP address, a user agent, a name, a raw or masked email address, or free text a member typed while acting on their own record; account-claim evidence names an email address only as a keyed hash. Reference a person by id. An operational-failure row records the error's class, never its message. Exclude sensitive data at write time rather than relying on read-time redaction.
-- An administrative correction of another person's record is the deliberate exception: it records each changed field before and after, values included, because a correction made on someone else's behalf is reviewable and reversible only from a trail that says what the value actually was, and the surface that reads it is admin-only. The ledger is immutable and account erasure cannot reach it, so a value recorded this way outlives an erasure that clears it everywhere else. That is the accepted cost of accountability here, and it is why the exception stays with administrative corrections rather than widening to a member's self-service edits of their own record, which keep recording field names only. A club's details are a shared record its co-leaders all edit, so a co-leader's edit and an administrator's correction both record each changed field before and after.
+- The deliberate exception: an administrative correction of another person's record, and any edit of a shared record such as a club's details (a co-leader's or an administrator's), records each changed field before and after, values included; a member's self-service edit of their own record records field names only. The rationale, and the accepted cost that the value outlives an erasure, is the design decisions' audit passage.
 - Log every governance- or security-significant write (grants, overrides, role changes, deletions, claims, disputes) so the trail reconstructs who did what, when, and why. Write no row for an act that changed nothing (a repeat, a no-op, a prompt, a pending state), for a fact a dedicated table already records unless a named reader needs the row, or about a person who is not a member: a prospective member's claim evidence goes through the onboarding service's held sink and is written when onboarding completes. A scheduled job's trail is its `system_job_runs` row.
 - A read writes no audit row: a GET changes no stored state (design decision "Every GET Is Read-only").
 
@@ -94,8 +94,7 @@ Endpoints that could leak account existence (login, register, password-reset req
 email-verify/resend, member lookup, legacy claim) run the same code path whether or not the
 account exists: always reach the hash-compare, always run the rate-limit bucket, return identical
 UX and timing both ways. The service owns this; never add an existence-dependent early return.
-Controllers may gate on facts independent of account existence (CAPTCHA, input shape) before
-calling the service, but must not short-circuit around the service's existence check.
+The controller side is `.claude/rules/controller-conventions.md`, Auth gates.
 
 ## Auth-conditional shaping
 
@@ -116,9 +115,4 @@ Drift between JSDoc and the actual service contract is a real bug, not a doc nic
 
 ## Mechanically enforced
 
-`scripts/ci/assert_conventions.sh` blocks merges that violate these service-layer-adjacent rules:
-
-- No `db.prepare()` calls outside `src/db/db.ts` -- services use named prepared statements from `db.ts`.
-- No AWS SDK / Stripe imports outside `src/adapters/` -- services obtain adapters via `get<Purpose>Adapter()` only.
-- No `process.env` reads outside `src/config/env.ts` and the non-service exemptions the gate names -- services read deploy-time config via the typed `config` singleton, runtime config via `readIntConfig(key, fallback)` from `configReader.ts`.
-- Every audit `action_type` literal in `src/` is lowercase, dotted, domain-prefixed -- `appendAuditEntry` also asserts the same shape at runtime via `assertCanonicalActionType`.
+`scripts/ci/assert_conventions.sh` owns the checks. The service-side rules it holds: services use `db.ts`'s named statements, obtain AWS and Stripe access only through `get<Purpose>Adapter()`, read deploy-time config through the typed `config` singleton and runtime config through `readIntConfig(key, fallback)` from `configReader.ts`, never `process.env`.

@@ -12,9 +12,9 @@ only the file-local additions live here.
 
 ## File-local additions to the layer rule
 
-- Dynamic-SQL helpers (`queryFilteredTeams`, `queryCandidateItems`, `queryCuratedItems`,
-  `queryReviewItems`) build and prepare their SQL inside the function body, never at module top
-  level, so the getter-based lazy-compilation contract still holds.
+- A dynamic-SQL helper (a function that builds its SQL from its arguments) builds and prepares
+  that SQL inside the function body, never at module top level, so the getter-based
+  lazy-compilation contract still holds.
 - Beyond the generic exclusions, `db.ts` never carries request parsing, `eventKey` validation or
   parsing, or full readiness composition.
 

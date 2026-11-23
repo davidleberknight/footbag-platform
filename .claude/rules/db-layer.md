@@ -34,19 +34,13 @@ Statement-group objects are named after the domain or feature.
 
 ## Views over bare tables
 
-For multi-condition filters, define a SQL view and select from it. Services read from views, never `WHERE` on top of bare tables for filters the view already encodes. Common views:
+For multi-condition filters, define a SQL view and select from it. Services read from views, never `WHERE` on top of bare tables for filters the view already encodes. Every view and its filter is described in `docs/DATA_MODEL.md` and `database/schema.sql`; the ones a rule here depends on:
 
-- `members_active` -- `deleted_at IS NULL`.
-- `members_onboarded` -- `members_active` minus registrants still onboarding (the system member is included); the read surface for anyone other than the account's own owner.
-- `members_searchable` -- `members_onboarded` minus deceased, opted-out, PII-purged, unverified.
-- `clubs_open` -- `status IN ('active','inactive')`; `clubs_all` adds archived (clubs use status-archive, no `deleted_at` column).
-- `email_templates_enabled` -- `is_enabled = 1`.
-- `recurring_donation_subscriptions_active` -- `status NOT IN ('canceled', 'incomplete')`; query the bare table when canceled or unconfirmed rows are needed.
+- `members_onboarded` -- the read surface for anyone other than the account's own owner; `members_searchable` narrows it for search.
 - `member_tier_current`, `member_active_player_current`, `member_membership_status_current` -- authoritative tier / Active Player / combined-gate projections.
-- `official_ifpa_roster_current` -- the only roster read surface (filters `is_official_roster_member = 1 AND is_deceased = 0`).
-- `net_team_appearance_canonical` -- the only public Net appearance surface (filters `evidence_class = 'canonical_only'`; other evidence classes never reach public routes).
+- `official_ifpa_roster_current` -- the only roster read surface.
 - `system_config_current` -- latest effective value per key (the bare `system_config` table is queried only by audit-style admin tooling).
-- `media_items_linkable_video` -- the only `media_items` read surface for watchable video (filters `media_type = 'video'` and `moderation_status = 'active'`; source is deliberately not a condition, so member uploads count). The hashtag-index surfaces are the deliberate exception: they decide whether a tag carries media from `tag_stats` usage counts, not from `media_items` at all.
+- `media_items_linkable_video` -- the only `media_items` read surface for watchable video (source is deliberately not a condition, so member uploads count). The hashtag-index surfaces are the deliberate exception: they decide whether a tag carries media from `tag_stats` usage counts, not from `media_items` at all.
 
 `news_items` and `events` are hard-delete domains: query the base table directly; it is their only read surface (deleted rows are gone permanently).
 

@@ -58,7 +58,8 @@ pagination block. A paged hashtag-media result also shows the large-result notic
 whenever the set spans more than one page.
 
 A **dated item** (the `dated-item` partial) is one entry in a list of things that happen or were
-published on a date (upcoming events, news): date, title link, optional badge, meta line, excerpt
+published on a date (upcoming events, news): date, title link, optional badge, an optional second
+badge (the registration status of the upcoming event a news item is about), meta line, excerpt
 and square thumbnail; a compact form drops the excerpt and thumbnail. Every page that lists upcoming
 events draws each as a dated item; a completed event on a year page is an **archive row** (the
 `event-archive-row` partial). The page service shapes the date as one preformatted range, the label

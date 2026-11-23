@@ -24,14 +24,12 @@ A secret must never appear in any process's argv on any host: `ps -ef` (any read
 - Write a secret destined for a file via a restricted (`umask 077` / mode `0600`) temp file and `install`/`file://`, then `shred` it; suppress shell history for any pasted-key step.
 - Do not `echo`/`printf` a secret into another command's argv, and do not log it.
 - Emit a secret meant for a human to `/dev/tty`, never to stdout, which a wrapper, a CI job, or an agent session may be capturing. Verify the terminal exists before minting or storing the secret: a credential nobody can read is not a failed run, it is a live credential needing cleanup. Model: `scripts/admin-bootstrap-token.sh`.
-- A script that prompts verifies stdin is a terminal before reading. The `/dev/tty` rule below protects scripts that expect a credential on stdin; this protects the ones that do not, because nothing stops a caller redirecting a credential file into them and `read` will then consume the password as the answer to a confirmation. Either read the answer from `/dev/tty`, or refuse unless stdin, stdout and stderr are all TTYs. Models: `scripts/staging_diagnostics.sh` and `scripts/arming.sh` respectively.
+- A script that prompts verifies stdin is a terminal before reading. The `/dev/tty` rule above protects scripts that expect a credential on stdin; this protects the ones that do not, because nothing stops a caller redirecting a credential file into them and `read` will then consume the password as the answer to a confirmation. Either read the answer from `/dev/tty`, or refuse unless stdin, stdout and stderr are all TTYs. Models: `scripts/staging_diagnostics.sh` and `scripts/arming.sh` respectively.
 
 ## Do not
 
-- Put a secret in argv (`cmd --pass X`, `-e VAR=value`, `ssh host "... $SECRET"`).
 - Pipe `sudo -S` into a stdin-consuming file writer (`tee`, `cat`, `dd`): if sudo consumes nothing, the password becomes the first line of the target file. Write the file from inside the remote half instead, through a root-side restricted temp file promoted with `install` (the `install_via_tmp` shape in `scripts/internal/install-cwagent-remote.sh`). `sudo -k -S -p "" bash` is not this case; it is the required form.
 - Reach a host's privileged state with `ssh -t` and an interactive sudo prompt. A TTY prompt cannot be driven by a test, it makes the operator hold a step in their head, and a tree carrying both forms drifts back to the weaker one. Every privileged remote step goes through the wire pattern below. This covers comments as well as code, because a comment describing the interactive flow gets cited back later as though it were the rule.
-- Write a secret to a world-readable file, or leave a keys file un-shredded.
 - Wrap a command whose output can carry a secret (a privileged ssh session, a Terraform plan,
   anything that echoes stdin) in `cr_run` or `cr_tolerate`, which keep the whole output in a log
   on disk. Run it through `cr_run_marked` (or `cr_tolerate_marked`) in
@@ -72,22 +70,8 @@ File content travels the same way, base64 on one line, rather than by `scp`: no 
 
 ## Enforcement
 
-`scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:quick` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k` (including a `-k` that `-p` swallows as its prompt string), `sudo -S` feeding a stdin-consuming file writer, a bare `cat` forwarding the whole credential file into the remote shell, any `ssh -t` (or the long `RequestTTY` spelling, or the flag assembled in an options array that an `ssh` invocation then expands), and a prompt-style read in a script carrying no terminal guard.
-
-Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy. Spelling a flag around the gate is not a fix.
-
-The gate's mechanics (why `-S` is refused only in sudo's own flags, why the bare-`cat` check is
-file-level, and the properties it must keep: no line exempts itself, it fails closed, and a prompt
-exemption needs a terminal guard present as code) are documented in its header.
-`tests/integration/scriptCredentialsGate.script.test.ts` pins them; its "no weaker than the gate
-it replaced" block must keep refusing every form in it, so add to that block rather than replacing it.
-
-The gate is a floor, not a proof. It matches shapes, so a determined author can still write a violation it does not recognise; what it buys is that the *common* regressions cannot land silently. Everything else in this rule is enforced by code review.
+`scripts/ci/check_script_credentials.sh` (run by `scripts/ci/assert_conventions.sh`) gates the common violations; its header documents what it blocks, its scope and its mechanics, and `tests/integration/scriptCredentialsGate.script.test.ts` pins them (add to its "no weaker than the gate it replaced" block, never replace it). Spelling a flag around the gate is not a fix. The gate matches shapes, so it is a floor, not a proof; the rest of this rule is enforced by code review.
 
 ## Ambient state decides nothing
 
-A guard that an environment variable can satisfy is not a guard. `ASSUME_YES` is the worked example: were the shared helper to default it from the environment, an exported `ASSUME_YES=yes` in an operator's shell would accept the typed confirmation on a production apply, on arming live payments, and on restoring a database, with no terminal involved.
-
-Such a property belongs in the shared library, not in each caller: clearing the variable before sourcing is a convention every new script has to remember and no test can enforce from outside. `scripts/lib/host-env-remote.sh` assigns it unconditionally, so a caller cannot inherit it, and `--yes` still works because every caller parses its flags after sourcing.
-
-Generalise it: when a safety property depends on every script doing something, put it where every script already goes rather than in a convention each one repeats.
+A guard that an environment variable can satisfy is not a guard, and a safety property every script needs belongs in the shared library every script sources, not in a convention each caller repeats: `scripts/lib/host-env-remote.sh` assigns `ASSUME_YES` unconditionally, so an exported value cannot accept a typed confirmation.

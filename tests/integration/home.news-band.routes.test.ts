@@ -1,13 +1,14 @@
 /**
  * The home page band under the hero: the three newest public news items as
- * compact dated items, ending in a link to the news page. The home page lists
- * no events; they are on the events page.
+ * dated items, ending in a link to the news page. The home page lists no
+ * events of its own; they are on the events page.
  *
  * The contract: the items are the newest three public ones, newest first, each
- * with its date, label and headline linking to its page, an event item with
- * its event's hashtag; a hidden item, one whose publication time has not come
- * and one about an event that is not publicly visible never appear. No item
- * draws an excerpt or a thumbnail. The band renders the same for every viewer.
+ * with its date, label, headline linking to its page and opening line; an
+ * event item shows its event's dates, registration status, place and
+ * description, and no hashtag. A hidden item, one whose publication time has
+ * not come and one about an event that is not publicly visible never appear.
+ * The band renders the same for every viewer.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
@@ -35,9 +36,9 @@ let page: (path: string) => Promise<request.Response>;
 
 type EventStatus = NonNullable<NonNullable<Parameters<typeof insertEvent>[1]>['status']>;
 
-function publicEvent(db: Parameters<typeof insertEvent>[0], key: string, title: string, start: string, status: EventStatus = 'reg_open'): string {
+function publicEvent(db: Parameters<typeof insertEvent>[0], key: string, title: string, start: string, status: EventStatus = 'reg_open', description = 'A test event.'): string {
   const tagId = insertTag(db, { tag_normalized: `#${key}`, tag_display: `#${key}`, standard_type: 'event' });
-  return insertEvent(db, { title, hashtag_tag_id: tagId, start_date: start, end_date: start, status });
+  return insertEvent(db, { title, hashtag_tag_id: tagId, start_date: start, end_date: start, status, description });
 }
 
 beforeAll(async () => {
@@ -50,12 +51,12 @@ beforeAll(async () => {
   // An upcoming public event the home page must not list, one a news item is
   // about, and a cancelled one whose news item must not show.
   publicEvent(db, 'event_2026_band_upcoming', 'Band Event Upcoming', '2026-07-10');
-  const eventForNews = publicEvent(db, 'event_2026_band_newsy', 'Band Event Newsy', '2027-01-08');
+  const eventForNews = publicEvent(db, 'event_2026_band_newsy', 'Band Event Newsy', '2027-01-08', 'reg_open', 'A weekend of net in the gym.');
   const canceledId = publicEvent(db, 'event_2026_band_called_off', 'Band Event Called Off', '2026-07-06', 'canceled');
 
   // Six public items, so the band cuts the three oldest; and three withheld items,
   // each newer than every public one, so a missing filter would put it first.
-  insertNewsItem(db, { id: 'band_n1', published_at: '2026-06-30T09:00:00.000Z', title: 'Band News One', body: 'An excerpt that the band never shows.' });
+  insertNewsItem(db, { id: 'band_n1', published_at: '2026-06-30T09:00:00.000Z', title: 'Band News One', body: 'An excerpt the band now shows.' });
   insertNewsItem(db, { id: 'band_n2', published_at: '2026-06-28T09:00:00.000Z', news_type: 'community_post', title: 'Band News Two', author_member_id: VIEWER });
   insertNewsItem(db, { id: 'band_n3', published_at: '2026-06-25T09:00:00.000Z', news_type: 'event_published', title: 'Band News Three', entity_type: 'event', entity_id: eventForNews });
   insertNewsItem(db, { id: 'band_n4', published_at: '2026-05-20T09:00:00.000Z', title: 'Band News Four' });
@@ -106,16 +107,20 @@ describe('the home page news list', () => {
     expect(news).toContain('/news/band_n1"');
   });
 
-  it('gives each item its date and label, an event item its hashtag, and no excerpt or thumbnail', async () => {
+  // Defect caught: the band shows only headlines, so a visitor cannot tell
+  // what an item says or when and where an event runs without clicking.
+  it('gives each item its date, label and opening line, and an event item the event\'s dates, place and description, with no hashtag', async () => {
     const res = await page('/');
     const [n1, n2, n3] = cards(res.text, 'home-news');
     expect(n1).toContain('<span>30 June 2026</span>');
     expect(n1).toContain('<span class="badge badge-muted">News</span>');
+    expect(n1).toContain('<p class="card-description">An excerpt the band now shows.</p>');
     expect(n2).toContain('<span class="badge badge-muted">Community</span>');
-    expect(n3).toContain('class="hashtag">#event_2026_band_newsy</span>');
-    const news = region(res.text, 'home-news');
-    expect(news).not.toContain('card-description');
-    expect(news).not.toContain('card-thumb');
+    expect(n3).toContain('<span>8 January 2027</span>');
+    expect(n3).toMatch(/<span class="badge badge-(reg_open|closed)">/);
+    expect(n3).toContain('<span>Testville, United States</span>');
+    expect(n3).toContain('<p class="card-description">A weekend of net in the gym.</p>');
+    expect(n3).not.toContain('hashtag');
   });
 
   it('ends in a button to the news page', async () => {

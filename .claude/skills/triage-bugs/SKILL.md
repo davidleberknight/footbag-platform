@@ -1,6 +1,7 @@
 ---
 name: triage-bugs
-description: Maintainer-only. Use first, before reading or analysing it, whenever the maintainer brings up a bug report or idea a developer or tester filed in the private dev-tester repository ("a tester filed a bug, find it and analyze it", "look at issue 4", "triage the bug reports"). Settles each report on the spot, one at a time, oldest first - fixed now, carded into the private tracker, closed as not-a-bug or duplicate, or sent back to the reporter with specific questions - showing the exact comment, which posts as the maintainer, before any label, comment or close.
+description: Maintainer-only. Settles each bug report or idea in the private dev-tester repository on the spot, oldest first, as fixed, carded, not-a-bug, duplicate or needs-info, showing the exact comment before any label, comment or close. Use first, before reading or analysing it, whenever the maintainer brings up such a report ("look at issue 4", "triage the bug reports").
+disable-model-invocation: true
 ---
 
 # Triage bug reports
@@ -18,18 +19,11 @@ Questions with no answer for 14 days close it.
 
 ## Wiring and polite degradation
 
-Three pieces:
-
-- `FOOTBAG_DEVTESTER_REPO` env var, set for every checkout by the committed `.claude/settings.json`.
-  Required for every `gh` call; check it is non-empty first. Empty means the session started
-  before the setting existed: a restart of Claude Code loads it.
-- `footbag_dev_tester_repo/` gitignored repo-root symlink to the repository's clone, made by
-  `scripts/setup-dev-workstation.sh`. Needed only for reading the repository's README, whose "What
-  happens after you report" is what testers are told: the labels and comments below keep to it,
-  and a difference is reported rather than acted on. Triage only reads it; Claude edits the
-  clone's files only when the maintainer asks, and every commit and push there is the
-  maintainer's.
-- The private tracker's wiring, per the `tracker-ops` skill, for carding.
+The `FOOTBAG_DEVTESTER_REPO` variable and the `footbag_dev_tester_repo/` link are wired as the
+`file-bug` skill's wiring section sets out. Triage reads the clone's README for "What happens
+after you report", which is what testers are told: the labels and comments below keep to it, and
+a difference is reported rather than acted on. Carding also needs the private tracker's wiring,
+per the `tracker-ops` skill.
 
 When a piece is absent, say exactly one line naming the wiring step. Without the variable there is
 nothing to triage, so stop. Without the link, triage carries on from this skill alone. Without the

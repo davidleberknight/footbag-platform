@@ -5,7 +5,7 @@ description: Audit invariants before modifying the historical pipeline. Trigger 
 
 # Pipeline Invariant Enforcer
 
-Audits a proposed pipeline change against eight structural invariants before any edit lands. Does not write code on its own; it surfaces risks, proposes the minimal fix, and pauses for approval.
+Audits a proposed pipeline change against seven structural invariants before any edit lands. Does not write code on its own; it surfaces risks, proposes the minimal fix, and pauses for approval.
 
 Lifecycle scope: the historical pipeline is pre-go-live data-load tooling. This skill applies until cutover; the pipeline, its CSVs and this skill retire when the pipeline is deleted after the final production load is signed off. After cutover the production database is the source of truth.
 
@@ -28,7 +28,7 @@ If the task touches none of these, skip this skill.
 
 ## Required checks
 
-Run all eight before proposing an edit.
+Run all seven before proposing an edit.
 
 ### 1. Producer before consumer
 
@@ -49,7 +49,7 @@ The pipeline must run end-to-end on a fresh clone with no pre-existing artifacts
 
 Verify by mentally walking the orchestrator from a clean checkout. Flag any step that would fail.
 
-### 3. Canonical CSVs remain source of truth
+### 3. Canonical CSVs and derived artifacts are never patched
 
 `out/canonical/*.csv` and `event_results/canonical_input/*.csv` are pipeline outputs. Never:
 
@@ -57,20 +57,11 @@ Verify by mentally walking the orchestrator from a clean checkout. Flag any step
 - Patch them downstream inside a loader, workbook builder, or platform export
 - Treat them as inputs to upstream pipeline stages
 
+The same holds for every derived artifact: the workbook (`out/Footbag_Results_Release.xlsx`), seed CSVs (`event_results/seed/mvfp_full/*.csv`), DB tables loaded from canonical, and scraper outputs (`out/scraped_footbag_moves.csv`, etc.); if a patch on one is the proposed fix, stop and trace upstream.
+
 Fixes land at the source: parser, override file, identity-lock patch, or curated CSV. Then rebuild.
 
-### 4. Derived artifacts are not patched directly
-
-Same rule as check 3, applied to every derived artifact:
-
-- Workbook (`out/Footbag_Results_Release.xlsx`)
-- Seed CSVs (`event_results/seed/mvfp_full/*.csv`)
-- DB tables loaded from canonical
-- Scraper outputs (`out/scraped_footbag_moves.csv`, etc.)
-
-If a patch on a derived artifact is the proposed fix, stop and trace upstream.
-
-### 5. Identity resolution happens upstream
+### 4. Identity resolution happens upstream
 
 `AliasResolver` is the sole identity authority. New code must:
 
@@ -81,7 +72,7 @@ If a patch on a derived artifact is the proposed fix, stop and trace upstream.
 
 If remediation is needed, it goes through the existing channels (`overrides/`, `inputs/identity_lock/`, `overrides/person_aliases.csv`), not a one-off in-script patch.
 
-### 6. QC must pass before success
+### 5. QC must pass before success
 
 No change is "done" until:
 
@@ -91,7 +82,7 @@ legacy_data/.venv/bin/python legacy_data/pipeline/qc/run_qc.py --root legacy_dat
 
 returns `QC STATUS: PASS` with zero hard failures. `run_pipeline.sh full` enforces this between stage 4 and stage 5. If you bypassed `full`, run QC manually and report the result. Never commit the canonical snapshot (`event_results/canonical_input/`) while QC is failing. Never load the DB after a QC failure.
 
-### 7. Fresh-clone / clean-`out/` behavior is considered
+### 6. Fresh-clone / clean-`out/` behavior is considered
 
 Before claiming a change is correct, simulate or actually run the pipeline from a clean state (it needs the local mirror, refreshed first, or the run silently drops events; see the stale-mirror trap in `legacy_data/CLAUDE.md`). The operator runs these; Claude proposes them:
 
@@ -100,9 +91,9 @@ rm -rf legacy_data/out
 bash legacy_data/run_pipeline.sh full
 ```
 
-If the change introduces a consumer that reads a path no prior step writes, the clean-`out/` run fails. Either add the missing producer to the orchestrator, or make the consumer graceful with an actionable preflight error (see check 8).
+If the change introduces a consumer that reads a path no prior step writes, the clean-`out/` run fails. Either add the missing producer to the orchestrator, or make the consumer graceful with an actionable preflight error (see check 7).
 
-### 8. Preflight failure messages are actionable
+### 7. Preflight failure messages are actionable
 
 When a step fails preflight (missing input, missing dependency, missing env), the error must name:
 
@@ -119,7 +110,7 @@ Forbidden: bare `FileNotFoundError`, `KeyError`, or a stack trace with no operat
 Produce in order:
 
 ### 1. Relevant invariants
-List which of the eight checks apply to the proposed change. Skip those that do not.
+List which of the seven checks apply to the proposed change. Skip those that do not.
 
 ### 2. Risks
 Concrete failure modes the change could introduce. Cite files and line numbers.
@@ -133,21 +124,11 @@ Smallest change that satisfies the invariants. Preference order:
 4. Make the consumer a graceful no-op with a warning (only when producer cost is high)
 
 ### 4. Validation commands
-Exact commands the operator should run to confirm the fix. Default set:
+Exact commands the operator should run to confirm the fix: the QC run (check 5) and, where it applies, the clean-`out/` run (check 6), plus a row-count delta around the rebuild:
 
 ```
-wc -l legacy_data/out/canonical/*.csv                  # baseline
-bash legacy_data/run_pipeline.sh full                  # rebuild
-wc -l legacy_data/out/canonical/*.csv                  # delta
+wc -l legacy_data/out/canonical/*.csv                  # baseline, then again after the rebuild
 git diff --stat legacy_data/event_results/canonical_input/
-legacy_data/.venv/bin/python legacy_data/pipeline/qc/run_qc.py --root legacy_data
-```
-
-For fresh-clone validation:
-
-```
-rm -rf legacy_data/out
-bash legacy_data/run_pipeline.sh full
 ```
 
 For loader-touching changes, also run the loader twice and confirm DELETE+INSERT idempotency (no duplicates, honest counters).
@@ -157,33 +138,4 @@ Never apply edits without explicit approval. State the proposed edit set and wai
 
 ---
 
-## Cross-references
-
-Operational procedure detail (do not duplicate here):
-
-- `legacy_data/runbooks/complete-pipeline.md` for the full pipeline run
-- `legacy_data/runbooks/historical-pipeline.md` for the debugging variant
-- `legacy_data/runbooks/pipeline-diagnostics.md` for QC investigation
-- `legacy_data/runbooks/promote-curated-source.md` for adding pre-1997 sources
-- `legacy_data/runbooks/rebuild-identity-pipeline.md` for identity-pipeline rebuild
-- `legacy_data/runbooks/workbook-v22.md` for the release workbook builder
-
-Rules that load when their paths are touched:
-
-- `.claude/rules/db-write-safety.md` for DB mutation invariants
-- `.claude/rules/testing.md` (loads on `legacy_data/tests/**`) for test mandate
-- `.claude/rules/doc-governance.md` for doc rules
-- `legacy_data/CLAUDE.md` (loads when a file under `legacy_data/` is read) for the subtree's lane, source precedence, local safety rules, known
-  pipeline traps and the loader contract (it defers the structural invariants above to this skill)
-
----
-
-## Anti-patterns this skill catches
-
-- Adding a step that reads `out/foo.csv` without verifying the producer
-- Editing `out/canonical/*.csv` directly to "fix" a row
-- Adding a one-off patch in a loader instead of fixing the canonical source
-- Reimplementing alias normalization in a new script
-- Claiming "done" on a green local run with no QC pass
-- Adding a step that requires manual prep ("first run X locally") not wired into the orchestrator
-- Writing a preflight error that does not name the missing producer
+Runbooks, DB mutation safety, source precedence, pipeline traps and the loader contract are in `legacy_data/CLAUDE.md` (loads when a file under `legacy_data/` is read); procedure detail is not duplicated here.

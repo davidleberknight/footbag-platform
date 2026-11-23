@@ -54,9 +54,10 @@ locals {
   # denies writes to this role does not depend on the role it is attached to.
   dev_tester_role_arn = "arn:aws:iam::${var.aws_account_id}:role/FootbagDevTester"
 
-  # Staging, and the reads a deploy makes. No production resource, because
-  # deploying to production is a closely guarded operation and somebody who
-  # develops and tests does not need it. Reads only: the job deploys code onto
+  # Staging, and the reads a deploy makes. No production resource but the
+  # Legacy Archive bucket, read for a developer's copy, because deploying to
+  # production is a closely guarded operation and somebody who develops and
+  # tests does not need it. Reads only: the job deploys code onto
   # infrastructure an administrator has applied, and plans staging to prove
   # the two match, so it writes no infrastructure on either environment.
   #
@@ -134,6 +135,18 @@ locals {
     ]
     operator_parameters = "arn:aws:ssm:*:${var.aws_account_id}:parameter/footbag-ops/*"
 
+    # Production's Legacy Archive bucket, the one production resource this role
+    # reads. Spelled as the production tree names it, footbag-<environment>-archive.
+    production_archive = "arn:aws:s3:::footbag-production-archive"
+
+    # Staging's copy of the archive and its cross-region replica. Both hold the
+    # real capture, which the staging wildcard above would otherwise let this
+    # role read outside the governed fetch.
+    staging_archive_objects = [
+      "arn:aws:s3:::footbag-staging-archive/*",
+      "arn:aws:s3:::footbag-staging-archive-dr/*",
+    ]
+
     # The staging tree's one dashboard, named for the environment prefix alone.
     # Dashboard ARNs carry no region, so the alarm pattern above, which does,
     # never matched it: refreshing the dashboard was denied and the put and
@@ -202,6 +215,20 @@ locals {
         "logs:List*", "logs:FilterLogEvents", "events:Describe*", "events:List*",
       "cloudwatch:DescribeAlarms*", "cloudwatch:ListTagsForResource"]
       Resource = local.scope.project_resources
+    }
+
+    # A developer's copy of the Legacy Archive. Once production is live its
+    # archive bucket is the source of truth, and an invited developer may fetch
+    # it, whole or by key prefix, under the controls a database copy carries:
+    # an encrypted-disk attestation on the machine it lands on, and each new
+    # copy deleting the one before. scripts/fetch-archive-copy.sh owns those
+    # controls and runs as this role, so the trail names who fetched. Listing
+    # and object reads only; the bucket is SSE-S3, so no key grant is needed.
+    read_the_production_archive = {
+      Sid      = "ReadTheProductionArchiveForADeveloperCopy"
+      Effect   = "Allow"
+      Action   = ["s3:ListBucket", "s3:GetObject"]
+      Resource = [local.scope.production_archive, "${local.scope.production_archive}/*"]
     }
 
     staging_dashboard = {
@@ -660,6 +687,28 @@ locals {
       }
     }
 
+    # Staging's archive holds the real capture, whose pages carry old member
+    # contact details, and the staging bucket wildcard above reaches it. A
+    # developer's copy comes from production through the governed fetch, so
+    # reading staging's copy object by object is denied here.
+    #
+    # The two gate pages are the exception, and the tag is how they are told
+    # apart. A staging plan, which this role runs, refreshes them, and that read
+    # is authorized as s3:GetObject. Terraform places them, so they carry the
+    # provider's default ManagedBy tag; the capture is copied in by a sync that
+    # sets no tag, and the role cannot add one, since tagging an object is a
+    # write the infrastructure-write denial refuses. An absent tag makes the
+    # negated match true, so an untagged object is denied.
+    never_read_the_staging_archive_capture = {
+      Sid      = "NeverReadTheStagingArchiveCapture"
+      Effect   = "Deny"
+      Action   = ["s3:GetObject", "s3:GetObjectVersion"]
+      Resource = local.scope.staging_archive_objects
+      Condition = {
+        StringNotEquals = { "s3:ExistingObjectTag/ManagedBy" = "terraform" }
+      }
+    }
+
     # A budget action applies an IAM policy on its own schedule, under a role it
     # is passed, after the person who created it has gone. The budgets wildcard
     # that made it reachable is not granted, and this role holds no PassRole;
@@ -790,6 +839,7 @@ locals {
   dev_tester_policies = {
     StagingServices = [
       local.statements.project_buckets,
+      local.statements.read_the_production_archive,
       local.statements.state_bucket_listing,
       local.statements.take_the_staging_plan_lock,
       local.statements.project_scoped_services,
@@ -817,6 +867,7 @@ locals {
       local.statements.never_graft_an_alias_onto_production,
       local.statements.never_rewrite_a_production_edge_function,
       local.statements.never_touch_a_production_edge_surface,
+      local.statements.never_read_the_staging_archive_capture,
       local.statements.never_pass_a_role_to_budgets,
       local.statements.never_mint_host_access,
       local.statements.never_reach_a_non_staging_host,

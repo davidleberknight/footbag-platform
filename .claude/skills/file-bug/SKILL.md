@@ -1,6 +1,6 @@
 ---
 name: file-bug
-description: Use when a developer or tester wants to report a bug, an error, or confusing wording they saw in the footbag.org app, including a bare "file a bug", or wants to answer a maintainer's questions on a bug report of theirs. Questions the tester one question at a time until the report or answer holds everything the maintainer needs to reproduce it, removes any secret, shows it, and posts it to the private dev-tester repository only after the tester approves. Never fixes the bug and never triages it. Not for a bug Claude is asked to debug or fix in this session.
+description: Interviews a developer or tester one question at a time until their bug report, or their answer to a maintainer's questions on one, is complete, then posts it to the private dev-tester repository once they approve. Use when they want to report a bug, error or confusing wording seen in the footbag.org app (including a bare "file a bug"); not for a bug Claude is asked to debug or fix in this session.
 ---
 
 # File a bug report
@@ -28,34 +28,15 @@ working, and is a supported configuration):
   lag GitHub; a difference that matters is reported, not guessed around.
 
 When a piece is absent, say exactly one line naming the wiring step, skip the part that needs it,
-and carry on: without the link, use the list and headings below; without the variable, or without
+and carry on: without the link, use the form headings below as the list; without the variable, or without
 an accepted invitation, still run the questions and hand the tester the finished draft to paste
 into the repository's GitHub form or send to the maintainer.
 
 ## What a complete report holds
 
-This mirrors the list of the same name in the repository's README; where they differ, the README
-wins and the difference is reported. Every item is required. "Not sure" is accepted only after
-one follow-up has tried to get the answer, and the report then says what was tried.
-
-1. **What went wrong**, and the exact words of any message on the screen, copied, not
-   paraphrased.
-2. **What they expected instead.** A page that works but shows the wrong thing is only a bug
-   against what it should have shown.
-3. **Which site:** their own computer, or the shared test site.
-4. **Which page:** the web address, or the path after the site name, starting with `/`.
-5. **Who they were signed in as:** a test persona's display name, a real member's record id,
-   their own account, or not signed in.
-6. **The steps**, starting from a page anyone can reach, one action per line: which link or
-   button by its words, which box, and the exact made-up value typed. A step like "filled in the
-   form" is not a step.
-7. **Any record involved:** the id of the member, club, event or other record the steps touched;
-   failing an id, the last part of that record's page address (the `my-club` in `/clubs/my-club`).
-8. **Whether it happens again:** they repeat the steps once now, unless that would change real
-   data, and say every time, sometimes, or once only.
-9. **When:** date, time and time zone. On the test site this is how the matching log lines are
-   found.
-10. **Browser and device.**
+The list of the same name in the repository's README is the checklist; read it there. Every item
+is required. "Not sure" is accepted only after one follow-up has tried to get the answer, and the
+report then says what was tried.
 
 On their own computer, Claude also reads, without asking: the commit (`git rev-parse --short
 HEAD`), whether the working tree has uncommitted changes, and the matching line from the dev
@@ -67,13 +48,13 @@ server's output when there is one.
    it is a bug: that is triage.
 2. **Fill in what Claude can already see** from the conversation and the machine, so the tester
    is never asked for something Claude can read.
-3. **Ask for each missing item, one question per message**, in the order above. Never send a
+3. **Ask for each missing item, one question per message**, in the list's order. Never send a
    list of questions. A vague answer gets one specific follow-up ("which button, by the words on
    it?") before it is taken as given. Help the tester find an answer they do not know how to get:
    where the address bar is, how to read the persona's name, how to see the browser's version.
 4. **Read the steps back** as a numbered list and ask the tester to confirm that following them
    exactly would show the problem. Fix the list until they say yes.
-5. **Check completeness** against the ten items. Anything still missing goes back to step 3.
+5. **Check completeness** against every item in the list. Anything still missing goes back to step 3.
 6. **Draft the report** with the bug form's headings, in its order, read from the linked form's
    `label:` lines, so a report filed here reads the same as one filed through the form. Without
    the link, these are the headings:

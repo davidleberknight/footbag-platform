@@ -24,8 +24,7 @@ the layout: layers, fixtures, isolation, naming.
 - **Real-data leg** (`tests/dev/`): claims one real migrated record per claim shape and walks the surfaces that
   render it, against a temporary copy of the local database before cutover and on staging after it. It
   needs the authoritative member load.
-- **Destructive staging tier**: the `gate_staging_*` rows only the bare `./run_all_tests.sh --staging`
-  schedules (persona walk, curated-content form walk, story checks), each change undone.
+- **Destructive staging tier**: the `gate_staging_*` rows (`.claude/rules/testing.md`).
 
 `npm test` is unit plus integration. Smoke and dev gate on their own environment variable
 (`RUN_STAGING_SMOKE`, `RUN_PERSONA_CRAWL`); the browser layers each have their own Playwright config.
@@ -41,18 +40,8 @@ and refresh it; its refresh belongs to the freestyle-dictionary maintainer.
 
 ## Shared fixtures by purpose
 
-Reach for these before writing a helper of your own; each file's header says when to use it.
-
-- One response per page for a read-only suite: `cachedGet.ts`.
-- A read path whose statement count must not grow with the rows (N+1): `queryCount.ts`.
-- Every deployed route, for a cross-cutting sweep: `routeTable.ts`.
-- Dates relative to now, for anything SQLite's clock compares: `clock.ts`.
-- A route refusing a cross-origin state-changing request: `expectCsrfReject.ts`.
-- The security flags on an issued session cookie: `assertSecureSessionCookie.ts`.
-- A ledger table refusing update and delete: `assertAppendOnly.ts`.
-- The row an action added, without trusting order: `rowPinning.ts`.
-- One member in every state a sender or listing must tell apart, with a live positive control: `memberStates.ts`.
-- Two anti-enumeration responses compared whole, never by length: `normalizeAntiEnumerationBody.ts`.
+Reach for the helpers in `tests/fixtures/` before writing one of your own; each file's header says
+when to use it.
 
 ## Database isolation
 

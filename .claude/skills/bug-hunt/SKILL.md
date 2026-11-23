@@ -29,13 +29,11 @@ misrouting a fix converts one bug into two:
 - **Design/specification**: on a five-ranked surface, a requirement, design decision,
   contract, governance rule, migration rule or parity rule is unsafe or missing, such that
   competent future code would still produce wrong production behavior. Definition in
-  `DESIGN.md`. Ambiguity, contradiction and wording between documents are the
-  `extended-doc-sync` skill's, run before this hunt.
+  `DESIGN.md`.
 - **Implementation**: deployed code fails a clear requirement, domain invariant, or
   security or correctness expectation: every class in the `REFERENCE.md` catalog.
 - **Discrepancy**: the code breaks a clear design intent, or a harness guard does not
-  guard. Section 7. A stale document, comment or service header met on the way is the
-  extended doc sync's: list it as a hand-off, never a finding.
+  guard. Section 7.
 
 Every finding carries a **trace**: the story criterion, design decision or domain invariant
 it breaks. A candidate with no trace is recorded as Low or as a Lead, never above.
@@ -43,30 +41,18 @@ it breaks. A candidate with no trace is recorded as Low or as a Lead, never abov
 Do not assume the docs are right. When code and a doc disagree, the defect may sit in
 either, in both, or in a missing tracked deviation. Reason from the platform goal, the
 domain invariants and the authority order in root `CLAUDE.md`; never silently pick a side.
-
-A missing test or gate is handed to `write-tests` as a named defect class; a gate that does
-not do what it claims is a configuration defect and stays here. Section 13 draws the other
-boundaries.
+Section 13 draws the boundaries with the other skills.
 
 ## 2. Prompt contract
 
 **Role:** white-hat adversarial reviewer for this repository: careful maintainer, security
 engineer, domain analyst and hostile user trying to find real defects before production
 does. Reject what violates the design even when it "works"; refute your own candidates
-before believing them. The skill is written for Opus at medium reasoning effort, in the
-main session and in every subagent: each step is a checklist or a measurement, and what a
-checklist cannot settle is a question, not a deliberation.
+before believing them. What a checklist cannot settle is a question, not a deliberation.
 
 **Objective:** a verified findings report in `BUGS.md` across the three layers, every
 finding reproduced, every ambiguity resolved by the maintainer before the file is written.
-
-**Success criteria for the hunt itself:** the deployed surface re-derived this run and every
-story classified per `.claude/skills/deployed-surface/SKILL.md`, each deployed story's
-expected outcomes written from its text before the code was read (the oracle); every unit in
-the inventory hunted with every category that applies (section 11); every candidate probed
-where it can be and judged real or not by a fresh-context refuter; a coverage ledger
-for every success criterion of a deployed story; every question resolved one at a time
-before the plan was finalized; output restricted to `BUGS.md`.
+Section 11 is the success checklist.
 
 **Non-goals:** no browser QA, no redesign, no code or doc fixes, no test plan, no
 speculative issues recorded as bugs, no remediation in the same session, and no
@@ -83,10 +69,9 @@ finding-count target: a short findings list is a valid result.
   happen in a later session; the `BUGS.md` header carries the standing re-audit
   instruction (section 9).
 - **Every genuine question is answered before finalizing**, asked per
-  `.claude/rules/asking.md`, each message in the shape the extended doc sync skill's Ask step
-  fixes: the "Question N of M" heading, then "What this is:" in everyday words, then the
-  problem, the settled lines, and the one recommended answer. Homework comes first, as that
-  step also fixes: every fact about the site a question states (a page, its title and address,
+  `.claude/rules/asking.md`, each message after its bold title opening with "What this is:"
+  in everyday words, then the problem, the settled lines, and the one recommended answer, as
+  the extended doc sync skill's Ask step does. Homework comes first: every fact about the site a question states (a page, its title and address,
   a button or link label, a notice, who sees it) is read this turn from the template, route and
   service and quoted verbatim, or checked by a fresh-context subagent; never stated from memory.
 - **The workflow hunts, a fresh refuter judges.** Each hunter sweeps one pack and probes its
@@ -107,8 +92,6 @@ finding-count target: a short findings list is a valid result.
   authorize running the app, the candidate is a Lead naming the render as its step.
 - **Never stage, commit, push or pull.** No done-tracking: findings leave `BUGS.md` when
   their fix lands; no closures, dates or RESOLVED markers.
-- **No diagnose-and-remediate in one step.** Diagnose, report, stop. Concise output: no
-  filler, no preamble, no emojis.
 
 ## 4. Scope
 
@@ -189,7 +172,7 @@ self-contained with a recommendation derived from design intent. Classify each o
 decision by owner (CTO (project maintainer), IFPA secretary, IFPA Board (bylaw votes only:
 funds account, dues and membership levels, election timing), legacy-site webmaster,
 technical design) so the right person is asked. Only when every question is answered and
-the section 2 criteria have been walked as a literal checklist does the plan get finalized:
+the section 11 conditions have been walked as a literal checklist does the plan get finalized:
 the complete proposed `BUGS.md` content, the scope note and the coverage summary. Exit plan
 mode; on approval, write `BUGS.md` exactly as approved and deliver the closing summary.
 
@@ -197,9 +180,8 @@ mode; on approval, write `BUGS.md` exactly as approved and deliver the closing s
 
 The lane reads what the code does beside what the design clearly intends, worked out from
 the authority order in root `CLAUDE.md` with the `design-intent` skill's standard for
-"clear". The extended doc sync has already brought the documents, comments and code into
-agreement or put each disagreement to the maintainer, so this lane looks for behavior, not
-wording. Two outcomes:
+"clear". It looks for behavior, not wording (wording drift is the extended doc sync's).
+Two outcomes:
 
 - **Code bug.** The intent is clear; the code does not carry it. Routed to the
   implementation group with its trace and reproduction.
@@ -293,8 +275,7 @@ the finding, and confirms the recommended fix is minimal at the correct layer. A
 that fails the re-audit is returned to the maintainer with the refutation.
 
 **Remediation.** No finding is fixed in the hunt session. A finding leaves `BUGS.md` when
-its fix lands. A test-gap hand-off goes to `write-tests` as a named defect class, never as
-a `BUGS.md` finding.
+its fix lands.
 
 ## 10. Anti-patterns: what not to flag
 
@@ -326,12 +307,17 @@ Every unit the inventory lists for this run is hunted with every category that a
 decides the model, effort, read budget and order, never whether a unit is hunted. The hunt is
 done when:
 
-- (a) every pack has returned, and every unit is marked read (none not-reached);
-- (b) every cross-cutting class pack has returned over the whole route matrix;
-- (c) every candidate is judged real, not real, or kept as a Lead, and a final sweep for
-  each major noun in the findings has run;
-- (d) no success criterion of a story behind a five-ranked surface is unchecked in the
-  coverage ledger.
+- (a) the deployed surface was re-derived this run and every story classified per
+  `.claude/skills/deployed-surface/SKILL.md`, each deployed story's expected outcomes written
+  from its text before the code was read (the oracle);
+- (b) every pack has returned, and every unit is marked read (none not-reached);
+- (c) every cross-cutting class pack has returned over the whole route matrix;
+- (d) every candidate is probed where it can be and judged real, not real, or kept as a Lead
+  by a fresh-context refuter, and a final sweep for each major noun in the findings has run;
+- (e) the coverage ledger has a row for every success criterion of a deployed story, and none
+  behind a five-ranked surface is unchecked;
+- (f) every question was resolved one at a time before the plan was finalized, and output
+  is restricted to `BUGS.md`.
 
 One discipline is mandatory: **invert the question** (the hunt brief's first step). The
 scenario tabletop in `DESIGN.md` is optional: run it when the kickoff names a design area, or

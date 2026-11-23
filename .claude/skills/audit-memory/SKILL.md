@@ -6,19 +6,12 @@ description: Audit the whole project auto-memory store for hygiene - classify ev
 
 # Skill: Audit the auto-memory store (audit-memory)
 
-## Purpose
+Runs the memory write hook's checklist over the whole store, which the hook, gating one write at
+a time, never reviews.
 
-Keep the project auto-memory store honest. The memory write hook
-(`.claude/hooks/guard-memory-write.sh`) gates memory at *write* time, one entry at a time;
-nothing reviews the store as a whole afterwards, so it drifts — duplicates of rules/hooks/docs
-accumulate, entries cite deleted docs, `[[links]]` go dead, and the `MEMORY.md` index falls out
-of sync with the files. This skill runs that hook's checklist over every entry on demand and
-proposes a clean store.
+## Stop condition
 
-## When to use / stop condition
-
-Use only when the human explicitly asks to audit, prune, clean, or re-baseline memory. Not for
-saving a single new memory; the write hook gates that. Stop once the human has approved a batch and the executed changes are verified (index
+Stop once the human has approved a batch and the executed changes are verified (index
 matches files; no dead links or stale citations remain); do not keep sweeping.
 
 ## Authority
@@ -71,10 +64,8 @@ carries the audit line the write hook requires, and the user-scope ask rule stil
 
 ## Secret safety
 
-Some entries are pointers to gitignored, secret-bearing files (for example
-`reference_aws_project_specifics`). Refer to such an entry by name and verdict only — never
-echo its body, paths, IPs, keys, or credentials into the conversation or into any committed
-file. A secret-bearing pointer with a valid target is a KEEP.
+Refer to an entry that points at a gitignored, secret-bearing file by name and verdict only,
+never echoing its body; with a valid target it is a KEEP.
 
 ## Output format
 
@@ -82,5 +73,4 @@ A per-entry ledger, one row each:
 
 `<entry-name> — <KEEP|REWRITE|PROMOTE|DELETE> — <one-line reason>[; destination for PROMOTE][; stale-citation/dead-link/frontmatter note]`
 
-Followed by the structural-check summary (index drift, dead links, malformed frontmatter, stale
-citations) and a recommended batch order. No file changes until the human approves.
+Followed by the structural-check summary and a recommended batch order.

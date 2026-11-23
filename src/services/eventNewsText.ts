@@ -32,7 +32,7 @@ export function eventItemText(kind: EventNewsKind, event: EventNewsFacts): { tit
   switch (kind) {
     case 'opened':
       return {
-        title: `New event: ${event.title}`,
+        title: `Upcoming event: ${event.title}`,
         body: `${name} runs ${dates} in ${where}. Details and registration are on the event page.`,
       };
     case 'sanctioned':

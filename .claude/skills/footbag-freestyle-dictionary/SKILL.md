@@ -26,7 +26,7 @@ Each has different truth rules.
 
 ## Operating posture
 
-This skill carries **no project status**. For what is done, active, parked, or blocked, read the open freestyle issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open --label freestyle`; if unwired, note it in one line and rely on the human's instruction). For what is currently held pending the rules expert's answers, read `freestyle/doctrine/RED_QUEUE.md`; for what is settled, `freestyle/doctrine/RED_RULINGS.md`. Never trust a remembered or skill-embedded status or hold list.
+This skill carries **no project status**: status is in the open `freestyle` issues in the maintainers' private tracker (the `tracker-ops` skill), holds pending the rules expert in `freestyle/doctrine/RED_QUEUE.md`, and settled rulings in `freestyle/doctrine/RED_RULINGS.md`, never copied here.
 
 Do not begin promotion, authoring, or restructuring work from this skill. Start only from a scoped item the maintainer has pulled from the tracker. The public freestyle surfaces (trick index and detail, family pages, sets, glossary, operators, browse, search) are **live production**, not exploration.
 
@@ -70,7 +70,7 @@ Movement relationships involve multiple overlapping axes: symbolic structure, mo
 - **Embodied analogies are pedagogical, not canonical.** Movement-feel cards are teaching material; they never freeze into canon.
 - **Promotion is the curator's.** An observational grouping becomes canonical only with curator sign-off; corpus frequency or a detected pattern is evidence, never a promotion.
 - **No auto-derived classification.** Never derive a family, topology group or neighborhood relationship from notation or from a name; curator classification is authored, not computed.
-- **Public family-base qualification (`?view=family` / `freestylePublicFamilies.ts`).** A public family ROOT must (a) have MORE THAN 2 active members (>=3) — HARD RULE — and (b) express a terminal/downside structural identity: a landing signature descendants preserve even as modifiers stack on the entry (paradox-whirl still "is" a whirl). Entry-side dexterity primitives / operators (ATW is the canonical example) are NOT family roots — they belong in the components / movement-system / glossary-fundamentals layer. This is the public-display layer only and never changes canonical `trick_family`.
+- **Public family-base qualification (`?view=family`).** A public family ROOT must (a) have MORE THAN 2 active members (>=3) — HARD RULE — and (b) express a terminal/downside structural identity: a landing signature descendants preserve even as modifiers stack on the entry (paradox-whirl still "is" a whirl). Entry-side dexterity primitives / operators (ATW is the canonical example) are NOT family roots — they belong in the components / movement-system / glossary-fundamentals layer. This is the public-display layer only and never changes canonical `trick_family`.
 
 When a slice proposal collapses any of these distinctions, **stop and surface the conflict to the curator** before writing code.
 
@@ -107,11 +107,11 @@ Do NOT create canonical rows for: pure modifier chains (`spinning paradox mirage
 
 ### Direction is structural
 
-A direction-reversed movement is its own dictionary entry, not the same trick with a qualifier. Red-confirmed: mirage ≠ illusion; spinning ≠ inspinning; ATW ≠ reverse ATW. If two moves differ in spin / dex / movement direction, they get separate rows even when their structural skeleton is otherwise identical.
+A direction-reversed movement is its own dictionary entry, not the same trick with a qualifier: mirage ≠ illusion; spinning ≠ inspinning; ATW ≠ reverse ATW. If two moves differ in spin / dex / movement direction, they get separate rows even when their structural skeleton is otherwise identical.
 
 Within-trick CW/CCW or in/out execution variants stay in one canonical row when the community treats them as the same trick (e.g. `around_the_world` notation `TOE > SAME IN/OUT [DEX] > SAME TOE [DEL]`).
 
-### Stall ontology rule (Red pt5 clarification)
+### Stall ontology rule
 
 Stalls (toe-stall, inside-stall, clipper-stall, osis) are **common anchor positions** used in many tricks. This is descriptive, not prescriptive; it does not generalize to a universal rule. The ontology must also support non-stall tricks (kicks, surface-less compounds, dexterity-only sequences), body tricks (spin, hop-over, spyro), sets (pixie, fairy, atomic, quantum), modifiers, and standalone compounds without an explicit stall base. Do NOT force tricks into stall-based decomposition; when a base is unclear, defer rather than invent a stall ancestor.
 
@@ -121,7 +121,7 @@ Trick names are labels; Jobs notation describes the actual movement. Store as op
 
 ### Description policy
 
-Public-facing descriptions are neutral and instructional. No reviewer names ("per Red", "by X", "Husted"), no provenance attribution (that lives in `freestyle_trick_source_links.notes` or QC reports, not `description`). Descriptions must not enumerate aliases or append bare "also called," "also known as," or equivalent alias clauses. Alias wording may appear when it is necessary to explain the trick's structure, historical provenance, or established usage, provided the description is not merely duplicating the alias display. ADD-derivation shorthand ("3 ADD = pixie(+1) + mirage(2)") is permitted in `description` as curator provenance: the placeholder suppressor `isDescriptionStructuralPlaceholder` hides any description carrying it from public render, and the ADD math renders instead from the structured "How it's built" composition. Any ADD math a description carries must still agree with the row's `adds` value (self-contradictions are HIGH-severity QC failures). Because the suppressor hides the whole description, prose meant to render must not carry shorthand, or it is suppressed along with it. **The established description templates and write-surface details are in `REFERENCE.md`.**
+Public-facing descriptions are neutral and instructional. No reviewer names or provenance attribution (that lives in `freestyle_trick_source_links.notes` or QC reports, not `description`); the attribution rule for all public prose is the `freestyle-dictionary-surface` skill, "Public prose: attribution and internal language". Descriptions must not enumerate aliases or append bare "also called," "also known as," or equivalent alias clauses. Alias wording may appear when it is necessary to explain the trick's structure, historical provenance, or established usage, provided the description is not merely duplicating the alias display. ADD-derivation shorthand ("3 ADD = pixie(+1) + mirage(2)") is permitted in `description` as curator provenance: the placeholder suppressor `isDescriptionStructuralPlaceholder` hides any description carrying it from public render, and the ADD math renders instead from the structured "How it's built" composition. Any ADD math a description carries must still agree with the row's `adds` value (self-contradictions are HIGH-severity QC failures). Because the suppressor hides the whole description, prose meant to render must not carry shorthand, or it is suppressed along with it. **The established description templates and write-surface details are in `REFERENCE.md`.**
 
 ---
 
@@ -203,7 +203,7 @@ These surfaces have **different semantics**; do not collapse them:
 
 Forbidden: hashtags must NOT trigger family filtering; slug-prefix matching is NOT used for filtering (narrow on `trick_family` only); family selection must NOT be derived from a hashtag.
 
-**Hashtag and dictionary-filter links.** Freestyle dictionary surfaces follow the view-layer href rule with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-set, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the plain-English trick name links to the trick detail page, and a separate "Detail" link resolves to the same page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug. A trick's slug, hashtag body, and `/freestyle/tricks/:slug` segment are one lowercase underscore token (no hyphens); the display name is the plain-English words, also without hyphens, except the names on the display-name exception list (src/content/freestyleDisplayNameExceptions.ts), which keep a genuine hyphen. The hashtag links to the trick's media gallery only when the trick has media (an existence check at render, not a count) and renders as a plain token otherwise. A "Media" link opens the same gallery as the hashtag and renders only when the trick has media, so media presence carries two agreeing signals rather than one. Name, hashtag, Detail, and Media stay four distinct controls. This four-control pattern is the trick dictionary's own standard and is not a site-wide list convention; other sections list their items their own way. A true community nickname renders inline beside the canonical name in quotes, never on a line of its own; a trick's genuine structural names (such as Gyro Torque for Mobius) show on its own page only, never on a list; initialisms, spelling variants, old terms, side-qualified phrases and misleading decompositions stay search-only.
+**Hashtag and dictionary-filter links.** Every media hashtag, family chip, and view filter (by-ADD, by-family, by-set, by-modifier) is a service-provided display-and-href pair: a hashtag links to its media gallery `/media/browse?context=<slug>`, a family or view filter to the filtered dictionary `/freestyle/tricks?...`, and a separate "Detail" link to the same page as the trick name. A trick's slug, hashtag body, and `/freestyle/tricks/:slug` segment are one lowercase underscore token (no hyphens); the display name is the plain-English words, also without hyphens, except the names on the display-name exception list (src/content/freestyleDisplayNameExceptions.ts), which keep a genuine hyphen. The hashtag links to the trick's media gallery only when the trick has media (an existence check at render, not a count) and renders as a plain token otherwise. A "Media" link opens the same gallery as the hashtag and renders only when the trick has media, so media presence carries two agreeing signals rather than one. Name, hashtag, Detail, and Media stay four distinct controls. This four-control pattern is the trick dictionary's own standard and is not a site-wide list convention; other sections list their items their own way. A true community nickname renders inline beside the canonical name in quotes, never on a line of its own; a trick's genuine structural names (such as Gyro Torque for Mobius) show on its own page only, never on a list; initialisms, spelling variants, old terms, side-qualified phrases and misleading decompositions stay search-only.
 
 ---
 
@@ -215,13 +215,7 @@ Canonical results (events, disciplines, placements, participants, doubles partne
 
 ## Source / Truth Rules
 
-Priority: (1) expert-reviewed corrections from Red Husted; (2) curated project dictionary; (3) footbag.org as source/provenance; (4) scraped data as pending/unreviewed. footbag.org is an important source, but not automatic truth. When sources disagree: canonical field wins; preserve source disagreement in provenance; emit/report QC conflicts; do not silently overwrite.
-
----
-
-## Settled rulings
-
-Settled rulings from the rules expert live in `freestyle/doctrine/RED_RULINGS.md`; do not keep a copy here.
+Priority: (1) expert-reviewed corrections from Red Husted; (2) curated project dictionary; (3) footbag.org as source/provenance; (4) scraped data as pending/unreviewed. footbag.org is an important source, but not automatic truth. When sources disagree: canonical field wins; preserve source disagreement in provenance; emit/report QC conflicts; do not silently overwrite. Do not copy footbag.org text wholesale: extract concepts, rewrite clearly, attribute generously in provenance, and connect the data.
 
 ---
 
@@ -244,9 +238,3 @@ All public queries on `freestyle_tricks` MUST filter `is_active = 1`. Enforced i
 ## Implementation Rules
 
 Before changing schema or loading data: (1) classify the concept layer; (2) check whether it is a trick, modifier, alias, glossary term, or future sequence concept; (3) preserve provenance; (4) avoid UI changes unless explicitly requested; (5) avoid mass-importing scraped rows without review; (6) keep changes additive and reversible.
-
----
-
-## Product Goal
-
-Build a freestyle reference better than footbag.org by combining complete dictionary coverage, aliases and historical naming, expert validation, provenance, relationships, records, player links, and future combo analytics. Do not copy footbag.org text wholesale: extract concepts, rewrite clearly, attribute generously, and connect the data.

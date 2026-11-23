@@ -147,10 +147,11 @@ resource "aws_s3_bucket_public_access_block" "archive" {
   restrict_public_buckets = true
 }
 
-# Every publish re-syncs the whole tree, so each replaced object leaves a
-# noncurrent version behind. Across a capture of this size that accretes
-# indefinitely without an expiry rule; 30 days leaves ample rollback headroom
-# between publishes.
+# Every edit or publish that replaces an object leaves its earlier version
+# behind as noncurrent, and that version is what the edit is rolled back to. A
+# year keeps it because the archive is read rarely: a bad edit can go unnoticed
+# for months before ordinary use reveals it, and the rollback has to still be
+# there when it does. The expiry stops superseded versions accruing without end.
 resource "aws_s3_bucket_lifecycle_configuration" "archive" {
   count  = var.enable_archive ? 1 : 0
   bucket = aws_s3_bucket.archive[0].id
@@ -160,7 +161,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive" {
     status = "Enabled"
     filter {}
     noncurrent_version_expiration {
-      noncurrent_days = 30
+      noncurrent_days = 365
     }
   }
 }
@@ -168,7 +169,9 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive" {
 # ── Archive DR (cross-region replication target, us-west-2) ──────────────────
 # The same backup as the media bucket, setting for setting: a versioned,
 # encrypted, private second-region copy filled by continuous replication, with
-# deletions replicated and old versions expiring after 30 days on both sides.
+# deletions replicated and superseded versions kept for a year on both sides.
+# The replica follows every deletion, so its own superseded versions are the
+# only rollback it can offer, and they are kept for the reason given above.
 # Object Lock is not applied, for the reason given above. Once the legacy host
 # is gone this bucket and its copy are the only instances of the mirror, and S3
 # replication copies only objects written after the rule exists, so the copy is
@@ -253,28 +256,42 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive_dr" {
     status = "Enabled"
     filter {}
     noncurrent_version_expiration {
-      noncurrent_days = 30
+      noncurrent_days = 365
     }
   }
 }
 
-# Cross-region replication: archive to archive_dr. Continuous. Delete markers
-# are replicated, as the media rule does, so a publish that removes a page
-# removes it from the copy too. The s3_replication role's policy (iam.tf)
-# covers this pair alongside the snapshot and media pairs.
+# Cross-region replication, continuous, one rule per destination.
+#
+# archive to archive_dr: delete markers are replicated, as the media rule does,
+# so a publish or edit that removes a page removes it from the copy too.
+#
+# archive to the legacy mirror cold copy, while that bucket exists: every write
+# is carried and no delete marker is, so a page removed from the archive stays
+# in the cold copy as it was, and the cold copy can roll back a deletion the
+# replica has already followed. Written straight into Deep Archive, the class
+# the cold copy holds everything in. Replication cannot rewrite a key, so these
+# objects land at the cold copy's root, beside the frozen crawl's own prefixes.
+#
+# Both rules cover every key, so S3 requires them to carry distinct priorities;
+# they name different destinations, so each object goes to both and the order
+# carries no meaning. The s3_replication role's policy (iam.tf) covers these
+# pairs alongside the snapshot and media pairs.
 resource "aws_s3_bucket_replication_configuration" "archive" {
   count = var.enable_archive ? 1 : 0
   depends_on = [
     aws_s3_bucket_versioning.archive,
     aws_s3_bucket_versioning.archive_dr,
+    aws_s3_bucket_versioning.legacy_mirror_backup,
   ]
 
   role   = aws_iam_role.s3_replication.arn
   bucket = aws_s3_bucket.archive[0].id
 
   rule {
-    id     = "replicate-all-to-archive-dr"
-    status = "Enabled"
+    id       = "replicate-all-to-archive-dr"
+    status   = "Enabled"
+    priority = 10
     filter {}
     delete_marker_replication { status = "Enabled" }
 
@@ -292,6 +309,48 @@ resource "aws_s3_bucket_replication_configuration" "archive" {
       }
     }
   }
+
+  dynamic "rule" {
+    for_each = var.enable_legacy_mirror_backup ? [1] : []
+    content {
+      id       = "replicate-writes-to-legacy-mirror-backup"
+      status   = "Enabled"
+      priority = 20
+      filter {}
+      delete_marker_replication { status = "Disabled" }
+
+      destination {
+        bucket        = aws_s3_bucket.legacy_mirror_backup[0].arn
+        storage_class = "DEEP_ARCHIVE"
+
+        dynamic "metrics" {
+          for_each = var.enable_replication_alarm ? [1] : []
+          content {
+            status = "Enabled"
+          }
+        }
+      }
+    }
+  }
+}
+
+# Which source the archive bucket is published from. "crawl" until the cutover:
+# the bucket is a copy of the crawl, and scripts/publish-archive.sh refuses
+# unless it reads exactly "crawl". "bucket" from the cutover on: the bucket is
+# the source of truth, changed only by scripts/archive-edit.sh, which refuses
+# unless it reads exactly "bucket", so a publish can never overwrite an edit.
+# Each script refuses on any other value, a missing parameter or a failed read.
+# The switch script writes "bucket" once, out of band; ignore_changes keeps a
+# later apply from reverting it to "crawl" and re-arming the publish over an
+# edited archive.
+resource "aws_ssm_parameter" "archive_source" {
+  count       = var.enable_archive ? 1 : 0
+  name        = "${local.ssm_prefix}/archive-source"
+  description = "Source of the archive bucket's content. crawl: the bucket is published from the crawl; publish-archive.sh runs only on exactly crawl. bucket: the bucket is the source of truth; archive-edit.sh runs only on exactly bucket. Switched once to bucket out of band at the cutover; never set back."
+  type        = "String"
+  tier        = "Standard"
+  value       = "crawl"
+  lifecycle { ignore_changes = [value] }
 }
 
 # ── CloudFront read access ───────────────────────────────────────────────────

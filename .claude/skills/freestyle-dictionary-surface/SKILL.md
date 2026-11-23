@@ -44,15 +44,7 @@ When future sessions encounter requests like "let's add a `family_galleries` tab
 
 ---
 
-## 2. Status of the surfaces this skill governs
-
-These are **live production surfaces**: the trick index and detail pages (`/freestyle/tricks`, `/freestyle/tricks/:slug`), family pages (`/freestyle/families/:slug`), sets, the A–Z glossary (`/freestyle/glossary`, alphabetical term lookup), Freestyle Concepts (`/freestyle/concepts`, the chapter-based conceptual reference; the trick index carries the "Reading the Dictionary" disclosure), operators, modifier pages (`/freestyle/modifier/:slug`), and search all ship. This skill's contract rules apply to them now.
-
-Not in scope, by design: schema changes such as an `alias_kind` column or a `secondary_family` relation (projection over extension); auth-gated dictionary depth (never — depth is layered, not gated). Implementation status and forward sequencing live in the maintainers' private tracker; this skill carries the durable UX contract only.
-
----
-
-## 3. Architectural invariants
+## 2. Architectural invariants
 
 These are the load-bearing patterns. Future work that quietly relaxes them is a regression.
 
@@ -82,9 +74,9 @@ Galleries, browse views, related-trick lists are projections of `freestyle_trick
 
 ---
 
-## 4. Canonical UX contract patterns
+## 3. Canonical UX contract patterns
 
-These UX contract patterns (established via the Whirl family and Mobius trick mockups) govern the live dictionary surfaces.
+These UX contract patterns govern the live dictionary surfaces.
 
 ### Multi-family membership = primary + modifier association
 
@@ -97,14 +89,9 @@ Mobius example: primary family `torque` (data) + modifier association `gyro` (vi
 
 Render both honestly. Do not invent a `secondary_family` field; do not show two equal family badges.
 
-### Hero-media inversion between scales
+### Hero media
 
-| Surface | Hero choice |
-|---|---|
-| Family page | Multi-trick representative (e.g., AnzTrikz "Whirl and Reverse Whirl" pair) |
-| Trick page | Focused single-trick demo (e.g., Footbag Finland "Mobius") |
-
-Same source data; different curatorial choice. The family page wants breadth; the trick page wants focus. Source-priority ordering is the same on both; the *selection* differs (tier semantics: the `footbag-curated-media` skill).
+Family-page and trick-page hero selection: the `footbag-curated-media` skill, "Which clip leads a page".
 
 ### Alias classes
 
@@ -123,53 +110,11 @@ A shown class can be held hidden while a question is open: the alias keeps its c
 
 Direction-reversed tricks are their own canonical entries, so a "Reverse X" string is only ever an alias when the folk name is canonical. `Reverse Whirl` is the canonical name of `rev_whirl`, not an alias of it; `Whip` is that row's displayed community alias. Where the folk name is canonical, the structural reading is the alias: `Reverse Around-the-World` is a displayed structural alias of `orbit`, and `Reverse Mirage` a displayed common alias of `illusion`.
 
-Categorization is in the schema: a curator sets an alias's type in the trick editor, and a separate display flag decides whether it reaches a reader. The heuristics below (length, vowel-edit-distance, word-count, abbreviation-token detection, known-name lookup) are authoring aids for classifying a new alias, not a runtime path.
+Categorization is in the schema: a curator sets an alias's type in the trick editor, and a separate display flag decides whether it reaches a reader.
 
-#### Structural alias category (validated dictionary-wide)
+#### Structural aliases
 
-A **structural alias** is a string that decomposes the canonical compositionally AND is in active community use as a name for the trick. The two dimensions distinguish it from each neighbor:
-
-- vs Common: a Common alias is a synonym (different label for the same thing). A Structural alias is the *decomposition* (the modifier-stack expressed in noun-phrase form) used as a name.
-- vs Historical: a Historical alias has been superseded by a different canonical name. A Structural alias coexists with the canonical: both forms are in current use.
-- vs Technical decomposition: a Technical decomposition is an abbreviation or slug-form (`gyro_torque`, `pdx_whirl`). A Structural alias is the full noun phrase (`Gyro Torque`, `Atomic Legover`).
-
-Validated examples from the alias audit:
-
-| Structural alias | Canonical | ADD math |
-|---|---|---|
-| Gyro Torque | mobius | gyro(+1) + torque(4) = 5 |
-| Atomic Legover | eggbeater | atomic(+1) + legover(2) = 3 |
-| Atomic Mirage | atom_smasher | atomic(+1) + mirage(2) + [XDEX](1) = 4 |
-
-A structural alias is shown unless it is held pending a ruling. A name that is not a genuine same-movement decomposition does not belong in this class; it goes to the search-only class that says why. Every class is defined in the comment above `freestyle_trick_aliases` in `database/schema.sql`.
-
-#### Render rule for Structural aliases
-
-- **Rendered alongside (not duplicated by) the decomposition block** when flagged for display. The decomposition formula (`gyro(+1) + torque(4) = 5 ✓`) and the structural-alias name (`Gyro Torque`) are two presentations of the same fact; both can appear because they reach different reader populations:
-  - The formula reaches structural / curator audiences
-  - The noun-phrase name reaches community-vocabulary audiences
-- **Search resolves them.** A user typing "Atomic Legover" lands on `eggbeater`, just as one typing "eggbeater" does.
-- **Shown by default.** A genuine structural name is part of the public vocabulary, so it appears in Also called beside the canonical name, which keeps the authority as the page's title.
-
-#### Heuristic for auto-classification
-
-A structural alias is detected when ALL of:
-
-1. The alias is a multi-token noun phrase (≥ 2 words; not slug-form, not all-caps, not single-letter prefix)
-2. Each leading token (except the last) matches a row in `freestyle_trick_modifiers`
-3. The trailing token matches an active or pending `freestyle_tricks.slug` (the base)
-4. The ADD math (sum of modifier bonuses + base.adds) equals the canonical's adds (math validates the decomposition)
-
-If any condition fails, the alias is NOT structural: fall through to Common / Historical / Technical / Typo classification.
-
-#### Edge case: structural alias that's ALSO Historical
-
-Some structural aliases are also superseded names (Toe Blur → Quantum Mirage per Red pt2). Pick the **more useful** category for rendering:
-
-- If active community usage is current, classify as Structural
-- If the alias is fading from use AND replaced by a new canonical, classify as Historical
-
-The curator's alias type, set in the trick editor, is the tiebreaker.
+Every alias class is defined in the comment above `freestyle_trick_aliases` in `database/schema.sql`. A structural alias that is flagged for display renders in Also called alongside (not duplicated by) the decomposition block: the formula (`gyro(+1) + torque(4) = 5 ✓`) and the name (`Gyro Torque`) are two presentations of one fact for different readers, and search resolves the name to the trick. When a structural alias is also a superseded name (Toe Blur, now Quantum Mirage), it is Structural while the community still uses it and Historical once it has faded; the curator's alias type, set in the trick editor, is the tiebreaker.
 
 ### Disclosure model
 
@@ -180,7 +125,7 @@ The curator's alias type, set in the trick editor, is the tiebreaker.
 
 ---
 
-## 5. Pedagogical philosophy
+## 4. Pedagogical philosophy
 
 ### Five-question intro framework
 
@@ -207,7 +152,7 @@ Family pages weight Q3 high (selling the family). Trick pages downweight Q3 (int
 
 Two rules bind every word a visitor reads on a freestyle page: rendered template text, service-shaped copy, and curator prose stored in the database (descriptions and technique notes).
 
-- **No individual named as a source or contributor.** A freestyle page never credits a person for a trick, a notation, a description, a ruling or a reference. The one standing exception is Ben Job, named as the author of the Job notation system on the notation article. A record holder named for the record is not attribution and is outside this rule. Any further exception needs an explicit ruling from the freestyle maintainer before it is written.
+- **No individual named as a source or contributor.** A freestyle page never credits a person for a trick, a notation, a description, a ruling or a reference. The one standing exception is Ben Job, named as the author of the Job notation system on the notation article. A record holder named for the record is not attribution and is outside this rule. Any further exception needs an explicit ruling from the freestyle maintainer before it is written. This is the single home of the rule; the dictionary skill's description policy points here.
 - **No internal-process language.** Rendered prose never carries the working vocabulary of curation: the rules expert's name, ruling identifiers, "adjudication", maintainer names, sprint or phase labels, or dated "curator-reviewed" notes. A specific outside source is named as "an outside source", except on the surfaces whose job is attribution: the glossary's sources sections, media, the observational pages, the sets pages and the notation article.
 
 Verify both against the rendered HTML, not only the source data.
@@ -229,19 +174,9 @@ It does NOT include:
 - Validation results, data-quality flags
 - Test data
 
-### ADD-math as competitive trust signal
-
-Surfacing `gyro 1 + torque 4 = 5 ✓` doesn't add information for a casual viewer but signals "this site checks itself." Competitors lack the structural model to do this. Worth keeping in the expander even if rarely viewed.
-
 ---
 
-## 6. Future direction
-
-Forward sequencing for these surfaces is tracked in the maintainers' private tracker, not here. The dictionary's data and the existing `freestyleService.getTrickDetailPage` shape already support most enrichment with zero schema work — projection over extension.
-
----
-
-## 7. Anti-patterns
+## 5. Anti-patterns
 
 - **Auth-gating dictionary depth.** Login is for member-private data; trick depth stays public.
 - **Inventing schema for UX wants.** Three of four UX axes require zero new schema. The fourth degrades gracefully.
@@ -255,11 +190,11 @@ Forward sequencing for these surfaces is tracked in the maintainers' private tra
 - **Coupling status enums to template-rendered text.** Single mapping site at the service layer.
 - **Rendering broken links.** "Modifier association" text without a destination is acceptable; a link to a non-existent page is not.
 - **Inventing visual treatment for these surfaces.** Type ramp, heading scale, link and disclosure affordances, and callout chrome are the site-wide standard; the rule is `.claude/rules/view-layer.md`, which these surfaces follow without a freestyle variant.
-- **Linking a trick hashtag with no media.** The hashtag links to the gallery only when the trick has media. The full four-control rule: the `footbag-freestyle-dictionary` skill, "Hashtag and dictionary-filter links".
+- **Breaking the four-control rule** for name, hashtag, Detail and Media: the `footbag-freestyle-dictionary` skill, "Hashtag and dictionary-filter links".
 
 ---
 
-## 8. Source-of-truth references
+## 6. Source-of-truth references
 
 For design intent, not implementation:
 

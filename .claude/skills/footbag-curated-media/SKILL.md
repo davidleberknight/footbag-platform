@@ -79,7 +79,7 @@ Tag rules (the hashtag standards; `scripts/_trick_tag_invariant.py:validate_medi
 
 - **PassBack Records is record/performance evidence, not tutorial.** `#record` on the sidecar's tags; it never reads as a tutorial for primary-clip selection (rules in `freestyle/loaders/24_qc_freestyle_media_coverage.py`).
 - **Same trick can have TT tutorial AND PassBack record media**: that is not a duplicate. The two complement each other (how-to vs. proof). Do not skip a PassBack row because the trick already has a TT sidecar.
-- **`#passback_records` is on the source-tag whitelist**, so every PassBack sidecar carries it: a backfill appended it to the pre-existing PassBack sidecars and `promote_snippet_candidates.py` adds it to new ones (both idempotent).
+- **Every PassBack sidecar carries `#passback_records`**: `promote_snippet_candidates.py` adds it to new ones (idempotent).
 - **RECORD_CATEGORY rows must be preserved.** The PassBack source has rows like `2-Bag Juggle`, `Unique 3-Dex`, `Unique Beastly`, `Unique Fearless` (the `Unique N-ADD` runs). These are legitimate PassBack record categories but are NOT freestyle-tricks (per the freestyle-dictionary skill's strict layer separation: glossary terms don't go in `freestyle_tricks`). Stage them in `freestyle/tools/trick_video_discovery/passback_record_categories.csv` (separate from `snippet_candidates.csv`) so they're preserved for a later surfacing decision. Do not coerce them into the trick pipeline with placeholder slugs.
 
 ## 5. Review buckets
@@ -116,32 +116,26 @@ No writes without explicit operator approval. After approval, the implementation
 ## 7. QC commands
 
 ```bash
-# Dry-run promotion (read-only): shows what would be emitted
+# In this order after staging new sidecars.
+# Tag-shape library (the actual check is invoked at sidecar-emit time and at QC time):
+#   python3 scripts/_trick_tag_invariant.py
+
+# 1. Dry-run promotion (read-only): review what would be emitted
 python3 scripts/promote_snippet_candidates.py --dry-run
 
-# Apply: emits sidecars under curated/freestyle_tricks/ from approved rows
+# 2. Apply: emits sidecars under curated/freestyle_tricks/ from approved rows
 python3 scripts/promote_snippet_candidates.py
 
-# Tag-shape library (the actual check is invoked at sidecar-emit time and at QC time)
-python3 scripts/_trick_tag_invariant.py
+# 3. Full DB rebuild: required for sidecar changes to land in media_items
+bash scripts/reset-local-db.sh
 
-# Post-load QC: every active media_items row's tags start with # and are lowercase
+# 4. Post-load QC: every active media_items row's tags start with # and are
+#    lowercase; confirm zero violations
 python3 freestyle/loaders/25_qc_media_tag_invariant.py
 
-# Coverage dashboard: per-trick primary-strength + priority bucketing
+# 5. (optional) Coverage dashboard: per-trick primary-strength delta
 python3 freestyle/loaders/24_qc_freestyle_media_coverage.py
-
-# Full DB rebuild: required for sidecar changes to land in media_items
-bash scripts/reset-local-db.sh
 ```
-
-Order of operations after staging new sidecars:
-
-1. `promote_snippet_candidates.py --dry-run` → review what would be emitted
-2. `promote_snippet_candidates.py` → emit sidecars
-3. `bash scripts/reset-local-db.sh` → reseed DB so `media_items` picks them up
-4. `25_qc_media_tag_invariant.py` → confirm zero invariant violations
-5. (optional) `24_qc_freestyle_media_coverage.py` → coverage delta
 
 ## 8. Gallery readiness
 
@@ -157,10 +151,8 @@ Named-gallery membership is computed at request time by **tag-AND match** agains
 | Boundary | Rule |
 |---|---|
 | `scripts/seed_fh_curator.py` | Safe to RUN (standalone, idempotent); take care before MODIFYING the script body. |
-| `curated/galleries/*.json` | Create/edit gallery sidecars directly (a catch-all `excludeTags` must list every source tag). |
-| `src/controllers/adminCuratorController.ts`, `src/services/curatorMediaService.ts`, `src/views/admin/curator/**` | Application code (gallery editor + member upload); change through normal review. |
-| `src/db/db.ts` schema (member_galleries, member_gallery_tags, media_items, media_tags) | Schema changes go through normal review. |
-| `freestyle/tools/trick_video_discovery/snippet_candidates.csv` | Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter (memory rule). |
+| `curated/galleries/*.json` | Create/edit gallery sidecars directly. |
+| `freestyle/tools/trick_video_discovery/snippet_candidates.csv` | Append-only edits via `csv.writer` in append mode; never round-trip via DictReader/DictWriter. |
 | `curated/freestyle_tricks/*.meta.json` | Promotion and backfill via `promote_snippet_candidates.py` and one-shot backfill scripts. Never rerun a sidecar-producing tool that does not preserve canonical `title` and `tags`; check its output against `curated/freestyle_media/tt_roster.csv` and `curated/freestyle_media/video_snippet_candidates.csv`. |
 | `scripts/promote_snippet_candidates.py` | Promotion script for snippet candidates. |
 | `scripts/_trick_tag_invariant.py` | The tag-shape check and the active-trick lookup. |
@@ -182,37 +174,7 @@ When in doubt about whether a change reaches the application-code or schema laye
 }
 ```
 
-Filename: `curated/freestyle_tricks/forehead_stall_<sha1[:8]>.meta.json`. Promoted via reviewer marking on a `tt_youtube` snippet-candidate row.
-
-### PassBack record example
-
-```jsonc
-{
-  "videoUrl":      "https://www.youtube.com/watch?v=Zmv5ydko6gk",
-  "videoPlatform": "youtube",
-  "title":         "Passback record by Norek",
-  "sourceId":      "passback_records",
-  "tags":          ["#blurry_whirl", "#freestyle", "#trick", "#passback_records", "#record", "#player_arkadiusz_dudzinski"]
-}
-```
-
-Filename: `curated/freestyle_tricks/blurry_whirl_<sha1[:8]>.meta.json`.
-
-### Same trick, distinct media (NOT a duplicate)
-
-The two sidecars below coexist legitimately:
-
-```jsonc
-// TT tutorial: how to do DLO
-{ "sourceId": "tt_youtube",
-  "tags": ["#double_leg_over", "#freestyle", "#trick", "#tricks_of_the_trade", "#tutorial"], ... }
-
-// PassBack record: proof of N consecutive DLO reps
-{ "sourceId": "passback_records",
-  "tags": ["#double_leg_over", "#freestyle", "#trick", "#passback_records", "#record"], ... }
-```
-
-Same `trick_slug` (`double_leg_over`), distinct `(source_id, video_url)` → distinct sidecars → not a duplicate. Both render in the trick-detail page's reference media; each renders in its own source-specific gallery.
+Filename: `curated/freestyle_tricks/forehead_stall_<sha1[:8]>.meta.json`. Promoted via reviewer marking on a `tt_youtube` snippet-candidate row. A PassBack record sidecar has the same shape, with `sourceId` `passback_records` and the `#passback_records` and `#record` tags.
 
 ### Record-category example (no canonical trick slug)
 
@@ -253,8 +215,7 @@ promoted sidecar its first content type from the source id, and an unregistered
 source falls to `#demo`. That map is a convenience for bulk promotion and nothing
 more. The tag lives on the clip, so a curator who knows a particular clip teaches
 something its source usually only demonstrates edits the tag, and two clips
-sharing one source then classify differently. A lookup from a source id could not
-express that, which is why the sidecar field it replaced was removed.
+sharing one source then classify differently.
 
 Three sources default to `#demo` because their format is demonstrational: a
 single trick performed clearly with no teaching breakdown. Shred Global is the
@@ -263,13 +224,8 @@ worked example, with captions uniformly of the form "Footbag Freestyle Trick:
 Shred Global's existing clips are a mix of both kinds, which is exactly the case
 the tag exists for: a curator marks the individual clip that genuinely teaches.
 
-### Coverage strength is the dashboard's vocabulary, not the sidecar's
-
-`freestyle/loaders/24_qc_freestyle_media_coverage.py` maps the content type onto
-its own strength labels: `#tutorial` to STRONG_TUTORIAL, `#demo` to
-HIGH_QUALITY_DEMO, `#record` to WEAK_RECORD, and an untyped clip to
-HIGH_QUALITY_DEMO. Those labels exist for the coverage dashboard; nothing writes
-them to a clip, and no sidecar carries one.
+The coverage dashboard's strength labels are its own vocabulary, defined in
+`freestyle/loaders/24_qc_freestyle_media_coverage.py`; no sidecar carries one.
 
 ### A wrong content type is curator judgment; a missing one is a defect
 
@@ -277,9 +233,7 @@ Choosing `#demo` where `#tutorial` fits better is a review finding, not a
 data-integrity violation. A trick clip with no content type at all is a different
 thing: the invariant refuses it, and the refusal names the clip.
 
-A sidecar carries no separate field naming what a clip is for. An older example
-found elsewhere may show one; it is not current, and a sidecar written with it
-today is a sidecar with two places to answer one question.
+A sidecar carries no separate field naming what a clip is for.
 
 ### Which clip leads a page
 
@@ -309,9 +263,8 @@ promote → seed → QC:
    type a promoted sidecar from this source starts with. Optional: omit it and
    the source falls to `#demo`, which is a correct default rather than an error.
 
-Nothing registers a render bucket any more and no test carries a source count.
-Classification is the clip's own tag, so an unregistered source is no longer a
-hard failure anywhere: it renders under its raw id and its clips default to
+Classification is the clip's own tag, so an unregistered source is not a hard
+failure anywhere past the first point: it renders under its raw id and its clips default to
 demonstrations until someone says otherwise.
 
 ## Cross-references

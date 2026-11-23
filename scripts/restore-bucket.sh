@@ -23,20 +23,44 @@
 # cannot revive an item a member erasure removed, because erasure deletes
 # replicate to the backup copy as well.
 #
-# From earlier versions (--from-versions --as-of <time>). Undoes deletes inside
-# the main bucket itself, within the window its lifecycle rule keeps noncurrent
-# versions for. A key whose newest entries are delete markers all created after
-# --as-of, with a real version beneath them, is restored by removing those
-# markers, which makes the version beneath current again. No real object
-# version is ever deleted; only those markers are. A key already deleted at
-# --as-of is left alone, and a key whose earlier version has aged out of the
-# window is listed as beyond reach. This CAN revive an item that a member
-# erasure deleted after --as-of; that is accepted as rare, and the dry run
-# lists every key before anything changes. A delete marker placed by a
-# lifecycle expiry is revived too, and that rule expires the object again at
-# its next run. The listing follows every page AWS returns (the CLI paginates
-# on its own), so the bound is the memory the whole version listing needs,
-# which these buckets stay far inside.
+# From earlier versions (--from-versions --as-of <time>). Puts each key back as
+# it stood at --as-of, inside the main bucket itself, within the window its
+# lifecycle rule keeps noncurrent versions for. What a key held at --as-of is
+# its newest entry written at or before that time; a key whose current entry is
+# that one has not changed and is not touched. Otherwise:
+#   - deleted after --as-of, and the version beneath its delete markers is the
+#     one it held then: those markers are removed, which makes that version
+#     current again. Only markers are deleted, never a real object version.
+#   - overwritten after --as-of, or overwritten and then deleted: the version it
+#     held then is copied back over the key as a new current version (one
+#     copy-object, the version id in the copy source). Removing the markers
+#     would bring back the later overwrite instead, so the copy is the one
+#     step. The copy is a conditional write: over a current version it
+#     carries that version's ETag (--if-match), and over a delete marker it
+#     requires that no version is current (--if-none-match '*'); immediately
+#     before it the current version id is read back and compared with the plan.
+#     A key written by someone else while the run was going is refused and left
+#     as they left it, never overwritten. No version is deleted. A current
+#     version with the ETag and size of the version held then already holds
+#     that content and is not touched, which is what lets a re-run after a
+#     stop part way copy only what is left.
+#   - absent at --as-of (deleted at or before it) and written after it: left
+#     alone and listed. Putting it back would mean deleting the later object,
+#     and this mode never deletes an object version or places a delete marker.
+#   - nothing at or before --as-of left in the listing: left alone and listed,
+#     since the listing cannot tell a key first written after --as-of from one
+#     whose earlier version has aged out of the window. One that holds only
+#     delete markers is listed as deleted beyond the window's reach.
+# This CAN revive an item that a member erasure deleted after --as-of; that is
+# accepted as rare, and the dry run lists every key with its action before
+# anything changes. A delete marker placed by a lifecycle expiry is revived too,
+# and that rule expires the object again at its next run. A copy is a new
+# version, so it is allowed under Object Lock and the snapshot tiers' rules; the
+# snapshot and log buckets are written once per key, so in practice only
+# deletes are found there. One copy carries up to 5 GB; a larger version is
+# refused by AWS and reported with its words. The listing follows every page
+# AWS returns (the CLI paginates on its own), so the bound is the memory the
+# whole version listing needs, which these buckets stay far inside.
 #
 # Buckets come from the target tree's Terraform outputs, read once:
 #   media      media_bucket_name, backup media_dr_bucket_name
@@ -63,7 +87,9 @@
 # The outcome is proven, not assumed: after a copy a second dry run of the
 # same copy must find nothing left to copy, and up to five copied keys are read
 # back from the main bucket with their size and storage class; after a version
-# restore every restored key must read back as present. Nothing to copy or
+# restore every key whose markers were removed must read back as present, and
+# every key copied back must read back with the new version current at the
+# size of the version it was copied from. Nothing to copy or
 # nothing to restore is a finished run, not an error. A re-run after a stop part
 # way picks up whatever is still missing.
 #
@@ -76,10 +102,10 @@
 #
 #   --target         the environment. Required, with no default.
 #   --bucket         which bucket to restore.
-#   --from-versions  undo deletes from the bucket's own versions instead of
-#                    copying from the backup. Requires --as-of.
-#   --as-of          an ISO 8601 time with its zone (Z or +hh:mm); deletes
-#                    after it are undone.
+#   --from-versions  undo deletes and overwrites from the bucket's own versions
+#                    instead of copying from the backup. Requires --as-of.
+#   --as-of          an ISO 8601 time with its zone (Z or +hh:mm); deletes and
+#                    overwrites after it are undone.
 #   --dry-run        show what would change and stop.
 #   --yes            proceed without the typed prompt; staging only.
 #
@@ -283,55 +309,90 @@ confirm_or_stop() {
 # From earlier versions.
 # --------------------------------------------------------------------------
 if (( FROM_VERSIONS )); then
-  echo "==> deletes in s3://${MAIN} after ${AS_OF_UTC} UTC"
+  echo "==> changes in s3://${MAIN} after ${AS_OF_UTC} UTC"
   if ! "$AWS_BIN" s3api list-object-versions --bucket "$MAIN" --region "$MAIN_REGION" --output json \
         </dev/null >"${WORK}/versions.json" 2>"${WORK}/versions.err"; then
     cr_die "the versions in s3://${MAIN} could not be listed; AWS answered: $(tail -n 1 "${WORK}/versions.err"). Nothing was changed."
   fi
   # Per key, newest entry first (on a tie the one AWS marks latest leads).
-  # The leading run of delete markers is what deleted the key; it is undone
-  # only when every marker in it is newer than --as-of and a real version
-  # lies beneath it. Times compare as UTC strings on their first nineteen
-  # characters, which is how AWS writes them.
+  # $then is what the key held at --as-of: its newest entry written at or
+  # before it. Times compare as UTC strings on their first nineteen
+  # characters, which is how AWS writes them. One line per key that changed:
+  #   REMOVE  key, markers to remove, version they uncover, deleted at
+  #   COPY    key, version to copy back, its size, current id, current kind
+  #           (version or marker), current ETag
+  #   ABSENT  key, current version: deleted at --as-of, written after it
+  #   UNKNOWN key, current id: nothing at or before --as-of is left
+  #   GONE    key: only delete markers, all after --as-of
   # shellcheck disable=SC2016
   jq -r --arg asof "$AS_OF_UTC" '
-    ([(.Versions // [])[] | {k: .Key, id: .VersionId, t: .LastModified[0:19], l: (.IsLatest == true), m: false}]
-     + [(.DeleteMarkers // [])[] | {k: .Key, id: .VersionId, t: .LastModified[0:19], l: (.IsLatest == true), m: true}])
+    ([(.Versions // [])[] | {k: .Key, id: .VersionId, t: .LastModified[0:19], l: (.IsLatest == true), m: false, s: (.Size // 0), e: (.ETag // "")}]
+     + [(.DeleteMarkers // [])[] | {k: .Key, id: .VersionId, t: .LastModified[0:19], l: (.IsLatest == true), m: true, s: 0, e: ""}])
     | group_by(.k)[]
     | sort_by([.t, (if .l then 1 else 0 end)]) | reverse
     | . as $all
-    | ([$all | to_entries[] | select(.value.m | not) | .key] | first) as $firstreal
-    | ($all[0:($firstreal // ($all | length))]) as $run
-    | select(($run | length) > 0)
-    | if ($run | all(.t > $asof)) | not then empty
-      elif $firstreal == null then "GONE\t\($all[0].k)"
-      else "RESTORE\t\($all[0].k)\t\([$run[].id] | join(","))\t\($run[-1].t)" end
+    | $all[0] as $cur
+    | (first($all[] | select(.t <= $asof)) // null) as $then
+    | (first($all[] | select(.m | not)) // null) as $firstreal
+    | if $then != null and $then.id == $cur.id then empty
+      elif $then == null then
+        (if $firstreal == null then "GONE\t\($cur.k)" else "UNKNOWN\t\($cur.k)\t\($cur.id)" end)
+      elif $then.m then
+        (if $cur.m then empty else "ABSENT\t\($cur.k)\t\($cur.id)" end)
+      elif ($cur.m | not) and $then.e != "" and $cur.e == $then.e and $cur.s == $then.s then empty
+      elif $firstreal.id == $then.id then
+        ([$all | to_entries[] | select(.value.id == $then.id) | .key] | first) as $i
+        | "REMOVE\t\($cur.k)\t\([$all[0:$i][].id] | join(","))\t\($then.id)\t\($all[$i - 1].t)"
+      else
+        "COPY\t\($cur.k)\t\($then.id)\t\($then.s)\t\($cur.id)\t\(if $cur.m then "marker" else "version" end)\t\($cur.e)"
+      end
   ' "${WORK}/versions.json" >"${WORK}/plan.tsv" \
     || cr_die "the version listing of s3://${MAIN} could not be read as JSON. Nothing was changed."
 
-  grep '^RESTORE' "${WORK}/plan.tsv" >"${WORK}/restore.tsv" || [[ $? == 1 ]]
-  grep '^GONE' "${WORK}/plan.tsv" >"${WORK}/gone.tsv" || [[ $? == 1 ]]
-  n_restore="$(wc -l <"${WORK}/restore.tsv")"
-  n_gone="$(wc -l <"${WORK}/gone.tsv")"
+  for kind in REMOVE COPY ABSENT UNKNOWN GONE; do
+    grep "^${kind}"$'\t' "${WORK}/plan.tsv" >"${WORK}/${kind}.tsv" || [[ $? == 1 ]]
+  done
+  n_remove="$(wc -l <"${WORK}/REMOVE.tsv")"
+  n_copy="$(wc -l <"${WORK}/COPY.tsv")"
+  n_absent="$(wc -l <"${WORK}/ABSENT.tsv")"
+  n_unknown="$(wc -l <"${WORK}/UNKNOWN.tsv")"
+  n_gone="$(wc -l <"${WORK}/GONE.tsv")"
 
+  # The plan: every key that changed after --as-of, with what happens to it.
   if (( n_gone > 0 )); then
-    echo "    ${n_gone} key(s) deleted after ${AS_OF_UTC} have no earlier version left in the window:"
-    cut -f2 "${WORK}/gone.tsv" | sed 's/^/      /'
+    echo "    ${n_gone} key(s) deleted after ${AS_OF_UTC} have no earlier version left in the window; left alone:"
+    cut -f2 "${WORK}/GONE.tsv" | sed 's/^/      /'
     cr_unproved "${n_gone} key(s) deleted after ${AS_OF_UTC} in s3://${MAIN} are beyond the version window and were not restored"
   fi
-  if (( n_restore == 0 )); then
-    echo "    nothing in s3://${MAIN} was deleted after ${AS_OF_UTC} that its versions can bring back."
-    cr_proved "s3://${MAIN} holds no delete after ${AS_OF_UTC} that an earlier version can undo"
+  if (( n_unknown > 0 )); then
+    echo "    ${n_unknown} key(s) have nothing at or before ${AS_OF_UTC} left in the listing: first written after it, or their version then has aged out of the window; left alone (key, current version):"
+    cut -f2,3 "${WORK}/UNKNOWN.tsv" | sed 's/^/      /'
+    cr_unproved "${n_unknown} key(s) in s3://${MAIN} have no version at or before ${AS_OF_UTC} left to return to and were left alone"
+  fi
+  if (( n_absent > 0 )); then
+    echo "    ${n_absent} key(s) were absent at ${AS_OF_UTC} and written after it; left alone, since this never deletes an object (key, current version):"
+    cut -f2,3 "${WORK}/ABSENT.tsv" | sed 's/^/      /'
+    cr_unproved "${n_absent} key(s) in s3://${MAIN} written after ${AS_OF_UTC} where none stood then were left alone"
+  fi
+  if (( n_remove + n_copy == 0 )); then
+    echo "    nothing in s3://${MAIN} changed after ${AS_OF_UTC} that its versions can put back."
+    cr_proved "s3://${MAIN} holds no delete or overwrite after ${AS_OF_UTC} that an earlier version can undo"
     cr_finish_with 0 "DONE, NOTHING TO RESTORE"
   fi
-  echo "    ${n_restore} key(s) deleted after ${AS_OF_UTC} would be restored (key, deleted at):"
-  cut -f2,4 "${WORK}/restore.tsv" | sed 's/^/      /'
+  if (( n_remove > 0 )); then
+    echo "    ${n_remove} key(s) deleted after ${AS_OF_UTC} would be restored by removing their delete markers (key, markers removed, version made current, deleted at):"
+    cut -f2- "${WORK}/REMOVE.tsv" | sed 's/^/      /'
+  fi
+  if (( n_copy > 0 )); then
+    echo "    ${n_copy} key(s) overwritten after ${AS_OF_UTC} would have their version then copied back as a new current version (key, version copied back, current version or delete marker it goes over):"
+    cut -f2,3,5 "${WORK}/COPY.tsv" | sed 's/^/      /'
+  fi
 
   if (( DRY_RUN )); then
-    cr_proved "dry run: ${n_restore} key(s) in s3://${MAIN} would be restored; nothing was changed"
+    cr_proved "dry run: in s3://${MAIN}, ${n_remove} key(s) would have delete markers removed and ${n_copy} key(s) a version copied back; ${n_absent} written after ${AS_OF_UTC}, ${n_unknown} with no version then and ${n_gone} beyond the window would be left alone; nothing was changed"
     cr_finish
   fi
-  confirm_or_stop "remove the delete markers above, restoring ${n_restore} key(s) in ${TARGET} s3://${MAIN}"
+  confirm_or_stop "remove the delete markers and copy back the versions listed above, restoring $((n_remove + n_copy)) key(s) in ${TARGET} s3://${MAIN}"
 
   done_count=0
   while IFS=$'\t' read -r _ key ids _; do
@@ -339,13 +400,56 @@ if (( FROM_VERSIONS )); then
     for id in "${marker_ids[@]}"; do
       if ! "$AWS_BIN" s3api delete-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$key" \
             --version-id "$id" </dev/null >/dev/null 2>"${WORK}/del.err"; then
-        cr_die "the delete marker ${id} on ${key} could not be removed; AWS answered: $(tail -n 1 "${WORK}/del.err"). ${done_count} of ${n_restore} key(s) were restored; a re-run finishes the rest."
+        cr_die "the delete marker ${id} on ${key} could not be removed; AWS answered: $(tail -n 1 "${WORK}/del.err"). ${done_count} of ${n_remove} key(s) had their markers removed and no version was copied back; a re-run finishes the rest."
       fi
     done
     done_count=$((done_count + 1))
-  done <"${WORK}/restore.tsv"
+  done <"${WORK}/REMOVE.tsv"
 
-  # Each restored key must read back as present.
+  # Each copy is refused rather than made over a key that changed since the
+  # plan: the current version id is read back first, and the copy itself is a
+  # conditional write on what is current. A refused key is an error and the
+  # rest go on, since each key stands alone.
+  : >"${WORK}/copied.tsv"
+  n_refused=0
+  while IFS=$'\t' read -r _ key then_id then_size cur_id cur_kind cur_etag; do
+    cond=()
+    if [[ "$cur_kind" == "version" ]]; then
+      now_id=""
+      if ! now_id="$("$AWS_BIN" s3api head-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$key" \
+            --query VersionId --output text </dev/null 2>"${WORK}/pre.err")"; then
+        cr_error "${key} was not copied back: its current version could not be read before the copy; AWS answered: $(tail -n 1 "${WORK}/pre.err")"
+        n_refused=$((n_refused + 1)); continue
+      fi
+      if [[ "$now_id" != "$cur_id" ]]; then
+        cr_error "${key} was not copied back: its current version is ${now_id}, not ${cur_id} as planned, so it was written while the run was going; it is left as it is, and a re-run plans it afresh"
+        n_refused=$((n_refused + 1)); continue
+      fi
+      if [[ -z "$cur_etag" ]]; then
+        cr_error "${key} was not copied back: the listing gave no ETag for its current version ${cur_id}, so the copy could not be conditioned on it"
+        n_refused=$((n_refused + 1)); continue
+      fi
+      cond=(--if-match "$cur_etag")
+    else
+      cond=(--if-none-match '*')
+    fi
+    new_id=""
+    if ! new_id="$("$AWS_BIN" s3api copy-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$key" \
+          --copy-source "${MAIN}/${key}?versionId=${then_id}" "${cond[@]}" \
+          --query VersionId --output text </dev/null 2>"${WORK}/copy.err")"; then
+      err="$(tail -n 1 "${WORK}/copy.err")"
+      if grep -qE '\((PreconditionFailed|412|ConditionalRequestConflict|409|NoSuchKey|404)\)' <<<"$err"; then
+        cr_error "${key} was not copied back: it changed while the run was going, and AWS refused the conditional copy: ${err}. It is left as it is; a re-run plans it afresh"
+      else
+        cr_error "${key} was not copied back from version ${then_id}; AWS answered: ${err}"
+      fi
+      n_refused=$((n_refused + 1)); continue
+    fi
+    echo "    ${key}: version ${then_id} copied back as ${new_id}"
+    printf '%s\t%s\t%s\t%s\n' "$key" "$then_id" "$then_size" "$new_id" >>"${WORK}/copied.tsv"
+  done <"${WORK}/COPY.tsv"
+
+  # Each key whose markers were removed must read back as present.
   missing=0
   while IFS=$'\t' read -r _ key _; do
     if ! "$AWS_BIN" s3api head-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$key" \
@@ -353,8 +457,30 @@ if (( FROM_VERSIONS )); then
       cr_error "${key} is still absent from s3://${MAIN} after its delete markers were removed: $(tail -n 1 "${WORK}/head.err")"
       missing=$((missing + 1))
     fi
-  done <"${WORK}/restore.tsv"
-  (( missing == 0 )) && cr_proved "all ${n_restore} restored key(s) read back as present in s3://${MAIN}"
+  done <"${WORK}/REMOVE.tsv"
+  (( n_remove > 0 && missing == 0 )) && cr_proved "all ${n_remove} key(s) whose delete markers were removed read back as present in s3://${MAIN}"
+
+  # Each key copied back must read back with the copy current, at the size of
+  # the version it was copied from.
+  bad=0
+  n_copied="$(wc -l <"${WORK}/copied.tsv")"
+  while IFS=$'\t' read -r key then_id then_size new_id; do
+    if ! got="$("$AWS_BIN" s3api head-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$key" \
+          --query '[VersionId,ContentLength]' --output text </dev/null 2>"${WORK}/head.err")"; then
+      cr_error "${key} could not be read back after version ${then_id} was copied back: $(tail -n 1 "${WORK}/head.err")"
+      bad=$((bad + 1)); continue
+    fi
+    read -r got_id got_size <<<"$got"
+    if [[ "$got_id" != "$new_id" ]]; then
+      cr_error "${key} reads back with version ${got_id} current, not the copy ${new_id} of version ${then_id}"
+      bad=$((bad + 1))
+    elif [[ "$got_size" != "$then_size" ]]; then
+      cr_error "${key} reads back at ${got_size} bytes, but version ${then_id} it was copied from is ${then_size}"
+      bad=$((bad + 1))
+    fi
+  done <"${WORK}/copied.tsv"
+  (( n_copied > 0 && bad == 0 )) && cr_proved "all ${n_copied} key(s) copied back read back with the copy current, at the size of the version copied"
+  cr_proved "counts in s3://${MAIN}: ${n_remove} key(s) had delete markers removed, ${n_copied} of ${n_copy} had their version at ${AS_OF_UTC} copied back (${n_refused} refused), ${n_absent} written after it, ${n_unknown} with no version then and ${n_gone} beyond the window were left alone"
   cr_finish
 fi
 

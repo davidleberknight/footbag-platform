@@ -113,6 +113,7 @@ describe('the job role carries exactly the statements it is meant to', () => {
     expect(assembled()).toEqual({
       StagingServices: [
         'project_buckets',
+        'read_the_production_archive',
         'state_bucket_listing',
         'take_the_staging_plan_lock',
         'project_scoped_services',
@@ -140,6 +141,7 @@ describe('the job role carries exactly the statements it is meant to', () => {
         'never_graft_an_alias_onto_production',
         'never_rewrite_a_production_edge_function',
         'never_touch_a_production_edge_surface',
+        'never_read_the_staging_archive_capture',
         'never_pass_a_role_to_budgets',
         'never_mint_host_access',
         'never_reach_a_non_staging_host',
@@ -321,6 +323,30 @@ describe('the job role writes no infrastructure', () => {
 
   it('reads the staging buckets and the staging state, and writes neither', () => {
     expect(actions('ProjectBucketsIncludingTerraformState')).toEqual(['s3:Get*', 's3:List*']);
+  });
+
+  it('reads the production archive for a developer copy, and nothing else of production', () => {
+    // Defect caught: a wider grant hands every dev-and-tester production's
+    // other buckets; a missing listing makes the fetch fail on its first page.
+    expect(actions('ReadTheProductionArchiveForADeveloperCopy')).toEqual(['s3:ListBucket', 's3:GetObject']);
+    const s = statement('ReadTheProductionArchiveForADeveloperCopy');
+    expect(s).toMatch(/Resource\s+= \[local\.scope\.production_archive, "\$\{local\.scope\.production_archive\}\/\*"\]/);
+    expect(scopeBlock()).toMatch(/\n\s+production_archive\s+= "arn:aws:s3:::footbag-production-archive"\n/);
+  });
+
+  it('refuses the staging archive capture outside the governed fetch, yet lets a plan read its gate pages', () => {
+    // Defect caught: an unconditioned denial kills every staging plan on the
+    // refresh of the gate pages Terraform placed; a missing denial lets the
+    // staging wildcard read the real capture without the encrypted-disk and
+    // replace-on-fetch controls of the developer copy.
+    const s = statement('NeverReadTheStagingArchiveCapture');
+    expect(s).toMatch(/Effect\s+= "Deny"/);
+    expect(actions('NeverReadTheStagingArchiveCapture')).toEqual(['s3:GetObject', 's3:GetObjectVersion']);
+    expect(resourcePatterns('NeverReadTheStagingArchiveCapture')).toEqual([
+      'arn:aws:s3:::footbag-staging-archive/*',
+      'arn:aws:s3:::footbag-staging-archive-dr/*',
+    ]);
+    expect(s).toMatch(/StringNotEquals = \{ "s3:ExistingObjectTag\/ManagedBy" = "terraform" \}/);
   });
 
   it('reads the edge a staging plan refreshes, and changes none of it', () => {

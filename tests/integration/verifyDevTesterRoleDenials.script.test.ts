@@ -65,6 +65,12 @@ interface Estate {
   sharedStateReadable?: boolean;
   /** Whether it can still read its own, which it must. */
   stagingStateReadable?: boolean;
+  /** The regression where the developer archive fetch can no longer read production's archive. */
+  productionArchiveUnreadable?: boolean;
+  /** The regression where staging's archive capture is readable outside the governed fetch. */
+  stagingArchiveCaptureReadable?: boolean;
+  /** The regression where the capture denial also refuses the gate pages a staging plan refreshes. */
+  archiveGatePagesDenied?: boolean;
   /** Whether it can still read the role definition, which it must. */
   roleReadable?: boolean;
   /** The simulator answering nothing at all. */
@@ -134,6 +140,9 @@ const HEALTHY: Required<Estate> = {
   lockUnwritable: false,
   sharedStateReadable: false,
   stagingStateReadable: true,
+  productionArchiveUnreadable: false,
+  stagingArchiveCaptureReadable: false,
+  archiveGatePagesDenied: false,
   roleReadable: true,
   simulatorSilent: false,
   simulatorNone: false,
@@ -281,7 +290,19 @@ function awsStub(estate: Estate): string {
       '        echo implicitDeny',
       '      fi',
       '      return ;;',
-      '    s3:GetObject)',
+      '    s3:GetObject|s3:GetObjectVersion|s3:ListBucket)',
+      '      if [[ "$resource" == *:::footbag-production-archive* ]]; then',
+      `        ${e.productionArchiveUnreadable ? 'echo implicitDeny' : 'echo allowed'}`,
+      '        return',
+      '      fi',
+      '      if [[ "$resource" == *:::footbag-staging-archive* ]]; then',
+      '        if [[ "$ctx" == *ManagedBy*terraform* ]]; then',
+      `          ${e.archiveGatePagesDenied ? 'echo explicitDeny' : 'echo allowed'}`,
+      '        else',
+      `          ${e.stagingArchiveCaptureReadable ? 'echo allowed' : 'echo explicitDeny'}`,
+      '        fi',
+      '        return',
+      '      fi',
       '      if [[ "$resource" == */staging/* ]]; then',
       `        ${e.stagingStateReadable ? 'echo allowed' : 'echo implicitDeny'}`,
       '      else',
@@ -801,9 +822,38 @@ describe('verify-dev-tester-role-denials.sh — the terraform state boundary', (
 
   it('reports the boundary as reached by design rather than as an absence', () => {
     const r = run();
+    expect(r.stdout).toMatch(/developer archive copy: s3:GetObject is allowed/);
+    expect(r.stdout).toMatch(/staging archive capture: 2 action\(s\) explicitly denied/);
+    expect(r.stdout).toMatch(/staging refresh of the archive gate pages: s3:GetObject is allowed/);
     expect(r.stdout).toMatch(/shared state is out of reach/);
     expect(r.stdout).toMatch(/production state is out of reach/);
     expect(r.stdout).toMatch(/identity state is out of reach/);
+  });
+});
+
+describe('verify-dev-tester-role-denials.sh — the Legacy Archive', () => {
+  it('fails when staging capture is readable outside the governed fetch', () => {
+    // Defect caught: the staging wildcard read hands any dev-and-tester the
+    // real capture, with its old member contact details, without the
+    // encrypted-disk attestation or the replace-on-fetch the fetch enforces.
+    const r = run({ stagingArchiveCaptureReadable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/staging archive capture: s3:GetObject came back allowed/);
+  });
+
+  it('fails when the capture denial also refuses the gate pages a staging plan refreshes', () => {
+    // Defect caught: every staging plan dies on its refresh of the two
+    // Terraform-placed gate pages, so no dev-and-tester can plan staging.
+    const r = run({ archiveGatePagesDenied: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/staging refresh of the archive gate pages: s3:GetObject came back explicitDeny/);
+  });
+
+  it('fails when the developer fetch can no longer read production archive', () => {
+    // Defect caught: a developer's archive fetch fails on its first object.
+    const r = run({ productionArchiveUnreadable: true });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/developer archive copy: s3:GetObject came back implicitDeny/);
   });
 });
 

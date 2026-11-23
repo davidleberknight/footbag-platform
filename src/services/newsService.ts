@@ -30,18 +30,22 @@
  *       - `/news`, the current UTC year's items, with an empty state when it
  *         has none; `/news/year/:year`, another year's items, which exists only
  *         while that year holds items. Items are listed newest first, each as
- *         a dated item card (date, label, headline, excerpt; an event item's
- *         hashtag on its meta line; an event
- *         item's cover as its thumbnail). The year navigation links only to
+ *         a dated item card (date, label, headline, excerpt; an event
+ *         item's cover as its thumbnail). An item about an event describes
+ *         the event: its dates as the card's date, its registration status
+ *         beside the label while it is upcoming, its location and host club
+ *         on the meta line, and its description as the excerpt when it has
+ *         one; the card carries no hashtag. The year navigation links only to
  *         years holding items, the current year by its landing address.
  *       - `/news/:newsId`, one item's page in the detail-page order: an event
  *         item's cover, the label and date, an event item's
  *         media line, the body, the link to the event or the club, and the
  *         back link to the item's year.
- *       - The home page band: the three newest items, each with its date,
- *         label and headline (an event item's hashtag on its meta line).
- *     An item about an event carries that event's hashtag, linked to its
- *     gallery only while media carries it, and the event's honoured cover; a
+ *       - The home page band: the three newest items, as the year pages'
+ *         cards, excerpt and cover included.
+ *     An item's own page about an event carries that event's hashtag, linked
+ *     to its gallery only while media carries it, and the event's honoured
+ *     cover; a
  *     news item has no hashtag or cover of its own. An item about a club
  *     links to the club only while the club's page is public; an archived
  *     club leaves the item standing without the link.
@@ -87,7 +91,8 @@ import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSani
 import type { DatedItemMeta, DatedItemView } from '../types/datedItem';
 import type { PageViewModel } from '../types/page';
 import { coverPhotoImage, eventCoverPhotos, type CoverPhotoImage, type CoverPhotoView } from './entityCoverPhoto';
-import { eventDateRange, getAdjacentArchiveYears } from './eventListing';
+import { personLocation } from './countryUtils';
+import { eventDateRange, eventStatusBadge, getAdjacentArchiveYears } from './eventListing';
 import { mediaService } from './mediaService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { runSqliteRead } from './sqliteRetry';
@@ -157,6 +162,21 @@ export interface PublicNewsItemRow extends NewsItemRow {
   entity_id: string | null;
   event_id: string | null;
   event_title: string | null;
+  event_description: string | null;
+  event_start_date: string | null;
+  event_end_date: string | null;
+  event_city: string | null;
+  event_region: string | null;
+  event_country: string | null;
+  event_status: string | null;
+  event_registration_status: string | null;
+  event_registration_deadline: string | null;
+  event_host_club: string | null;
+  payment_enabled: number | null;
+  competitor_fee_cents: number | null;
+  attendee_fee_cents: number | null;
+  is_attendee_registration_open: number | null;
+  has_enterable_division: number | null;
   event_tag_normalized: string | null;
   event_tag_display: string | null;
   /** Present only while the club's page is public. */
@@ -237,31 +257,64 @@ function eventHrefFromTag(tagNormalized: string): string {
 }
 
 /**
- * One item as a list entry: its date, label, headline linking to its page and
- * excerpt; an event item's hashtag on the meta line; and an event item's cover
- * as the thumbnail.
+ * One item as a list entry: its label, headline linking to its page, excerpt,
+ * and an event item's cover as the thumbnail. An item about an event describes
+ * the event rather than the post: the event's dates in place of the publication
+ * date, its registration status beside the label while it is upcoming, its
+ * location and host club on the meta line, and its description as the excerpt
+ * when it has one. The hashtag is left to the event's own page.
  */
 export function toNewsDatedItem(
   row: PublicNewsItemRow,
-  opts: { galleryHref: string | null; thumbUrl: string | null },
+  opts: { thumbUrl: string | null; nowIso: string },
 ): DatedItemView {
   const view = newsService.shapeNewsItem(row);
   const meta: DatedItemMeta[] = [];
-  if (row.event_id && row.event_tag_display) {
-    meta.push(opts.galleryHref
-      ? { text: row.event_tag_display, href: opts.galleryHref, isHashtag: true }
-      : { text: row.event_tag_display, isHashtag: true });
+  const bodyExcerpt = newsExcerpt(row.body);
+  let date = newsDateText(row.published_at);
+  let status: DatedItemView['status'] = null;
+  let excerpt = bodyExcerpt === '' ? null : bodyExcerpt;
+  if (row.event_id && row.event_start_date && row.event_end_date && row.event_status) {
+    date = eventDateRange(row.event_start_date, row.event_end_date);
+    if (row.event_status !== 'completed') {
+      status = eventStatusBadge({
+        status: row.event_status,
+        registration_status: row.event_registration_status ?? '',
+        registration_deadline: row.event_registration_deadline,
+        start_date: row.event_start_date,
+        is_attendee_registration_open: row.is_attendee_registration_open ?? 0,
+        competitor_fee_cents: row.competitor_fee_cents,
+        attendee_fee_cents: row.attendee_fee_cents,
+        payment_enabled: row.payment_enabled ?? 0,
+        has_enterable_division: row.has_enterable_division ?? 0,
+      }, opts.nowIso);
+    }
+    const location = personLocation(row.event_city, row.event_region, row.event_country);
+    if (location) meta.push({ text: location.text });
+    if (row.event_host_club) meta.push({ text: row.event_host_club });
+    const description = row.event_description?.trim() ?? '';
+    if (description !== '') excerpt = description;
   }
-  const excerpt = newsExcerpt(row.body);
   return {
-    date: newsDateText(row.published_at),
+    date,
     title: row.title,
     href: `/news/${row.id}`,
     label: { text: view.label, cssClass: NEWS_LABEL_CSS_CLASS },
+    status,
     meta,
-    excerpt: excerpt === '' ? null : excerpt,
+    excerpt,
     image: opts.thumbUrl ? { thumbUrl: opts.thumbUrl } : null,
   };
+}
+
+/** Every row as a list entry, the event items' covers looked up in one read. */
+function toNewsDatedItems(rows: PublicNewsItemRow[], nowIso: string): DatedItemView[] {
+  const eventIds = rows.flatMap((r) => (r.event_id ? [r.event_id] : []));
+  const covers = eventIds.length > 0 ? eventCoverPhotos(eventIds) : new Map<string, CoverPhotoView>();
+  return rows.map((row) => toNewsDatedItem(row, {
+    thumbUrl: row.event_id ? covers.get(row.event_id)?.thumbUrl ?? null : null,
+    nowIso,
+  }));
 }
 
 export const newsService = {
@@ -361,17 +414,14 @@ export const newsService = {
   },
 
   /**
-   * The newest public items as compact list entries, for the home page band:
-   * date, label, headline and an event item's hashtag. The compact form draws
-   * no thumbnail, so no cover is looked up.
+   * The newest public items as list entries for the home page band, drawn as
+   * the year pages draw them: date, label, headline, excerpt and an event
+   * item's cover.
    */
   listNewestItems(nowIso: string, count: number): DatedItemView[] {
     return runSqliteRead('listNewestNewsItems', () => {
       const rows = newsItems.listPublicNewest.all(nowIso, count) as PublicNewsItemRow[];
-      return rows.map((row) => toNewsDatedItem(row, {
-        galleryHref: row.event_tag_normalized ? mediaService.getEntityGalleryHref(row.event_tag_normalized) : null,
-        thumbUrl: null,
-      }));
+      return toNewsDatedItems(rows, nowIso);
     });
   },
 
@@ -395,12 +445,7 @@ export const newsService = {
       const navYears = yearsHoldingItems.includes(year) ? yearsHoldingItems : [...yearsHoldingItems, year];
       const { previousYear, nextYear } = getAdjacentArchiveYears(navYears, year);
 
-      const eventIds = rows.flatMap((r) => (r.event_id ? [r.event_id] : []));
-      const covers = eventIds.length > 0 ? eventCoverPhotos(eventIds) : new Map<string, CoverPhotoView>();
-      const items = rows.map((row) => toNewsDatedItem(row, {
-        galleryHref: row.event_tag_normalized ? mediaService.getEntityGalleryHref(row.event_tag_normalized) : null,
-        thumbUrl: row.event_id ? covers.get(row.event_id)?.thumbUrl ?? null : null,
-      }));
+      const items = toNewsDatedItems(rows, nowIso);
 
       return {
         seo: isCurrent

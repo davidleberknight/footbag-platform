@@ -61,13 +61,10 @@ the step that needs it, and never block unrelated work.
   maintainers' private tracker.
 
 The member load reads only the maintainers' private checkout, reached through the repo-root
-`footbag_private_repo` symlink. It reads the published member CSV, which the legacy publish writes
-from the refresh's vetted CSVs with the cutover date and the board flag fixed in it, and the
-recorded rulings about which duplicate accounts are the same person. Unlike the two inputs above,
-the checkout is required by the builds that read it: `--all-data` fails fast without it, before
-touching the database, and the load refuses without the published CSV. A machine with the CSV but
-without the rulings loads anyway and says so; a production load refuses without them. The
-member-data runner's own help is authoritative for where they live and what each one changes.
+`footbag_private_repo` symlink: the published member CSV and the recorded duplicate-account
+rulings. Unlike the two inputs above, the checkout is required by the builds that read it:
+`--all-data` fails fast without it, the load refuses without the CSV, and a production load
+refuses without the rulings. The member-data runner's own help is authoritative for the details.
 
 ## Runbook routing
 
@@ -95,11 +92,9 @@ records and their loaders belong to the freestyle subtree, not this one: see `fr
   unverified extrapolated URL may sit in staging with a blank `reviewer`, but promotion needs a
   confirmed fetch (browser, WebFetch, curl, or the source site's own index) captured in `notes`,
   for example `WebFetch 200 YYYY-MM-DD`.
-- For wide curated CSV batch edits, use `sed -i`; do not round-trip with `csv.DictReader ->
+- Edit curated CSVs through the Edit tool; never round-trip with `csv.DictReader ->
   csv.DictWriter`, which can place extra columns under a literal `None` key and truncate the file
-  on write. Always `wc -l` before and after. This is the one approved, scoped exception to the root
-  `CLAUDE.md` ban on `sed -i` file editing; each `sed -i` still gates behind the approval prompt,
-  and everywhere outside wide curated-CSV batch edits the root ban stands.
+  on write. Always `wc -l` before and after.
 
 ## Pipeline traps
 
@@ -109,9 +104,8 @@ records and their loaders belong to the freestyle subtree, not this one: see `fr
   mirror first, or treat the committed CSVs as source of truth.
 - **A partial dictionary rebuild leaves the curator ledger unapplied.** The corrections in
   `red_corrections_*.csv` are applied late in the freestyle rebuild, so re-running an earlier loader
-  on its own puts the columns they own back to the values they were correcting. The symptom surfaces
-  much later as a downstream integrity failure whose message blames the ledger, which is usually the
-  file that was already right. Run the whole of `freestyle/run_freestyle.sh` rather than one loader,
+  on its own puts the columns they own back to the values they were correcting, and the later
+  integrity failure blames the ledger, which is usually right. Run the whole of `freestyle/run_freestyle.sh` rather than one loader,
   and when a generated artifact disagrees with the dictionary, check the database against the ledger
   before regenerating from it: `assert_db_current` in `scripts/_freestyle_db_freshness.py` is what
   the builders call, and `test_curator_corrections_in_effect.py` is what fails on it.
@@ -119,16 +113,17 @@ records and their loaders belong to the freestyle subtree, not this one: see `fr
   workbook person visibility follows the platform filter.
 - Name-variant generators are idempotent; person-likeness gates filter non-person rows; no team
   names ever become person entities; honor overrides are secondary to `AliasResolver`.
-- Federations such as WFA/NHSA may act as host clubs for early events.
+- A federation may act as host club for an early event.
 - The workbook's EVENT INDEX must match `canonical_input/events.csv` row-for-row. If it diverges,
-  debug `build_event_index` or the population of the `events` dict. The 30-event delta between
-  `out/canonical/events.csv` and `event_results/canonical_input/events.csv` is intentional:
+  debug `build_event_index` or the population of the `events` dict. `out/canonical/events.csv`
+  deliberately has fewer events than `event_results/canonical_input/events.csv`:
   `export_canonical_platform.py` drops sparse disciplines, then drops events left with none. Build
   steps and the input contract are in `runbooks/workbook-v22.md`.
 
 ## Loader contract
 
-For pipeline-regenerated tables:
+For pipeline-regenerated tables (not the freestyle tables, which reconcile in place per
+`freestyle/CLAUDE.md`):
 - Use DELETE + INSERT, not `INSERT OR IGNORE` alone, inside one transaction spanning both, committed once.
 - Scope deletes where multiple owners share a table (`DELETE WHERE source='mirror_mined'`,
   `DELETE WHERE source_scope='PROVISIONAL'`). `historical_persons` is the live case: its canonical
@@ -158,9 +153,3 @@ Load only the relevant source:
 - The legacy-site export contract, its credential exclusion, and the persons count baseline:
   GO_LIVE_PLAN.md (private GitHub repo). The pipeline validation gates that check the loaded
   result are in `docs/TESTING.md`.
-
-## Archives
-
-Archives are provenance, not instruction: do not load `exploration/_archive/` or
-`reports/_archive/` unless reconstructing the rationale behind current state. Closed work becomes
-a one-line pointer there, never an inline summary.

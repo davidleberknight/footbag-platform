@@ -26,8 +26,8 @@ Strategy and rationale (how to derive, layer and verify tests, and why each rule
 3. **Every service contract change includes shape assertions**: a new method, return shape, error class or validation each gets an assertion on what it adds, inside a case that exercises it. A field the types already guarantee needs none.
 4. **Tests land in the same diff as the code they cover.** Never "add tests later".
 5. **An unexpected `logger.error()` fails the test.** A global spy in `tests/setup-env.ts` fails any test producing a `logger.error()` not opted in via `expectLoggedError(pattern)`.
-6. **Every test is demonstrated to fail** (the demonstrated-failure requirement). Break the code it covers (invert the condition, delete the guard, return the other branch), confirm it goes red for that reason, and restore. Do this for every new test before it lands; a bug-fix test is first run red against the unfixed code, before the fix goes in. On the high-risk areas (auth and session, payments, member privacy, identity claim, erasure, and any destructive, irreversible or outward-facing action) break each test on its own. A test that passes against broken code asserts nothing, and no threshold detects it: coverage is satisfied by any test that merely executes a line. On the high-risk areas a reviewer agent that did not write the tests also chooses about five to ten one-line breaks to the changed code; each runs against the affected test files only, every surviving break gets a stronger test, and the tried and surviving counts are reported. The `write-tests` skill carries the procedure.
-7. **Every assertion names the defect it catches** (the name-the-defect mandate). State in one sentence what a visitor, member, admin or operator would experience if the code broke the way the assertion detects. If the only sentence is "somebody changed this copy on purpose", it is a change-detector: only a deliberate edit to the text or table it asserts can fail it, and it is not written. Human-edited site wording (page copy, headings, curated and authored text) is its own source of truth and changes only on the maintainer's instruction, so no test asserts it: a case finds what it checks by the data it seeded, an element id or attribute, a link target, or a constant production code exports, never by that prose. Technical text the code composes from data (a count, a page position such as "Page 2 of 13", a status label) is output, and a test may assert it. The change-detector entry in `docs/TESTING.md` carries the detail.
+6. **Every test is demonstrated to fail** (the demonstrated-failure requirement). Break the code it covers (invert the condition, delete the guard, return the other branch), confirm it goes red for that reason, and restore. Do this for every new test before it lands; a bug-fix test is first run red against the unfixed code, before the fix goes in. On the high-risk areas (auth and session, payments, member privacy, identity claim, erasure, and any destructive, irreversible or outward-facing action) break each test on its own, and a reviewer agent that did not write the tests adds its own one-line breaks; every surviving break gets a stronger test. The `write-tests` skill carries the procedure and the report; `docs/TESTING.md` the rationale.
+7. **Every assertion names the defect it catches** (the name-the-defect mandate). State in one sentence what a visitor, member, admin or operator would experience if the code broke the way the assertion detects. If the only sentence is "somebody changed this copy on purpose", it is a change-detector and is not written. No test asserts human-edited site wording (page copy, headings, curated and authored text): a case finds its target by seeded data, an element id or attribute, a link target, or an exported constant. Technical text the code composes from data (a count, "Page 2 of 13", a status label) may be asserted. The change-detector entry in `docs/TESTING.md` carries the detail.
 8. **Every success criterion of the motivating story is exercised by at least one test.** For a deployed story the proof is a journey from the user's side: a seeded persona through the real pages, the real job run through the job registry where the criterion involves a background job, and the mail the stub captured, asserting both what the user sees and the side effects (database, audit and outbox rows). Assertions prefer figures, counts, order, roles and the presence or absence of a form to wording. The check is keyed on the story id plus the criterion's own text, never a criterion identifier.
 9. **The oracle is independent of the code under test.** Write each expected value by hand from the seeded rows and the story's success-criterion text; never compute it by calling the service, helper or query the test exercises. Two lists may be checked against each other only when both are independently maintained declarations.
 
@@ -35,7 +35,7 @@ Do not ask whether to add tests. Add each one that catches a named defect no exi
 
 ## Scope of a verification run
 
-What runs per change is the Verification default in root `CLAUDE.md`; the full gate is the maintainer's, and every full-suite command is an ask rule in `.claude/settings.json`. The mapping from a changed path to its tests and the extra check its kind needs is `scripts/test-targets.sh`. Neither is restated here. What each mode of `./run_all_tests.sh` proves is owned by the local-runner-tiers section of `docs/TESTING.md`, and `./run_all_tests.sh --help` owns the flags. Green vitest is not a green gate: a secret-scan finding is invisible to every vitest tier.
+What runs per change is the test-targets line in root `CLAUDE.md`; the full gate is the maintainer's, and every full-suite command is an ask rule in `.claude/settings.json`. The mapping from a changed path to its tests and the extra check its kind needs is `scripts/test-targets.sh`. Neither is restated here. What each mode of `./run_all_tests.sh` proves is owned by the local-runner-tiers section of `docs/TESTING.md`, and `./run_all_tests.sh --help` owns the flags. Green vitest is not a green gate: a secret-scan finding is invisible to every vitest tier.
 
 **Run vitest from the repository root, or pass `--config vitest.config.ts`.** Otherwise vitest's built-in defaults apply silently, and `tests/setup-env.ts` refuses the run.
 
@@ -43,23 +43,17 @@ A CI job or step must be reachable from `npm run test:quick` or the bare runner,
 
 ## What "edge cases" means
 
-For every public-facing route, each item that applies to it (a sweep row counts, per mandate 2):
+For every public-facing route, each item that applies to it (a sweep row counts, per mandate 2), beside the usual happy path, auth and authorization gates, not-found and invalid-input cases:
 
-- Happy path — correct HTTP status, the data and state the story promises rendered (not static copy), expected redirects.
-- Authentication gate — 302 redirect if unauthenticated, 200 if authenticated (for protected routes).
-- Authorization gate — 403 or 404 when authenticated-but-not-authorized (admin-only, owner-only, etc.).
-- Not-found — 404 for unknown IDs, slugs, keys.
-- Invalid input — 400 or 422 for malformed/oversized/wrong-type bodies and query params.
+- Happy path renders the data and state the story promises, not static copy.
 - Draft/unpublished content — must not appear in public responses.
 - Route ordering — more-specific routes match before catch-alls.
 - Anti-enumeration — endpoints that could leak existence (login, password reset, email verify, claim lookup) must return identical UX for "exists" vs "does not exist" cases.
 - Rate-limit behavior — exceeds-limit returns 429 with `Retry-After`.
 - CSRF — state-changing verbs (POST/PATCH/PUT/DELETE) reject requests without a matching CSRF token.
 
-For every service method:
+For every service method, beside its output shape and business rules:
 
-- Correct output shape for the intended view-model or contract consumer.
-- Business rule enforcement — filters, sorts, eligibility checks, tier gates.
 - Transaction atomicity — multi-row writes either all land or none.
 - Failure between steps — where a step commits before a later send, provider call or write, a failure there leaves nothing lost, doubled or reported done.
 - Member state — a path that mails, lists or counts members covers deceased, purged, unverified and bounced members beside a live one.
@@ -68,11 +62,7 @@ For every service method:
 - Boundary values — the ones the method's own logic decides on, from zero rows, one row, N rows, N+1 rows, empty strings, unicode, NULLs and extreme dates; a boundary no branch reads is not a case.
 - Edge cases from the relevant `docs/USER_STORIES.md` story (success criteria) and the owning service's file-header JSDoc (ownership boundary and required service-layer patterns; current method shapes are authoritative in TypeScript and tests). Read the story before writing the test.
 
-For every pure function / shaping helper:
-
-- Identity cases (empty input → empty output).
-- Round-trip stability (shape(shape(x)) === shape(x) when the contract promises idempotency).
-- Locale / normalization / case-folding edges.
+For every pure function / shaping helper: locale, normalization and case-folding edges, and round-trip stability where the contract promises idempotency.
 
 For every schema change or factory change:
 

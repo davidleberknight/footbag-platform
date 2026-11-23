@@ -20,7 +20,7 @@ This skill is for ad-hoc human-driven browser review. The standing Playwright su
 - State exactly what will be checked before running anything.
 - Only check the URLs and interactions the human named.
 - Do not expand to adjacent pages or broad QA passes.
-- For anything layout-shaped (overflow, sizes, contrast, spacing), measure before looking: `npm run style -- url <path>` reports what the rules find. `__footbagMeasure()` in the MCP browser returns the same capture, but calling it needs `browser_evaluate`, which prompts.
+- For anything layout-shaped (overflow, sizes, contrast, spacing), measure before looking, with the rendered-style helper as the `page-check` skill runs it.
 
 ## Token discipline
 
@@ -45,17 +45,6 @@ Browser automation uses the **Playwright MCP server** via the `mcp__playwright__
 The server is a pinned devDependency that `.mcp.json` runs from
 `node_modules/.bin/playwright-mcp`, so it starts only after `npm ci` has run.
 The configured browser is **Chromium** (isolated mode: `.claude/playwright/config.json`).
-
-Minimal call sequence for layout review:
-1. `mcp__playwright__browser_navigate`: load the named URL
-2. `mcp__playwright__browser_take_screenshot`: one screenshot for visual feedback
-3. `mcp__playwright__browser_close`
-
-Minimal call sequence for content/behavior check:
-1. `mcp__playwright__browser_navigate`
-2. `mcp__playwright__browser_snapshot`: accessibility tree for assertions
-3. `mcp__playwright__browser_console_messages`: only if JS errors are suspected
-4. `mcp__playwright__browser_close`
 
 ## Procedure
 

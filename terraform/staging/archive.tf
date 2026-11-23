@@ -144,10 +144,11 @@ resource "aws_s3_bucket_public_access_block" "archive" {
   restrict_public_buckets = true
 }
 
-# Every publish re-syncs the whole tree, so each replaced object leaves a
-# noncurrent version behind. Across a capture of this size that accretes
-# indefinitely without an expiry rule; 30 days leaves ample rollback headroom
-# between publishes.
+# At parity with production: every edit, publish or sync that replaces an
+# object leaves its earlier version behind as noncurrent, and that version is
+# what the change is rolled back to. A year keeps it because the archive is read
+# rarely: a bad edit can go unnoticed for months before ordinary use reveals
+# it. The expiry stops superseded versions accruing without end.
 resource "aws_s3_bucket_lifecycle_configuration" "archive" {
   count  = var.enable_archive ? 1 : 0
   bucket = aws_s3_bucket.archive[0].id
@@ -157,7 +158,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive" {
     status = "Enabled"
     filter {}
     noncurrent_version_expiration {
-      noncurrent_days = 30
+      noncurrent_days = 365
     }
   }
 }
@@ -165,8 +166,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive" {
 # ── Archive DR (cross-region replication target, us-west-2) ──────────────────
 # At parity with production: the same backup as the media bucket, setting for
 # setting, a versioned, encrypted, private second-region copy filled by
-# continuous replication, with deletions replicated and old versions expiring
-# after 30 days on both sides. Staging carries it so the publish-and-replicate
+# continuous replication, with deletions replicated and superseded versions
+# kept for a year on both sides. Staging carries it so the publish-and-replicate
 # path is rehearsed before production is loaded. S3 replication copies only
 # objects written after the rule exists; objects already in the bucket when the
 # rule arrives are copied by scripts/backfill-replication.sh.
@@ -250,7 +251,7 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive_dr" {
     status = "Enabled"
     filter {}
     noncurrent_version_expiration {
-      noncurrent_days = 30
+      noncurrent_days = 365
     }
   }
 }
@@ -259,6 +260,14 @@ resource "aws_s3_bucket_lifecycle_configuration" "archive_dr" {
 # are replicated, as the media rule does, so a publish that removes a page
 # removes it from the copy too. The s3_replication role's policy (iam.tf)
 # covers this pair alongside the media pair.
+#
+# Production has a second rule here, to the legacy mirror cold copy, and
+# staging deliberately has neither that rule nor the cold-copy bucket. Staging's
+# archive is a copy of the crawl or of production's archive, both of which the
+# production cold copy already holds, so a cold copy here would protect nothing. The production rule is proved on
+# production before any DNS change: the archive stack and the cold copy go live
+# ahead of the cutover, and a backfill of the archive into the cold copy samples
+# its keys there.
 resource "aws_s3_bucket_replication_configuration" "archive" {
   count = var.enable_archive ? 1 : 0
   depends_on = [
@@ -456,6 +465,25 @@ resource "aws_ssm_parameter" "app_archive_login_redirect" {
   name  = "${local.ssm_prefix}/app/archive_login_redirect"
   type  = "String"
   value = "1"
+}
+
+# Which source the archive bucket is published from, at parity with production
+# so the switch is rehearsed here first. "crawl" until the switch: the bucket is
+# a copy of the crawl, and scripts/publish-archive.sh refuses unless it reads
+# exactly "crawl". "bucket" from the switch on: the bucket is the source of
+# truth, changed only by scripts/archive-edit.sh, which refuses unless it reads
+# exactly "bucket", so a publish can never overwrite an edit. Each script
+# refuses on any other value, a missing parameter or a failed read. The switch
+# script writes "bucket" once, out of band; ignore_changes keeps a later apply
+# from reverting it to "crawl" and re-arming the publish over an edited archive.
+resource "aws_ssm_parameter" "archive_source" {
+  count       = var.enable_archive ? 1 : 0
+  name        = "${local.ssm_prefix}/archive-source"
+  description = "Source of the archive bucket's content. crawl: the bucket is published from the crawl; publish-archive.sh runs only on exactly crawl. bucket: the bucket is the source of truth; archive-edit.sh runs only on exactly bucket. Switched once to bucket out of band; never set back."
+  type        = "String"
+  tier        = "Standard"
+  value       = "crawl"
+  lifecycle { ignore_changes = [value] }
 }
 
 # ── Certificate ──────────────────────────────────────────────────────────────

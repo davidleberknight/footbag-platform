@@ -9,8 +9,7 @@ paths:
 ## When to use
 
 Writing or changing anything under `scripts/` that an operator runs against a real environment:
-an install, an apply, an activation, a provisioning step, a diagnostic; and fixture stagers under
-`scripts/ci/`, which can meet real data on a workstation. Secret transport has its own rule,
+an install, an apply, an activation, a provisioning step, a diagnostic. Secret transport has its own rule,
 `.claude/rules/script-secret-safety.md`, and the closing report has its own,
 `.claude/rules/script-closing-report.md`; this one covers the shape of the script around them.
 
@@ -28,17 +27,11 @@ mutating step in the middle of it. In practice:
   shared helper, so an exported value in the operator's shell cannot stand in for the typed answer.
   Use `confirm_from_tty`; do not re-implement the prompt.
 - **The credential file is chosen by the account, not by the operator and not by a variable.**
-  `scripts/lib/operator-credential.sh` reads what account the alias connects as and picks the file
-  that account keeps for that environment; no script builds the path itself and nothing selects it
-  by environment variable. The alias connects as the shared account by default and as a named
-  account only for a command run through `scripts/as-dev-tester.sh --account <name>`, and the
-  file follows whichever it is. Nothing falls back across the pairs: a file the rule selected and did not find is
-  refused by name, because a silent fallback attributes a dev-and-tester's work to the shared
-  account and nothing anywhere says so. A mode that is not 600 or 400 is refused with a message
-  saying to rotate, since a credential other accounts could read has already been exposed and
-  fixing the mode does not undo that. Say on stderr which file the rule chose, on every run: the
-  library never opens it, because the password arrives on stdin, so a run that did not name its
-  choice is ambiguous about the identity it meant.
+  `scripts/lib/operator-credential.sh` picks it from the account the alias connects as (its header
+  explains the rule); no script builds the path itself and nothing selects it by environment
+  variable. Nothing falls back: a selected file that is missing is refused by name, and a mode
+  other than 600 or 400 is refused with a message saying to rotate. Say on stderr which file the
+  rule chose, on every run.
 - **The word is always `APPLY`.** One word for every confirmation in the tree, whatever the script
   and whatever the direction; a yes-or-no question is answered yes or no. State what is being
   confirmed in full, immediately before the prompt,
@@ -56,20 +49,13 @@ mutating step in the middle of it. In practice:
 - **The closing report states every error and warning the run met**; the requirement is the
   script closing-report rule, `.claude/rules/script-closing-report.md`.
 - **Cleanup is on a trap**, covering EXIT, INT, TERM and HUP, so an interrupt leaves nothing behind
-  that a successful run would not have left. On the closing-report library the library holds the
-  traps and the script registers its cleanup with `cr_cleanup`; an interrupt-only cleanup returns
-  unless `cr_exit_status` is 130, 143 or 129. A remote half keeps its own trap.
+  that a successful run would not have left. A script on the closing-report library registers
+  cleanup through it (`.claude/rules/script-closing-report.md`). A remote half keeps its own trap.
 
-  One exception, and it is narrow: where whether to clean up depends on how far the run got, the
-  trap covers INT and TERM only and the ordinary exits keep deciding for themselves. A blanket EXIT
-  trap would override them, and the thing it would destroy is the thing a retry needs. The worked
-  example is the URL-screening key: a key file the script created from a prompt is shredded while
-  the key has reached no environment, because the operator never asked for that file to exist; once
-  it has reached one, the file stays so the run can be retried, because the vault is the only other
-  copy and destroying it over an unreachable second environment turns a retry into a trip back to
-  the vendor's console. An interrupt has to land on whichever of those two rules applies, which is
-  what the INT and TERM handler is for, and a file the operator supplied themselves is never touched
-  either way. Where cleanup is unconditional, which is almost everywhere, EXIT stays in the trap.
+  One narrow exception: where whether to clean up depends on how far the run got (a created file
+  that a retry needs once its content has reached an environment), the trap covers INT and TERM
+  only and the ordinary exits decide for themselves, since a blanket EXIT trap would destroy what
+  a retry needs. A file the operator supplied is never touched either way.
 
 ## Four invariants
 
@@ -91,19 +77,12 @@ A violation of any of these fails silently.
    to do follows from which of those it is acting as, and the only way to know that is to ask
    `sts get-caller-identity` and judge the ARN it returns.
 
-   A workstation's AWS config file holds named profiles, each saying which key to sign with, or
-   which role to assume with which key. A profile is not a principal: it holds no authority, it
-   grants nothing, and AWS has never heard of it. So no script decides what a run may do,
-   reports whose machine it is on, or infers who is running it, by testing which profile exists
-   or by matching a profile's name. A run that selects a profile still proves what it got.
-
-   The names in this tree invite the opposite, because each profile is named for the principal
-   it reaches: `footbag-operator` is both an IAM user and the profile holding that user's key,
-   and `FootbagDevTester` is both the role and the profile that assumes it. A bare name is
-   therefore ambiguous, and any text that does not say which of the two it means is a defect.
-   No mechanical check enforces this one: the grep that would catch it cannot tell a profile
-   test used to decide from one used to report, so it is held by review and by the assertions in
-   `scripts/lib/aws-identity.sh`.
+   A named profile is not a principal, so no script decides what a run may do, reports whose
+   machine it is on, or infers who is running it, by testing which profile exists or matching a
+   profile's name; a run that selects a profile still proves what it got. Each profile is named
+   for the principal it reaches (`footbag-operator`, `FootbagDevTester`), so text naming one must
+   say whether it means the profile or the principal. No mechanical check enforces this; it is
+   held by review and by the assertions in `scripts/lib/aws-identity.sh`.
 
 ## The shape
 
@@ -117,16 +96,9 @@ A violation of any of these fails silently.
   attached.
 - The deploy works in `$REPO_ROOT`, never the working directory: it moves there once, as soon as it
   has computed it, ships from there, and reaches every script it hands off to by a path built from
-  its own location rather than a relative one. A relative source means a run started from elsewhere ships a
-  tree that matches none of the anchored includes, and the remote half then promotes that near-empty
-  tree over the live install with `--delete`. Anchoring the source alone leaves the same defect on the
-  building side, where the database rebuild, the smoke checks, the Terraform reads and the media check
-  resolve against the caller's directory: the run then builds one database and ships another. The same
-  applies to the entry point an operator types, and there it is worse, because its preflights fail open
-  rather than loudly. A wrapper that anchors only its hand-off still measures disk on whichever
-  filesystem the caller stood on, still finds no database to check for a lock, and still conditions its
-  schema gates on a file it is now looking for in the wrong place — so the run proceeds without the gate
-  that exists to stop it, and says nothing. Anchor the whole run, not the path it hands off.
+  its own location rather than a relative one. The same holds for the entry point an operator
+  types: anchor the whole run, not only the path it hands off, or its build steps and preflights
+  silently resolve against the caller's directory.
 - A guard stays fail-closed wherever it is written or moved: refuse anything that is not exactly
   the safe value (`!= "false"`, never `== "true"`). A failed read is never "absent": only the
   tool's own not-found (`ParameterNotFound`, `NoSuchEntity`) is, and any other failure is an error
@@ -150,28 +122,6 @@ A violation of any of these fails silently.
   are exempt: they hold no state to resume.
 - A header that states why the script exists and what it refuses to do, followed by usage and
   flags.
-
-## Fixture-staging scripts
-
-A fixture stager (`scripts/ci/stage_*.sh` or equivalent) populates paths that on a workstation may
-also hold real data: `legacy_data/legacy_mirror/mirror_footbag_org/` (the legacy site mirror,
-days to regenerate) and `legacy_data/event_results/canonical_input/` (the canonical CSVs, hours
-to regenerate). A guard that checks only for an empty target does not protect them.
-
-- **Detect real data first and refuse to overwrite it.** No flag, environment variable or CI mode
-  bypasses this guard: no `--clobber-real-data`, no `FORCE_REAL_DATA_CLOBBER`, nothing. A signal
-  is a row count or directory population well above any fixture, or a real file the fixture never
-  ships. An operator who genuinely wants a rebuild moves the directory aside by hand first.
-- **`CI=true` and `GITHUB_ACTIONS=true` may auto-enable `--force`**, since CI starts from an empty
-  target, but never past the real-data guard.
-- **Run real-data detection before any empty-target check.**
-- **Mark the header `# REAL-DATA GUARD`**, which is how `scripts/ci/assert_conventions.sh`
-  recognises the script as compliant.
-- **State the threshold in the header** and why it is the line: a threshold real data falls under
-  silently fails to protect.
-
-The same applies to any test-setup script that touches paths outside `tmp/` or a per-test temp
-directory.
 
 ## Testing
 

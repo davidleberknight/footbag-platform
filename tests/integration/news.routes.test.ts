@@ -4,9 +4,10 @@
  *
  * The contract: items are listed newest first, each a clickable dated card
  * with its date, label, headline linking to its page and a plain-text excerpt;
- * no item names its author or links a member, and an event item carries its event's
- * hashtag, linked to the gallery only when media carries it, and the event's
- * cover as a thumbnail. A hidden item, one whose publication time has not come,
+ * no item names its author or links a member. An event item describes its
+ * event: the event's dates, its registration status while upcoming, its place
+ * and host club, its description, and its cover as a thumbnail, with no
+ * hashtag; the item's own page carries the hashtag. A hidden item, one whose publication time has not come,
  * and one about an event that is not publicly visible appear nowhere. The
  * current year shows an empty state when it has no items; any other year with
  * no items, a malformed year and a future year are not found; the current
@@ -21,6 +22,7 @@ import {
   attachMediaTag,
   completeOnboarding,
   createTestSessionJwt,
+  insertClub,
   insertEvent,
   insertMediaItem,
   insertMember,
@@ -59,13 +61,20 @@ beforeAll(async () => {
   const tagId = insertTag(db, { tag_normalized: `#${EVENT_KEY}`, standard_type: 'event' });
   coverMediaId = insertMediaItem(db, { uploader_member_id: AUTHOR, moderation_status: 'active', is_avatar: 0 });
   attachMediaTag(db, coverMediaId, tagId);
+  const hostClubId = insertClub(db, { name: 'Austin Kickers' });
   const eventId = insertEvent(db, {
     title: 'News Open', hashtag_tag_id: tagId, start_date: '2026-09-10', end_date: '2026-09-12',
-    status: 'reg_open', cover_media_id: coverMediaId,
+    status: 'reg_open', cover_media_id: coverMediaId, description: 'Three days of freestyle by the river.',
+    city: 'Austin', region: 'TX', country: 'United States', host_club_id: hostClubId,
   });
   const bareTag = insertTag(db, { tag_normalized: `#${BARE_EVENT_KEY}`, standard_type: 'event' });
   const bareEventId = insertEvent(db, {
     title: 'Bare Open', hashtag_tag_id: bareTag, start_date: '2026-09-20', end_date: '2026-09-20', status: 'reg_open',
+    description: '',
+  });
+  const heldTag = insertTag(db, { tag_normalized: '#event_2026_news_held', standard_type: 'event' });
+  const heldEventId = insertEvent(db, {
+    title: 'Held Open', hashtag_tag_id: heldTag, start_date: '2026-05-03', end_date: '2026-05-03', status: 'completed',
   });
   const canceledEventId = insertEvent(db, {
     title: 'Called Off', start_date: '2026-10-01', end_date: '2026-10-01', status: 'canceled',
@@ -76,6 +85,7 @@ beforeAll(async () => {
   insertNewsItem(db, { id: 'news_c', published_at: '2026-06-10T09:00:00.000Z', news_type: 'community_post', title: 'Community C', author_member_id: UNFINISHED });
   insertNewsItem(db, { id: 'news_d', published_at: '2026-06-15T09:00:00.000Z', news_type: 'event_published', title: 'Event D', body: 'Registration is open.', entity_type: 'event', entity_id: eventId });
   insertNewsItem(db, { id: 'news_h', published_at: '2026-06-05T09:00:00.000Z', news_type: 'event_published', title: 'Event H', entity_type: 'event', entity_id: bareEventId });
+  insertNewsItem(db, { id: 'news_r', published_at: '2026-06-01T09:00:00.000Z', news_type: 'event_results', title: 'Results R', entity_type: 'event', entity_id: heldEventId });
   insertNewsItem(db, { id: 'news_canceled', published_at: '2026-06-18T09:00:00.000Z', news_type: 'event_published', title: 'Canceled E', entity_type: 'event', entity_id: canceledEventId });
   insertNewsItem(db, { id: 'news_hidden', published_at: '2026-06-19T09:00:00.000Z', title: 'Hidden F', is_public: 0 });
   insertNewsItem(db, { id: 'news_future', published_at: '2026-08-01T09:00:00.000Z', title: 'Future G' });
@@ -116,7 +126,7 @@ describe('the news landing page', () => {
     expect(res.status).toBe(200);
     const order = cards(res.text).map((c) => c.match(/class="card-link" href="\/news\/([^"]+)"/)?.[1]);
     // ordering-is-the-contract: the story lists a year's items newest first.
-    expect(order).toEqual(['news_b', 'news_a', 'news_d', 'news_c', 'news_h']);
+    expect(order).toEqual(['news_b', 'news_a', 'news_d', 'news_c', 'news_h', 'news_r']);
   });
 
   it('shows no hidden, future-dated or cancelled-event item', async () => {
@@ -152,14 +162,34 @@ describe('the news landing page', () => {
     expect(cardFor(res.text, 'news_a')).not.toContain('/members/');
   });
 
-  it('carries an event item\'s hashtag, linked to its gallery only when media carries it, and its cover as a decorative thumbnail', async () => {
+  // Defect caught: a reader of an event item sees when it was posted and a
+  // bare hashtag instead of when and where the event runs and whether they
+  // can still register.
+  it('describes an event item\'s event: its dates, registration status, place and description, with no hashtag', async () => {
     const res = await page('/news');
     const d = cardFor(res.text, 'news_d');
-    expect(d).toMatch(new RegExp(`<a class="hashtag hashtag--media" href="/media/browse\\?context=${EVENT_KEY}">#${EVENT_KEY}</a>`));
+    expect(d).toContain('<span>10–12 September 2026</span>');
+    expect(d).not.toContain('15 June 2026');
+    expect(d).toContain('<span class="badge badge-muted">News</span>');
+    expect(d).toMatch(/<span class="badge badge-(reg_open|closed)">/);
+    expect(d).toContain('<span>Austin, TX, United States</span>');
+    expect(d).toContain('<span>Austin Kickers</span>');
+    expect(d).toContain('<p class="card-description">Three days of freestyle by the river.</p>');
+    expect(d).not.toContain('hashtag');
     expect(d).toMatch(/<a class="card-thumb" href="\/news\/news_d" tabindex="-1" aria-hidden="true">/);
+  });
+
+  // Defect caught: an event with no description leaves its card blank, or a
+  // results item shows a registration badge for an event already held.
+  it('falls back to the item\'s own excerpt, and shows no registration status for a completed event', async () => {
+    const res = await page('/news');
     const h = cardFor(res.text, 'news_h');
-    expect(h).toContain(`<span class="hashtag">#${BARE_EVENT_KEY}</span>`);
+    expect(h).toContain('<p class="card-description">A short Markdown body.</p>');
+    expect(h).not.toContain('hashtag');
     expect(h).not.toContain('card-thumb');
+    const r = cardFor(res.text, 'news_r');
+    expect(r).toContain('<span>3 May 2026</span>');
+    expect(r).not.toMatch(/badge-(reg_open|closed|completed)/);
     expect(cardFor(res.text, 'news_a')).not.toContain('hashtag');
   });
 

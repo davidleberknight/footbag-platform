@@ -1,6 +1,6 @@
 ---
 name: check-vulnerabilities
-description: Use when the maintainer asks which pinned versions carry a known flaw ("run the vulnerability report", "is anything we pin exploited", "check for CVEs"). Runs the on-request vulnerability report, reads the vendor's own advisory page for any pinned tool no advisory database covers, judges which findings apply, dismisses in GitHub the alerts it verifies are false alarms for this repository, and recommends one set of bumps, most urgent first, for /patch-versions. Never runs on a schedule and never bumps anything itself.
+description: Runs the on-request vulnerability report, judges which findings apply, dismisses verified false alarms in GitHub, and recommends one ranked bump set for /patch-versions. Use when the maintainer asks which pinned versions carry a known flaw ("run the vulnerability report", "check for CVEs").
 disable-model-invocation: true
 ---
 

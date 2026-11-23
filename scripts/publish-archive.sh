@@ -18,6 +18,18 @@
 # publish that would ship unscanned or unrecognized bytes refuses before it
 # uploads anything.
 #
+# Before go-live only. Until the cutover the crawl is the archive's source and
+# this script publishes it; from the cutover the production archive bucket is
+# the source of truth, changed only by scripts/archive-edit.sh, and a publish
+# would overwrite and --delete every edit made there. The source is recorded in
+# the SSM parameter /footbag/<env>/archive-source, which Terraform declares with
+# the archive stack and scripts/archive-source-switch.sh moves from "crawl" to
+# "bucket" once. Every publish, dry runs included, reads it first and proceeds
+# only on exactly "crawl". Anything else refuses: "bucket", any other value, a
+# parameter that does not exist (it is declared with the archive stack, so its
+# absence means the stack is not what this script expects, not that the crawl
+# is still the source), and a read that failed, reported with AWS's message.
+#
 # What it enforces, in order:
 #   1. The source is a complete mirror root: the www.footbag.org/ subtree plus
 #      the four crawl manifests. The manifests themselves NEVER reach the
@@ -267,6 +279,34 @@ if [[ -z "$BUCKET" || -z "$DIST_ID" ]]; then
   tf_said="$(grep -v '^[[:space:]]*$' "$TF_ERR" | tail -n 1 || [[ $? == 1 ]])"
   cr_die "archive terraform outputs are empty in ${TF_DIR}: ${tf_said:-terraform printed no error}"
 fi
+
+# ---- 2a. The crawl must still be the archive's source -------------------------
+#
+# Read before every gate that reads the capture and before anything reaches the
+# bucket, so a publish after the cutover refuses in seconds rather than after
+# minutes of verification. Fail closed: only the exact value "crawl" lets the
+# run on. Both stacks keep the archive in us-east-1.
+SOURCE_PARAM="/footbag/${TARGET_ENV}/archive-source"
+SOURCE_ERR="${WORK_DIR}/archive_source.err"
+if ARCHIVE_SOURCE="$("$AWS_BIN" ssm get-parameter --name "$SOURCE_PARAM" --region us-east-1 \
+    --query Parameter.Value --output text "${AWS_ARGS[@]}" 2> "$SOURCE_ERR")"; then
+  :
+else
+  source_said="$(grep -v '^[[:space:]]*$' "$SOURCE_ERR" | tail -n 1 || [[ $? == 1 ]])"
+  if [[ "$source_said" == *"(ParameterNotFound)"* ]]; then
+    echo "The archive stack declares ${SOURCE_PARAM}; apply terraform/${TARGET_ENV}" >&2
+    echo "so the parameter exists before publishing." >&2
+    cr_die "REFUSING: ${SOURCE_PARAM} does not exist, so whether the crawl is still the archive's source is unknown. Nothing was uploaded."
+  fi
+  cr_die "REFUSING: could not read ${SOURCE_PARAM}, so whether the crawl is still the archive's source is unknown: ${source_said:-aws printed no message}. Nothing was uploaded."
+fi
+if [[ "$ARCHIVE_SOURCE" != "crawl" ]]; then
+  echo "The ${TARGET_ENV} archive bucket is now the source of truth (${SOURCE_PARAM}" >&2
+  echo "reads '${ARCHIVE_SOURCE}'). A publish would overwrite and delete the edits made" >&2
+  echo "there. Change the archive with scripts/archive-edit.sh instead." >&2
+  cr_die "REFUSING: the archive bucket is the source of truth, not the crawl (${SOURCE_PARAM} reads '${ARCHIVE_SOURCE}'). Nothing was uploaded."
+fi
+echo "Archive source: crawl (${SOURCE_PARAM}), so a publish is still the way the archive changes."
 
 # ---- 3. Sanitization gate ----------------------------------------------------
 

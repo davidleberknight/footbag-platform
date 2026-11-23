@@ -7,38 +7,21 @@ description: Write, extend or fix tests for a route, service, pure function, ope
 
 The binding rules are `.claude/rules/testing.md`; read it before writing. This skill is the procedure. Layers, fixtures and naming are in `tests/CLAUDE.md`.
 
-Copy this checklist into your working notes and tick it off:
-
-```
-- [ ] 1 Scope confirmed
-- [ ] 2 Layer chosen
-- [ ] 3 Story, contract and nearby tests read
-- [ ] 4 Cases planned, each with the defect it catches; anti-pattern check passed
-- [ ] 5 Tests written; inputs owned by the test
-- [ ] 6 Failure demonstrated (proportionate)
-- [ ] 7 Reviewer run if required; build and named suites green; reported
-```
-
 ## Step 1: Confirm scope
 
 Read the open issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and rely on the human's instruction). Do not write tests for out-of-scope behaviour. To confirm the surface under test traces to a deployed user story, classify it per `.claude/skills/deployed-surface/SKILL.md`. Skip this step when the invoking skill or the task has already confirmed scope.
 
 ## Step 2: Choose the layer
 
-- **Unit** (`tests/unit/`): exported pure functions with no database, such as `slugifyForTag()`, `personHref()`, `groupPlayerResults()` and the `ServiceError` classes. A non-exported function is tested through its integration surface; never widen production exports for a test.
-- **Integration** (`tests/integration/`): routes, database, auth, rendered HTML, and operator scripts (`<script>.script.test.ts`, driven through the script's test seam). Route contracts, auth and ownership gates, privacy boundaries, session edge cases, validation negatives, and business rules through routes.
-- **Browser** (`tests/e2e/`, Playwright): only what a real browser can show: cookie attributes and session behaviour across redirect chains, CSRF-protected form submission where browser semantics matter, the wizard happy paths plus the one negative case per wizard a browser reveals, and upload round-trips. Every business-rule branch belongs in integration. Sessions come from the persona switch (`GET /dev/switch?as=<slug>`).
-- **Story journey**: a deployed story's success criteria, proven from a seeded persona through the real pages, the real job runs and the captured mail, asserting what the user sees and the side effects. A state the persona catalog lacks is added there, never invented as factory rows.
-- **Rendered style and page stability**: a change to a view, stylesheet or layout is checked by the rendered-style check (`npm run test:rendered-style`, limited with `RENDERED_STYLE_VIEWS=<view>,<view>`; `scripts/test-targets.sh` prints the views). What that check cannot see, because it measures settled pages with scripts on, is a browser case: a box that moves while the page loads, or a page drawn with JavaScript off (`javaScriptEnabled: false`), as in `tests/e2e/layout-stability.spec.ts`. Anonymous deployed loads live in `tests/e2e/deployed/`.
-- **Smoke** (`tests/smoke/`): read-only live probes of staging wiring only. Read `SMOKE.md` first.
-- **Real-data leg** (`tests/dev/`): claims one real migrated record per claim shape and walks the surfaces that render it. Extend it only for a surface that renders migrated real-world data, adding the surface's shapes to the leg's shape query.
-- **Destructive staging tier**: a story check that must submit forms against staging's real data, run only by the bare `./run_all_tests.sh --staging`; it targets persona-owned rows or the named curated-content forms, and every case names its undo.
+The layers are listed in `tests/CLAUDE.md`. Choosing among them:
 
-Generative sweeps already cover every route, and the cross-cutting rule register covers every sender, listing and member state; check both lists in `docs/TESTING.md` (platform-wide generative sweeps; the cross-cutting rule register) before writing per-route cases. The ones most often missed:
+- A non-exported function is tested through its integration surface; never widen production exports for a test.
+- Browser (Playwright) only for what a real browser can show: cookie attributes and session behaviour across redirect chains, CSRF-protected form submission where browser semantics matter, the wizard happy paths plus the one negative case per wizard a browser reveals, and upload round-trips. Every business-rule branch belongs in integration. Sessions come from the persona switch (`GET /dev/switch?as=<slug>`).
+- A deployed story's success criteria are proven as a journey (the testing rule's mandate 8). A state the persona catalog lacks is added there, never invented as factory rows.
+- A view, stylesheet or layout change is checked by the rendered-style check. What it cannot see, because it measures settled pages with scripts on, is a browser case: a box that moves while the page loads, or a page drawn with JavaScript off (`javaScriptEnabled: false`), as in `tests/e2e/layout-stability.spec.ts`.
+- Smoke: read `SMOKE.md` first. Extend the real-data leg only for a surface that renders migrated real-world data, adding the surface's shapes to the leg's shape query.
 
-- The CSRF sweep (`tests/integration/csrf.sweep.test.ts`) and the member-owned cells of the authorization matrix (`tests/integration/authorization-matrix.test.ts`) read the live route table, so a new state-changing or member-owned route is swept on the day it ships. A route that legitimately falls outside a sweep gets a named exemption with its reason, never silence.
-- The route-wiring crawl (`tests/integration/route-wiring.crawl.test.ts`) follows every rendered link and form for anonymous, member and admin, so a page reachable from a section root is checked for 404, 5xx and template artifacts.
-- A new route still needs its own cases for the floor items no sweep proves: its data, its not-found and invalid-input handling, its business rules. A floor item a sweep already proves for it is that sweep's row, never a second per-route case.
+Generative sweeps already cover every route, and the cross-cutting rule register covers every sender, listing and member state; check both lists in `docs/TESTING.md` (platform-wide generative sweeps; the cross-cutting rule register) before writing per-route cases. A floor item a sweep already proves is that sweep's row (mandate 2); a route that legitimately falls outside a sweep gets a named exemption with its reason.
 
 ## Step 3: Read what the test must prove
 
@@ -65,10 +48,10 @@ For a bug fix, write down why the existing suite missed it and name the bug's cl
 
 State each planned case with the one sentence naming the defect it catches (the rule's name-the-defect mandate). Then check every case against the testing rule's anti-patterns and the items below, and drop or rewrite any that fails:
 
-- Could only a deliberate edit to copy or a table make it fail? Then it is a change-detector; drop it. Does it assert human-edited site wording? Drop it: that wording is its own source of truth and changes only on the maintainer's instruction. A case finds what it checks by the data it seeded, an element id or attribute, a link target, or a constant production code exports, never by that prose; technical text the code composes from data, such as a count or a page position, may be asserted.
+- Could only a deliberate edit to copy or a table make it fail, or does it assert human-edited site wording? Drop it (the name-the-defect mandate).
 - Does it assert something is absent? The same case shows it present where it should be (a live member beside the deceased one); an absence over an empty fixture passes by construction.
 - Does it hold two lists that must agree (fields a parser reads and a save clears, jobs a gate waits for and its verdict reads)? Relate the two declarations in the test and fail on any difference; never derive the expected side by calling the code the case exercises.
-- Does a read-only suite request the same page in several cases? Share one response through `cachedGet` (`tests/fixtures/cachedGet.ts`) and seed in `beforeAll`. Never write inside a case of a `cachedGet` suite: seed both states up front, or put the write-then-read case in its own file with plain requests (or mark the file `cachedGet-writes:` with the reason).
+
 ## Step 5: Write the tests
 
 Follow the shapes in `EXAMPLES.md`, and these instructions:
@@ -76,16 +59,12 @@ Follow the shapes in `EXAMPLES.md`, and these instructions:
 - Import `../fixtures/supertestWithOrigin`, not plain `supertest`, whenever the suite issues any POST, PUT, PATCH or DELETE: those verbs are refused with 403 before the controller runs unless they carry a matching `Origin`.
 - Assert on rows the test seeded, not on template copy, so the assertion ties the render to the data. Prefer figures, counts, order, roles and the presence or absence of a form to wording.
 - `insertMember()` overrides cover member edge cases (`is_hof`, `is_deceased`, `personal_data_purged_at`).
-- A case that deliberately drives a `logger.error()` calls `expectLoggedError(pattern)` before the action, with a pattern naming the expected line.
 
 Before writing a helper, check the shared fixtures by purpose in `tests/CLAUDE.md`; the testing rule names the ones its gates enforce (`rowPinning`, `clock`, `scratchDir`, `spawnGuard`).
 
 Give the test its own inputs. For every input the test does not create (a file, a directory, an installed binary, an exported variable), write it, stub it, pass its path or set it; a default that resolves to the developer's machine is not an input the test owns.
 
 - A case gated on an installed tool probes through `requireToolInCI` in `tests/fixtures/toolAvailability.ts`, which returns availability for `skipIf` locally and throws when the tool is missing and `CI` is set. If the case does not matter enough to provision for, delete it.
-- A claim about the source tree reads the working tree through `tests/fixtures/sourceTree.ts` (`listFiles` for one folder, `scanSource` over named folders), never git.
-- The shared setup already denies credentials, the home directory, the deployment-environment variable, the media directories and the SSH client; extend that declaration rather than defending a file by hand.
-- The clean room (`scripts/ci/run_clean_room.sh`) runs the whole suite in a throwaway worktree with an empty home and no ambient environment, so it is part of the maintainer's full gate, never a per-change step.
 
 Where the machine's speed decides between two legitimate outcomes, assert the contract, not the one outcome an idle machine produced (the load-dependent refusal in `EXAMPLES.md`). A fixed millisecond bound is a statement about the author's machine: measure the reference in the same run. A per-test timeout follows the rule's test-budget rule.
 
@@ -95,7 +74,7 @@ Where the machine's speed decides between two legitimate outcomes, assert the co
 2. Run that one test file. It must fail, and the failure must name what you broke.
 3. Restore by reversing your own edit exactly, and run it again. It must pass. Never `git checkout` or `git restore` a file to undo it: the tree may carry other people's uncommitted work.
 
-How often, per the rule's demonstrated-failure requirement: for every new test; a bug-fix test is run red against the unfixed code before the fix goes in. On the high-risk areas the reviewer in step 7 adds its own breaks on top of yours. A test that stays green with the code broken is wrong; fix the assertion until it fails for the right reason.
+How often is the rule's demonstrated-failure requirement. A test that stays green with the code broken is wrong; fix the assertion until it fails for the right reason.
 
 ## Step 7: Review, run and report
 
@@ -103,7 +82,7 @@ How often, per the rule's demonstrated-failure requirement: for every new test; 
 
 **Drive.** Where a person can see the change, drive the changed journey through the real pages on the development stack with the Playwright MCP tools (snapshot, not screenshot), across every page it touches. A defect found that way lands as a test.
 
-**Run.** Per the Verification default in root `CLAUDE.md`.
+**Run.** Per the test-targets line in root `CLAUDE.md` (the full gate is the maintainer's: an ask rule in `.claude/settings.json`, per the testing rule's "Scope of a verification run").
 
 **Report.** For each added or changed test: the defect it catches and the success criteria it covers, and how failure was demonstrated (red, then green). On a bug fix: why the existing suite missed it, and the defect class. On a reviewer run: edits tried, edits survived, and the strengthening for each. Any new exemption, with its reason. Then the result of every run, with full error output for any failure.
 

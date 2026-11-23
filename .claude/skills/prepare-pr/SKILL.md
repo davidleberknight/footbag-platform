@@ -5,7 +5,7 @@ description: Prepare a human-reviewable PR summary of the current work. Use when
 
 # Prepare PR
 
-This is an IFPA footbag-platform PR. Reviewers are IFPA volunteers who value simplicity, transparency, and volunteer maintainability. The summary must give them a clear picture of what changed, why, and whether it is safe to merge.
+The summary must give reviewers a clear picture of what changed, why, and whether it is safe to merge.
 
 ## Step 1: Verify doc-sync ran
 
@@ -15,7 +15,7 @@ Check whether `doc-sync` has been run since the last significant change in this 
 
 Read:
 - current diff (changed files and their diffs)
-- verification per the Verification default in root `CLAUDE.md`, run if not already done; report pass/fail
+- verification per the test-targets line in root `CLAUDE.md`, run if not already done; report pass/fail
 - the gate: the bare `./run_all_tests.sh`, which the maintainer starts; report its result and verdict (GREEN, INCOMPLETE or VOID) if it has run on the current tree, otherwise list it as the maintainer's prerequisite with that command
 - any open questions or unresolved risks
 
@@ -38,13 +38,7 @@ Include:
 - **Open questions**: anything unresolved that the reviewer should decide
 - **Follow-up work**: known gaps deferred to a later task
 
-## Never
-
-- commit
-- push
-- rewrite git history
-- run `git add` (staging is always human-run; the harness hard-denies it)
-- claim verification that did not happen
+Never claim verification that did not happen. Git writes are the human's (the git-mutation hook refuses them).
 
 ## Stop when
 

@@ -33,14 +33,11 @@ Before cutover, descriptions are authored in two CSVs, both loaded into `freesty
 
 ## Media Linkage Layer — detailed mechanics
 
-The `footbag-curated-media` skill owns the media pipeline; the rules below are the
-dictionary-side detail. Curated trick media and member-uploaded media both live in the
-unified `media_items` + `media_tags` graph and stay separate layers (curated media is the
-system-member-owned, `#curated`-tagged subset), never merged. Clip ranges live on
-`media_items` (`start_seconds` / `end_seconds`); one source asset can spawn many clip rows
-tagged to different tricks. The deprecated `freestyle_media_*` graph is gone: do not
-reintroduce it, and there is no `is_primary` flag (see "Primary clip is derived" below).
-Verify external URLs before reviewer sign-off.
+The `footbag-curated-media` skill owns the media pipeline and the media model; the rules
+below are the dictionary-side detail. Curated media is the system-member-owned,
+`#curated`-tagged subset of `media_items` + `media_tags`. Clip ranges live on `media_items`
+(`start_seconds` / `end_seconds`); one source asset can spawn many clip rows tagged to
+different tricks. Verify external URLs before reviewer sign-off.
 
 ### Source URL patterns (verified)
 
@@ -48,15 +45,9 @@ Verify external URLs before reviewer sign-off.
 - **YouTube oembed verification:** `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={id}&format=json` returns title + author; HTTP 400 if the id is malformed (YouTube IDs are exactly 11 chars). Use this to confirm any new YouTube URL before append.
 - **WorldFootbag channel inventory:** `yt-dlp --flat-playlist --dump-json https://www.youtube.com/@WorldFootbag/videos` enumerates the Tricks-of-the-Trade series (42 lessons #1–#42).
 
-### Source registry and content-type classification
+### Content type, primary clip and new sources
 
-What a curated clip is for is the clip's own freeform tag, `#tutorial`, `#demo` or `#record`; a promotion gives every trick clip one, and nothing requires it. The source id does not decide it, so two clips sharing a source can classify differently and a curator can say which. The coverage dashboard in `freestyle/loaders/24_qc_freestyle_media_coverage.py` reads that tag and maps it onto its own strength labels; it keeps no source sets of its own, so an unregistered source is no longer a hard failure there. Registering a new trusted source updates `media_sources` (the `footbag-curated-media` skill enumerates the full coordinated edit set).
-
-Priority for primary selection: (1) a clip tagged `#tutorial`, preferring an AnzTrikz single or double-trick lesson, then a Tricks-of-the-Trade single-trick lesson, then a PassBack tutorial, then any other verified instructional clip; (2) a clip tagged `#demo`, or carrying no content type, which reads as a demonstration everywhere; (3) a clip tagged `#record`, never primary when a tutorial or demonstration alternative exists.
-
-### Primary clip is derived, not stored
-
-There is no `is_primary` flag and no write-time promotion step. A trick's primary clip is computed at report/render time as the strongest curated item tagged to it, ranked by the content-type order above; a record clip is never chosen as primary when a tutorial or demonstration alternative exists. Media for a pending (`is_active=0`) trick is still tagged and carried, but the trick surfaces no primary until it is active. For multi-trick tutorials, tag a target trick only when it is **explicitly named in the title**.
+Content-type tags, which clip leads a page, the multi-trick tagging rule and registering a new source: the `footbag-curated-media` skill, "Content type: what a clip is for" and "Registering a new source". Within the tutorial tier, prefer an AnzTrikz single or double-trick lesson, then a Tricks-of-the-Trade single-trick lesson, then a PassBack tutorial, then any other verified instructional clip. The primary clip is computed at report/render time, never stored; media for a pending (`is_active=0`) trick is still tagged and carried, but the trick surfaces no primary until it is active.
 
 ### Reset-compatibility (HOLD / STAGED / SAFE)
 
@@ -64,7 +55,7 @@ Before tagging a curated sidecar to a trick slug (a pre-go-live step), classify 
 
 ### Coverage dashboard
 
-`freestyle/loaders/24_qc_freestyle_media_coverage.py` is a read-only dashboard generator over the unified `media_items` + `media_tags` graph. Three validation checks (non-zero exit on failure): report row count == total `freestyle_tricks`; every curated item's `source_id` is recognized; every `embedded_coverage.csv` slug resolves to a real trick.
+`freestyle/loaders/24_qc_freestyle_media_coverage.py` is a read-only dashboard generator; its header lists its validation checks.
 
 ---
 

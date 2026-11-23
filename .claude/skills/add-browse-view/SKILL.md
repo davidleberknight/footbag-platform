@@ -199,7 +199,7 @@ authoring status, no accounting prose). Update it when a change affects what a r
 
 ## Step 6: Verify and hand off
 
-- Verify per the Verification default in root `CLAUDE.md`; the targets always include the view's
+- Verify per the test-targets line in root `CLAUDE.md`; the targets always include the view's
   own suite, the shared row-contract guard and the cross-view rendering suite.
 - A view change is UI work: run `./run_dev.sh` and read the view in a browser beside a neighbouring
   view at desktop and at 390px (the phone width page-check measures), confirming row rhythm, heading weight, count-chip treatment and the
@@ -207,29 +207,14 @@ authoring status, no accounting prose). Update it when a change affects what a r
   to be visible.
 - List the changed files for the human to stage. Claude never stages, commits or pushes.
 
-## Constraints (every browse-view change)
+## Constraints beyond the steps
 
-The change MUST NOT:
-
-- Modify the `<dictionary-trick-row>` partial
-- Give one view a row, heading, or density of its own
-- Add ontology / ADD / parser / alias / schema changes
-- Introduce a new modifier-link type or new symbolic-grammar group (curator track)
-- Bypass `shapeDictionaryTrickCard()` for row construction
-- Render row-internal markup inline in the template
-- Introduce per-view CSS that affects shared row rules
-- Render authoring status on a browse row: no incomplete badge, no pending placeholder, no
+- Never render authoring status on a browse row: no incomplete badge, no pending placeholder, no
   decomposition-under-review pill. A row renders notation when it exists and nothing otherwise;
-  status lives on the trick detail page
-- Add a new browse view without curator approval
-
-## Naming convention
-
-- View key: lowercase, hyphenated when compound (`add`, `family`, `set`, `modifier`)
-- URL: `/freestyle/tricks?view={key}`
-- Anchor ID: `{key}-{slug}` for groups; `axis-{name}` for sub-axes
-- Group wrapper class: `.trick-{key}-group`
-- Group-internal elements use shared classes (`.section-intro` for a definition line); a view adds no class of its own beyond the group wrapper
+  status lives on the trick detail page.
+- View key: lowercase, hyphenated when compound (`add`, `family`, `set`, `modifier`); a sub-axis
+  anchor is `axis-{name}`. Group-internal elements use shared classes (`.section-intro` for a
+  definition line); a view adds no class of its own beyond the group wrapper.
 
 ## Observational vs canonical view check
 
@@ -242,14 +227,6 @@ Before adding a new view, decide its layer:
   status label at the top of the view stating in plain words that it is exploratory and not an
   official grouping, and a closing footer cross-referencing the canonical view.
 
-The shipped footer convention is `<p class="symbolic-layer-footer">`. No observational view ships
-today; the first one renders its status label with the shared `.notice` primitive and adds no class. The `symbolic-layer-badge`
-chip belongs to the trick-detail and glossary surfaces, not to a browse view.
-
-## Cross-references
-
-- `src/views/partials/dictionary-trick-row.hbs`: the row contract; never modified here
-- `tests/integration/freestyle.browse-row-contract.routes.test.ts`: the uniformity guard
-- `tests/integration/freestyle.browse-row-rendering.routes.test.ts`: cross-view rendering contracts
-- `src/views/freestyle/tricks.hbs`: every view's grouping branch
-- `.claude/rules/view-layer.md`: the site's action hierarchy, section systems and CSS vocabulary
+The footer convention is `<p class="symbolic-layer-footer">`; the status label renders with the
+shared `.notice` primitive and adds no class. The `symbolic-layer-badge` chip belongs to the
+trick-detail and glossary surfaces, not to a browse view.

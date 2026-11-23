@@ -11,12 +11,12 @@ paths:
 
 # Database write safety
 
-Two kinds of script write to the database, and their safeguards differ.
+Three kinds of script write to the database, and their safeguards differ.
 
 ## Rebuild loaders
 
 A loader that runs inside a from-scratch rebuild (`scripts/reset-local-db.sh`,
-`legacy_data/run_pipeline.sh`, `freestyle/run_freestyle.sh`) writes a database the rebuild created
+`legacy_data/run_pipeline.sh`) writes a database the rebuild created
 and can recreate, so it needs no apply flag, audit CSV or rollback SQL. It still:
 
 - writes each table set in one transaction, committed once, so a failure leaves no half-loaded table;
@@ -29,6 +29,11 @@ and can recreate, so it needs no apply flag, audit CSV or rollback SQL. It still
 - reports honest counters: it counts an insert only when `rowcount` shows one, never a raw `+= 1`
   after `INSERT OR IGNORE`, and names every skipped row's category: dedup, FK miss, PK collision,
   bad row.
+
+## Freestyle refresh
+
+`freestyle/run_freestyle.sh` reconciles and verifies in place and never deletes the database; its
+loader contract is `freestyle/CLAUDE.md`, not delete-and-insert.
 
 ## In-place patches
 

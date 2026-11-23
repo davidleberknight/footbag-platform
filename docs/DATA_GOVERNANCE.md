@@ -85,7 +85,7 @@ Club rosters and event participant lists beyond official results are member-only
 
 ## 9. Legacy archive and imported historical identities
 
-- **Legacy archive.** The mirror of the old site is member-only, because its pages carry old member contact details.
+- **Legacy archive.** The mirror of the old site is member-only, because its pages carry old member contact details. Its copies follow production's: staging by a sync inside AWS, and invited developer machines under the same controls as a database copy.
 - **Imported historical persons** are placeholders for result attribution, not member accounts: they are not searchable, do not populate member profiles, and their imported aggregate fields are not public statistics without approval and caveats.
 - **Erasure and the record.** Erasing an account clears its personal data and severs its link to the historical record, which stays public with its attribution name and honors.
 - **Raw legacy dumps** are never committed to the public repository or pasted into public issues, logs, tests or screenshots; password material is never imported, stored, logged or used. Raw legacy data and its extracts live in the maintainers' private repository and on maintainer machines. The public repository never holds member personal data.

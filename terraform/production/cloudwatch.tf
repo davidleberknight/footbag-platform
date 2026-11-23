@@ -262,6 +262,15 @@ locals {
         rule        = "replicate-all-to-archive-dr"
       }
     } : {},
+    # The cold copy is the archive's only backup that never deletes, so a write
+    # that fails to reach it is a gap in the year of rollback until re-driven.
+    var.enable_archive && var.enable_legacy_mirror_backup ? {
+      "archive-cold-copy" = {
+        source      = aws_s3_bucket.archive[0].id
+        destination = aws_s3_bucket.legacy_mirror_backup[0].id
+        rule        = "replicate-writes-to-legacy-mirror-backup"
+      }
+    } : {},
   ) : {}
 }
 

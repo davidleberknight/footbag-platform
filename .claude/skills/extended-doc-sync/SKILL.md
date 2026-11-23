@@ -89,25 +89,15 @@ the public repository only.
    one plain sentence each naming what changes; one approval covers that list, and any item
    the maintainer names is pulled out or asked on its own. Then every S1 cluster and every
    disputed one, one at a time, from its re-derivation, put to the maintainer under the asking
-   rule, written for someone reading on a phone who saw none of the run:
-   - One discrepancy per message, in plain sentences; never a table.
-   - Every message has the same shape, in this order, so a new topic is unmistakable:
-     1. First line, a bold heading: "Question N of M: <plain title>".
-     2. "What this is:" two or three short sentences saying what the feature is, where it shows
-        on the site and who sees it, in everyday words, with no file name, identifier or
-        internal term. A term that clashes with a site term (such as "tier") is not used.
-     3. The problem: what each side says, one sentence each.
-     4. The "Settled from the sources:" lines.
-     5. The recommended answer and what would change on the site or in the code if it is
-        accepted, then the one question.
-   - After a correction or a follow-up, restate the whole message in this shape rather than
-     amending the previous one.
-   - Do the homework before asking. Every fact the message states about the site (a page, its
-     title, its address, how a member reaches it, a button or link label, a notice, who sees it)
-     is read this turn from the template, the route and the page-shaping service, and quoted
-     verbatim; a label is never paraphrased and a page is never named from memory. A fact that
-     cannot be confirmed that way is checked by a fresh-context subagent before the question is
-     asked, never put to the maintainer as an assumption.
+   rule, which fixes the message shape, written for someone reading on a phone who saw none of
+   the run. After the bold title, each message opens with "What this is:" two or three short
+   sentences saying what the feature is, where it shows on the site and who sees it, in
+   everyday words, with no file name, identifier or internal term (a term that clashes with a
+   site term, such as "tier", is not used); then what each side says, one sentence each.
+   Every fact the message states about the site (a page, its title, its address, how a member
+   reaches it, a button or link label, a notice, who sees it) is read this turn from the
+   template, the route and the page-shaping service, and quoted verbatim, or checked by a
+   fresh-context subagent before the question is asked; never stated from memory.
    Mechanical findings and failing gates are asked the same way.
 7. The maintainer triages every ruling; no record is assumed. A tiny fix, a document's or
    comment's wording with no change of behaviour or design, is applied in the asking session

@@ -51,8 +51,8 @@ Substitute patterns, transitional shortcuts, and other deviations with explicit 
 
 In DEV_ONBOARDING and similar procedural docs, deferring work to a named place is valid scope-sequencing language describing doc architecture. It is **not** doc-governance drift.
 
-- **Valid scope language (leave alone):** "deferred to the AWS deployment and operations section", "not yet provisioned (see the appendix on authoritative facts)", "deferred to the private operations reference", "X is deferred to a later section".
-- **Actual drift (flag it):** "(deferred post-sprint)", "already declared... as deferred groundwork for exactly this chain", "the drift is expected and tracked", "not yet completed as of <date>", "as of today", "currently", "pending team review".
+- **Valid scope language (leave alone):** "deferred to the AWS deployment and operations section", "deferred to the private operations reference".
+- **Actual drift (flag it):** "(deferred post-sprint)", "not yet completed as of <date>", "currently", "pending team review".
 
 Rule of thumb: if deferral points to another section or document as the home for the work, it's scope. If it points to time, sprint, or tracking, it's drift.
 
@@ -95,14 +95,11 @@ When a drift-fix surfaces disagreement between a doc and another source:
 2. **Fix only (a)** unless the maintainer has explicitly approved a design change.
 3. Current-slice or implementation-state language in a long-term doc is drift to delete. Design decisions in Decision/Rationale blocks are intentional and must be preserved.
 4. Framework-style rewrites ("broaden X to cover three credential paths", "pick simpler option") are scope expansions, not drift fixes. Require explicit approval.
-5. "Lock in final design now" in response to option-framing does not license replacing a long-standing design. Re-verify: does the existing design still stand? If yes, lock-in means confirming it.
-6. When in doubt, ask: "I see drift X. Minimal fix Y removes the contradiction. Current design Z appears intentional. Fix only the drift, or change the design?"
+5. When in doubt, ask: "I see drift X. Minimal fix Y removes the contradiction. Current design Z appears intentional. Fix only the drift, or change the design?"
 
 ## Bootstrap code is not a design signal
 
-Current code includes bootstrap stubs that will be replaced, so it is evidence of current behavior, never of design intent (the `design-intent` skill); tracked deviations live in the maintainers' private tracker.
-
-When reviewing DD drift, cite the design sources as evidence. Do not cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
+Code is evidence of current behavior, never of design intent (the authority order in root `CLAUDE.md`). When reviewing DD drift, cite the design sources as evidence. Do not cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
 
 ## Team-member names
 

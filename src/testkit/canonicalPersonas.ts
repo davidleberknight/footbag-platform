@@ -114,8 +114,13 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     isAdmin: true,
     dimension: 'Administrators',
     purpose: 'The everyday administrator: reaches every admin page and works the admin work queue. Use it for any admin page check.',
-    testingUsage: 'Open /admin: the admin home and its links open. Open /admin/work-queue and resolve an item, for example a contact request another persona filed, then read the member email it sends on /dev/outbox. On your own computer only (not on staging): persona admins cannot save curated content while curated-file writes are on, which is the local default, so start the local stack with ALLOW_CURATED_SIDECAR_WRITES=0 to curate as this persona. On the Video file tab of /admin/curator/upload upload src/testkit/assets/chinlone_clip.mp4 with chinlone_poster.jpg and the hashtags #chinlone #club_wellington, naming a new gallery Wellington Chinlone: the gallery shows the clip, and so does the Wellington Hack Crew club\'s gallery.',
+    testingUsage: 'Open /admin: the admin home and its links open. Open /admin/work-queue and resolve an item, for example a contact request another persona filed, then read the member email it sends on /dev/outbox. On your own computer only (not on staging): persona admins cannot save curated content while curated-file writes are on, which is the local default, so start the local stack with ALLOW_CURATED_SIDECAR_WRITES=0 to curate as this persona. On the Video file tab of /admin/curator/upload upload src/testkit/assets/chinlone_clip.mp4 with chinlone_poster.jpg and the hashtags #chinlone #club_wellington, naming a new gallery Wellington Chinlone: the gallery shows the clip, and so does the Wellington Hack Crew club\'s gallery. Open /: the News item Member Pages Are Ready to Try is in the band with its opening line.',
     payments: [{ type: 'membership', status: 'succeeded', purchasedTier: 'tier2' }],
+    authoredNews: {
+      title: 'Member Pages Are Ready to Try',
+      body:  'Members can now update their profile, choose their mailing lists and register for events from their own page.\n\nSign in and open your member page to see it.',
+      publishedHoursAgo: 1,
+    },
     stories: [
       'A_View_Dashboard', 'A_Manage_Work_Queue', 'A_Resolve_Contact_IFPA_Admin_Request',
       'A_Override_Member_Data', 'A_View_Member_History', 'A_Restrict_Member_Account',
@@ -1188,6 +1193,38 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     },
     stories: ['M_Send_Announce_Email'],
     coverageNotes: ['announcement sent back with a note', 'returned announcement prefills the form'],
+  },
+  {
+    slug: 'blog_author',
+    displayName: 'Bea Blogger',
+    tier: 'tier2',
+    dimension: 'Mailing list',
+    purpose: 'An organizer-tier member with a published blog post: the blog shows it under their name.',
+    testingUsage: 'Open /blog: the post Why I Still Kick Every Day is listed under Bea Blogger. Open it to read the post.',
+    publishedPost: {
+      place:   'blog',
+      subject: 'Why I Still Kick Every Day',
+      body:    'Ten minutes with a bag every morning keeps my touch sharp.\n\nStart small: a few toe kicks, then add a stall. You will be surprised how fast it comes back.',
+      publishedHoursAgo: 1,
+    },
+    stories: ['V_View_Blog', 'M_Send_Announce_Email'],
+    coverageNotes: ['approved announcement published as a blog post'],
+  },
+  {
+    slug: 'community_poster',
+    displayName: 'Cole Poster',
+    tier: 'tier2',
+    dimension: 'Mailing list',
+    purpose: 'An organizer-tier member whose approved announcement is a Community post in the news feed.',
+    testingUsage: 'Open / or /news: the Community post Denver Weekly Kick Moves to Wash Park is listed. Open it to read the post.',
+    publishedPost: {
+      place:   'feed',
+      subject: 'Denver Weekly Kick Moves to Wash Park',
+      body:    'Our Thursday evening kick now meets at Washington Park, by the boathouse, from 6 pm.\n\nAll levels welcome; spare bags on hand.',
+      publishedHoursAgo: 3,
+    },
+    stories: ['V_View_News_Feed', 'M_Send_Announce_Email'],
+    coverageNotes: ['approved announcement published as a Community post'],
   },
 
   // ── Honors & standing ─────────────────────────────────────────────────────

@@ -548,6 +548,24 @@ export interface PersonaSpec {
     note?: string;
   };
   /**
+   * An announcement of the persona's an administrator approved, published as
+   * a Community post in the news feed or as a blog post, as the approval
+   * writes it: the approved announcement and its post, the member its author.
+   */
+  publishedPost?: {
+    place: 'feed' | 'blog';
+    subject: string;
+    body: string;
+    /** How many hours ago it was approved and published. */
+    publishedHoursAgo: number;
+  };
+  /** A News item this administrator persona wrote, as the admin news form writes it. */
+  authoredNews?: {
+    title: string;
+    body: string;
+    publishedHoursAgo: number;
+  };
+  /**
    * A prospective member holding a claim on another persona's old account, by
    * that account's legacy id. When the other persona already holds the account,
    * completing onboarding cannot apply the claim, which is the case that shows
@@ -677,6 +695,27 @@ export function personaEventTagId(slug: string): string {
 /** The id of the news item announcing a persona's seeded event. */
 export function personaEventNewsId(slug: string): string {
   return `news-test-persona-event-${slug}`;
+}
+
+/** The id of a persona's published Community or blog post. */
+export function personaPostNewsId(slug: string): string {
+  return `news-test-persona-post-${slug}`;
+}
+
+/** The id of the News item a persona administrator wrote. */
+export function personaAuthoredNewsId(slug: string): string {
+  return `news-test-persona-authored-${slug}`;
+}
+
+/**
+ * A seeded item's publication time, some hours back but never before the
+ * current UTC year began, so the current year's news and blog pages, which
+ * list only that year, always hold what the seed just wrote.
+ */
+function seededPublishedAt(hoursAgo: number): string {
+  const now = new Date();
+  const yearStart = Date.UTC(now.getUTCFullYear(), 0, 1);
+  return new Date(Math.max(now.getTime() - hoursAgo * 3_600_000, yearStart)).toISOString();
 }
 
 function isoDateDaysFromNow(days: number): string {
@@ -1180,8 +1219,11 @@ export function seedPersona(
       title: ev.title, start_date: startDate, end_date: isoDateDaysFromNow(ev.startInDays + ev.days - 1),
       city: ev.city, region: ev.region, country: ev.country,
     });
+    // Published two hours back, so the seeded posts of other kinds interleave
+    // with the event items on the home page band.
     insertNewsItem(db, {
       id: personaEventNewsId(spec.slug),
+      published_at: seededPublishedAt(2),
       news_type: 'event_published',
       entity_type: 'event',
       entity_id: eventId,
@@ -1337,6 +1379,43 @@ export function seedPersona(
         created_by:  memberId,
       });
     }
+  }
+
+  if (spec.publishedPost) {
+    const post = spec.publishedPost;
+    const publishedAt = seededPublishedAt(post.publishedHoursAgo);
+    const newsItemId = insertNewsItem(db, {
+      id: personaPostNewsId(spec.slug),
+      published_at: publishedAt,
+      news_type: post.place === 'blog' ? 'blog_post' : 'community_post',
+      title: post.subject,
+      body: post.body,
+      author_member_id: memberId,
+      created_by: memberId,
+    });
+    insertMemberAnnouncement(db, {
+      member_id: memberId,
+      subject: post.subject,
+      body_text: post.body,
+      status: 'approved',
+      decided_at: publishedAt,
+      created_at: publishedAt,
+      publish_to: post.place,
+      news_item_id: newsItemId,
+    });
+  }
+
+  if (spec.authoredNews) {
+    const news = spec.authoredNews;
+    insertNewsItem(db, {
+      id: personaAuthoredNewsId(spec.slug),
+      published_at: seededPublishedAt(news.publishedHoursAgo),
+      news_type: 'announcement',
+      title: news.title,
+      body: news.body,
+      author_member_id: memberId,
+      created_by: memberId,
+    });
   }
 
   const wantsLinkHelpItem = spec.linkHelpRequest === true || spec.adminQuestion !== undefined;

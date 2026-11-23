@@ -59,11 +59,13 @@ const FAKE_AWS = String.raw`#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FAKE_AWS_LOG"
 W="$FAKE_WORLD"
 bucket=""; key=""; region=""; vid=""; srcregion=""; sclass=""; query=""; excl=""; dryrun=0; del=0; prev=""
+csrc=""; ifmatch=""; ifnone=""; has_ifmatch=0
 for a in "$@"; do
   case "$prev" in
     --bucket) bucket="$a" ;; --key) key="$a" ;; --region) region="$a" ;; --version-id) vid="$a" ;;
     --source-region) srcregion="$a" ;; --storage-class) sclass="$a" ;; --query) query="$a" ;;
-    --exclude) excl="$a" ;;
+    --exclude) excl="$a" ;; --copy-source) csrc="$a" ;; --if-match) ifmatch="$a"; has_ifmatch=1 ;;
+    --if-none-match) ifnone="$a" ;;
   esac
   [[ "$a" == --dryrun ]] && dryrun=1
   [[ "$a" == --delete ]] && del=1
@@ -72,6 +74,30 @@ done
 fail() { echo "An error occurred ($1) when calling the $2 operation: $3" >&2; exit 254; }
 in_region() { # bucket op
   [[ "$region" == "$(cat "$W/$1/region")" ]] || fail PermanentRedirect "$2" "The bucket you are attempting to access must be addressed using the specified endpoint."
+}
+V="$W/$bucket/versions.json"
+# current <key>: the key's newest entry as "<version|marker>\t<id>\t<etag>\t<size>", or nothing.
+current() {
+  jq -r --arg k "$1" '[(.Versions[]|select(.Key==$k)|{t:.LastModified,l:.IsLatest,m:false,id:.VersionId,e:(.ETag//""),s:.Size}),(.DeleteMarkers[]|select(.Key==$k)|{t:.LastModified,l:.IsLatest,m:true,id:.VersionId,e:"",s:0})] | sort_by([.t,(if .l then 1 else 0 end)]) | last | if . == null then empty else "\(if .m then "marker" else "version" end)\t\(.id)\t\(.e)\t\(.s)" end' "$V"
+}
+# write_version <key> <id> <etag> <size>: a new current version, as a put or a copy makes.
+write_version() {
+  tmp="$(mktemp)"
+  jq --arg k "$1" --arg id "$2" --arg e "$3" --argjson s "$4" --arg t "$FAKE_NOW" '
+    .Versions |= map(if .Key == $k then .IsLatest = false else . end)
+    | .DeleteMarkers |= map(if .Key == $k then .IsLatest = false else . end)
+    | .Versions += [{Key: $k, VersionId: $id, IsLatest: true, LastModified: $t, Size: $s, ETag: $e}]' "$V" > "$tmp"
+  cat "$tmp" > "$V"; rm -f "$tmp"
+}
+# Someone else writing, or deleting, the key while the restore runs.
+concurrent_write() { write_version "$1" "$1-theirs" '"theirs-etag"' 7; }
+concurrent_delete() {
+  tmp="$(mktemp)"
+  jq --arg k "$1" --arg t "$FAKE_NOW" '
+    .Versions |= map(if .Key == $k then .IsLatest = false else . end)
+    | .DeleteMarkers |= map(if .Key == $k then .IsLatest = false else . end)
+    | .DeleteMarkers += [{Key: $k, VersionId: ($k + "-their-delete"), IsLatest: true, LastModified: $t}]' "$V" > "$tmp"
+  cat "$tmp" > "$V"; rm -f "$tmp"
 }
 case "$1 $2" in
   "s3api get-bucket-location")
@@ -88,10 +114,16 @@ case "$1 $2" in
   "s3api head-object")
     in_region "$bucket" HeadObject
     [[ ",$FAKE_HEAD_ABSENT," == *",$key,"* ]] && fail 404 HeadObject "Not Found"
-    if [[ -f "$W/$bucket/versions.json" ]]; then
-      cur="$(jq -r --arg k "$key" '[(.Versions[]|select(.Key==$k)|{t:.LastModified,m:false}),(.DeleteMarkers[]|select(.Key==$k)|{t:.LastModified,m:true})] | sort_by(.t) | last | if . == null or .m then "gone" else "here" end' "$W/$bucket/versions.json")"
-      [[ "$cur" == here ]] || fail 404 HeadObject "Not Found"
-      echo "{}"; exit 0
+    if [[ -f "$V" ]]; then
+      [[ "$query" == VersionId && "$key" == "$FAKE_CONCURRENT_WRITE" ]] && concurrent_write "$key"
+      IFS=$'\t' read -r kind id _ size <<<"$(current "$key")"
+      [[ "$kind" == version ]] || fail 404 HeadObject "Not Found"
+      case "$query" in
+        VersionId) echo "$id" ;;
+        '[VersionId,ContentLength]') printf '%s\t%s\n' "$id" "$size" ;;
+        *) echo "{}" ;;
+      esac
+      exit 0
     fi
     line="$(grep -P "^\Q$key\E\t" "$W/$bucket/objects.tsv")" || fail 404 HeadObject "Not Found"
     size="$(cut -f2 <<<"$line")"; class="$(cut -f3 <<<"$line")"
@@ -107,6 +139,31 @@ case "$1 $2" in
     tmp="$(mktemp)"
     jq --arg v "$vid" '.Versions |= map(select(.VersionId != $v)) | .DeleteMarkers |= map(select(.VersionId != $v))' "$W/$bucket/versions.json" > "$tmp"
     cat "$tmp" > "$W/$bucket/versions.json"; rm -f "$tmp"
+    exit 0 ;;
+  "s3api copy-object")
+    # The copy source is "<bucket>/<key>?versionId=<id>", unencoded: the CLI
+    # encodes the part before the version suffix itself.
+    in_region "$bucket" CopyObject
+    [[ "$csrc" == "$bucket/$key?versionId="* ]] || fail InvalidRequest CopyObject "copy source $csrc is not a version of $bucket/$key"
+    srcid="\${csrc##*\?versionId=}"
+    src="$(jq -r --arg k "$key" --arg id "$srcid" '.Versions[] | select(.Key==$k and .VersionId==$id) | "\(.ETag//"")\t\(.Size)"' "$V")"
+    [[ -n "$src" ]] || fail NoSuchVersion CopyObject "The specified version does not exist."
+    [[ "$key" == "$FAKE_RACE_AFTER_HEAD" ]] && concurrent_write "$key"
+    [[ "$key" == "$FAKE_DELETE_AFTER_HEAD" ]] && concurrent_delete "$key"
+    IFS=$'\t' read -r kind _ etag _ <<<"$(current "$key")"
+    if (( has_ifmatch )); then
+      [[ "$kind" == version ]] || fail NoSuchKey CopyObject "The specified key does not exist."
+      [[ "$etag" == "$ifmatch" ]] || fail PreconditionFailed CopyObject "At least one of the pre-conditions you specified did not hold"
+    fi
+    if [[ "$ifnone" == '*' && "$kind" == version ]]; then
+      fail PreconditionFailed CopyObject "At least one of the pre-conditions you specified did not hold"
+    fi
+    IFS=$'\t' read -r setag ssize <<<"$src"
+    [[ -n "$FAKE_COPY_SIZE" ]] && ssize="$FAKE_COPY_SIZE"
+    newid="$key-copy-of-$srcid"
+    write_version "$key" "$newid" "$setag" "$ssize"
+    [[ -n "$FAKE_COPY_ID_WRONG" ]] && newid="$FAKE_COPY_ID_WRONG"
+    [[ "$query" == VersionId ]] && echo "$newid"
     exit 0 ;;
   "s3 sync")
     src="\${3#s3://}"; dst="\${4#s3://}"
@@ -164,18 +221,25 @@ function objects(name: string): Obj[] {
 }
 
 interface VersionListing {
-  Versions: Array<{ Key: string; VersionId: string; IsLatest: boolean; LastModified: string; Size: number }>;
+  Versions: Array<{ Key: string; VersionId: string; IsLatest: boolean; LastModified: string; Size: number; ETag?: string }>;
   DeleteMarkers: Array<{ Key: string; VersionId: string; IsLatest: boolean; LastModified: string }>;
 }
 
-/** A versioned bucket built from each key's history, oldest first: 'v' a version, 'd' a delete marker. */
-function versioned(name: string, history: Record<string, Array<['v' | 'd', string]>>): VersionListing {
+type Entry = ['v', string, number?] | ['d', string];
+
+/**
+ * A versioned bucket built from each key's history, oldest first: 'v' a
+ * version (with its size, 100 when not given), 'd' a delete marker. Each
+ * version's ETag is quoted, as S3 lists it, and unique to that version.
+ */
+function versioned(name: string, history: Record<string, Entry[]>): VersionListing {
   bucket(name, 'us-east-1');
   const listing: VersionListing = { Versions: [], DeleteMarkers: [] };
   for (const [key, entries] of Object.entries(history)) {
-    entries.forEach(([kind, at], i) => {
+    entries.forEach((e, i) => {
+      const [kind, at] = e;
       const entry = { Key: key, VersionId: `${key}-${kind}${i}`, IsLatest: i === entries.length - 1, LastModified: `${at}+00:00` };
-      if (kind === 'v') listing.Versions.push({ ...entry, Size: 100 });
+      if (e[0] === 'v') listing.Versions.push({ ...entry, Size: e[2] ?? 100, ETag: `"${key}-${kind}${i}-etag"` });
       else listing.DeleteMarkers.push(entry);
     });
   }
@@ -215,6 +279,8 @@ function run(args: string[], env: Record<string, string> = {}, target = 'staging
       FAKE_TF_TREE: path.join(REPO_ROOT, 'terraform', target),
       FAKE_TF_FAIL: '', FAKE_HEAD_ABSENT: '', FAKE_DELETE_FAIL: '', FAKE_SYNC_FAIL_AFTER: '',
       FAKE_COPY_CLASS: '', FAKE_COPY_SIZE: '', FAKE_DRY_EXTRA: '',
+      FAKE_CONCURRENT_WRITE: '', FAKE_RACE_AFTER_HEAD: '', FAKE_DELETE_AFTER_HEAD: '', FAKE_COPY_ID_WRONG: '',
+      FAKE_NOW: '2026-11-20T00:00:00+00:00',
       ...env,
     },
     ...SPAWN_GUARD,
@@ -224,7 +290,17 @@ function run(args: string[], env: Record<string, string> = {}, target = 'staging
 
 const awsCalls = (): string[] => fs.readFileSync(awsLog, 'utf8').split('\n').filter(Boolean);
 const syncs = (): string[] => awsCalls().filter((c) => c.startsWith('s3 sync'));
-const writes = (): string[] => awsCalls().filter((c) => (c.startsWith('s3 sync') && !c.includes('--dryrun')) || c.includes('delete-object'));
+const writes = (): string[] => awsCalls().filter((c) => (c.startsWith('s3 sync') && !c.includes('--dryrun')) || c.includes('delete-object') || c.includes('copy-object'));
+const copies = (): string[] => awsCalls().filter((c) => c.startsWith('s3api copy-object'));
+/** The key's current entry: the newest one, as S3 orders them. */
+function currentOf(l: VersionListing, key: string): { id: string; marker: boolean; size?: number; etag?: string } {
+  const all = [
+    ...l.Versions.filter((v) => v.Key === key).map((v) => ({ t: v.LastModified, latest: v.IsLatest, id: v.VersionId, marker: false, size: v.Size, etag: v.ETag })),
+    ...l.DeleteMarkers.filter((d) => d.Key === key).map((d) => ({ t: d.LastModified, latest: d.IsLatest, id: d.VersionId, marker: true })),
+  ].sort((a, b) => (a.t === b.t ? Number(a.latest) - Number(b.latest) : a.t < b.t ? -1 : 1));
+  const { id, marker, size, etag } = all[all.length - 1] as { id: string; marker: boolean; size?: number; etag?: string };
+  return { id, marker, size, etag };
+}
 
 beforeEach(() => {
   dir = createScratchDir('restore-bucket');
@@ -546,8 +622,8 @@ describe('restore-bucket: usage refusals', () => {
 describe('restore-bucket: from earlier versions', () => {
   const AS_OF = '2026-11-01T12:00:00Z';
   // Each key's history, oldest first.
-  const HISTORY: Record<string, Array<['v' | 'd', string]>> = {
-    // Deleted after the time: restored.
+  const HISTORY: Record<string, Entry[]> = {
+    // Deleted after the time: its markers go.
     'photos/deleted.jpg': [['v', '2026-10-01T00:00:00'], ['d', '2026-11-02T00:00:00']],
     // Deleted twice after the time: both markers go.
     'photos/twice.jpg': [['v', '2026-10-01T00:00:00'], ['d', '2026-11-02T00:00:00'], ['d', '2026-11-03T00:00:00']],
@@ -555,39 +631,200 @@ describe('restore-bucket: from earlier versions', () => {
     'photos/old-delete.jpg': [['v', '2026-10-01T00:00:00'], ['d', '2026-10-15T00:00:00']],
     // Deleted before the time and again after: still absent at the time, left alone.
     'photos/gone-at-time.jpg': [['v', '2026-10-01T00:00:00'], ['d', '2026-10-20T00:00:00'], ['d', '2026-11-02T00:00:00']],
-    // Overwritten, not deleted: untouched.
-    'photos/replaced.jpg': [['v', '2026-10-01T00:00:00'], ['v', '2026-11-02T00:00:00']],
+    // Overwritten after the time: the version then is copied back.
+    'photos/replaced.jpg': [['v', '2026-10-01T00:00:00', 111], ['v', '2026-11-02T00:00:00', 222]],
+    // Overwritten and then deleted after the time: removing the marker would
+    // bring back the overwrite, so the version then is copied back instead.
+    'photos/replaced-then-deleted.jpg': [['v', '2026-10-01T00:00:00', 333], ['v', '2026-11-02T00:00:00', 444], ['d', '2026-11-03T00:00:00']],
     // Deleted after the time, its earlier version aged out of the window.
     'photos/aged-out.jpg': [['d', '2026-11-02T00:00:00']],
+    // Nothing at or before the time: first written after it, or aged out.
+    'photos/new-after.jpg': [['v', '2026-11-02T00:00:00']],
+    // Absent at the time and written after it: left alone, never deleted.
+    'photos/rewritten-after-delete.jpg': [['v', '2026-10-01T00:00:00'], ['d', '2026-10-15T00:00:00'], ['v', '2026-11-02T00:00:00']],
+    // Unchanged since before the time.
+    'photos/unchanged.jpg': [['v', '2026-10-01T00:00:00']],
   };
   const args = ['--target', 'staging', '--bucket', 'media', '--from-versions', '--as-of', AS_OF];
 
-  it('removes only the delete markers newer than the time, restoring those keys, and proves each present', () => {
-    // Defect caught: a real object version deleted; a key that was already
-    // gone at the chosen time revived; a stacked delete left in place so the
-    // key stays missing; or a success reported for a key still absent.
+  /** The plan's sections: each heading line with the first column of the rows beneath it. */
+  function planSections(stdout: string): Array<{ heading: string; rows: string[][] }> {
+    const sections: Array<{ heading: string; rows: string[][] }> = [];
+    for (const line of stdout.split('\n')) {
+      if (/^ {4}\d+ key\(s\)/.test(line)) sections.push({ heading: line, rows: [] });
+      else if (/^ {6}\S/.test(line) && sections.length) sections[sections.length - 1].rows.push(line.trim().split('\t'));
+    }
+    return sections;
+  }
+  const rowsUnder = (stdout: string, headingPart: string): string[][] =>
+    planSections(stdout).find((s) => s.heading.includes(headingPart))?.rows ?? [];
+
+  it('puts every changed key back as it stood at the time, deleting no version, and proves each', () => {
+    // Defect caught: a real object version deleted; a key already gone at the
+    // chosen time revived; a stacked delete left in place; an overwrite left
+    // in place; an overwrite-then-delete restored to the overwrite rather than
+    // to what the key held at the time; a key that did not exist then deleted;
+    // or a success reported without reading each key back.
     const before = versioned(MEDIA, HISTORY);
     const res = run([...args, '--yes']);
     expect(res.status, res.stderr).toBe(0);
     const after = listing(MEDIA);
-    expect(after.Versions).toEqual(before.Versions);
-    expect(after.DeleteMarkers.map((d) => d.VersionId).sort()).toEqual([
-      'photos/aged-out.jpg-d0', 'photos/gone-at-time.jpg-d1', 'photos/gone-at-time.jpg-d2', 'photos/old-delete.jpg-d1',
+    const ids = (vs: Array<{ VersionId: string }>) => vs.map((v) => v.VersionId).sort();
+    // Every version survives; the two copies are the only additions.
+    expect(ids(after.Versions)).toEqual(ids([...before.Versions,
+      { VersionId: 'photos/replaced.jpg-copy-of-photos/replaced.jpg-v0' },
+      { VersionId: 'photos/replaced-then-deleted.jpg-copy-of-photos/replaced-then-deleted.jpg-v0' }]));
+    // Only the markers above a version the key held at the time are removed.
+    expect(ids(after.DeleteMarkers)).toEqual([
+      'photos/aged-out.jpg-d0', 'photos/gone-at-time.jpg-d1', 'photos/gone-at-time.jpg-d2',
+      'photos/old-delete.jpg-d1', 'photos/replaced-then-deleted.jpg-d2', 'photos/rewritten-after-delete.jpg-d1',
     ]);
-    expect(res.stderr).toContain('all 2 restored key(s) read back as present');
-    expect(res.stderr).toContain('1 key(s) deleted after 2026-11-01T12:00:00 in s3://footbag-staging-media are beyond the version window');
+    // What a member is served now is what was served at the time.
+    expect(currentOf(after, 'photos/deleted.jpg')).toMatchObject({ id: 'photos/deleted.jpg-v0', size: 100 });
+    expect(currentOf(after, 'photos/twice.jpg')).toMatchObject({ id: 'photos/twice.jpg-v0' });
+    expect(currentOf(after, 'photos/replaced.jpg')).toMatchObject({ marker: false, size: 111, etag: '"photos/replaced.jpg-v0-etag"' });
+    expect(currentOf(after, 'photos/replaced-then-deleted.jpg'))
+      .toMatchObject({ marker: false, size: 333, etag: '"photos/replaced-then-deleted.jpg-v0-etag"' });
+    for (const k of ['photos/new-after.jpg', 'photos/rewritten-after-delete.jpg', 'photos/unchanged.jpg', 'photos/old-delete.jpg']) {
+      expect(currentOf(after, k), k).toEqual(currentOf(before, k));
+    }
+    // Each copy names the version as its source and is conditioned on what
+    // was current: the overwrite's ETag, or no version over a delete marker.
+    expect(copies()).toHaveLength(2);
+    const copyOf = (k: string) => copies().find((c) => c.includes(`--key ${k} `)) ?? '';
+    expect(copyOf('photos/replaced.jpg')).toContain(`--copy-source ${MEDIA}/photos/replaced.jpg?versionId=photos/replaced.jpg-v0`);
+    expect(copyOf('photos/replaced.jpg')).toContain('--if-match "photos/replaced.jpg-v1-etag"');
+    expect(copyOf('photos/replaced-then-deleted.jpg')).toContain('--if-none-match *');
+    expect(res.stderr).toContain('all 2 key(s) whose delete markers were removed read back as present');
+    expect(res.stderr).toContain('all 2 key(s) copied back read back with the copy current');
+    expect(res.stderr).toMatch(/2 key\(s\) had delete markers removed, 2 of 2 had their version at \S+ copied back \(0 refused\), 1 written after it, 1 with no version then and 1 beyond the window were left alone/);
   });
 
-  it('lists the keys on a dry run and removes nothing', () => {
-    // Defect caught: a dry run that deletes markers.
+  it('finds nothing left to do on a re-run after a finished restore', () => {
+    // Defect caught: a re-run copying every reverted key again, stacking
+    // versions, or reporting a finished restore as work outstanding.
+    versioned(MEDIA, HISTORY);
+    expect(run([...args, '--yes']).status).toBe(0);
+    fs.writeFileSync(awsLog, '');
+    const again = run([...args, '--yes']);
+    expect(again.status, again.stderr).toBe(0);
+    expect(again.stderr).toContain('VERDICT: DONE, NOTHING TO RESTORE');
+    expect(writes()).toEqual([]);
+  });
+
+  it('lists every changed key with its action and version ids on a dry run, and changes nothing', () => {
+    // Defect caught: a dry run that writes; or a plan that hides a key, files
+    // it under the wrong action, or omits the version it would act on, so the
+    // operator approves something other than what runs.
     const before = versioned(MEDIA, HISTORY);
     const res = run([...args, '--dry-run']);
     expect(res.status, res.stderr).toBe(0);
-    expect(res.stdout).toContain('2 key(s) deleted after 2026-11-01T12:00:00 would be restored');
-    expect(res.stdout).toContain('photos/deleted.jpg');
-    expect(res.stdout).not.toContain('photos/old-delete.jpg');
+    expect(rowsUnder(res.stdout, 'removing their delete markers')).toEqual(expect.arrayContaining([
+      ['photos/deleted.jpg', 'photos/deleted.jpg-d1', 'photos/deleted.jpg-v0', '2026-11-02T00:00:00'],
+      ['photos/twice.jpg', 'photos/twice.jpg-d2,photos/twice.jpg-d1', 'photos/twice.jpg-v0', '2026-11-02T00:00:00'],
+    ]));
+    expect(rowsUnder(res.stdout, 'removing their delete markers')).toHaveLength(2);
+    expect(rowsUnder(res.stdout, 'copied back')).toEqual(expect.arrayContaining([
+      ['photos/replaced.jpg', 'photos/replaced.jpg-v0', 'photos/replaced.jpg-v1'],
+      ['photos/replaced-then-deleted.jpg', 'photos/replaced-then-deleted.jpg-v0', 'photos/replaced-then-deleted.jpg-d2'],
+    ]));
+    expect(rowsUnder(res.stdout, 'copied back')).toHaveLength(2);
+    expect(rowsUnder(res.stdout, 'absent at')).toEqual([['photos/rewritten-after-delete.jpg', 'photos/rewritten-after-delete.jpg-v2']]);
+    expect(rowsUnder(res.stdout, 'nothing at or before')).toEqual([['photos/new-after.jpg', 'photos/new-after.jpg-v0']]);
+    expect(rowsUnder(res.stdout, 'no earlier version left')).toEqual([['photos/aged-out.jpg']]);
+    for (const k of ['photos/old-delete.jpg', 'photos/gone-at-time.jpg', 'photos/unchanged.jpg']) expect(res.stdout).not.toContain(k);
+    expect(res.stderr).toMatch(/2 key\(s\) would have delete markers removed and 2 key\(s\) a version copied back; 1 written after \S+, 1 with no version then and 1 beyond the window would be left alone/);
     expect(writes()).toEqual([]);
     expect(listing(MEDIA)).toEqual(before);
+  });
+
+  it('refuses a key written after the plan was read, leaving that write current, and copies the rest', () => {
+    // Defect caught: a member's upload made while the restore ran overwritten
+    // by the revert, or the refusal reported as a finished restore.
+    versioned(MEDIA, HISTORY);
+    const res = run([...args, '--yes'], { FAKE_CONCURRENT_WRITE: 'photos/replaced.jpg' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('photos/replaced.jpg was not copied back: its current version is photos/replaced.jpg-theirs');
+    expect(copies().some((c) => c.includes('--key photos/replaced.jpg '))).toBe(false);
+    expect(currentOf(listing(MEDIA), 'photos/replaced.jpg')).toMatchObject({ id: 'photos/replaced.jpg-theirs' });
+    expect(currentOf(listing(MEDIA), 'photos/replaced-then-deleted.jpg')).toMatchObject({ size: 333 });
+    expect(res.stderr).toContain('1 of 2 had their version');
+    expect(res.stderr).toContain('(1 refused)');
+  });
+
+  it.each([
+    ['over an overwrite, the copy carrying its ETag', 'photos/replaced.jpg'],
+    ['over a delete marker, the copy requiring no current version', 'photos/replaced-then-deleted.jpg'],
+  ])('refuses a key written between the check and the copy, %s', (_what, key) => {
+    // Defect caught: a write landing in the moment between the read-back and
+    // the copy overwritten, because the copy itself was not conditional.
+    versioned(MEDIA, HISTORY);
+    const res = run([...args, '--yes'], { FAKE_RACE_AFTER_HEAD: key });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain(`${key} was not copied back: it changed while the run was going, and AWS refused the conditional copy: An error occurred (PreconditionFailed)`);
+    expect(currentOf(listing(MEDIA), key)).toMatchObject({ id: `${key}-theirs` });
+  });
+
+  it('reports a key deleted between the check and the copy as changed during the run, leaving the delete', () => {
+    // Defect caught: a member's delete made in that moment read as an
+    // unexplained AWS failure, sending the operator after the wrong problem,
+    // or undone by an unconditioned copy.
+    versioned(MEDIA, { 'photos/replaced.jpg': HISTORY['photos/replaced.jpg'] });
+    const res = run([...args, '--yes'], { FAKE_DELETE_AFTER_HEAD: 'photos/replaced.jpg' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('photos/replaced.jpg was not copied back: it changed while the run was going, and AWS refused the conditional copy: An error occurred (NoSuchKey)');
+    expect(currentOf(listing(MEDIA), 'photos/replaced.jpg')).toMatchObject({ marker: true, id: 'photos/replaced.jpg-their-delete' });
+  });
+
+  it('takes the entry AWS marks latest as current when two are written in the same second', () => {
+    // Defect caught: a key rewritten in the same second it was deleted read
+    // as still deleted, so the copy-back goes in over the wrong current entry
+    // and is refused, leaving the overwrite in place.
+    versioned(MEDIA, { 'photos/tie.jpg': [['v', '2026-10-01T00:00:00', 111], ['d', '2026-11-02T00:00:00'], ['v', '2026-11-02T00:00:00', 222]] });
+    const res = run([...args, '--yes']);
+    expect(res.status, res.stderr).toBe(0);
+    expect(copies()[0]).toContain('--if-match "photos/tie.jpg-v2-etag"');
+    expect(currentOf(listing(MEDIA), 'photos/tie.jpg')).toMatchObject({ marker: false, size: 111 });
+  });
+
+  it('refuses to copy over a version the listing gives no ETag for', () => {
+    // Defect caught: an unconditioned copy made because there was nothing to
+    // condition it on.
+    const l = versioned(MEDIA, { 'photos/replaced.jpg': HISTORY['photos/replaced.jpg'] });
+    delete l.Versions[1].ETag;
+    fs.writeFileSync(path.join(world, MEDIA, 'versions.json'), JSON.stringify(l));
+    const res = run([...args, '--yes']);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('the listing gave no ETag');
+    expect(copies()).toEqual([]);
+  });
+
+  it('fails when a copied-back key reads back at a size other than the version copied', () => {
+    // Defect caught: a truncated or wrong copy reported as a reverted key.
+    versioned(MEDIA, HISTORY);
+    const res = run([...args, '--yes'], { FAKE_COPY_SIZE: '1' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('photos/replaced.jpg reads back at 1 bytes, but version photos/replaced.jpg-v0 it was copied from is 111');
+    expect(res.stderr).not.toContain('copied back read back with the copy current');
+  });
+
+  it('fails when the copy does not read back as the current version', () => {
+    // Defect caught: success reported from the copy call alone while another
+    // version is what members are served.
+    versioned(MEDIA, HISTORY);
+    const res = run([...args, '--yes'], { FAKE_COPY_ID_WRONG: 'not-the-copy' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/photos\/replaced\.jpg reads back with version \S+ current, not the copy not-the-copy/);
+  });
+
+  it('reverts an overwrite in the snapshot bucket the same way', () => {
+    // Defect caught: the revert tied to the photo bucket's name, so another
+    // versioned bucket's overwrite is copied from or into the wrong bucket.
+    versioned(SNAPSHOTS, { 'daily/db.sqlite.gz': [['v', '2026-10-01T00:00:00', 50], ['v', '2026-11-02T00:00:00', 60]] });
+    const res = run(['--target', 'staging', '--bucket', 'snapshots', '--from-versions', '--as-of', AS_OF, '--yes']);
+    expect(res.status, res.stderr).toBe(0);
+    expect(currentOf(listing(SNAPSHOTS), 'daily/db.sqlite.gz')).toMatchObject({ size: 50 });
+    expect(copies()[0]).toContain(`--copy-source ${SNAPSHOTS}/daily/db.sqlite.gz?versionId=`);
   });
 
   it('reads the time in its own zone and treats a delete exactly at the time as before it', () => {

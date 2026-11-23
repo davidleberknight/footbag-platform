@@ -110,18 +110,6 @@ const PUBLIC_BLOG_SELECT = `
     FROM news_items AS n
     JOIN members_onboarded AS m ON m.id = n.author_member_id`;
 
-const PUBLIC_NEWS_SELECT = `
-    SELECT n.id, n.news_type, n.title, n.body, n.published_at,
-           n.entity_type, n.entity_id,
-           e.id AS event_id, e.title AS event_title,
-           t.tag_normalized AS event_tag_normalized, t.tag_display AS event_tag_display,
-           c.id AS club_id, ct.tag_normalized AS club_tag_normalized
-    FROM news_items AS n
-    LEFT JOIN events AS e ON n.entity_type = 'event' AND e.id = n.entity_id
-    LEFT JOIN tags AS t ON t.id = e.hashtag_tag_id
-    LEFT JOIN clubs_open AS c ON n.entity_type = 'club' AND c.id = n.entity_id
-    LEFT JOIN tags AS ct ON ct.id = c.hashtag_tag_id`;
-
 const PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL = PUBLIC_FREESTYLE_RECORD_CONFIDENCES
   .map((c) => `'${c}'`)
   .join(', ');
@@ -163,6 +151,29 @@ const REGISTRATION_OFFER_COLUMNS_SQL = `
         SELECT 1 FROM event_disciplines AS ed_offer
         WHERE ed_offer.event_id = e.id AND ed_offer.is_aggregate_standing = 0
       ) AS has_enterable_division`;
+
+// A news item with the facts of the event or club it is about. An event
+// item's card shows the event itself (its dates, place, registration status
+// and description), so the event's own columns and the registration-offer
+// columns its status badge needs come with it.
+const PUBLIC_NEWS_SELECT = `
+    SELECT n.id, n.news_type, n.title, n.body, n.published_at,
+           n.entity_type, n.entity_id,
+           e.id AS event_id, e.title AS event_title,
+           e.description AS event_description,
+           e.start_date AS event_start_date, e.end_date AS event_end_date,
+           e.city AS event_city, e.region AS event_region, e.country AS event_country,
+           e.status AS event_status, e.registration_status AS event_registration_status,
+           e.registration_deadline AS event_registration_deadline,
+           hc.name AS event_host_club,${REGISTRATION_OFFER_COLUMNS_SQL},
+           t.tag_normalized AS event_tag_normalized, t.tag_display AS event_tag_display,
+           c.id AS club_id, ct.tag_normalized AS club_tag_normalized
+    FROM news_items AS n
+    LEFT JOIN events AS e ON n.entity_type = 'event' AND e.id = n.entity_id
+    LEFT JOIN clubs AS hc ON hc.id = e.host_club_id
+    LEFT JOIN tags AS t ON t.id = e.hashtag_tag_id
+    LEFT JOIN clubs_open AS c ON n.entity_type = 'club' AND c.id = n.entity_id
+    LEFT JOIN tags AS ct ON ct.id = c.hashtag_tag_id`;
 
 interface RegistrationOfferRow {
   payment_enabled: number;
@@ -6786,7 +6797,7 @@ export const media = {
 // tag_normalized is needed alongside tag_display so the chip-rendering code
 // can build per-tag URLs (/media/browse?tag=<normalized-without-#>) without a
 // second round-trip. Built dynamically because better-sqlite3 has no
-// array-binding for IN(). Mirrors the queryCuratedItems pattern.
+// array-binding for IN(), so the SQL is built and prepared inside the function.
 export function queryCuratorMediaTags(
   mediaIds: string[],
 ): { media_id: string; tag_display: string; tag_normalized: string }[] {

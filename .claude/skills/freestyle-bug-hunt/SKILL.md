@@ -14,42 +14,28 @@ tags), and the domain invariants the freestyle governance skills define. It find
 violations of rules that generic review cannot see because they are footbag-domain rules,
 not web-engineering rules.
 
-## Relationship to the other audit skills
+## Shared mechanics
 
-- **bug-hunt** owns everything generic on the freestyle surfaces: security/correctness on
-  every deployed route (auth gates, XSS, CSRF, caching, error handling), specification-layer
-  defects including the design quality of freestyle stories and contracts, and doc-to-doc
-  / doc-to-code synchronization including the freestyle docs. Do not duplicate those
-  sweeps.
-- **This skill** owns the freestyle domain layer: dictionary/media invariants, the domain
-  validation and audit discipline of the freestyle admin write paths, cross-surface
-  propagation, naming conventions, stored-prose hygiene, and generated-content integrity.
+The `bug-hunt` skill owns the mechanics this hunt shares, and they apply here unchanged
+except where this file says otherwise: plan mode in the main session, findings-only;
+reproduce, then refute in fresh context, before recording; the tracked-work exclusion (a
+stale tracker issue is a finding); the deployed-surface rule (not-yet-built is never a
+finding); owner questions one at a time under `.claude/rules/asking.md`; the severity scale;
+the `BUGS.md` sink and its no-done-tracking discipline; and the boundary with the other
+audit skills (generic security and correctness, specification-layer defects and doc drift on
+the freestyle surfaces are bug-hunt's or the doc syncs'; a finding grounded in a freestyle
+domain rule stays here). The `pipeline-invariant-enforcer` skill governs *modifying* the
+pipeline; this skill audits pipeline *outputs* as they manifest on deployed surfaces.
 
-The contract sources this skill audits against are the freestyle governance skills —
-`.claude/skills/footbag-freestyle-dictionary/SKILL.md`,
-`.claude/skills/freestyle-dictionary-surface/SKILL.md`,
-`.claude/skills/footbag-curated-media/SKILL.md`,
-`.claude/skills/add-browse-view/SKILL.md` — plus the freestyle user stories (public and
-admin, and the freestyle content source-of-truth story), the freestyle sections of the
-canonical docs, and the standing surface-propagation rule in the
-`footbag-freestyle-dictionary` skill.
-The `pipeline-invariant-enforcer` skill governs *modifying* the pipeline; this skill
-audits pipeline *outputs* as they manifest on deployed surfaces.
+## Absolute rules (freestyle deltas)
 
-Overlap with the neighbors is accepted; the boundary is by nature. A finding that reduces
-to generic web security goes to bug-hunt's sweep. A finding grounded in a freestyle domain
-rule stays here.
-
-## Absolute rules
-
-1. **Plan mode, findings-only, main session.** The hunt runs read-only in plan mode. The
-   orchestrator stays in the main session — only it can ask the human — and dispatches the
-   category sweeps to read-only subagents, verifying their leads itself. Each subagent brief
-   says: "You cannot ask the human: return any question in your report with its context and
-   your recommended answer." No code, doc, data,
-   sidecar, CSV, or content-module edits, and no rebuild or server start: those are the
-   maintainer's preconditions below. The only write allowed is the findings write to
-   `BUGS.md` (Freestyle group), after the finalized plan is approved.
+1. **Subagents and writes.** The orchestrator dispatches the category sweeps to read-only
+   subagents and verifies their leads itself. Each subagent brief says: "You cannot ask the
+   human: return any question in your report with its context and your recommended
+   answer." No code, doc, data, sidecar, CSV, or
+   content-module edits, and no rebuild or server start: those are the maintainer's
+   preconditions below. The only write is to the `BUGS.md` Freestyle group, after the
+   finalized plan is approved.
 2. **Never judge doctrine.** Whether a trick is real, what its ADD should be, whether two
    names are the same trick, family membership, and promotion-worthiness are decisions
    owned by the curator, the rules expert, and the freestyle maintainer. This skill audits
@@ -81,29 +67,16 @@ rule stays here.
 7. **Loader internals out of scope by default.** Python loader code under `freestyle/` and
    `legacy_data/` is the freestyle maintainer's domain; audit its OUTPUTS (tables, content
    modules, seeded galleries) as deployed. The kickoff prompt can pull loader code in.
-8. **One question at a time** when blocked, per `.claude/rules/asking.md`.
-9. **Deployed-surface discipline** per `.claude/skills/deployed-surface/SKILL.md`: not-yet-built
-   is never a finding. Planned freestyle work (for example a family landing page tracked
-   as an open issue in the maintainers' private tracker) is roadmap, not a gap.
-10. **Tracked work is not re-flagged.** Re-derive the tracked freestyle items from the
-    maintainers' private tracker every run (see the tracked-work step below); an item
-    already covered by an open issue is excluded. The inverse IS a finding: an open issue
-    whose described state no longer matches the repo is a stale-tracker-issue finding.
-11. **Reproduce, then refute, before recording anything.** A finding carries one concrete
-    reproduction: a `sqlite3 -readonly` query against the precondition build, a request
-    against the precondition dev server, a run of an existing test, or a scratch probe
-    never committed; never staging or production. For an admin write path the
-    reproduction is a run of the named route test, quoting its assertion that the refusal
-    happened and nothing was written; with no such test the clause is a `write-tests`
-    hand-off, never a clean cell, and a finding that is traced but not reproduced is
-    capped at Medium. A query that errors, or returns zero rows where the population says
-    rows exist, stops that category; it is never a clean result. A candidate with no
-    reproduction is a Lead naming the reproduction that would settle it. Every survivor above Low gets one
-    independent refutation in fresh context (a read-only subagent per category batch that
-    did not produce the candidates, given only the candidate, its reproduction and the
-    governing clause). One bounded pass per category; a short findings list is a valid
-    result, and nothing is re-swept to reach a count.
-12. No emojis, no dates-as-status, concise output.
+8. **Reproduction, freestyle specifics.** Reproductions run against the precondition build
+   and server. For an admin write path the reproduction is a run of the named route test,
+   quoting its assertion that the refusal happened and nothing was written; with no such
+   test the clause is a `write-tests` hand-off, never a clean cell, and a finding that is
+   traced but not reproduced is capped at Medium. A query that errors, or returns zero rows
+   where the population says rows exist, stops that category; it is never a clean result.
+   The fresh-context refutation is a read-only subagent per category batch that did not
+   produce the candidates, given only the candidate, its reproduction and the governing
+   clause. One bounded pass per category. Planned freestyle work tracked as an open issue
+   (for example a family landing page) is roadmap, not a gap.
 
 ## Preconditions (maintainer-run, before the hunt starts)
 
@@ -132,33 +105,9 @@ cutover load and any staging-only data are outside this hunt.
 
 ## Scope
 
-In scope:
-
-- Deployed freestyle routes and pages (`/freestyle/**` in `src/routes/publicRoutes.ts`,
-  `freestyleController`, `freestyleService` and its sibling freestyle services,
-  `src/views/freestyle/**`, the search and suggest endpoints and
-  `src/public/js/freestyle-trick-search.js`).
-- Freestyle admin routes and pages (`/admin/freestyle/**` in `src/routes/adminRoutes.ts`,
-  `adminFreestyleController`, `emergingVocabController`, `freestyleCurationService`,
-  `freestyleRecordCurationService`, `consecutiveKicksCurationService`,
-  `src/views/admin/freestyle-*`, `emerging-vocabulary.hbs`, the consecutive-records views),
-  and the curated-gallery and curator upload surfaces (`/admin/curator/**`,
-  `adminCuratorController`, `curatorMediaService`, `src/views/admin/curator/**`).
-- Freestyle content on routes outside `/freestyle`: the records pages, the media hub and
-  its redirects, the home, rules, equipment and history pages where they show freestyle
-  data, and the freestyle entries in `/sitemap.xml` (`siteMetaService`).
-- Freestyle DB tables as loaded (`freestyle_tricks`, `freestyle_trick_modifiers`,
-  `freestyle_trick_aliases`, modifier/source link tables, `freestyle_trick_sources`,
-  `freestyle_ev_adjudications`, `freestyle_records`, the
-  consecutive-records table, the five `symbolic_*` tables, `media_items` / `media_tags`
-  for curated media), and the freestyle `audit_entries` rows the write paths append.
-- Generated content modules (`src/content/freestyle*.ts` and peers) and their agreement
-  with the services that consume them.
-- Curated intake artifacts as they manifest publicly: sidecars under
-  `curated/freestyle_*/**`, gallery JSON, tags, content-type tags.
-- The freestyle maintainer guide (`docs/FREESTYLE.md`: authority tiers, the
-  publication gate, terminology ownership) and the freestyle governance skills, as
-  contracts to audit code against (deep doc-to-doc sync stays with bug-hunt).
+In scope: the freestyle surface Method step 1 derives fresh each run, the freestyle tables
+and generated content modules behind it, curated intake artifacts as they manifest publicly,
+and the freestyle `audit_entries` rows the admin write paths append.
 
 Out of scope by default: loader Python internals; the `exploration/` working corpus;
 doctrine judgment calls; editorial voice and wording of curator-authored prose (the
@@ -178,7 +127,9 @@ with no deterministic check is handed there as a named defect class, never recor
    `footbag_private_repo/BUGS.md`. Build the tracked-work exclusion list fresh from them
    (REFERENCE.md describes how); never trust a title, a description elsewhere, or a
    remembered list.
-4. The four freestyle-domain skills named above — they carry the invariants.
+4. The four freestyle governance skills, which carry the invariants:
+   `footbag-freestyle-dictionary` (including its surface-propagation rule),
+   `freestyle-dictionary-surface`, `footbag-curated-media` and `add-browse-view`.
 5. The path-scoped rules: enumerate `.claude/rules/` fresh and read every rule that
    governs a surface this run touches (at minimum `view-layer.md` for template mechanics, `testing.md`, `comments.md`).
 6. `docs/FREESTYLE.md` (the maintainer guide, including its publication gate and
@@ -252,7 +203,7 @@ with no deterministic check is handed there as a named defect class, never recor
    the report, so a mistaken refutation is visible. Check
    the lane's §F classifications against the catalog, and re-run one query or fetch per
    category to compare its count with the lane's. Every survivor above Low then gets
-   the fresh-context refutation of absolute rule 11.
+   the fresh-context refutation of absolute rule 8.
 7. **Independent cross-check lane**, once, after the category pass: a differently briefed
    lane diffs the database against the rendered pages for the sample matrix, without the
    catalog. Its new candidates go through step 6; nothing is re-swept to reach a count.
@@ -260,17 +211,12 @@ with no deterministic check is handed there as a named defect class, never recor
 
 ## Output specification
 
-Single sink: the same `BUGS.md` bug-hunt uses (`footbag_private_repo/BUGS.md`, or the session
-scratchpad without that checkout).
-Freestyle findings go in a dedicated **Freestyle bugs (domain invariants)** group, placed
-after the bug-hunt skill's groups and before Leads. The group follows the established
-discipline:
+The sink and its discipline are bug-hunt's (`BUGS.md`). Freestyle findings go in a dedicated
+**Freestyle bugs (domain invariants)** group, placed after the bug-hunt skill's groups and
+before Leads:
 
-- Ephemeral entries: remove each finding once its fix lands; no closures, dates, commit
-  hashes, or RESOLVED markers.
 - Own sub-sequence `FBH-###` with a `Next freestyle finding ID:` pointer at the top of the
-  group; never reuse or renumber. A separate counter prevents contention with the `B<N>`
-  sequence, which a different skill and owner produce.
+  group; never reuse or renumber.
 - This skill owns only the Freestyle group; never edit the other groups. A candidate that
   belongs to bug-hunt is named in the report as a handoff, not written into its groups.
 
@@ -300,12 +246,10 @@ Per-finding format:
 **Owner routing:** identity/doctrine content questions go to the curator or the rules
 expert; pipeline/generator/data findings to the freestyle maintainer; platform service,
 template, and test findings to the primary maintainer. A finding needing a doctrine
-decision is not recorded as a bug; it goes in the report's owner-question list, one
-decision per question, per `.claude/rules/asking.md`.
+decision is not recorded as a bug; it goes in the report's owner-question list.
 
-**Severity** uses the risk scale in `docs/TESTING.md` (Catastrophic, High, Medium, Low),
-calibrated from what the reproduction showed rather than what the category could in
-principle do, with domain calibrations: a wrong content-type tag on a clip is a
+**Severity** uses bug-hunt's scale and calibration, with these freestyle calibrations: a
+wrong content-type tag on a clip is a
 curator-judgment review item (Low); a missing one on a curated clip that names a trick is High, because the
 media-tag invariant refuses it and the refresh stops; a naming/slug/hashtag violation on a
 public page is Medium; a propagation miss that shows a visitor wrong canonical data is
@@ -322,18 +266,13 @@ category over the sample matrix, every surface in the inventory carrying every a
 or not checked (with the reason); the pinning check named and graded for each category;
 the cross-check lane run once; and every candidate reproduced and refuted. A not-checked
 cell in §F17, §F18, §F19, §F21, §F24 or §F25, or more than five not-checked cells overall,
-makes the hunt incomplete, and the report says so instead of reporting a clean result. A
-short findings list is a valid result. Close with a short adversarial review of this skill
-itself: name what the category catalog, exclusions, or sampling let slip this run, and
-propose (never apply) any gap-closing edit to the maintainer, including each pre-pass
-delta category that survived this run, proposed as a new §F entry. A false negative
-discovered later is converted into a deterministic check through `write-tests` and, if it
-is a new class, a proposed new §F category.
+makes the hunt incomplete, and the report says so instead of reporting a clean result. The
+closing self-review follows bug-hunt's "Attack this skill" step, and proposes each pre-pass
+delta category that survived this run as a new §F entry; a false negative found later that
+is a new class becomes a proposed new §F category.
 
 ## After delivering
 
-End with a short summary: the build identity line and the coverage label, counts by
-category and severity, the two or three highest-leverage findings in one sentence each,
-the `write-tests` hand-offs (categories with no pinning check, or a presence-only or
-warn-only one), the owner-question list (one decision per question), and an offer to plan
-remediation for a named finding. Do not auto-remediate.
+Bug-hunt's closing summary, plus the build identity line and the coverage label, counts by
+§F category, and as `write-tests` hand-offs the categories with no pinning check or only a
+presence-only or warn-only one.

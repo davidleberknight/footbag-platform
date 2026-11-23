@@ -83,6 +83,10 @@ interface RunOpts {
   pathFront?: string;
   /** Lines of bash the stand-in edge proof runs after logging its call. */
   edgeBody?: string[];
+  /** What the archive-source parameter reads; "crawl" unless a case says otherwise. */
+  archiveSource?: string;
+  /** `ssm get-parameter` fails with this message instead of answering. */
+  archiveSourceFails?: string;
 }
 
 /** How the aws CLI reports a failed call on stderr. */
@@ -115,6 +119,9 @@ function runPublish(args: string[], opts: RunOpts = {}) {
     opts.headObjectFails
       ? `  "s3api head-object") echo ${JSON.stringify(opts.headObjectFails)} >&2; exit 254 ;;`
       : '  "s3api head-object") ;;',
+    opts.archiveSourceFails
+      ? `  "ssm get-parameter") echo ${JSON.stringify(opts.archiveSourceFails)} >&2; exit 254 ;;`
+      : `  "ssm get-parameter") echo ${JSON.stringify(opts.archiveSource ?? 'crawl')} ;;`,
     '  "s3 rm") ;;',
     '  "cloudfront create-invalidation") echo I-STUBINVALIDATION ;;',
     '  *) echo "unexpected aws invocation: $*" >&2; exit 64 ;;',
@@ -276,12 +283,80 @@ describe('publish-archive.sh: a staging publish, driven end to end', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('CRAWL_EXCLUSIONS.txt');
     expect(res.stderr).toContain('the capture did not pass verification');
-    expect(res.awsCalls).toEqual([]);
+    expect(res.awsCalls.filter((c) => !c.startsWith('ssm get-parameter'))).toEqual([]);
+  });
+});
+
+describe('publish-archive.sh: once the bucket is the source of truth, the publish refuses', () => {
+  // From the cutover the production bucket holds edits the crawl does not. A
+  // publish would overwrite them and its --delete would remove what the edits
+  // added, so the run must stop before it touches the bucket.
+  function touchedBucket(calls: string[]) {
+    return calls.some((c) => c.startsWith('s3 ') || c.startsWith('s3api ') || c.startsWith('cloudfront '));
+  }
+
+  it('reads the source of its own environment and publishes while it reads "crawl"', () => {
+    const res = runPublish(['--target', 'staging'], { listing: HEALTHY, archiveSource: 'crawl' });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.awsCalls.filter((c) => c.startsWith('ssm get-parameter'))).toEqual([
+      'ssm get-parameter --name /footbag/staging/archive-source --region us-east-1 --query Parameter.Value --output text',
+    ]);
+    expect(invalidated(res.awsCalls)).toBe(true);
+  });
+
+  for (const target of ['staging', 'production']) {
+    it(`refuses a ${target} publish, dry run included, when the source reads "bucket", and names the edit script`, () => {
+      const res = runPublish(['--target', target, '--dry-run'], { listing: HEALTHY, archiveSource: 'bucket' });
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain(`/footbag/${target}/archive-source reads 'bucket'`);
+      expect(res.stderr).toContain('scripts/archive-edit.sh');
+      expect(touchedBucket(res.awsCalls)).toBe(false);
+    });
+  }
+
+  it('refuses a value that is neither "crawl" nor "bucket", rather than reading it as the crawl', () => {
+    // Fail closed: a guard that let anything but "bucket" through would publish
+    // over a bucket whose source a typo or a half-written switch had left unclear.
+    const res = runPublish(['--target', 'staging'], { listing: HEALTHY, archiveSource: 'Crawl' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain("reads 'Crawl'");
+    expect(touchedBucket(res.awsCalls)).toBe(false);
+  });
+
+  it('refuses when the parameter does not exist, since the archive stack declares it', () => {
+    const res = runPublish(['--target', 'staging'], {
+      listing: HEALTHY,
+      archiveSourceFails: awsFailure('ParameterNotFound', 'GetParameter'),
+    });
+    expect(res.status).toBe(1);
+    expect(listed(res.stderr, 'Errors')).toContain('/footbag/staging/archive-source does not exist');
+    expect(touchedBucket(res.awsCalls)).toBe(false);
+  });
+
+  it('refuses a failed read with the AWS message, never reading it as absent or as the crawl', () => {
+    const res = runPublish(['--target', 'staging'], {
+      listing: HEALTHY,
+      archiveSourceFails: awsFailure('AccessDeniedException', 'GetParameter'),
+    });
+    expect(res.status).toBe(1);
+    expect(listed(res.stderr, 'Errors')).toMatch(/could not read \/footbag\/staging\/archive-source.*AccessDeniedException/);
+    expect(touchedBucket(res.awsCalls)).toBe(false);
+  });
+
+  it('refuses before the capture verification runs', () => {
+    // The verifier parses every page and costs minutes on a full capture; a
+    // publish that cannot proceed should say so first.
+    const verifierRan = path.join(root, 'verifier-ran-marker');
+    const verifier = path.join(root, 'verifier-that-records');
+    writeExec(verifier, `#!/usr/bin/env bash\n: > ${JSON.stringify(verifierRan)}\necho "  PASS  no excluded surface survived"\n`);
+    const res = runPublish(['--target', 'staging'], { listing: HEALTHY, archiveSource: 'bucket', treeVerifier: verifier });
+    expect(res.status).toBe(1);
+    expect(fs.existsSync(verifierRan)).toBe(false);
   });
 });
 
 describe('publish-archive.sh: production is confirmed by a person at a terminal', () => {
-  it.skipIf(!SETSID)('refuses production with no terminal and calls no AWS, even with the accept flag exported', () => {
+  it.skipIf(!SETSID)('refuses production with no terminal and reaches no bucket, even with the accept flag exported', () => {
     // Replacing what the public archive serves is a production deploy. An exported
     // accept flag is ambient state from whichever shell launched the run, and must
     // not stand in for a typed APPLY.
@@ -293,7 +368,8 @@ describe('publish-archive.sh: production is confirmed by a person at a terminal'
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('no terminal to confirm on');
     expect(res.stderr).toContain('nothing was uploaded, deleted, or invalidated');
-    expect(res.awsCalls).toEqual([]);
+    // The only call before the confirmation is the read of the archive source.
+    expect(res.awsCalls.filter((c) => !c.startsWith('ssm get-parameter'))).toEqual([]);
     expect(res.edgeCalls).toEqual([]);
   });
 

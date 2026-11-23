@@ -25,6 +25,11 @@ export interface DatedItemView {
   title: string;
   href: string;
   label: DatedItemLabel | null;
+  /**
+   * A second badge beside the label: the registration status of the upcoming
+   * event a news item is about. Absent or null otherwise.
+   */
+  status?: DatedItemLabel | null;
   meta: DatedItemMeta[];
   excerpt: string | null;
   /**

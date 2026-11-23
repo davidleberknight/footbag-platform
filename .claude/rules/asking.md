@@ -17,14 +17,15 @@ Before any message that puts a question to the human, do this in the turn, in or
    offering options.
 3. Write each settlement in the message as a `Settled from the sources:` line, with its source.
 4. Ask only what survives step 2 and still leaves you unable to act if the human answered
-   "I don't know". If you would still know what to do, decide it and let them overrule. Ask the
+   "I don't know". If analysis, precedent or the standard makes the answer certain, or you would
+   still know what to do, decide it and let them overrule; multi-step analysis is not grounds to
+   ask, only genuine undeterminability is, and then ask rather than guess. Ask the
    person the record names as decider, never the maintainer for a call the record gives to
    someone else. Never ask for an opinion or a preference, or offer options, on a point the
    facts or the design settle. A settled decision is never silent or buried either: state each
    one, with its source, where the human will see it. When a settled decision matters enough
    to confirm, ask only to ratify it, and say so plainly: "Settled by <source>; asking only to
-   ratify." Ask for an opinion only when the decision is genuinely a human preference no source
-   determines.
+   ratify."
 
 Asking is the last resort. Work every answer through the authority order in root `CLAUDE.md`, which
 is never restated here, and prefer live research, reading the actual docs and code now, over memory
@@ -38,21 +39,19 @@ ratifies text you drafted is not primary grounding: trace any new surface (route
 to a user story, a governance document, or an explicit human decision, and never build feature-scale
 work inside a fix or remediation batch.
 
-Bright line: if analysis makes the answer certain, do not ask; act on it or state it settled. Never reverse a design decision without asking.
-The one exception is a disagreement between code, a code comment, a document and the intent that is not own-change settled drift (Documentation edits below):
-it always goes to the human to adjudicate, never settled silently, with one recommended answer
-derived from the intent down: the functional requirements and the solution architecture that
-supports them first; then the design decisions, probably right but possibly stale; then the
-code, which is derived from both and is never the default winner. When the sources make the
-recommendation certain, present it as settled from the sources, asking only to validate it. If
-genuine doubt survives the sources, ask; never guess or assume. Multi-step analysis is not
-grounds to ask; only genuine undeterminability is. A design or implementation
-detail that precedent or the standard settles is never put to the human as a choice. Read-only investigation needs no permission:
+Bright line: never reverse a design decision without asking. A disagreement between code, a code
+comment, a document and the intent that is not own-change settled drift (Documentation edits below)
+always goes to the human to adjudicate, even when analysis settles it, never settled silently, with
+one recommended answer derived from the intent down: the functional requirements and the solution
+architecture that supports them first; then the design decisions, probably right but possibly
+stale; then the code, which is derived from both and is never the default winner. When the sources
+make the recommendation certain, present it as settled from the sources, asking only to validate
+it. Read-only investigation needs no permission:
 git reads, DB SELECTs, HTTP GETs through WebFetch, file listings, compile-checks. Run them, never ask.
 
 Ask only when materially different interpretations survive the sources, a conflict stays unclear
 after the design-intent skill's resolution, or the call needs an
-external fact, an IFPA or governance authority, a human preference the design does not determine,
+external fact, an IFPA or governance authority, a human preference no source determines,
 or the task would create or choose a canonical artifact the design does not already fix: a new
 document, the single home for a body of content, or the relocation or consolidation of content
 between documents. That last case is always the human's; never settle it by picking the most
@@ -86,10 +85,6 @@ a yes; the session pre-approval of UI wording may stand in for that yes, and Cla
 10. When showing literal doc or canonical text, before or after applying it, show the text itself with no trailing style or conformance commentary.
 11. In a multi-question pass, present exactly one question per message, headed by a short bold title. Never number it, say how many remain, or name the others; the next is asked only after this one is answered.
 12. The message's last line restates the one question as `Your call: <one sentence, recommended answer first>?`. Status text, `Still running:` lines and any `Not done:` list come above the question, never after it. The maintainer answers from a phone and must not need to scroll up. The line stands alone in plain English, with no doc paths or codes. If a hook sends the message back for a missing line, the continuation carries only that line and never repeats the question.
-
-A Stop hook (`.claude/hooks/guard-question-quality.sh`) backstops this section and the
-`Settled from the sources:` line; text in fenced blocks is exempt from it. It is a backstop, not the
-standard.
 
 ## Subagents
 
@@ -127,8 +122,8 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
   from the design, and anything the intent leaves open still go to the human, with the
   recommendation. Never put a settled instance to the human as a question, and never add a
   question to ratify it.
-- One standing pre-approval: the maintainer's working walk file in the private operations
-  checkout, `footbag_private_repo/issue_review.md`, is edited without an ask, whatever the edit.
+- Standing pre-approval: `footbag_private_repo/issue_review.md`, the maintainer's walk file, is
+  edited without an ask.
 - Every applied edit is surgical: the smallest change, untouched text left as it was. In the same
   turn that applies them, show every applied edit in the message itself as literal BEFORE/AFTER,
   with the document and enough context to locate it; never a summary, a file or a link. A change or

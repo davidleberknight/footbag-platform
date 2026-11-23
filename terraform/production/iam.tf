@@ -491,6 +491,7 @@ resource "aws_iam_role_policy" "s3_replication" {
   #   snapshots (us-east-1) → dr (us-west-2)
   #   media     (us-east-1) → media_dr (us-west-2)
   #   archive   (us-east-1) → archive_dr (us-west-2), while the archive exists
+  #   archive   (us-east-1) → legacy_mirror_backup (us-west-2), while both exist
   # AWS S3 replication needs Get* on the source bucket and ReplicateObject
   # on the destination; combining the pairs into one policy keeps the role
   # singular and avoids attaching a second policy by hand.
@@ -500,7 +501,9 @@ resource "aws_iam_role_policy" "s3_replication" {
   # job writes its generated manifest and completion report under: for the
   # archive a prefix of its log bucket, for the snapshots a prefix of the
   # snapshot bucket that no rule replicates or expires. Inventory configuration
-  # is how S3 builds the manifest.
+  # is how S3 builds the manifest. A job over the archive replicates through
+  # every rule on it, so the archive statements serve the cold-copy rule as
+  # well, with the destination grant above.
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = concat(
@@ -552,6 +555,22 @@ resource "aws_iam_role_policy" "s3_replication" {
             var.enable_archive ? ["${aws_s3_bucket.archive_dr[0].arn}/*"] : [],
           )
         },
+      ],
+      # The archive's rule to the legacy mirror cold copy carries writes and
+      # never a delete marker, so the grant there is object and tag writes
+      # only, without ReplicateDelete.
+      var.enable_archive && var.enable_legacy_mirror_backup ? [
+        {
+          Sid    = "ColdCopyObjectWrite"
+          Effect = "Allow"
+          Action = [
+            "s3:ReplicateObject",
+            "s3:ReplicateTags"
+          ]
+          Resource = ["${aws_s3_bucket.legacy_mirror_backup[0].arn}/*"]
+        },
+      ] : [],
+      [
         {
           Sid      = "SnapshotsBatchReplicationInitiate"
           Effect   = "Allow"

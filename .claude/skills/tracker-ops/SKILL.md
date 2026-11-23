@@ -1,6 +1,6 @@
 ---
 name: tracker-ops
-description: Use when reading, filing, triaging, updating, or drafting issues in the maintainers' private tracker, checking whether work is in scope or already tracked, drafting files in the private operations checkout (footbag_private_repo), or consulting the private ops docs. Claude reads and drafts; git writes stay human-run, and Claude runs tracker gh mutations itself once the human has agreed to the set, without pausing again between the commands in it. Degrades to a one-line note when the tracker is not wired on this machine.
+description: Read, file, triage, update or draft issues in the maintainers' private tracker, and draft files in or consult the docs of the private operations checkout (footbag_private_repo). Use when checking whether work is in scope or already tracked, or for any tracker card work; degrades to a one-line note when the tracker is not wired on this machine.
 ---
 
 # Tracker operations
@@ -29,9 +29,7 @@ the human's instruction as given.
 
 ## Orientation (read-only)
 
-- **Preferred, and approval-free on every machine:** the `gh` read forms below. The committed
-  read-only approver grants them on their own merits, so they never prompt, on any developer's
-  machine, with no absolute path anywhere. Use these by default:
+- Use these `gh` read forms by default; they never prompt:
   - Compact one-line-per-issue listing, the same shape the viewer prints:
     `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open --limit 200 --json number,title,labels
     --jq '.[] | "#\(.number)  [\([.labels[].name]|join(","))]  \(.title)"'`
@@ -56,31 +54,22 @@ the human's instruction as given.
   `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --assignee <handle>`. Degradation: symlink absent (no roster to read) -> derive handles live
   from `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --json assignees`; fully unwired -> ask the
   human for the handle. Never hard-code a handle in this file.
-- Non-mutating `gh api` GETs are fine; the `gh` read forms auto-approve, run them freely.
-- **Reading a card.** Read the body and every comment before saying anything about the card. The
-  body is the baseline and the comments are its change log, read in order: a comment that says it
-  supersedes, rewrites, corrects or rules on something overrides what it names, and a later
-  "body corrected" or "rewritten" comment puts the body back on top of the comments before it.
-  Report the card's merged current state, and name any conflict the card leaves unresolved rather
-  than picking a side. A card rewrite folds the live comment content into the body, so the body
-  alone tells the truth again.
-- **A card is only ever read from the card.** Never read a body without its comments, and never
-  take a card's state from a description of it elsewhere: a handover, plan, evidence file, doc,
-  subagent report, or the body alone is a lead to check, not the card. Read the card itself before
-  stating, relying on or acting on what it says, and brief any subagent that relies on a card to
-  read it the same way.
-- **Working a card: verify every claim before relying on it.** A card records scope, rulings and
-  deviations; it is never design intent, and its own `Settled from the sources` lines, its
-  descriptions of code and existing mechanisms, and the consequences it draws from a ruling can be
-  wrong or stale. Before planning, asking, or repeating any of them, list the card's load-bearing
-  claims and assumptions, your own included, and check each in the same turn: a design claim
-  against its governing passage (the `design-intent` skill, read now), a code or mechanism claim
-  against the current code, a fact about an outside system against live documentation. Report
-  each as checked or as a discrepancy. A card claim a passage contradicts goes to the human under
-  the asking rule's disagreement exception, with the answer the intent supports; it is never
-  carried forward. This governs the card itself, not a summary of it in the walk file. A
-  PostToolUse hook (`remind-card-verification.sh`) places this reminder beside every
-  `gh issue view` result.
+- Non-mutating `gh api` GETs are fine.
+- **Reading and working a card.** Read the card itself, body and every comment, before stating,
+  relying on or acting on anything it says; a handover, plan, evidence file, doc, subagent report,
+  or the body alone is a lead to check, not the card, and a subagent that relies on a card is
+  briefed to read it the same way. The comments are the body's change log, read in order: one that
+  supersedes, rewrites, corrects or rules on something overrides what it names, and a later "body
+  corrected" or "rewritten" comment puts the body back on top. Report the merged current state and
+  name any conflict the card leaves unresolved rather than picking a side; a card rewrite folds the
+  live comment content into the body. A card is never design intent: before planning, asking, or
+  repeating its claims (its `Settled from the sources` lines, its descriptions of code and
+  mechanisms, the consequences it draws from a ruling), list the load-bearing ones, your own
+  included, and check each in the same turn: a design claim against its governing passage (the
+  `design-intent` skill, read now), a code claim against the current code, an outside fact against
+  live documentation. Report each as checked or as a discrepancy; one a passage contradicts goes to
+  the human under the asking rule's disagreement exception, with the answer the intent supports.
+  This governs the card itself, not a summary of it in the walk file.
 
 ## Drafting
 
@@ -127,11 +116,9 @@ effect. Then:
   without an ask; Claude shows each written text, a body edit as BEFORE and AFTER, in the same
   message. Any other card, a new card, a close the human has not ruled, and everything the
   floor below forbids still take the ask.
-- **Retitle, rewrite, reassign, relabel, comment, close and reopen never prompt at the
-  tool layer.** They are allowed in the committed settings, scoped to the private tracker
-  by an exact repo-flag prefix, which is why every mutating command writes the repo flag
-  first: `gh issue edit -R "$FOOTBAG_PRIVATE_REPO" <number> …`. Put the flag anywhere else
-  and the rule stops matching and the prompt returns.
+- **Write the repo flag first** in every mutating command
+  (`gh issue edit -R "$FOOTBAG_PRIVATE_REPO" <number> …`): the committed allow rules for
+  tracker issue writes match only that prefix, so the flag anywhere else prompts.
 - **Post a comment or body from a file.** Write the text to the session scratchpad and pass it
   with `--body-file`, never inline after `--body`: auto mode's safety check can refuse a long
   inline body even though the repo-flag rule allows the command, and a file keeps the posted
@@ -150,29 +137,19 @@ Git writes in the private checkout stay human-run (`private-repo.md`).
 
 ## Hidden-reference rule (hard)
 
-Committed public text never carries the private repository's slug, owner, name, or
-issue numbers, in any form: prose says "the maintainers' private tracker"; commands
-say `-R "$FOOTBAG_PRIVATE_REPO"`; fixtures use synthetic slugs. A public commit
-message never references a private issue; a private issue may cite a public commit
-SHA but never needs one. A card closes when its work is verified, never waiting on a commit.
-Public code comments keep the `Current:`/`Target:` convention and never carry an
-issue number; the issue cites the file and line.
+Committed public text and public commit messages never carry the private repository's
+slug, owner, name, or issue numbers: prose says "the maintainers' private tracker";
+commands say `-R "$FOOTBAG_PRIVATE_REPO"`; fixtures use synthetic slugs. Linking is
+one-way (`private-repo.md`); code comments follow `comments.md`. A card closes when its
+work is verified, never waiting on a commit.
 
 ## Private ops docs
 
-The private checkout carries four private ops docs. `AWS_OPERATIONS.md` (private GitHub repo)
-holds concrete AWS facts, `DEVOPS_GUIDE.md` (private GitHub repo) holds operating runbooks,
-`VAULT_GOVERNANCE.md` (private GitHub repo) holds vault governance, and
-`VAULT_README_V<n>.md` (private GitHub repo) holds the credential vault's entry map and entry
-schema: what the vault holds, what it is designed to hold, and what is deliberately excluded
-with the reason. It carries no secret value, and the vault's own README entry is a pasted copy
-of it. Cite their content by section title, never by section number. Linking is
-one-way: private text may cite public files and commit SHAs; public text names these
-docs by filename and marks them private ("DEVOPS_GUIDE.md (private GitHub repo)"), because
-a reader who cannot open a doc is still better served by its real name than by a vague
-role. Naming a file leaks nothing: the hidden-reference rule bans the repository's slug,
-owner, and issue numbers, which is why the tracker itself stays "the maintainers' private
-tracker" rather than a repo name.
+Reached through the `footbag_private_repo/` symlink, all private: `AWS_OPERATIONS.md` (concrete
+AWS facts), `DEVOPS_GUIDE.md` (private runbooks), `VAULT_GOVERNANCE.md` (custody rulings),
+`VAULT_README_V<n>.md` (the vault's entry map and schema, no secret value; the highest n in the
+checkout is current), and `GO_LIVE_PLAN.md` (gate rows). Citing and naming them follows
+`.claude/rules/private-repo.md`.
 
 ## Questions
 

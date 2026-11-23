@@ -884,10 +884,10 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 **Access and Governance:**
 
 - Archive accessible to members only, not public (read-only, authentication required).
-- No modifications possible (immutable preservation).
+- Preserved as captured; after go-live the production archive bucket is the source of truth, changed only by deliberate, versioned edits.
 - Selected historical content, such as event results, honors and historical-person records, is migrated to the live site for public access.
 - The archive requires member authentication and is served with a noindex directive, so it is neither publicly reachable nor indexed.
-- Initial mirror capture is one-time for launch, no future refresh possible once we switch over to new site.
+- The mirror is captured once for launch and never re-crawled once the new site replaces the old one.
 
 This approach ensures permanent preservation of community history, protecting member privacy from the public Internet, with minimal ongoing maintenance or cost.
 
