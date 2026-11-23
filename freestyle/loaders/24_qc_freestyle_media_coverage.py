@@ -313,9 +313,9 @@ def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
     # 2. a curated trick clip carrying more than one content-type tag. One clip
     #    is one content type; two would make the strength it reports depend on
     #    which tag happened to be read first. A clip carrying none is not an
-    #    error here: it counts as a demonstration, the same default both public
-    #    readers apply, and the media-tag invariant is where completeness is
-    #    enforced.
+    #    error: it counts as a demonstration, the same default both public
+    #    readers apply. Promotion gives every new trick clip a content type, and
+    #    no check requires one.
     multi_typed = sorted({
         r[0] for r in conn.execute("""
             SELECT t.media_id FROM media_tags t
