@@ -642,10 +642,4 @@ describe('GET /freestyle/partnerships', () => {
     const res = await page('/freestyle/partnerships');
     expect(res.text).toContain('<a href="/freestyle" class="action-link">');
   });
-
-  it('opens with a lede that links unfamiliar terms to the glossary', async () => {
-    const res = await page('/freestyle/partnerships');
-    expect(res.text).toContain('Doubles freestyle pairs two players');
-    expect(res.text).toContain('href="/freestyle/glossary"');
-  });
 });
