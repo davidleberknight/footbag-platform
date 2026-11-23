@@ -823,6 +823,23 @@ if [ -n "$caution_class_hits" ]; then
 fi
 fi
 
+# Rule: no template assembles a ?family= or ?context= link from a variable,
+# even a single one.
+# Reason: a family filter and a hashtag gallery link are dictionary links, which
+# the service shapes as an *Href field. The service is where the destination is
+# decided: a hashtag links to its gallery only when the trick has media, and a
+# family filter only to a family the dictionary shows. A template building the
+# address from a slug skips both decisions, and the general one-variable
+# allowance for URLs in templates would otherwise let it through.
+if check "dictionary filter links assembled in src/views/**" src/views; then
+filter_link_hits=$(grep -rnE --include='*.hbs' '[?&](family|context)=\{\{' src/views/ || true)
+if [ -n "$filter_link_hits" ]; then
+  echo "$filter_link_hits" >&2
+  echo "  FAIL: a ?family= or ?context= link is a service-shaped *Href field rendered through siteHref; see the hashtag and dictionary-filter links section of .claude/rules/view-layer.md" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: every font-family declaration in style.css resolves through the
 # --font-body / --font-mono tokens (or inherits), except inside @font-face
 # blocks, which by nature name the typeface they register.

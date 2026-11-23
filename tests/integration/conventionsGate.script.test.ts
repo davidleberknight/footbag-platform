@@ -1784,3 +1784,31 @@ describe('the convention gate: another member is chosen with the member picker, 
     expect(res.stderr).toContain(FAIL);
   });
 });
+
+describe('the convention gate: dictionary filter links are service-shaped', () => {
+  const RULE = 'dictionary filter links assembled in src/views/**';
+
+  // Defect caught: a template links a hashtag to its gallery, or a family chip
+  // to its filtered dictionary, by gluing a slug into the address, so the link
+  // skips the service's decision and lands on an empty gallery or a family the
+  // dictionary does not show.
+  it('refuses a ?context= or &family= link built from a single variable', () => {
+    const res = inFixtureRepo({
+      'src/views/media.hbs': '<a href="/media/browse?context={{slug}}">Media</a>\n',
+      'src/views/tricks.hbs': '<a href="/freestyle/tricks?view=family&family={{family}}">Family</a>\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/views/media.hbs:1:');
+    expect(res.stderr).toContain('src/views/tricks.hbs:1:');
+    expect(res.stderr).toContain('service-shaped *Href field');
+  });
+
+  it('accepts a service-shaped href and a fixed address with no variable', () => {
+    const res = inFixtureRepo({
+      'src/views/media.hbs': '<a href="{{siteHref trick.mediaHref}}">Media</a>\n',
+      'src/views/start.hbs': '<a href="/media/browse?context=mirage">Watch</a>\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, RULE);
+  });
+});
