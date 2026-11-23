@@ -50,35 +50,6 @@
     </div>
   </section>
 
-  {{! ── Recent Events ───────────────────────────────────────────────────── }}
-  {{#if content.recentEvents}}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Recent Events</h2>
-    </div>
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Recent events">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Event</th>
-            <th>Location</th>
-            <th>Date</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.recentEvents}}
-          <tr>
-            <td><a href="{{href}}">{{title}}</a></td>
-            <td class="detail-muted">{{city}}, {{country}}</td>
-            <td class="detail-muted">{{startDate}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
-  </section>
-  {{/if}}
-
   {{! ── Most World Titles ────────────────────────────────────────────────── }}
   {{#if content.worldChampions}}
   <section class="content-section">

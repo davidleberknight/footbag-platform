@@ -3910,15 +3910,6 @@ export const freestylePartnerships = {
 // STATS FIREWALL: no evidence-class filtering needed here. These are canonical
 // placement records, not enrichment data.
 // ---------------------------------------------------------------------------
-export interface FreestyleRecentEventRow {
-  event_id:       string;
-  event_title:    string;
-  start_date:     string;
-  city:           string;
-  country:        string;
-  tag_normalized: string;   // from tags.tag_normalized via events.hashtag_tag_id
-}
-
 export interface FreestyleWorldChampionRow {
   person_id:    string;
   person_name:  string;
@@ -3928,25 +3919,6 @@ export interface FreestyleWorldChampionRow {
 }
 
 export const freestyleCompetition = {
-  // 10 most recent freestyle events
-  get listRecentEvents() { return db.prepare(`
-    SELECT DISTINCT
-      e.id         AS event_id,
-      e.title      AS event_title,
-      e.start_date,
-      e.city,
-      e.country,
-      t.tag_normalized
-    FROM events e
-    JOIN tags t ON t.id = e.hashtag_tag_id
-    JOIN event_disciplines ed ON ed.event_id = e.id
-    WHERE lower(ed.name) LIKE '%freestyle%'
-      AND lower(ed.name) NOT LIKE '%doubles%'
-      AND lower(ed.name) NOT LIKE '%team%'
-    ORDER BY e.start_date DESC
-    LIMIT 10
-  `); },
-
   // Most freestyle-singles wins at events titled as World Championships.
   get listWorldChampions() { return db.prepare(`
     SELECT

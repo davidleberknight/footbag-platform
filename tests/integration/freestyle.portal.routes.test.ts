@@ -199,8 +199,8 @@ describe('GET /freestyle/competition', () => {
   });
 
   it('carries no podium leaderboards, era counts or nation tables', async () => {
-    // The page keeps the formats, recent events and world titles; the wider
-    // statistics pages were cut as page furniture.
+    // The page keeps the formats and world titles; the wider statistics pages
+    // were cut as page furniture.
     const res = await page('/freestyle/competition');
     for (const cut of [
       'Documented Competitors', 'Events by Era', 'Competition Milestones',
@@ -210,18 +210,13 @@ describe('GET /freestyle/competition', () => {
     }
   });
 
-  it('shows recent events section', async () => {
+  // Defect caught: the page repeats a list of freestyle events the site's own
+  // events pages already carry, duplicating them as a second listing.
+  it('lists no events of its own, while still showing the world titles', async () => {
     const res = await page('/freestyle/competition');
-    expect(res.text).toContain('Test Freestyle Open');
-  });
-
-  it('links recent events to their canonical event page, not a fragment', async () => {
-    const res = await page('/freestyle/competition');
-    // The stored hashtag form carries a leading '#'; the public event route keys
-    // on the bare form. Interpolating the tag raw produced '/events/#event_...',
-    // a dead in-page fragment instead of a link to the event page.
-    expect(res.text).not.toContain('href="/events/#');
-    expect(res.text).toMatch(/href="\/events\/event_[a-z0-9_]+"/);
+    expect(res.text).toContain('<h2>Most World Titles</h2>');
+    expect(res.text).not.toContain('Test Freestyle Open');
+    expect(res.text).not.toMatch(/href="\/events\/event_[a-z0-9_]+"/);
   });
 
   it('does NOT count a doubles category in the singles competition table', async () => {

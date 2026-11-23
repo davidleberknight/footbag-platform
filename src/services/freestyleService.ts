@@ -51,7 +51,7 @@ import {
   FreestyleTrickAliasRow, FreestyleMediaCoveredSourceRow,
   FreestyleTrickModifierLinkRow, FreestyleTrickModifierLinkDetailRow,
   FreestyleModifierLinkPairRow,
-  FreestyleRecentEventRow, FreestyleWorldChampionRow,
+  FreestyleWorldChampionRow,
   FreestylePartnershipRow,
   freestyleRecords, freestyleTricks, freestyleTrickModifiers, freestyleTrickAliases,
   freestyleMediaLinks,
@@ -2149,15 +2149,6 @@ export interface FreestyleFamilyDetailContent {
 // Competition content types (canonical-results-derived)
 // ---------------------------------------------------------------------------
 
-export interface FreestyleRecentEventViewModel {
-  eventId:    string;
-  title:      string;
-  startDate:  string;
-  city:       string;
-  country:    string;
-  href:       string;       // /events/:tag_normalized (platform event link)
-}
-
 export interface FreestyleFormatViewModel {
   key:   string;
   name:  string;
@@ -2176,7 +2167,6 @@ export interface FreestyleMilestoneEntry {
 export interface FreestyleCompetitionContent {
   formats:           FreestyleFormatViewModel[];
   worldChampions:    FreestyleMilestoneEntry[];
-  recentEvents:      FreestyleRecentEventViewModel[];
   dataNote:          string;
 }
 
@@ -5994,21 +5984,6 @@ export const freestyleService = {
   },
 
   getFreestyleCompetitionPage(): PageViewModel<FreestyleCompetitionContent> {
-    const recentRows = runSqliteRead('freestyleCompetition.listRecentEvents', () =>
-      freestyleCompetition.listRecentEvents.all() as FreestyleRecentEventRow[],
-    );
-
-    const recentEvents: FreestyleRecentEventViewModel[] = recentRows.map(r => ({
-      eventId:   r.event_id,
-      title:     r.event_title,
-      startDate: r.start_date.substring(0, 10),
-      city:      r.city,
-      country:   r.country,
-      // tag_normalized is the standardized hashtag form (#event_{year}_{slug});
-      // the public event route keys on the bare form without the leading '#'.
-      href:      `/events/${r.tag_normalized.replace('#', '')}`,
-    }));
-
     // Competition formats: static beginner prose.
     const formats: FreestyleFormatViewModel[] = COMPETITION_FORMATS.map(f => ({
       key:   f.key,
@@ -6050,7 +6025,6 @@ export const freestyleService = {
       content: {
         formats,
         worldChampions,
-        recentEvents,
         dataNote: 'Freestyle singles only (Open, Intermediate, and Women\'s divisions), from ' +
                   'documented event results.',
       },
