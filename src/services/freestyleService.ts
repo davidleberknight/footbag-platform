@@ -926,6 +926,17 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
 const operatorTitleCase = (slug: string): string =>
   slug.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+// An operator's display name on its modifier page: the feel card's name, else the
+// glossary entry whose term or alias is the slug's spelling (so the curated
+// "X-Dex" reaches the xdex page rather than a title-cased "Xdex"), else the
+// title-cased slug. Spellings compare with case and punctuation ignored.
+function operatorDisplayName(slug: string, terms: readonly GlossaryTermRecord[]): string {
+  const fold = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const key = fold(slug);
+  const entry = terms.find(t => fold(t.term) === key || t.aliases.some(a => fold(a) === key));
+  return operatorFeelCard(slug)?.name ?? entry?.term ?? operatorTitleCase(slug);
+}
+
 // Heading form of a canonical trick name: slug separators read as spaces and the
 // words take Title Case, except a compound adjective on the display-name
 // exception list, which keeps its genuine hyphen ("Cross-body Sole Stall").
@@ -7264,9 +7275,10 @@ export const freestyleService = {
         slug: string; canonical_name: string; adds: number | null; trick_family: string | null;
       }[],
     );
-    // The heading is chrome, so it takes the feel card's name or the Title Case
-    // slug, never the registry's lowercase modifier_name.
-    const displayName = operatorFeelCard(slug)?.name ?? operatorTitleCase(slug);
+    // The heading is chrome, so it takes the operator's display name, never the
+    // registry's lowercase modifier_name.
+    const glossary    = runSqliteRead('freestyleGlossaryTerms.listAll', () => glossaryTerms());
+    const displayName = operatorDisplayName(slug, glossary);
     const axisKey     = operatorPageGroupOf(slug);
     const axis        = axisKey ? OPERATOR_INDEX_AXES.find(a => a.axisKey === axisKey) : undefined;
     const operator    = findOperator(slug);
@@ -7283,7 +7295,7 @@ export const freestyleService = {
     const relatedModifiers = siblingSlugs
       .filter(s => s !== slug)
       .map(s => {
-        const name = operatorFeelCard(s)?.name ?? operatorTitleCase(s);
+        const name = operatorDisplayName(s, glossary);
         const sRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
           freestyleTrickModifiers.getBySlug.get(s) as FreestyleTrickModifierRow | undefined,
         );
