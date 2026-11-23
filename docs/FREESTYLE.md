@@ -238,12 +238,14 @@ public A–Z glossary giving each term a one-line definition that links there. `
 is the project technical glossary. This guide points to those homes and never
 copies their content, so a term's meaning has exactly one authoritative source.
 
-One class of terms is owned here directly, because it describes runs, never
-individual tricks, and therefore lives in no dictionary table: the run-quality
-ladder. Tiltless means every trick in the run is 2+ ADD; Guiltless 3+; Tripless
-4+; Fearless 5+; Beastly 6+; Godly 7+. Genuine is Guiltless excluding the BOP
-tricks (Butterfly, Osis, Paradox Mirage). The public A–Z glossary and Freestyle Concepts render these
-for readers; this guide is their authoritative definition.
+One class of terms is owned here directly, because it describes strings of
+tricks, never individual tricks, and therefore lives in no dictionary table: the
+run-quality ladder. Tiltless means every trick in a string (an unbroken chain of
+linked tricks) is 2+ ADD; Guiltless 3+; Tripless 4+. The IFPA freestyle rules
+define those three. Fearless 5+, Beastly 6+ and Godly 7+ are community terms the
+rules do not name, and this guide is their authoritative definition. Genuine is
+Guiltless excluding the BOP tricks (Butterfly, Osis, Paradox Mirage). The public
+A–Z glossary and Freestyle Concepts render all of these for readers.
 
 ## 9. Operational safety
 

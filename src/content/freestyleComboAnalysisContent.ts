@@ -54,12 +54,14 @@ export interface ComboAnalysisContent {
 // ─────────────────────────────────────────────────────────────────────────
 
 const RUN_QUALITY_INTRO =
-  'These describe the difficulty floor of a run (a continuous performance unit), ' +
-  'not the difficulty of any individual trick. A "guiltless" run means every trick ' +
-  'in it cleared the 3-ADD threshold; the term says nothing about which specific tricks.';
+  'These describe the difficulty floor of a string, an unbroken chain of linked tricks, ' +
+  'not the difficulty of any individual trick. A "guiltless" string means every trick ' +
+  'in it cleared the 3-ADD threshold; the first trick below 3 ends the string. The IFPA ' +
+  'rules name Tiltless, Guiltless and Tripless; Fearless, Beastly and Godly are community ' +
+  'terms that carry the idea higher.';
 
 export const RUN_QUALITY_ENTRIES: readonly ComboAnalysisRunQualityEntry[] = [
-  { anchorId: 'run-quality-tiltless',  term: 'Tiltless',  definition: 'Every trick in the run reaches at least ADD 2.' },
+  { anchorId: 'run-quality-tiltless',  term: 'Tiltless',  definition: 'Every trick in the string reaches at least ADD 2.' },
   { anchorId: 'run-quality-guiltless', term: 'Guiltless', definition: 'Every trick reaches at least ADD 3.' },
   { anchorId: 'run-quality-tripless',  term: 'Tripless',  definition: 'Every trick reaches at least ADD 4.' },
   { anchorId: 'run-quality-fearless',  term: 'Fearless',  definition: 'Every trick reaches at least ADD 5.' },

@@ -604,37 +604,37 @@ export const STAGED_GLOSSARY_TERMS: readonly StagedGlossaryTerm[] = [
   {
     term: 'Tiltless',
     slug: 'tiltless',
-    definition: 'A run in which every trick reaches at least 2 ADD.',
+    definition: 'A string, an unbroken chain of linked tricks, in which every trick is at least 2 ADD.',
     moreHref: `${COMBO}#run-quality-tiltless`, moreLabel: 'Run quality in Combo Analysis',
   },
   {
     term: 'Guiltless',
     slug: 'guiltless',
-    definition: 'A run in which every trick reaches at least 3 ADD.',
+    definition: 'A string, an unbroken chain of linked tricks, in which every trick is at least 3 ADD.',
     moreHref: `${COMBO}#run-quality-guiltless`, moreLabel: 'Run quality in Combo Analysis',
   },
   {
     term: 'Tripless',
     slug: 'tripless',
-    definition: 'A run in which every trick reaches at least 4 ADD.',
+    definition: 'A string, an unbroken chain of linked tricks, in which every trick is at least 4 ADD.',
     moreHref: `${COMBO}#run-quality-tripless`, moreLabel: 'Run quality in Combo Analysis',
   },
   {
     term: 'Fearless',
     slug: 'fearless',
-    definition: 'A run in which every trick reaches at least 5 ADD.',
+    definition: 'A string in which every trick is at least 5 ADD; a community term the IFPA rules do not name.',
     moreHref: `${COMBO}#run-quality-fearless`, moreLabel: 'Run quality in Combo Analysis',
   },
   {
     term: 'Beastly',
     slug: 'beastly',
-    definition: 'A run in which every trick reaches at least 6 ADD.',
+    definition: 'A string in which every trick is at least 6 ADD; a community term the IFPA rules do not name.',
     moreHref: `${COMBO}#run-quality-beastly`, moreLabel: 'Run quality in Combo Analysis',
   },
   {
     term: 'Godly',
     slug: 'godly',
-    definition: 'A run in which every trick reaches at least 7 ADD.',
+    definition: 'A string in which every trick is at least 7 ADD; a community term the IFPA rules do not name.',
     moreHref: `${COMBO}#run-quality-godly`, moreLabel: 'Run quality in Combo Analysis',
   },
   {

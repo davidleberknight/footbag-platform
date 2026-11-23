@@ -367,10 +367,11 @@
 
     <h3 id="run-quality">Run-quality ladder</h3>
     <p>
-      A run-quality tier describes a whole run, not a single trick. Each tier
-      asks every trick in the run to clear a minimum ADD, so the
-      <strong>lowest-ADD trick in the run sets the tier</strong>: one easy trick
-      caps the whole run.
+      A run-quality tier describes a string, an unbroken chain of linked tricks,
+      not a single trick. Each tier asks every trick in the string to clear a
+      minimum ADD, so the first trick below it ends the string. The IFPA rules
+      name Tiltless, Guiltless and Tripless; Fearless, Beastly and Godly are
+      community terms that carry the idea higher.
     </p>
     <dl class="glossary-term-list">
       {{#each content.runQualityLadder}}
@@ -379,9 +380,9 @@
       {{/each}}
     </dl>
     <p>
-      Example: a run of ADD 5, 3, and 6 tricks is <strong>Guiltless</strong>
-      (every trick reaches at least 3), not Fearless, because the ADD-3 trick is
-      the floor.
+      Example: a string of ADD 5, 3, and 6 tricks is <strong>Guiltless</strong>
+      (every trick reaches at least 3), not Fearless: a Fearless string would end
+      before the ADD-3 trick.
     </p>
     <p>
       <strong>Genuine</strong> and <strong>BOP</strong> are related terms, not

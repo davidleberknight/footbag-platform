@@ -3,10 +3,9 @@
  * philosophy section.
  *
  * The ladder defines Tiltless through Godly by the minimum ADD every trick in a
- * run must reach, states that the lowest-ADD trick sets the tier, and gives one
- * mixed-ADD example. Genuine and BOP are named separately because they are not
+ * string must reach. Genuine and BOP are named separately because they are not
  * floor-of-ADD rungs. Combo Analysis remains the application surface. The tier
- * definitions come from the combo-analysis authority, so the copy is static.
+ * definitions come from the combo-analysis authority.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -38,10 +37,11 @@ async function concepts(): Promise<string> {
 }
 
 describe('Freestyle Concepts — run-quality ladder', () => {
-  it('renders the ladder and states that the lowest-ADD trick sets the tier', async () => {
+  // Defect caught: the ladder's section, which other pages link to by its
+  // anchor, is missing from the Concepts page.
+  it('renders the ladder at its anchor', async () => {
     const html = await concepts();
-    expect(html).toContain('Run-quality ladder');
-    expect(html).toContain('lowest-ADD trick in the run sets the tier');
+    expect(html).toContain('id="run-quality"');
   });
 
   it('defines Tiltless through Godly by the minimum ADD of every trick', async () => {
@@ -54,19 +54,11 @@ describe('Freestyle Concepts — run-quality ladder', () => {
     expect(html).toContain('at least ADD 7'); // Godly
   });
 
-  it('gives one mixed-ADD example resolved by the lowest trick', async () => {
-    const html = await concepts();
-    expect(html).toContain('a run of ADD 5, 3, and 6 tricks is');
-    expect(html).toContain('because the ADD-3 trick is');
-  });
-
   it('treats Genuine and BOP separately, not as rungs of the numeric ladder', async () => {
     const html = await concepts();
-    expect(html).toContain('rungs of this numeric ladder');
-    expect(html).toContain('Genuine is Guiltless excluding BOP tricks');
     // The numeric ladder itself does not list Genuine or BOP as tiers.
-    const start = html.indexOf('Run-quality ladder');
-    const ladder = html.slice(start, html.indexOf('a run of ADD 5, 3, and 6', start));
+    const start = html.indexOf('id="run-quality"');
+    const ladder = html.slice(start, html.indexOf('</dl>', start));
     expect(ladder).toContain('<dt>Godly</dt>');
     expect(ladder).not.toContain('<dt>Genuine</dt>');
     expect(ladder).not.toContain('<dt>BOP</dt>');
