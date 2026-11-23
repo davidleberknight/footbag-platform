@@ -49,7 +49,7 @@ export async function getDevLogin(
 
     const row = auth.personaLoginEmailBySlug.get(slug) as PersonaEmailRow | undefined;
     if (!row) {
-      res.status(404).send(`no persona with slug '${slug}'`);
+      res.status(404).send('no persona with that slug');
       return;
     }
     if (!testRouteMayUseAddress(row.login_email)) {

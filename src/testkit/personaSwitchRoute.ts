@@ -48,7 +48,7 @@ export async function getDevSwitch(
       | SessionMemberRow
       | undefined;
     if (!row) {
-      res.status(404).send(`no persona with slug '${slug}'`);
+      res.status(404).send('no persona with that slug');
       return;
     }
     if (!testRouteMayActAs(row.id)) {

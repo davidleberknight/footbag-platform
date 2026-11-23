@@ -89,9 +89,13 @@ describe('GET /dev/login', () => {
     expect(sessionCookie(res.headers['set-cookie'] as unknown as string[])).toBeUndefined();
   });
 
-  it('returns 404 for an unknown persona slug', async () => {
-    const res = await request(createApp()).get('/dev/login?as=does_not_exist');
+  it('returns 404 for an unknown persona slug without reflecting the slug', async () => {
+    const res = await request(createApp())
+      .get('/dev/login')
+      .query({ as: '<script>alert(1)</script>' });
     expect(res.status).toBe(404);
+    // Defect: a crafted staging link would run its script in a tester's session.
+    expect(res.text, 'the refused slug is echoed back into the page').not.toContain('<script');
   });
 
   it('returns 400 when ?as is missing', async () => {
