@@ -846,10 +846,6 @@ section { margin-top: var(--space-2xl); }
    so each picture stays a preview. The doubled class outranks the narrow-screen
    one-column rule, since these cards already fit a phone at their minimum. */
 .card-grid.card-grid-compact { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
-/* A stacked list of dated items (a year's events, a member's upcoming events),
-   one card per line so a long list stays scannable in date order. */
-.dated-list { display: flex; flex-direction: column; gap: var(--space-md); }
-.dated-list > .card { padding: var(--space-lg); }
 
 .card {
   background: var(--bg);
@@ -928,7 +924,7 @@ section { margin-top: var(--space-2xl); }
 }
 /* Closing a card, the line's own margin would sit inside the card's padding
    and leave a wider gap at its foot than at its head. */
-.card > .card-meta:last-child { margin-bottom: 0; }
+.card > :is(.card-meta, .card-title):last-child { margin-bottom: 0; }
 
 /* A gallery card's cover photo across the top of the card, cropped to a fixed
    shape declared before the picture arrives, so the grid does not jump as

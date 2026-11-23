@@ -1,7 +1,7 @@
 <div class="profile-section" id="upcoming-events">
   <h2 class="profile-section-heading">Upcoming Events</h2>
   {{#if upcoming.length}}
-    <div class="dated-list">
+    <div class="card-grid">
       {{#each upcoming}}{{> dated-item this compact=true}}{{/each}}
     </div>
   {{else}}

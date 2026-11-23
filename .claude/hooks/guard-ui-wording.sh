@@ -23,18 +23,13 @@
 # A unit of under three words also needs the file's name in that text, so a common word
 # in some message cannot approve it.
 #
-# Pre-approval: a human message such as "approve all technical UI wording" or
-# "approve ui edits" lets technical words through for the rest of the session without a
-# prompt, each unit still announced to the human. A later message such as "stop
+# Pre-approval: a human message such as "approve all ui wording" or "approve ui edits"
+# lets every new unit through for the rest of the session without a prompt, prose
+# included, each unit still announced to the human. A later message such as "stop
 # approving UI wording" ends it. Only a typed message grants or ends it, never a plan.
-# One test applies whatever the medium, page or email: a technical word is a label,
-# button, badge or short status word; prose is a unit that reads as a sentence (six or
-# more words, placeholders not counted, or a sentence ending on three or more words or
-# on the lowercase tail of a split sentence). Prose always asks under a pre-approval;
-# a typed message or approved plan that shows it approves it like any other unit.
 #
 # Every ask says why: the text was in no message the human typed or plan they approved,
-# and either no pre-approval is in force or the one in force does not cover prose.
+# and no pre-approval is in force.
 # Every shown unit is cut at 200 characters and at most six are shown.
 #
 # Fails to "ask": any internal error (bad input, missing node, unreadable transcript)
@@ -176,18 +171,8 @@ const approved = (u) => msgs.some((m) => [m.h, m.prev].some((x) => x.includes(u.
 let todo = fresh.filter((u) => !approved(u));
 if (!todo.length) process.exit(0);
 
-// Prose is a unit that reads as a sentence: six or more words, placeholders not counted,
-// or a sentence ending (. ! ?) on three or more words or on the lowercase tail of a
-// sentence an expression split. Anything shorter is a technical word: a label, button,
-// badge or short status word.
-const isProse = (u) => {
-  const s = u.raw.replace(/\$\{[^}]*\}|\{\{[^}]*\}\}|\{[^}]*\}/g, ' ').trim();
-  const w = (s.match(/[A-Za-z0-9']+/g) || []).length;
-  return w >= 6 || (/[.!?]["')\]]*$/.test(s) && (w >= 3 || /^[a-z]/.test(s)));
-};
-
-// The latest pre-approval or withdrawal of one decides; a pre-approval covers technical
-// words only, so prose still asks under it.
+// The latest pre-approval or withdrawal of one decides; a pre-approval covers every unit,
+// prose included.
 const UI = '\\bui\\s+(copy|text|words?|wording|edits?)\\b';
 const grant = new RegExp('\\b(all|technical|approve[ds]?)\\b[^\\n.]{0,40}' + UI + '|' + UI + '[^\\n]{0,60}\\btechnical\\b', 'i');
 const withdraw = new RegExp('\\b(stop|revoke|withdraw|cancel)\\b[^\\n]{0,40}' + UI
@@ -202,13 +187,12 @@ const quote = (s) => '"' + s + '"';
 // Every shown unit is cut at 200 characters and at most six are shown, so no reason can grow with the file.
 const cap = (s) => quote(s.length > 200 ? s.slice(0, 200) + '...' : s);
 const more = (n) => (n > 6 ? ' (and ' + (n - 6) + ' more)' : '');
-if (preApproved && !todo.some(isProse)) {
+if (preApproved) {
   process.stdout.write(JSON.stringify({ systemMessage: 'UI copy changed in ' + rel
-    + ' under your pre-approval of technical UI words. New text: '
+    + ' under your pre-approval of UI wording. New text: '
     + todo.slice(0, 6).map((u) => cap(u.raw)).join('; ') + more(todo.length) }) + '\n');
   process.exit(0);
 }
-if (preApproved) todo = todo.filter(isProse);
 
 // Whole changed lines of the file, so wording a template expression splits into
 // pieces still reads as the sentence a visitor sees.
@@ -221,14 +205,12 @@ const lineAfter = linesOf(after).filter((l) => !beforeLines.has(l) && todo.some(
 const reason = 'HUMAN APPROVAL OF UI COPY: Claude is changing text site visitors read in ' + rel
   + ', and public UI wording changes only with a human\'s approval, so approve or reject this exact text.\n'
   + 'Why it asks: this text was not in a message you typed or a plan you approved, and '
-  + (preApproved ? 'your pre-approval covers technical UI words only, never prose.\n'
-    : 'no pre-approval of technical UI words is in force.\n')
+  + 'no pre-approval of UI wording is in force.\n'
   + (lineBefore.length ? 'Line before: ' + shown(lineBefore) + '\n' : '')
   + (lineAfter.length ? 'Line after: ' + shown(lineAfter) + '\n' : '')
   + (gone.length ? 'Text it replaces or removes: ' + gone.slice(0, 6).map(cap).join('; ') + more(gone.length) + '\n' : '')
   + 'New text: ' + todo.slice(0, 6).map((u) => cap(u.raw)).join('; ') + more(todo.length)
-  + (preApproved || todo.every(isProse) ? ''
-    : '\nTo let technical UI words (labels, buttons, badges, short status words) through for the rest of this session, say "approve all technical UI wording"; prose always needs its own approval.');
+  + '\nTo let UI wording through for the rest of this session, say "approve all ui wording".';
 process.stdout.write(JSON.stringify({ systemMessage: reason,
   hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n');
 JS

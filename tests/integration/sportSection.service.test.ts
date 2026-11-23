@@ -43,7 +43,7 @@ describe('game section landing pages (X-Square, Golf, Sideline)', () => {
   it('places each game in its own section', () => {
     expect(pages['x-square'].content.games.map((g) => g.slug)).toEqual(['two-square', 'four-square']);
     expect(pages.golf.content.games.map((g) => g.slug)).toEqual(['footbag-golf']);
-    expect(pages.sideline.content.games.map((g) => g.slug)).toEqual(['circle-kicking']);
+    expect(pages.sideline.content.games.map((g) => g.slug)).toEqual(['hack']);
   });
 
   // Defect caught: a "More info" rules link points at an address the rules
@@ -65,16 +65,21 @@ describe('game section landing pages (X-Square, Golf, Sideline)', () => {
 
   // Defect caught: the open-play page loses its pointer to the X-Square games,
   // which are also played as open play.
-  it('points the Sideline explainer at the X-Square page', () => {
-    const segments = pages.sideline.content.explainer!.paragraphs.flat();
+  it('points the Sideline circle kicking section at the X-Square page', () => {
+    const segments = pages.sideline.content.games[0]!.paragraphs.flat();
     expect(segments.some((s) => s.href === '/x-square')).toBe(true);
   });
 
-  // Defect caught: the anchor the Hack menu entry opens goes missing from the
-  // Sideline explainer, or leaks onto X-Square and Golf, giving them a
-  // subsection address nothing links to.
-  it('anchors only the Sideline explainer, as the getting-a-hack subsection', () => {
-    expect(pages.sideline.content.explainer!.id).toBe('hack');
+  // Defect caught: the Sideline page grows a separate explainer again beside
+  // its circle kicking section, so a visitor reads the same game described twice.
+  it('gives Sideline one circle kicking section and no separate explainer', () => {
+    expect(pages.sideline.content.explainer).toBeNull();
+    expect(pages.sideline.content.games).toHaveLength(1);
+  });
+
+  // Defect caught: the Hack menu entry's anchor leaks onto an X-Square or Golf
+  // explainer, giving them a subsection address nothing links to.
+  it('anchors no X-Square or Golf explainer', () => {
     expect(pages['x-square'].content.explainer?.id).toBeUndefined();
     expect(pages.golf.content.explainer?.id).toBeUndefined();
   });

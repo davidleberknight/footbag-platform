@@ -15,7 +15,7 @@
       <h2>Footbag News</h2>
     </div>
     {{#if newsBand.news.length}}
-      <div class="dated-list">
+      <div class="card-grid">
         {{#each newsBand.news}}{{> dated-item this compact=true}}{{/each}}
       </div>
     {{else}}

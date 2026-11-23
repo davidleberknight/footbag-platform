@@ -32,7 +32,7 @@
       <h2>{{title}}</h2>
     </div>
     {{#each paragraphs}}
-    <p>{{this}}</p>
+    <p>{{#each this}}{{#if href}}<a href="{{href}}">{{text}}</a>{{else}}{{text}}{{/if}}{{/each}}</p>
     {{/each}}
     {{#if demoVideo}}
     {{> demo-video demoVideo}}

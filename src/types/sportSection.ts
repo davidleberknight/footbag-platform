@@ -20,7 +20,7 @@ export interface SportSectionGame {
   title: string;
   iconSrc: string | null;
   iconAlt: string;
-  paragraphs: string[];
+  paragraphs: SportSectionProseSegment[][];
   demoVideo: SportSectionDemoVideo | null;
   moreInfo: SportSectionMoreInfoLink[];
 }

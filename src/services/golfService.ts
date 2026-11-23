@@ -22,7 +22,7 @@ const FOOTBAG_GOLF: SportSectionGame = {
   iconSrc: null,
   iconAlt: '',
   paragraphs: [
-    'In the same way disc golf combines traditional golf with disc throwing, footbag golf combines it with kicking. Set up a small course with obstacles and trees, pick a target hole, and try to kick the footbag into it in as few shots as possible.',
+    [{ text: 'In the same way disc golf combines traditional golf with disc throwing, footbag golf combines it with kicking. Set up a small course with obstacles and trees, pick a target hole, and try to kick the footbag into it in as few shots as possible.' }],
   ],
   // Filled per request from the curated golf demo slot.
   demoVideo: null,

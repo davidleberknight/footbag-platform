@@ -79,8 +79,7 @@ Before any message containing "?":
 5. Ask in plain prose in the message text, never through a multiple-choice tool, in plan mode and outside it, so the human can answer by voice: one question per message, the recommended answer first, with the context and load-bearing assumptions in the message.
 6. Explain before any approval prompt; never spring a bare approval. Before a command that an ask rule or an ask-returning hook gates, say in the message what it runs and why, write the Bash description as that why, and run it as its own call with no trailing plumbing, so any rule the prompt offers names that command. Before editing user-facing text in any medium (a page, an email, anything a visitor or member
 reads), show the literal BEFORE/AFTER in the message or in a plan the human approves, and ask for
-a yes; for technical words only (labels, buttons, badges, short status words) the session
-pre-approval phrase may stand in, never for prose. The wording guard asks otherwise, saying why.
+a yes; the session pre-approval of UI wording may stand in for that yes, and Claude still shows each change. The wording guard asks otherwise, saying why.
 7. Structure it so a bare "y" or "go" means take the recommended answer: exactly one recommendation to affirm, never an ambiguous "y".
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.
 9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description. A documentation edit follows Documentation edits below instead.
@@ -116,7 +115,7 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
   recorded in a handover or plan from an earlier session has lapsed, so Claude asks the human to
   restate it before the first edit it would cover.
 - A pre-approval never covers a change of meaning or design, IFPA governing documents, user-facing
-  wording (its own technical-words pre-approval is in the wording guard), `.github/` or the harness, unless the human names that class. Each of those gets its own
+  wording (its own session pre-approval is in the wording guard), `.github/` or the harness, unless the human names that class. Each of those gets its own
   ask; a harness ask carries the literal before/after, under the harness governance rule. A
   tool-level "allow edits to .claude this session" answer is not a pre-approval.
 - Own-change settled drift needs no ask and no pre-approval. When a doc, rule, skill or comment
@@ -143,6 +142,6 @@ continuation or trivial review. Re-gate only for a real reason:
 - A new material decision the plan did not anticipate, or a finding that contradicts the plan's premise or makes the work materially larger or different than approved.
 - Finished UI work: have the human review the new or changed UI visually, giving them `./run_dev.sh` to start it (or starting it if they ask); discuss significant visual changes before building them.
 - Destructive, irreversible, or outward-facing actions (deleting data, overwriting, retiring resources, sending mail, deploying), behind one consolidated approval per batch, never many prompts. Exception: when a plan or runbook names its own per-step approval points (an arming table's approver column, a phase marked "each its own approval"), those override the batch default; ask at each named point, and never treat one go for a sequence as consent to every irreversible step inside it.
-- Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so own-change settled drift and an edit a pre-approval in force covers need no re-gate), or user-facing wording the approved plan did not show literally and no technical-words pre-approval covers.
+- Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so own-change settled drift and an edit a pre-approval in force covers need no re-gate), or user-facing wording the approved plan did not show literally and no session pre-approval covers.
 - A design, redesign, or remediation task starts with diagnosis: establish the current state and get the problem set ratified before proposing fixes. Plan approval is not blanket consent to mutate canonical docs.
 - On a review or audit punch-list, apply the best fix and show the diff without asking per item; pause only for a genuine design choice, a destructive or outward-facing action, a scope change, or anything touching AWS or production.

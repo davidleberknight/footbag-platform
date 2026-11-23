@@ -24,7 +24,7 @@ const TWO_SQUARE: SportSectionGame = {
   iconSrc: '/img/sideline-icon-twosquare.svg',
   iconAlt: 'Two figures playing footbag across a line',
   paragraphs: [
-    '2-Square takes the classic schoolyard square game and combines it with footbag. Score points against your opponent by making the bag drop in their square while keeping it from dropping in yours.',
+    [{ text: '2-Square takes the classic schoolyard square game and combines it with footbag. Score points against your opponent by making the bag drop in their square while keeping it from dropping in yours.' }],
   ],
   demoVideo: null,
   moreInfo: [
@@ -47,7 +47,7 @@ const FOUR_SQUARE: SportSectionGame = {
   iconSrc: '/img/sideline-icon-twosquare.svg',
   iconAlt: 'Players in a four-square footbag layout',
   paragraphs: [
-    '4-Square is the four-player variant of the same idea: four squares, four players, score points by landing the footbag in someone else\'s square without letting it land in your own. Fast, social, and easy to set up on any flat surface.',
+    [{ text: '4-Square is the four-player variant of the same idea: four squares, four players, score points by landing the footbag in someone else\'s square without letting it land in your own. Fast, social, and easy to set up on any flat surface.' }],
   ],
   // Filled per request from the curated 4-Square demo slot.
   demoVideo: null,

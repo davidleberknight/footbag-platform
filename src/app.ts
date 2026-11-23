@@ -46,7 +46,7 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/x-square',  section: 'x-square',  label: 'X-Square' },
   { href: '/golf',      section: 'golf',      label: 'Golf' },
   { href: '/consecutives', section: 'consecutives', label: 'Consecutives' },
-  // Hack opens the Getting a Hack subsection of the Sideline page, so it has
+  // Hack opens the circle kicking section of the Sideline page, so it has
   // no branch in the active-section mapping below; Sideline stays the active entry.
   { href: '/sideline#hack', section: 'hack', label: 'Hack' },
   { href: '/sideline',  section: 'sideline',  label: 'Sideline' },

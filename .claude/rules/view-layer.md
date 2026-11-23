@@ -91,8 +91,8 @@ A **dated item** (the `dated-item` partial) is one entry in a list of things tha
 published on a date, upcoming events and news items alike: its date, a title linking to its page,
 an optional status or label badge, an optional meta line whose parts may be links, an optional
 excerpt, and an optional small square thumbnail at the card's top right from the item's cover photo,
-drawn on the card classes; a compact form drops the excerpt and the thumbnail where two lists sit
-side by side. The thumbnail is decorative: the title stays the card's one link. Every page that lists upcoming events draws each one as a dated item; a completed event on a year page is an **archive row** (the `event-archive-row` partial), a compact ruled row drawn from the same dated-item fields, with the title linking to the event and the description on the left and the date and meta line on the right. Either way the page
+drawn on the card classes; a compact form drops the excerpt and the thumbnail where a short list
+summarises a fuller page. Dated items sit in a card grid. The thumbnail is decorative: the title stays the card's one link. Every page that lists upcoming events draws each one as a dated item; a completed event on a year page is an **archive row** (the `event-archive-row` partial), a compact ruled row drawn from the same dated-item fields, with the title linking to the event and the description on the left and the date and meta line on the right. Either way the page
 service shapes its date as one preformatted range, its label as the registration status of an
 upcoming event (a completed event carries none), and its meta line as location, host club and its
 hashtag, drawn as the shared hashtag token that links to the event's gallery when content carries

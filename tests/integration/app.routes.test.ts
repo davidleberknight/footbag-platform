@@ -703,6 +703,13 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
     expect(res.text).not.toContain('href="/rules/');
   });
 
+  // Defect caught: the Sideline page renders a second section beside circle
+  // kicking, so a visitor reads the same game described twice.
+  it('renders Sideline as one content section', async () => {
+    const res = await page('/sideline');
+    expect(res.text.match(/<section class="content-section"/g)?.length).toBe(1);
+  });
+
   // Defect caught: the menu entry for getting a hack jumps to the top of the
   // Sideline page or to a section that is not its first, or it takes the
   // active highlight away from Sideline while the visitor is on that page.
