@@ -200,7 +200,7 @@ const DECISIONS: Record<string, Decision> = {
   },
   'news_items.author_member_id': {
     export: { exported: 'memberExport.communityPosts' },
-    erasure: { cleared: 'newsItems.deleteCommunityPostsForMember', on: 'deletion' },
+    erasure: { cleared: 'newsItems.deleteMemberPostsForMember', on: 'deletion' },
   },
   'outbox_emails.recipient_member_id': {
     export: { exported: 'memberExport.mailReceived' },

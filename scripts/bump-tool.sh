@@ -131,14 +131,16 @@ cr_cleanup rm -rf "$WORK"
 
 # Every other copy of a value, in the places a copy of a pin can live: the
 # deploy and build surfaces, the application, the tests, the other pin files
-# (ops/, .nvmrc, .python-version), never the data trees. The value itself is
+# (ops/, .nvmrc, .python-version) and the documents (docs/), never the data trees. The value itself is
 # matched, not a line that also names the tool, because a copy rarely names it
 # (terraform's required_version, a script's IMAGE_VERSION=), and so every key
 # form is caught however the line spells the tool. Two things keep false
 # positives manageable: the match is bounded, so 4.2.1 does not match 4.2.10 or
 # 14.2.1, and vendored trees (.venv, node_modules, .terraform), which carry
 # other projects' version numbers, are not read. A value pinned with a leading v
-# (v9.4.0) is also looked for without it, the form most tools print. Copies under
+# (v9.4.0) is also looked for without it, the form most tools print, and an apt
+# package version (5:29.3.0-1~ubuntu.22.04~jammy) is also looked for as the bare
+# version (29.3.0), the form the tool reports and a document repeats. Copies under
 # tests/ are reported as warnings, not errors: a test's fixture usually holds its
 # own stand-in values and keeps passing after a bump, so the list is shown for
 # the maintainer to judge rather than blocking the write. The list itself is
@@ -149,7 +151,8 @@ STALE="" STALE_TESTS=""
 scan_for() {
   local old="$1" forms=("$1") paths=() p re hits rc=0 list_real
   [[ "$old" =~ ^v[0-9] ]] && forms+=("${old#v}")
-  for p in scripts .github docker terraform package.json ops src tests .nvmrc .python-version; do
+  [[ "$old" =~ ^[0-9]+:([0-9][0-9.]*)-[^[:space:]]+$ ]] && forms+=("${BASH_REMATCH[1]}")
+  for p in scripts .github docker terraform package.json ops src tests docs .nvmrc .python-version; do
     [[ -e "${SCAN_ROOT}/${p}" ]] && paths+=("${SCAN_ROOT}/${p}")
   done
   STALE="" STALE_TESTS=""

@@ -55,6 +55,9 @@ const hidden = {
   hiddenNews: 'news_enum_hidden',
   futureNews: 'news_enum_future',
   canceledEventNews: 'news_enum_canceled_event',
+  hiddenBlog: 'news_enum_blog_hidden',
+  futureBlog: 'news_enum_blog_future',
+  publicBlog: 'news_enum_blog_public',
 };
 
 type Viewer = 'anonymous' | 'member' | 'registrant';
@@ -257,11 +260,23 @@ const CLASSIFIED: Record<string, Classification> = {
   'GET /news/:newsId': {
     // A hidden item, one not yet due, and one about a cancelled event answer
     // exactly as an id that matches nothing, for a visitor and a member alike.
+    // A public blog post, which belongs to the blog alone, answers the same.
     probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
-      [hidden.hiddenNews, hidden.futureNews, hidden.canceledEventNews].map((key) => ({
+      [hidden.hiddenNews, hidden.futureNews, hidden.canceledEventNews, hidden.publicBlog].map((key) => ({
         viewer,
         existing: () => ({ url: `/news/${key}`, key }),
         unknown: { url: '/news/news_no_such_item', key: 'news_no_such_item' },
+      }))),
+  },
+  'GET /blog/year/:year': { exempt: PUBLIC_RECORD },
+  'GET /blog/:postId': {
+    // A hidden post, one not yet due, and a news item answer exactly as an id
+    // that matches nothing, for a visitor and a member alike.
+    probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
+      [hidden.hiddenBlog, hidden.futureBlog, hidden.hiddenNews].map((key) => ({
+        viewer,
+        existing: () => ({ url: `/blog/${key}`, key }),
+        unknown: { url: '/blog/news_no_such_item', key: 'news_no_such_item' },
       }))),
   },
   'GET /history/:personId': { exempt: PUBLIC_RECORD },
@@ -316,6 +331,10 @@ beforeAll(async () => {
   insertNewsItem(db, {
     id: hidden.canceledEventNews, news_type: 'event_published', entity_type: 'event', entity_id: canceledEventId,
   });
+  // Blog posts: hidden, not yet due, and a public one no news page may show.
+  insertNewsItem(db, { id: hidden.hiddenBlog, news_type: 'blog_post', author_member_id: OTHER, is_public: 0 });
+  insertNewsItem(db, { id: hidden.futureBlog, news_type: 'blog_post', author_member_id: OTHER, published_at: '2999-01-01T00:00:00.000Z' });
+  insertNewsItem(db, { id: hidden.publicBlog, news_type: 'blog_post', author_member_id: OTHER });
   hidden.removedMedia = insertMediaItem(db, { uploader_member_id: OTHER, moderation_status: 'removed_by_admin' });
   db.close();
 

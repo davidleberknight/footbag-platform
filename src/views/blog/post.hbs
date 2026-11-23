@@ -1,0 +1,22 @@
+{{! One blog post's own page, in the detail-page order: the post's facts (its
+    author and date), the body, and the link back to the post's year. The
+    author's name links to their profile only for a member viewer. }}
+
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <div class="event-meta-row" id="blog-facts">
+      <span id="blog-author">By {{#if content.author.profileHref}}<a href="{{siteHref content.author.profileHref}}">{{content.author.name}}</a>{{else}}{{content.author.name}}{{/if}}</span>
+      <span>{{content.dateText}}</span>
+    </div>
+
+    {{{content.bodyHtml}}}
+  </section>
+
+  {{> back-link}}
+</div>

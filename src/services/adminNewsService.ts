@@ -13,8 +13,8 @@
  *     that defaults to now. A preview shows the item as it will appear before
  *     anything is saved.
  *   - One item's admin page (`/admin/news/:newsId`): a News item's edit form,
- *     with the same preview, or a Community post shown as written, since its
- *     words are the member's and are never edited; and the hide, restore and
+ *     with the same preview, or a member's Community post or blog post shown
+ *     as written, since its words are the member's and are never edited; and the hide, restore and
  *     delete controls. An automatic item may be edited, but stays linked to
  *     the event it was created for.
  *   - Hiding an item, with a required reason, which takes it off every public
@@ -25,12 +25,13 @@
  *   - The authored-item rules (title, body, publication time) and display
  *     shaping, which the news service owns and this service applies.
  *   - The public news pages and their visibility filter (news service).
- *   - Creating a Community post, which a member's approved announcement does
- *     (broadcast service).
+ *   - Creating a Community post or blog post, which a member's approved
+ *     announcement does (broadcast service), and the public blog pages (blog
+ *     service).
  *
  * Required patterns:
  *   - Every write and its audit row commit in one transaction; a notice to a
- *     Community post's member is queued inside it, so a rolled-back act sends
+ *     member's post's author is queued inside it, so a rolled-back act sends
  *     nothing.
  *   - An edit records each changed field's value before and after, because it
  *     may land on another administrator's item or on one the platform wrote.
@@ -44,14 +45,14 @@
  *   hashtag field through `tags`.
  * Side effects: audit `news.item.created`, `.updated`, `.rejected`,
  *   `.restored` and `.deleted`; the `news_post_hidden` and `news_post_deleted`
- *   notices to a Community post's member.
+ *   notices to a Community post's or blog post's member.
  */
 import { randomUUID } from 'node:crypto';
 import { account, newsItems, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { emailService } from './emailService';
 import { normalizeTagToken } from './mediaService';
-import { newsLabelFor, newsService, type NewsType, type ValidAuthoredNews } from './newsService';
+import { isMemberPost, newsLabelFor, newsService, type NewsType, type ValidAuthoredNews } from './newsService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { resolvePage, shapePagination, type Pagination } from '../lib/pagination';
@@ -210,12 +211,12 @@ function stateLabel(row: { is_public: number; published_at: string }, nowIso: st
 
 function sourceLabel(newsType: NewsType): string {
   if (newsType === 'announcement') return 'Administrator';
-  if (newsType === 'community_post') return 'Member';
+  if (isMemberPost(newsType)) return 'Member';
   return 'Automatic';
 }
 
 function isAutomatic(newsType: NewsType): boolean {
-  return newsType !== 'announcement' && newsType !== 'community_post';
+  return newsType !== 'announcement' && !isMemberPost(newsType);
 }
 
 function hashtagOf(row: AdminNewsRow): string {
@@ -299,19 +300,27 @@ function previewOf(v: ValidAuthoredNews, newsType: NewsType): AdminNewsPreview {
   return { title: v.title, label: view.label, dateText: timeText(v.publishedAt), bodyHtml: view.bodyHtml };
 }
 
-/** Emails a Community post's member about an administrator's act on it. */
+/** Emails a Community post's or blog post's member about an administrator's
+ *  act on it, naming the kind of post and where it was. */
 function noticeCommunityMember(
   row: AdminNewsRow,
   act: 'hidden' | 'deleted',
   reason: string,
   auditId: string,
 ): void {
-  if (row.news_type !== 'community_post' || !row.author_member_id) return;
+  if (!isMemberPost(row.news_type) || !row.author_member_id) return;
   const author = account.findNotificationContactById.get(row.author_member_id) as
     | { display_name: string }
     | undefined;
   if (!author) return;
-  const params = { memberName: author.display_name, title: row.title, note: reason };
+  const isBlog = row.news_type === 'blog_post';
+  const params = {
+    memberName: author.display_name,
+    postKind: isBlog ? 'blog post' : 'community post',
+    placeName: isBlog ? 'the blog' : 'the news feed',
+    title: row.title,
+    note: reason,
+  };
   if (act === 'hidden') {
     emailService.sendActNotice({ template: 'news_post_hidden', params, memberId: row.author_member_id, actId: auditId });
   } else {
@@ -349,7 +358,7 @@ export const adminNewsService = {
       page: {
         sectionKey: 'admin', pageKey: 'admin_news', title: 'News',
         instructions: {
-          what: 'Lists every news item, newest first: the ones administrators write, the ones the site creates for events, and members\' Community posts.',
+          what: 'Lists every news item, newest first: the ones administrators write, the ones the site creates for events, and members\' Community posts and blog posts.',
           how: 'Open an item to edit, hide or delete it, or write a new one.',
           headsUp: [
             'Hiding an item takes it off every public news page until it is restored.',
@@ -403,7 +412,7 @@ export const adminNewsService = {
   getItemPage(id: string, nowIso: string, opts: AdminNewsPageOptions = {}): PageViewModel<AdminNewsEditContent> | null {
     const row = newsItems.getForAdmin.get(id) as AdminNewsRow | undefined;
     if (!row) return null;
-    const isCommunity = row.news_type === 'community_post';
+    const isCommunity = isMemberPost(row.news_type);
     const sub = opts.submitted;
     const locked = isAutomatic(row.news_type);
     const fieldErrors = opts.fieldErrors ?? {};
@@ -411,7 +420,7 @@ export const adminNewsService = {
       seo: { title: 'News', noindex: true },
       page: {
         sectionKey: 'admin', pageKey: 'admin_news_item',
-        title: isCommunity ? 'Community Post' : 'Edit News Item',
+        title: row.news_type === 'blog_post' ? 'Blog Post' : isCommunity ? 'Community Post' : 'Edit News Item',
         instructions: isCommunity ? COMMUNITY_INSTRUCTIONS : NEWS_INSTRUCTIONS,
       },
       content: {
@@ -472,7 +481,7 @@ export const adminNewsService = {
   /** Checks an edit's form and shapes its preview; saves nothing. */
   previewItemEdit(id: string, input: AdminNewsInput, nowIso: string): AdminNewsPreview {
     const row = loadItem(id);
-    if (row.news_type === 'community_post') throw new NotFoundError('A Community post is not edited.');
+    if (isMemberPost(row.news_type)) throw new NotFoundError('A member\'s post is not edited.');
     const locked = isAutomatic(row.news_type) ? { entityType: row.entity_type, entityId: row.entity_id } : null;
     return previewOf(validateForm(input, nowIso, locked), row.news_type);
   },
@@ -504,7 +513,7 @@ export const adminNewsService = {
    */
   updateItem(id: string, input: AdminNewsInput, actorMemberId: string, nowIso: string): AdminNewsWriteResult {
     const row = loadItem(id);
-    if (row.news_type === 'community_post') throw new NotFoundError('A Community post is not edited.');
+    if (isMemberPost(row.news_type)) throw new NotFoundError('A member\'s post is not edited.');
     const locked = isAutomatic(row.news_type) ? { entityType: row.entity_type, entityId: row.entity_id } : null;
     const v = validateForm(input, nowIso, locked);
 

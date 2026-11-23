@@ -11,46 +11,24 @@ paths:
 
 # View-layer standard
 
-The public site has one reusable look-and-feel standard. Pages consume the standard; pages do not
-define their own. This rule states the cross-cutting standard and points at each enforcement site.
-Per-page contracts (audience, rendering invariants, sensitive-page rules) live in the owning
-service's file-header JSDoc, not here.
+Pages consume the standard; pages do not define their own. Per-page contracts (audience, rendering
+invariants, sensitive-page rules) live in the owning service's file-header JSDoc.
 
 ## Page contract
 
-Every public page except Home renders from `PageViewModel<TContent>`. `src/types/page.ts` is the
-source of truth for the shape; renaming a `SeoMeta` / `PageMeta` / `NavigationMeta` field is a
-compile error at every call site.
+Every public page except Home renders from `PageViewModel<TContent>` (`src/types/page.ts`). Home is
+the one composition-page exception (DESIGN_DECISIONS "Server-rendered HTML with Handlebars
+Templates"): bespoke view model, same layout, tokens and thin-controller discipline. `/internal/*`
+tooling is exempt.
 
-- `seo.title` is the browser-tab suffix; the layout renders `Footbag {seo.title}`, so the value
-  never contains the word "Footbag". `seo.fullTitle`, when set, is the complete tab title with no
-  `Footbag` prefix.
-- `seo.description` is the page meta description; the layout renders it as `<meta name="description">`
-  and `og:description`. `seo.noindex` marks a public page do-not-index (login, register, and other
-  thin auth pages), rendered as a robots noindex meta. The layout also emits a self-referencing
-  canonical and Open Graph / Twitter Card tags from request-derived `res.locals` (canonical and
-  `og:url` are omitted on error and not-found responses); services own only the `seo` fields.
-  The canonical is the request path alone unless the page sets `seo.canonicalPath`: a paged or
-  hashtag-filtered page sets it to the address its own pager links to for the current page.
-- `page.sectionKey` names the page's section (the active nav entry is derived by middleware from the request path, as `currentSection`); `page.pageKey` is a unique page id; `page.title`
-  is the displayed h1 (distinct from `seo.title`); `eyebrow` / `intro` / `notice` are optional.
-- `navigation` (breadcrumbs / siblings / contextLinks) is service-provided. Middleware separately
-  provides `currentSection`, `isAuthenticated`, and `isMember` via `res.locals`; those are not part of the
-  service contract.
-- `content` holds page-specific regions. Services compute every displayed href and every
-  domain-derived label and boolean; templates render them. A controller supplies only the
-  response's own URL fields (a form action, a cancel href, a redirect target). Templates never
-  construct URLs or derive labels.
-
-Naming: a page's content interface is `<PageName>Content` (e.g. `ConsecutivesContent`); a row-level
-view-model inside it is `<Entity>ViewModel` (e.g. `NetTeamViewModel`); the template is
-`src/views/<section>/<page>.hbs`. Every page service method returns `PageViewModel<TContent>`;
-inline controller renders type the arg with `satisfies PageViewModel<TContent>`.
-
-Home is the one intentional composition-page exception (DESIGN_DECISIONS "Server-rendered HTML
-with Handlebars Templates"): it uses a bespoke
-view model but still uses the shared layout, design tokens, section identity, thin-controller
-discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt from this contract.
+- `seo.title` never contains "Footbag"; the layout prefixes it.
+- Services compute every displayed href, domain-derived label and boolean; templates render them. A
+  controller supplies only the response's own URL fields (form action, cancel href, redirect
+  target). Templates build no URL beyond a one-variable path (Template mechanics) and derive no
+  label.
+- Naming: `<PageName>Content`, row model `<Entity>ViewModel`, template
+  `src/views/<section>/<page>.hbs`; an inline controller render uses
+  `satisfies PageViewModel<TContent>`.
 
 ## Reusable primitives
 
@@ -65,92 +43,62 @@ empty state, notice block, and admin instructions block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 
-The site frame opens with a skip link, hidden until focused, that moves keyboard focus past the
-header navigation to the main element; it is the only public control that is invisible at rest.
-
 A symbol whose meaning a sighted reader takes from its look (a record star, a flagship mark) carries
 `aria-hidden="true"` and is followed by its spoken form in `.visually-hidden` text. A `title`
 tooltip is never the only carrier of meaning, because neither a keyboard, a touch screen, nor a
 screen reader reliably reaches it.
 
-A **queue row** (`.admin-queue-row`) is one line naming a queue, its count as a badge, and an
-optional second line carrying an age or a split of that count, linking to the queue it counts. It is
-the primitive for a page listing many queues at once, where a card each would bury the counts in
-chrome and description. On the administrator's home page the queue rows sit inside the two work-kind
-cards, each card carrying one line of what and why and one button. On the work-queue list the same
-row, as a `div`, names one item, its area badge and how long it has waited, with a Claim button and
-an Open link. A **grouped link index** (`.admin-goto-grid`) is columns of plain links
-under group headings, carrying no counts and no descriptions, for the navigation half of a page
-whose destinations a reader learns the position of. Both are used on the administrator's home page.
+A **queue row** (`.admin-queue-row`) is one line naming a queue, its count as a badge and an
+optional age or split line, linking to the queue; on the work-queue list the same row, as a `div`,
+names one item with a Claim button and an Open link. A **grouped link index** (`.admin-goto-grid`)
+is columns of plain links under group headings, with no counts or descriptions.
 
-A **pager** (the `_pager` partial) closes every paged list: numbered page links and a "Page X of
-Y" status, shaped by the page service as its pagination block. A paged hashtag-media result also
-shows the large-result notice above its grid whenever the set spans more than one page.
+A **pager** (the `_pager` partial) closes every paged list, shaped by the page service as its
+pagination block. A paged hashtag-media result also shows the large-result notice above its grid
+whenever the set spans more than one page.
 
 A **dated item** (the `dated-item` partial) is one entry in a list of things that happen or were
-published on a date, upcoming events and news items alike: its date, a title linking to its page,
-an optional status or label badge, an optional meta line whose parts may be links, an optional
-excerpt, and an optional small square thumbnail at the card's top right from the item's cover photo,
-drawn on the card classes; a compact form drops the excerpt and the thumbnail where a short list
-summarises a fuller page. Dated items sit in a card grid. The thumbnail is decorative: the title stays the card's one link. Every page that lists upcoming events draws each one as a dated item; a completed event on a year page is an **archive row** (the `event-archive-row` partial), a compact ruled row drawn from the same dated-item fields, with the title linking to the event and the description on the left and the date and meta line on the right. Either way the page
-service shapes its date as one preformatted range, its label as the registration status of an
-upcoming event (a completed event carries none), and its meta line as location, host club and its
-hashtag, drawn as the shared hashtag token that links to the event's gallery when content carries
-it and is plain otherwise. A template never lays out an event, compares its two dates or
-derives its status. Its title is the card's link, stretched over the card (the clickable card
-below), so a click anywhere on it opens the item while the meta line's links keep their own targets.
+published on a date (upcoming events, news): date, title link, optional badge, meta line, excerpt
+and square thumbnail; a compact form drops the excerpt and thumbnail. Every page that lists upcoming
+events draws each as a dated item; a completed event on a year page is an **archive row** (the
+`event-archive-row` partial). The page service shapes the date as one preformatted range, the label
+as the registration status of an upcoming event (a completed event carries none) and the meta line
+as location, host club and hashtag token. A template never lays out an event, compares its dates or
+derives its status.
 
-A **clickable card** is a card that leads to one place. Its one link, the title link or else the
-card's one button, carries `.card-link`, whose `::after` is stretched over the card, so a click
-anywhere on the card follows it without JavaScript; any other link in the card (a host club, a
-hashtag, an owner, a website) sits above it and keeps its own target. A card title link is link
-green at rest. The card's stretched link underlines on hover and on keyboard focus; a title link
-that is not the card's link sits in a line of text, so it keeps its resting underline. Only a
-clickable card lifts on hover, and keyboard focus on its link draws one ring around the card. A
-second control repeating the card's link (a cover photo, a thumbnail, a Read button) is a pointer
-for the eye and hand only, out of the tab order and hidden from assistive technology. A card with
-several actions, or none, carries no `.card-link` and does not lift. Each club on a clubs country
-page is a clickable card in a card grid.
+A **clickable card** is a card that leads to one place. Its one link (the title link, else the
+card's one button) carries `.card-link`, stretched over the card by `::after`; any other link in the
+card sits above it and keeps its target. Only a clickable card lifts on hover, and keyboard focus on
+its link draws one ring around the card. A second control repeating the card's link (cover photo,
+thumbnail, Read button) is out of the tab order and hidden from assistive technology. A card with
+several actions, or none, carries no `.card-link`.
 
-A **member picker** (the `member-picker` partial) is the one way a form lets a person choose
-another member, by name, because people know names, not member ids, slugs or profile URLs. The
-field shows who is chosen, or that no one is, and Choose or Change
-opens a member search directly under that field. Every picker control posts back to the form,
-which re-renders with what was typed and saves nothing until the form's own submit. The search
-shows at most five plain names with their location, each with a Choose button, or with the
-form's own verb where choosing completes the action. The service accepts only a member the
-picker could offer, never a typed member id, slug or profile URL; a confirm page carries the
-chosen member forward in a hidden field. A lookup or filter that finds a member or a member's
-record asks for a name, or for a login email or legacy username where an admin genuinely has
-one, never a member id. A search for an old footbag.org account, or for the historical record
-linked to one, also takes that account's old id, which an admin may hold. The conventions gate
-refuses a visible field, label or message that asks for a member id, slug, profile URL or
-historical person id.
+A **member picker** (the `member-picker` partial) is the one way a form lets a person choose another
+member, by name. The field shows who is chosen; Choose or Change opens a search directly under it
+showing at most five names with location, each with a Choose button (or the form's own verb where
+choosing completes the action). Every picker control posts back to the form, which re-renders and
+saves nothing until the form's own submit. The service accepts only a member the picker could
+offer, never a typed member id, slug or profile URL; a confirm page carries the chosen member in a
+hidden field. A lookup that finds a member or a member's record asks for a name, or a login email or
+legacy username where an admin has one; a search for an old footbag.org account also takes its old
+id.
 
-A **sortable data table** carries `data-sortable` on its `.data-table`; the shared
-`sortable-table.js` reorders its rows when a reader activates a column header, and without
-JavaScript the table reads in the order the service shaped. It is the one sorting treatment
-for a client-side reorder; a list the server sorts keeps its query-string sort.
+A table reordered client-side carries `data-sortable` on its `.data-table` (`sortable-table.js`); a
+list the server sorts keeps its query-string sort.
 
-An **admin instructions block** (the `admin-instructions` partial) opens every administrator page,
-directly below the hero: what the screen does, why it exists, how to use it, and a heads-up list of
-the consequences a reader would not guess, such as a member being emailed, the act being permanent,
-or a reason being required. The page service shapes it as `PageMeta.instructions`, and a page with
-nothing non-obvious to warn about omits the heads-up list. On a confirm page the block names the
-step, and its heads-up is the page's existing caution, never a second copy of it.
+An **admin instructions block** (the `admin-instructions` partial, shaped as `PageMeta.instructions`)
+opens every administrator page directly below the hero: what the screen does, why, how to use it,
+and a heads-up list of consequences a reader would not guess (omitted when none). On a confirm page
+its heads-up is the page's existing caution, never a second copy.
 
-The page hero carries only its own parts (eyebrow, title, subtitle, notice). A hashtag is not a hero
-part: a page's own media hashtag sits in the media line (the `media-line` partial) beside its gallery
-link. Primary navigation, back
-links, and item pagers belong in the page body, never in the hero. Breadcrumbs sit in the hero, above
-the eyebrow, and only on a page two or more levels below its section's landing page; a shallower page
-relies on its back link. A back link exists only on a page nested under another, and leads one level
-up to that page, labelled "Back to <that page's title>"; it is drawn once, at the end of the body, by
-the `back-link` partial from `navigation.contextLinks`. A page nested under nothing, or carrying
-breadcrumbs, has none, and a back link never points anywhere but that one parent. Never render the same action's label twice on one page (for example a "Back
-to results" link in both the hero and the pager); one control reads cleaner. A page serving distinct
-audiences in side-by-side panels may repeat an action once per panel. Keep visible spacing between the hero and the first content block, and between
-stacked sections, so adjacent blocks never butt together with a zero gap.
+The page hero carries only eyebrow, title, subtitle and notice. A page's own media hashtag sits in
+the media line (the `media-line` partial) beside its gallery link. Primary navigation, back links
+and item pagers belong in the body, never the hero. Breadcrumbs sit in the hero above the eyebrow,
+only on a page two or more levels below its section's landing page. A back link exists only on a
+page nested under another and without breadcrumbs, leads one level up, reads "Back to <that page's
+title>", and is drawn once at the end of the body by the `back-link` partial from
+`navigation.contextLinks`. Never render the same action's label twice on one page; a page serving
+distinct audiences in side-by-side panels may repeat an action once per panel.
 
 ## Action hierarchy
 
@@ -162,25 +110,15 @@ tier is a design question to raise, never a licence to mint a class.
 | Tier | What it is | Class |
 |---|---|---|
 | Primary action | The main action of a page, or of each self-contained panel on it when a page serves distinct audiences side by side (the login page's log-in form and its two join panels) | `.btn .btn-primary` |
-| Secondary action | A real action, subordinate to the primary one, including every state-changing control in a list item, a table row or a filter bar | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
-| Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer, the page's back link (through the `back-link` partial) | `.action-link` |
+| Secondary action | A real action, subordinate to the primary one, including every state-changing control in a list item, a table row or a filter bar, and the pointer that closes a list, an excerpt or a preview and leads to the full set ("More News", "See All Tricks in This Family") | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
+| Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, the page's back link (through the `back-link` partial) | `.action-link` |
 | Prose link | An ordinary link inside running text; the service shapes linked prose as text and link segments, never an HTML string, and an external one renders through the `externalLink` helper | bare `<a>` |
 | Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token; no chip, button or link label carries a count |
 | Non-clickable token | An identity or status that is not a link | the hashtag token at rest; `.badge` for status |
 
-`.btn-sm` is a size modifier on the two button tiers, not a variant of its own; it changes the
-padding and type size and nothing else. A button inside a list item, a table row or a filter bar
-takes it; a button standing on its own does not. A container holding a row of buttons wraps them
+`.btn-sm` is the compact size on the two button tiers (padding and type size only), taken by a
+button inside a list item, table row or filter bar. A container holding a row of buttons wraps them
 (`flex-wrap: wrap`) and centres them on one line (`align-items: center`).
-
-The prominent-action-link tier exists because its absence is what produces one-off classes: a
-surface needing more weight than prose and less than a button will otherwise invent a local `*-cta`,
-`*-link`, or `*-deeplink`. There is one class for it, site-wide.
-
-A control that changes state is a `<button>` drawn as a button, never as underlined text: text
-reads as a link, and a link promises a destination, not an act. A destructive control in a row
-takes the same compact outlined button as any other row action; its confirm step, not its colour,
-is what guards it.
 
 An action that permanently loses data or stops money (cancelling a recurring donation, removing a
 record row) goes through a server-rendered confirm page that states the consequence in body colour
@@ -188,22 +126,14 @@ under a `.notice notice-warn` caution and ends in the final button, the pattern 
 leave-confirm page. A browser confirm dialog is never the only guard, because the page must work
 without JavaScript. A typed reason is asked for only where the audit trail needs one.
 
-Three constraints bind every tier. No control appends a decorative arrow to its label, in template
-text or through a pseudo-element; colour, underline, and wording carry the affordance, and glyphs
-that carry meaning (sort direction, notation, sequence separators, position markers) are content,
-not decoration (DESIGN_DECISIONS "Link and Disclosure Affordances"). A link in running text is
-underlined at rest: the link green against the body text is 2.54:1, so colour alone does not mark
-it. A link whose context already signals a link (navigation, a link list, a card) may drop the
-resting underline, and then underlines on hover and on keyboard focus. No link renders at
-`color: inherit` without one of these cues. And a
-control's visible label names where it goes or what it does, per the truthful-controls rule under
-Template mechanics below.
+No decorative arrows and the resting-underline rule: DESIGN_DECISIONS "Link and Disclosure
+Affordances". No link renders at `color: inherit` without an underline cue. A control's label is
+truthful (Template mechanics).
 
 ## Message vocabulary
 
-A message reporting what just happened is not a callout. It is the answer to the last request, it
-does not survive navigation, and its only job is to tell the reader which outcome occurred. Four
-tones cover every outcome the site has, and each fixes one class and one aria role:
+A message reporting what just happened is not a callout (DESIGN_DECISIONS "Callout and Box
+Policy"). Four tones cover every outcome, each fixing one class and one aria role:
 
 | Outcome | Tone | Class | Role |
 |---|---|---|---|
@@ -212,103 +142,36 @@ tones cover every outcome the site has, and each fixes one class and one aria ro
 | A caution before an act, on a confirm page | warning | `.notice notice-warn` | `alert` |
 | The request was refused | refusal | `.form-error-banner` | `alert` |
 
-There is no fifth treatment and no page-local message class. A surface whose outcome fits none of
-the four is a design question to raise, never a licence to mint a class.
+There is no fifth treatment and no page-local message class; a surface that fits none of the four
+is a design question to raise.
 
-An outcome that changed nothing because the desired state already held from another act takes the
-informational tone, never success. Green claims the reader caused a change; where none happened, that is a false
-claim, and where the request was refused it is the opposite of the truth. The actor's own repeat of
-an act that already landed shows the first submit's success message, because the reader did cause
-that change.
+An outcome that changed nothing because the desired state already held from another act is
+informational, never success; a refusal is never green. The actor's own repeat of an act that
+already landed shows the first submit's success message.
 
-One flash payload carrying several outcomes is the shape this rule exists to prevent. Where a
-controller or service can produce a success, a no-op and a refusal, the tone is decided where the
-message is chosen and travels with it. Across a redirect that means the flash cookie, which
-`outcomePayload` and `outcomeNotice` in `src/lib/outcomeNotice.ts` encode and decode; on a page
-that renders its own outcome it means a tone field beside the sentence, either on the page
-envelope as `PageMeta.noticeTone` or on the content shape. Either way the page draws it through
-the `outcome-notice` partial, which is the one piece of markup that renders an action result. It
-takes one sentence as `text`, several as `lines`, or a message carrying a link or code span as a
-block call. A template that writes its own branch on the tone is a second renderer of the same
-vocabulary, and two renderers are how two surfaces drift apart. The warning tone is the exception,
-because it reports no outcome: a caution before an act is written directly on the confirm page that
-shows it. A standing caveat anywhere else is a callout, not a message. The convention gate fails
-any template or script outside the partial that writes the three outcome classes, and the caution
-class outside a confirm page.
-
-The aria role is correctness, not a guarantee. A message rendered server-side is present before page
-load completes, and screen readers do not announce a live region that was already there, so the role
-documents the message's urgency and nothing more.
-
-Before using a message class, check what it means on the surfaces that already use it. That a class
-is defined says nothing about whether it means what this outcome means, and the check the CSS
-vocabulary rule names below answers only the first question.
-
-## Hashtag and dictionary-filter links
-
-Freestyle dictionary surfaces follow the href rule above with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-set, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the plain-English trick name links to the trick detail page, and a separate "Detail" link resolves to the same page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug. A trick's slug, hashtag body, and `/freestyle/tricks/:slug` segment are one lowercase underscore token (no hyphens); the display name is the plain-English words, also without hyphens, except the names on the display-name exception list (src/content/freestyleDisplayNameExceptions.ts), which keep a genuine hyphen. The hashtag links to the trick's media gallery only when the trick has media (an existence check at render, not a count) and renders as a plain token otherwise. A "Media" link opens the same gallery as the hashtag and renders only when the trick has media, so media presence carries two agreeing signals rather than one. Name, hashtag, Detail, and Media stay four distinct controls. This four-control pattern is the trick
-dictionary's own standard and is not a site-wide list convention; other sections list their items
-their own way. A true community nickname renders inline beside the canonical name in quotes, never on a line of its own; a trick's genuine structural names (such as Gyro Torque for Mobius) show on its own page only, never on a list; initialisms, spelling variants, old terms, side-qualified phrases and misleading decompositions stay search-only.
+The tone is decided where the message is chosen and travels with it: across a redirect in the flash
+cookie (`outcomePayload` / `outcomeNotice`, `src/lib/outcomeNotice.ts`); on a page that renders its
+own outcome as `PageMeta.noticeTone` or a tone field on the content shape. The page draws it through
+the `outcome-notice` partial (`text`, `lines`, or a block call for a link or code span); a template
+never branches on tone itself. The warning tone reports no outcome: write it directly on the
+confirm page that shows it. A standing caveat elsewhere is a callout.
 
 ## CSS vocabulary
 
-`src/public/css/style.css` is the source of truth for class definitions; this rule names the
-discipline and the shared classes; per-section classes are in the stylesheet.
-
-- Every class used in a template has a corresponding rule in `style.css` that reaches it where it is
-  used. A compound such as `.hero.hero-sm` defines both parts; a descendant selector such as
-  `.hero .hero-title-link` defines the class only inside that container, so the same class used
-  anywhere else is undefined and renders unstyled. A class that a template uses outside any
-  container that styles it needs a base rule of its own. Before a template change ships, grep
-  `style.css` for each class introduced and check what actually matches: an undefined class fails
-  nothing at build or test time and renders silently unstyled. The convention gate at
-  `scripts/ci/assert_conventions.sh` checks every static class token in a template against the
-  stylesheet, skipping only the parts of an attribute a Handlebars expression supplies.
-- An element that needs a class to be styled at all is the same failure wearing different clothes.
-  There is no bare `fieldset` rule, so a `<fieldset>` without `.form-fieldset` renders the browser's
-  own border and notched legend, which belongs to no surface on this site. Group form fields with
-  `.form-fieldset`.
-- Never invent a class by analogy with another framework (`btn-secondary` is a Bootstrap name, not
-  ours). New classes are added to `style.css`.
-- Shared classes: site frame `.skip-link`, `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`,
-  `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`; media line `.media-line` (its hashtag is the shared `.hashtag` token);
-  sections `.content-section`, `.section-heading`, `.section-intro` (`.profile-section` on member
-  profile pages only); cards and tables `.card`, `.card-link`, `.card-title`, `.card-meta`,
-  `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; actions `.btn`,
-  `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`; forms
-  `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`;
-  text `.text-muted` (metadata only), `.text-center`, `.fs-sm`, `.fw-600`.
-- Spacing utilities (`.mt-1` to `.mt-10`, `.mb-0` to `.mb-8`) take their values from the
-  `--space-*` role tokens and are not a tuning tool: a gap belongs to the shared component that
-  owns it and is never adjusted per template (the Spacing Rhythm design decision).
-- The vocabulary is shared (required across all public pages) plus per-section (required only within
-  that section); both groups live in `style.css`.
-- A new class, shared or per-section, enters only through a reviewed change that adds it to
+- Every class a template uses has a `style.css` rule that reaches it where it is used: a descendant
+  selector such as `.hero .hero-title-link` defines the class only inside that container. The
+  convention gate checks static class tokens against the stylesheet.
+- An element that needs a class to be styled at all is not caught by the gate: group form fields
+  with `.form-fieldset`, never a bare `<fieldset>` (there is no base rule).
+- A new class enters only through a reviewed change adding it to
   `tests/unit/template-class-baseline.txt`; the default answer is an existing primitive.
-  `tests/unit/template-class-vocabulary.test.ts` fails on a template class missing from the
-  baseline and on a baseline entry no template uses any more, so per-section vocabulary only shrinks.
-- Buttons: `.btn-primary`, `.btn-outline`, and `.btn-inverse` (white fill, teal text, for CTAs on
-  dark gradient panels) are the only button variants. Secondary content uses the card pattern
-  (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`. Which of
-  these a control takes is fixed by the action hierarchy above, not chosen per surface.
-- Interface chrome is Title Case: button and call-to-action labels, page titles, hero titles, and
-  section headings. Capitalize the first letter of each word except the minor words
-  `a an as the and or nor but to of in on at by for`, unless the minor word is the first or last word
-  ("Create a New Club", "Browse All Matching Media", "Log In", "Go to Home", "Payment History").
-  `toTitleCase()` in `src/lib/titleCase.ts` is the executable definition and the only place that word
-  list lives; `tests/unit/heading-case-conformance.test.ts` imports it and fails on a heading, button
-  label, or service-authored page title that does not match. Consult the function rather than
-  reimplementing the rule: it also settles what prose leaves open, leaving a word untouched when it
-  begins with a digit ("45th", "2-Square") or carries an interior capital ("ADD", "IFPA", "X-Dex"),
-  and treating a hyphen as part of one word ("Consecutive-kicks", "Co-leader").
-- Two kinds of text keep the casing they were written with. The platform never re-cases text it did
-  not write, so an interpolated value shows exactly as its owner entered it and curator- or
-  member-authored content is left alone; the gate skips any literal carrying an interpolation, which
-  is why casing is applied where the literal is authored and never at render time (by then a heading
-  is one string, and a helper could not tell the authored part from the member name inside it). And a
-  sentence is not a label, so body copy, help text, descriptions, empty states, error messages, and
-  the article subheads inside the long-form freestyle reference stay as written. A page title is
-  chrome even on such a page.
+- Interface chrome (button and call-to-action labels, page titles, hero titles, section headings)
+  is Title Case. `toTitleCase()` in `src/lib/titleCase.ts` is the executable definition;
+  `tests/unit/heading-case-conformance.test.ts` enforces it.
+- Text the platform did not write (an interpolated value, curator- or member-authored content) is
+  never re-cased; casing is applied where the literal is authored, never at render time. Body copy,
+  help text, descriptions, empty states, error messages and the article subheads of the long-form
+  freestyle reference stay as written; a page title is chrome even there.
 - The gate covers heading tags and `.btn` labels in templates and `title:` literals in services, and
   three things it does not cover follow the rule without being machine-checked. Service `label:`
   keys: that one key carries both dropdown options, which are chrome, and tooltip prose, which is
@@ -316,76 +179,29 @@ discipline and the shared classes; per-section classes are in the stylesheet.
   freestyle and symbolic reference services, whose `title:` keys carry article section titles the
   scan cannot tell apart from page titles. And any heading that interpolates a value, which is
   skipped whole because the gate cannot separate the authored half from the borrowed one.
-- Reference site CSS/JS only through the `asset` helper (`{{{asset 'css/style.css'}}}`), which emits a
-  content-hash version token (`/css/style.css?v=<hash>`, served immutable) so a deploy self-busts the
-  CDN. Never hardcode a `/css/*` or `/js/*` URL; `tests/unit/asset-helper-conformance.test.ts` fails
-  the build on a raw asset URL.
 
-## Visual standard (look-and-feel consistency)
+## Visual standard
 
-All public pages present one consistent experience: clean, content-first layout; consistent spacing,
-typography hierarchy, card and metadata treatment, empty-state and notice styling, header and footer
-behavior. No section introduces its own chrome system or a parallel design language; a new surface
-inherits the shared tokens and primitives. Consistency is a forward requirement, not a one-time
-state.
+A page uses one section pattern and one content-card pattern, never two: the bare `<section>` with
+a rule between siblings (browse or index pages), `.content-section` (long prose or reference pages,
+compact rhythm through a section body class), or `.profile-section` (member profile only). Never mix
+`.section-heading` with `.profile-section-heading` on one page, and do not introduce a fourth
+system.
 
-A page uses one section pattern and one content-card pattern, never two. Do not mix the site
-`.section-heading` (the h2 type-scale system) with the `.profile-section` / `.profile-section-heading`
-label system on the same page; pick one and apply it to every section. Three section systems exist and
-each has a home: the bare `<section>` element, with a rule between siblings, is the default for a browse
-or index page; `.content-section` is the denser variant for a long prose or reference page, taking the
-compact rhythm through a section body class; `.profile-section` is the member
-profile's label system. A page picks the one that fits its content and uses nothing else, and a new page
-does not introduce a fourth.
+A table carries only the columns a reader needs. A wide results or admin table scrolls inside one
+`.records-table-wrap` wrapper (`tabindex="0"`, `role="region"`, accessible name); only a narrow,
+record-like table stacks each row at phone width. Fixed-width preformatted text scrolls inside its
+own labelled, keyboard-focusable box the same way.
 
-Grey is for metadata only: dates, counts, bylines, form hints, captions, and source notes, at the
-`0.9rem` step. Running prose, section intros, instructions, errors, and the consequences text on a
-confirm page take the body colour, and `--text-subtle` never colours text (DESIGN_DECISIONS
-"Bounded Type-Size Ramp"). Text spans its content column like the tables and cards beside it
-(DESIGN_DECISIONS "Text Width").
+A section heading is an `h2` inside a `.section-heading` wrapper; a sub-heading is a plain `h3`,
+never a second `.section-heading` (`sub-heading-conformance.test.ts`).
 
-Font sizes come from the bounded ramp; a section heading always outranks the body text beneath it
-in both size and colour (DESIGN_DECISIONS "Bounded Type-Size Ramp"). Disclosure controls keep the browser's native
-marker: no surface suppresses it or draws a substitute caret, per the same link-and-disclosure
-rule. Enclosing chrome is reserved for notices, cards, empty states, and
-technical-notation panels, and a callout accent bar takes one of three role colours, per the
-callout and box policy.
+Within a page, section headings, content cards and vertical spacing are uniform. The member profile
+is the reference (`profile-section-conformance.test.ts`).
 
-Content fits a phone without a horizontal scroll, and the page body itself never scrolls sideways.
-A table carries only the columns a reader needs; a column that is often empty is a sign the table
-carries more than it should. A wide results or admin table scrolls horizontally inside one wrapper
-(`.records-table-wrap`) that is keyboard-focusable (`tabindex="0"`), has `role="region"` and carries
-an accessible name; only a narrow, record-like table stacks each row into a block at phone width.
-Fixed-width preformatted text (ASCII notation and diagrams) scrolls inside its own labelled,
-keyboard-focusable box the same way.
-
-A list's numbers and bullets sit inside its content column, with visible space before them,
-at every width. A plain list takes the shared prose-list indent; a classed list that draws
-markers sets its own indent. The rendered-style check's list-marker rule enforces it.
-
-A section heading is an `h2` inside a `.section-heading` wrapper (`<div class="section-heading"><h2>
-…</h2></div>`); a sub-heading within a section is a plain `h3`, never a second `.section-heading`.
-
-Within a page, section headings
-are one size, one case, one weight, one color; content cards are one padding, one radius, one elevation;
-and stacked sections share one vertical-spacing rhythm so adjacent blocks read as one page rather than
-several pasted together. A block that needs a different visual weight is a justified exception, not a
-default. The member profile is the reference: it composes entirely from `.profile-section` +
-`.profile-section-heading`, and `tests/unit/profile-section-conformance.test.ts` enforces that no
-profile-owned markup reintroduces the competing system.
-
-The durable visual decisions live in the design document's front-end part and are mechanically
-enforced by `scripts/ci/assert_conventions.sh`: one type system with body-font notation, canonical
-breakpoints 480 / 768 / 1024, accessible responsive HTML-first design, and the
-stylesheet / template convention gates — colors from `:root` tokens (no colour literal of any
-form in rule bodies), `--radius*` tokens for corners, `--space-*` role tokens for margin, padding
-and gap (the Spacing Rhythm design decision),
-`--font-body` / `--font-mono` only, no inline `style` or `script`, no nested `<form>`, no
-`{{{ }}}` outside the allow-list, and
-template-class-to-`style.css` correspondence. What the browser draws is enforced by the
-rendered-style check (`npm run test:rendered-style`): every page view at 390px and 1280px against
-the measurable parts of this standard, with known findings in a shrink-only baseline.
-`npm run style -- url <path>` runs the same rules on one page of the dev stack.
+What the browser draws is checked by `npm run test:rendered-style` (every page view at 390px and
+1280px, shrink-only baseline); `npm run style -- url <path>` runs the same rules on one dev-stack
+page.
 
 ## Detail-page order
 
@@ -403,112 +219,44 @@ label-and-value grid), or `.trick-structural-facts-list` (the same grid with an 
 
 ## Content and copy standard
 
-Public page copy (the hero intro, every section intro, and every filtered-state header) is
-service-shaped and rendered verbatim by templates, so this standard binds the page-shaping service
-author as much as the template. It applies without exception to the freestyle dictionary surfaces,
-where it is most often violated.
+Page copy (hero intro, section intros, filtered-state headers) is service-shaped and rendered
+verbatim, so this binds the service author. It is most often violated on the freestyle dictionary
+surfaces.
 
-- Lead with orientation, never a metric. The first sentence of a page or a filtered state tells the
-  visitor where they are and what they can do here, in plain language. No body intro opens with a raw
-  count or inventory statistic (for example a trick total); counts are supporting metadata placed
-  lower on the page, not the lede.
-- Plain words over internal vocabulary. Orientation copy a newcomer reads uses everyday language.
-  Internal or taxonomic terms ("officially documented", "not-yet-promoted", "source-variant", "lens",
-  "Emerging Vocabulary") are avoided in primary orientation copy, or introduced with a plain-language
-  gloss and a glossary link; never assumed.
-- Short, one idea per sentence. An intro is a few short sentences, not one dense paragraph stacking
-  definitions and parentheticals. A concept that needs explaining links to the glossary instead of
-  inlining a taxonomy.
-- Every filtered or deep-linked state self-orients. Each dictionary filter and view state says where
-  the visitor is, what the subset means, how to clear or change it, and how to reach beginner help; no
-  state leads with the full-dictionary count.
-- **Em dashes** are restricted in the user-facing text a site visitor reads: rendered template text,
-  editorial and content strings, UI labels and notices, and notification email bodies (the email
-  bodies are authored in the service layer). Use commas, parentheses, or restructure instead. This
-  restriction applies only to that user-facing text; this rule is its sole home.
+- Lead with orientation, never a metric: the first sentence says where the visitor is and what they
+  can do; no intro opens with a count or inventory statistic.
+- Plain words over internal vocabulary ("lens", "source-variant", "Emerging Vocabulary"); gloss and
+  glossary-link a term a newcomer needs.
+- One idea per short sentence; link the glossary instead of inlining a taxonomy.
+- Every filtered or deep-linked state says where the visitor is, what the subset means, how to clear
+  or change it, and how to reach beginner help.
+- No em dashes in text a site visitor reads (templates, content and UI strings, notification email
+  bodies); the convention gate enforces it.
 
 ## Static assets (`src/public/`)
 
-Served by Express at the root URL path `/`, with no build step of any kind:
-
-- Scripts in `src/public/js/` are served directly, so they run as plain ES5/ES6 with no bundler or
-  transpiler. Scope each to a single page or feature and load it with `defer`.
-- Progressive enhancement is mandatory. Every page works without JavaScript; a script may enhance
-  behavior (maps, tooltips) but core content never depends on one.
-- `src/public/img/` holds images belonging to the site itself (world map, logos, icons,
-  placeholders). Member-uploaded photos and media live in object storage, never here.
+Served at `/` with no build step. Scope each script to one page or feature and load it with `defer`.
+`src/public/img/` holds site-owned images only; member-uploaded media lives in object storage.
 
 ## Template mechanics
 
-Templates are logic-light Handlebars: the service hands them a fully shaped view-model and they
-render it. Middleware adds the pre-shaped booleans the layout uses (`res.locals.isAuthenticated`,
-`isMember`, `isAdmin`, `currentSection`).
+Templates render a fully shaped view-model; a template missing data is fixed in the service.
+Middleware adds the pre-shaped booleans the layout uses (`isAuthenticated`, `isMember`, `isAdmin`,
+`currentSection`).
 
-- No business rules, computed values or database access; a template missing data is fixed in the
-  service.
-- Branch only on a service-shaped boolean or pre-shaped enum, never on a raw domain code.
-  `{{#if showContact}}` and `{{#if hasResults}}` are right; `{{#if (eq member.role 'admin')}}`,
-  `{{#if (gt member.tier 1)}}` and `{{#if (eq event.status 'completed')}}` are wrong, because the
-  service supplies `isAdmin`, the tier check and `isCompleted`. Labels likewise: the service
-  supplies `teamTypeLabel`, never an `eq` on `teamType`.
+- Branch only on a service-shaped boolean or enum, never a raw domain code: `{{#if isCompleted}}` is
+  right, `{{#if (eq event.status 'completed')}}` is wrong. Labels likewise (`teamTypeLabel`, never
+  an `eq` on `teamType`).
 - A URL with one variable may be written in the template (`href="/clubs/{{slug}}"`); one with two
   or more, and every dictionary filter, view or hashtag link, is a service-shaped `*Href` field.
-- No inline `style="..."`, `<style>` or `<script>` block: the content security policy allows only
-  same-origin scripts and styles. The one exception is a non-executable JSON data island,
-  `<script type="application/json" id="...">{{{ mapDataJson }}}</script>`, parsed by an external
-  script. The convention gate enforces this at merge time.
-- No raw HTML from a service string. Paragraph text renders escaped with `{{ }}`; a link inside it
-  is a service-shaped segment. Triple-stash `{{{ }}}` is for registered helpers, the layout
-  `body`, JSON data islands named `*Json`, markdown HTML named `*Html` (committed markdown, or
-  site-authored markdown sanitised against an allowlist), only. A service-shaped `*Href` renders
-  through the `siteHref` helper (`href="{{siteHref content.browseHref}}"`). The convention gate
-  enforces this by those names.
+- Paragraph text renders escaped; a link inside it is a service-shaped text-and-link segment.
+  `{{{ }}}` only for registered helpers, the layout `body`, `*Json` islands and `*Html` markdown
+  (gated). A service-shaped `*Href` renders through `siteHref`.
 - No inline event handlers (`onclick=` and the like); attach handlers from external JS with
   `addEventListener` on a class or `data-*` selector.
-- No nested `<form>`. HTML closes the outer form at the first `</form>`, orphaning every later
-  control and the submit button, so the form submits nothing. Where independent actions interleave
-  with a form's fields, give the form an `id` and associate controls with `form="id"`. The
-  convention gate enforces this.
-- **Truthful controls.** A control's visible label is a promise about where the click lands. Every
-  form-submit button or button-styled link names the action it performs or the place it goes, and
-  two controls showing the same label on one page resolve to the same destination (form `action` or
-  anchor `href`). A "Link My History" button that runs a search, or two "Apply" buttons posting to
-  different endpoints, are defects. The one exception is `Switch`, the identity-switch verb, which
-  the dev persona harness offers through more than one endpoint. The button-destination check in
-  `tests/integration/route-wiring.crawl.test.ts` enforces this across every template.
+- **Truthful controls.** A control's visible label names the action it performs or where it goes,
+  and two controls with the same label on one page resolve to the same destination. `Switch`, the
+  dev persona identity verb, is exempt. `tests/integration/route-wiring.crawl.test.ts` enforces it.
 
-Registered helpers, from `src/app.ts`:
-
-- `formatDate(iso)`: ISO `YYYY-MM-DD` to `D Month YYYY`.
-- `formatDateRange(value)`: a date or a `/`-delimited two-date range in the shortest unambiguous form (`21-22 March 1998`); a legacy day-first slash date renders the same way, and anything unrecognised passes through unchanged.
-- `yearFromDate(iso)`: the 4-digit year.
-- `countryFlag(country)`: flag for a country code.
-- `asset(path)`: the versioned static-asset URL the static-asset rule above requires.
-- `externalLink(url, label, class)`: an external `<a>` with `rel="noopener noreferrer"`.
-- `siteHref(href)`: a service-shaped link inside `href="..."`, escaped against
-  attribute breakout and refused unless it is a site path, fragment, query or http(s) link.
-- `formatLocation(city, region, country)`: location parts joined with commas.
-
-A person's country and location are shaped by `personLocation` in
-`src/services/countryUtils.ts`, never rendered from the raw columns: the country is the canonical
-name and comes last, joined to any city and region with commas. A person's own page shows it as a
-labeled fact ("Country: Finland", or "Location: Boulder, CO, United States" when a city or region
-is known); a list or table shows the text alone. Admin pages show the stored values.
-- `splitParagraphs(text)`: curator prose split on blank lines into paragraph strings.
-- `eq`, `gt`, `add`, `not`, `or`: for pre-shaped enum branching (`{{#if (eq activeView 'add')}}`),
-  never to derive a label from a raw domain code.
-
-## Where the rest lives
-
-- Controller / HTTP shape, status codes, cookies, auth gates: `controller-conventions.md`.
-- Service page-shaping methods and view-model ownership: `service-layer.md`.
-- Each page's audience, rendering contract, and sensitive-page invariants: the owning service's
-  file-header JSDoc.
-- Privacy, visibility, and anti-enumeration rendering rules: `DATA_GOVERNANCE.md`, plus the owning
-  service's JSDoc and route/template tests.
-
-## Printable documents
-
-A printable output (roster, sheet) is a PDF download built from a document model by the shared
-renderer in `src/lib/printableDocument.ts`, never a print stylesheet or page-specific PDF code. The
-service returns the model; the controller sends it with `sendPdfDownload`.
+A person's country and location come from `personLocation` (`src/services/countryUtils.ts`), never
+the raw columns; admin pages show the stored values.

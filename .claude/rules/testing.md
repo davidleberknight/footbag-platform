@@ -35,7 +35,7 @@ Do not ask whether to add tests. Add each one that catches a named defect no exi
 
 ## Scope of a verification run
 
-What runs per change, and who starts the full gate, is the Verification default in root `CLAUDE.md`. The mapping from a changed path to its tests and the extra check its kind needs is `scripts/test-targets.sh`. Neither is restated here. What each mode of `./run_all_tests.sh` proves is owned by the local-runner-tiers section of `docs/TESTING.md`, and `./run_all_tests.sh --help` owns the flags. Green vitest is not a green gate: a secret-scan finding is invisible to every vitest tier.
+What runs per change is the Verification default in root `CLAUDE.md`; the full gate is the maintainer's, and every full-suite command is an ask rule in `.claude/settings.json`. The mapping from a changed path to its tests and the extra check its kind needs is `scripts/test-targets.sh`. Neither is restated here. What each mode of `./run_all_tests.sh` proves is owned by the local-runner-tiers section of `docs/TESTING.md`, and `./run_all_tests.sh --help` owns the flags. Green vitest is not a green gate: a secret-scan finding is invisible to every vitest tier.
 
 **Run vitest from the repository root, or pass `--config vitest.config.ts`.** Otherwise vitest's built-in defaults apply silently, and `tests/setup-env.ts` refuses the run.
 

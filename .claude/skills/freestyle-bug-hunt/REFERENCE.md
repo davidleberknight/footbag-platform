@@ -176,7 +176,7 @@ agree with the registry and the operators table.
   must carry a non-empty `display_reason`: a curator may deliberately display one where
   the equivalence is part of the public vocabulary, and that is correct.
 - A displayed alias renders inline beside the canonical name in quotes, never on a line
-  of its own (view-layer rule).
+  of its own (`footbag-freestyle-dictionary` skill).
 - An alias resolves to an active canonical trick. An alias slug equal to an inactive
   trick's slug is a deliberate demotion (the collision rule is against active canonicals)
   and is not a finding; an alias of any type other than `suppressed` whose target trick
@@ -291,7 +291,7 @@ trick page has no modes; each foldable section is an independent collapsible reg
 starts closed. Decomposition is pedagogy and is never inside a closed region or removed.
 Enum-to-display mapping happens at ONE site in the service layer; templates branch on field
 presence, never on enum values. The trick name, hashtag, Detail and Media controls follow
-the view-layer rule, "Hashtag and dictionary-filter links".
+the `footbag-freestyle-dictionary` skill, "Hashtag and dictionary-filter links".
 
 ### §F16 Freestyle QC-gate coverage (a hand-off, not a finding)
 

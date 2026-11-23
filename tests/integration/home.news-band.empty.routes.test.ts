@@ -26,7 +26,7 @@ function region(html: string, id: string): string {
   const start = html.indexOf(`id="${id}"`);
   expect(start, `region ${id} present`).toBeGreaterThan(-1);
   // The list ends in its full-page link, so the region runs to that link's end.
-  const link = html.indexOf('class="action-link"', start);
+  const link = html.indexOf('class="btn btn-outline" href="/news"', start);
   expect(link, `region ${id} ends in its link`).toBeGreaterThan(start);
   return html.slice(start, html.indexOf('</p>', link));
 }
@@ -38,6 +38,6 @@ describe('the home page news list with nothing to show', () => {
     const list = region(res.text, 'home-news');
     expect(list).not.toContain('<article');
     expect(list.match(/<p class="empty-state">/g) ?? []).toHaveLength(1);
-    expect(list).toContain('<a class="action-link" href="/news">');
+    expect(list).toContain('<a class="btn btn-outline" href="/news">');
   });
 });

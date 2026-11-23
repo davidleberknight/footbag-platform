@@ -128,7 +128,7 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
   `.section-count` chip; a sub-group heading is a plain `<h3>`, never a second `.section-heading`.
   Never a per-view heading class: a view with its own heading treatment fails uniformity exactly as
   a view with its own row would.
-- **Service-provided hrefs only**, per the view-layer rule "Hashtag and dictionary-filter links".
+- **Service-provided hrefs only**, per the `footbag-freestyle-dictionary` skill, "Hashtag and dictionary-filter links".
   Render a query-string href through the `siteHref` helper, `{{siteHref href}}`, which
   leaves `=` as written and escapes what could close the attribute.
 - **Section ID format `{view}-{slug}`.** Anchor IDs are public API. Never rename one without

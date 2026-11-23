@@ -161,10 +161,10 @@ const CATALOG: CatalogEntry[] = [
   // adminNewsService — a Community post's member told an administrator hid or
   // deleted the post, with the reason.
   { template: 'news_post_hidden', services: ['adminNewsService'], samples: [
-    { params: { memberName: 'M', title: 'T', note: 'n' }, variant: 'news_post_hidden' },
+    { params: { memberName: 'M', postKind: 'blog post', placeName: 'the blog', title: 'T', note: 'n' }, variant: 'news_post_hidden' },
   ] },
   { template: 'news_post_deleted', services: ['adminNewsService'], samples: [
-    { params: { memberName: 'M', title: 'T', note: 'n' }, variant: 'news_post_deleted' },
+    { params: { memberName: 'M', postKind: 'blog post', placeName: 'the blog', title: 'T', note: 'n' }, variant: 'news_post_deleted' },
   ] },
   // clubService / clubCleanupService — club operational notifications.
   { template: 'club_membership_member', services: ['clubService'], samples: [

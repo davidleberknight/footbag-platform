@@ -1394,7 +1394,7 @@ export interface MemberAnnouncementOverrides {
   decided_at?: string | null;
   email_archive_id?: string | null;
   summary_event_id?: string | null;
-  publish_to?: 'list' | 'feed' | 'both';
+  publish_to?: 'list' | 'feed' | 'both' | 'blog' | 'list_blog';
   news_item_id?: string | null;
   created_at?: string;
 }
@@ -1432,6 +1432,48 @@ export function insertMemberAnnouncement(
     o.summary_event_id ?? null,
     o.publish_to ?? 'list',
     o.news_item_id ?? null,
+  );
+  return id;
+}
+
+/**
+ * One news feed item. The default is an administrator-style News item with no
+ * source entity; an automatic item passes its type and entity, and a
+ * Community post passes `community_post` and its author. The body is stored
+ * as the Markdown the author wrote, so any Markdown may be passed here.
+ */
+export interface NewsItemOverrides {
+  id?: string;
+  published_at?: string;
+  news_type?: string;
+  title?: string;
+  body?: string;
+  entity_type?: string | null;
+  entity_id?: string | null;
+  is_public?: 0 | 1;
+  author_member_id?: string | null;
+  created_by?: string;
+}
+
+export function insertNewsItem(db: BetterSqlite3.Database, o: NewsItemOverrides = {}): string {
+  const id = o.id ?? `news-test-${uid()}`;
+  const createdBy = o.created_by ?? 'test';
+  db.prepare(`
+    INSERT INTO news_items (
+      id, created_at, created_by, updated_at, updated_by, version,
+      published_at, news_type, title, body, entity_type, entity_id, is_public,
+      author_member_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, nowIso(), createdBy, nowIso(), createdBy,
+    o.published_at ?? nowIso(),
+    o.news_type ?? 'announcement',
+    o.title ?? 'Footbag news worth sharing',
+    o.body ?? 'A short **Markdown** body.',
+    o.entity_type ?? null,
+    o.entity_id ?? null,
+    o.is_public ?? 1,
+    o.author_member_id ?? null,
   );
   return id;
 }

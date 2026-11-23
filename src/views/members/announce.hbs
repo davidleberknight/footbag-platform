@@ -20,7 +20,7 @@
     {{#if content.hasRecipients}}
     <p class="text-muted">{{content.recipientLine}}</p>
     {{else}}
-    <p class="notice-card notice-card--warn">Nobody is subscribed to community announcements at the moment, so an email sent now would reach no one. A post in the news feed can still be published.</p>
+    <p class="notice-card notice-card--warn">Nobody is subscribed to community announcements at the moment, so an email sent now would reach no one. A post in the news feed or on the blog can still be published.</p>
     {{/if}}
 
     <form method="POST" action="{{content.formAction}}" class="form-block">
@@ -32,7 +32,7 @@
       <div class="form-field">
         <label for="bodyText">Message</label>
         <textarea id="bodyText" name="bodyText" rows="16" maxlength="{{content.bodyMax}}" required>{{content.bodyText}}</textarea>
-        <p class="fs-sm">The email sends your message exactly as typed. In the news feed it is shown as Markdown, so **bold**, *italics*, lists and [links](https://example.com) are formatted there. Every email recipient chose to receive these and can stop at any time from their own email preferences, so there is no need to write an unsubscribe line.</p>
+        <p class="fs-sm">The email sends your message exactly as typed. In the news feed and on the blog it is shown as Markdown, so **bold**, *italics*, lists and [links](https://example.com) are formatted there. Every email recipient chose to receive these and can stop at any time from their own email preferences, so there is no need to write an unsubscribe line.</p>
       </div>
       <fieldset class="form-fieldset" data-announce-places>
         <legend>Where to Publish</legend>
@@ -44,7 +44,11 @@
           <input type="hidden" name="publishFeed" value="0" />
           <label><input type="checkbox" id="publishFeed" name="publishFeed" value="1" {{#if content.publishFeedChecked}}checked{{/if}} /> In the news feed, as a Community post</label>
         </div>
-        <p class="fs-sm">Choose one or both. A Community post must be news for the community, not opinion.</p>
+        <div class="form-field">
+          <input type="hidden" name="publishBlog" value="0" />
+          <label><input type="checkbox" id="publishBlog" name="publishBlog" value="1" {{#if content.publishBlogChecked}}checked{{/if}} /> On the blog, as your own post under your name</label>
+        </div>
+        <p class="fs-sm">Choose the email, a place on the site, or both. A post goes in the news feed or on the blog, not both. A Community post must be news for the community, not opinion; a blog post is your own writing under your name.</p>
       </fieldset>
       {{#if content.hasSummaryEventOptions}}
         <div class="form-field">

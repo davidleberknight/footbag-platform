@@ -486,12 +486,24 @@ need_cmd() {
 # Universal tools.
 need_cmd ssh    "Install OpenSSH client."
 need_cmd rsync  "apt-get install -y rsync"
-need_cmd docker "Install Docker (DEV_ONBOARDING -- container runtime install)."
-need_cmd jq     "apt-get install -y jq"
 
-# DB-touching modes need sqlite3 + (eventually, when prod activates) aws CLI.
+# Every pinned workstation tool at its pin, before any step.
+# The release is built on this machine, its images by this Docker engine and its
+# database by these tools, so a tool off its pin builds a release the pins do not
+# describe, and an engine behind the pin can fail the image export part way. The
+# list is the one the setup script verifies, so a clean setup run always passes
+# here, and the refusal names that script as the fix.
+# shellcheck source=scripts/lib/tool-report.sh
+source "${SCRIPT_DIR}/scripts/lib/tool-report.sh"
+if ! tool_report node python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform; then
+  cr_error "a workstation tool is missing or off its pin (listed above). Run bash scripts/setup-dev-workstation.sh, which installs each at its pin, then re-run the deploy."
+  echo "Recommendation: run bash scripts/setup-dev-workstation.sh, then re-run the deploy." >&2
+  exit 1
+fi
+cr_proved "every pinned workstation tool answers at its pin"
+
+# DB-touching modes need (eventually, when prod activates) the aws CLI.
 if (( MODE_CODE_ONLY != 1 )); then
-  need_cmd sqlite3 "apt-get install -y sqlite3"
   need_cmd aws     "Install AWS CLI v2 (https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)."
 fi
 

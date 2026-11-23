@@ -69,7 +69,7 @@ let seq = 0;
 /** A held announcement and its open review item. */
 function seedHeld(
   memberId = AUTHOR,
-  words?: { subject?: string; body_text?: string; publish_to?: 'list' | 'feed' | 'both' },
+  words?: { subject?: string; body_text?: string; publish_to?: 'list' | 'feed' | 'both' | 'blog' | 'list_blog' },
 ): { annId: string; itemId: string } {
   seq += 1;
   const annId = insertMemberAnnouncement(db, {
@@ -192,7 +192,7 @@ describe('the held announcement on its item page', () => {
   // also reach the news feed, where it must be news rather than opinion.
   it('names a different line for each set of places the member chose', async () => {
     const lines = new Set<string>();
-    for (const publish_to of ['list', 'feed', 'both'] as const) {
+    for (const publish_to of ['list', 'feed', 'both', 'blog', 'list_blog'] as const) {
       const { itemId, annId } = seedHeld(AUTHOR, { publish_to });
       const res = await request(createApp()).get(`/admin/work-queue/${itemId}`).set('Cookie', cookieFor(ADMIN));
       // A member holds one pending announcement at a time.
@@ -201,7 +201,7 @@ describe('the held announcement on its item page', () => {
       expect(line, `places line for ${publish_to}`).not.toBeNull();
       lines.add(line![1]!);
     }
-    expect(lines.size).toBe(3);
+    expect(lines.size).toBe(5);
   });
 
   it('refuses the decisions to a non-administrator', async () => {
@@ -291,6 +291,45 @@ describe('approving', () => {
     const notice = memberMail('announce_approved');
     expect(notice).toHaveLength(1);
     expect(notice[0]!.body_text).toContain(`/news/${ann.news_item_id}`);
+  });
+
+  // Defect caught: a blog approval mails the list, publishes into the news
+  // feed instead of the blog, drops the member as author, or the email links
+  // the member to a news page that does not show the post.
+  it('publishes a blog-only announcement as a blog post under its author, with no email to the list', async () => {
+    const { itemId, annId } = seedHeld(AUTHOR, {
+      subject: 'My own view', body_text: 'I think *kicking* is great.', publish_to: 'blog',
+    });
+    expect((await approve(itemId, UNTICKED)).status).toBe(303);
+
+    const ann = annRow(annId);
+    expect(ann.status).toBe('approved');
+    expect(ann.email_archive_id).toBeNull();
+    expect(listMail('My own view')).toHaveLength(0);
+    expect(newsRow(ann.news_item_id)).toEqual({
+      news_type: 'blog_post', title: 'My own view', body: 'I think *kicking* is great.',
+      author_member_id: AUTHOR, is_public: 1, entity_type: null, entity_id: null,
+    });
+    expect(postsBy(AUTHOR)).toBe(0);
+
+    const post = await request(createApp()).get(`/blog/${ann.news_item_id}`);
+    expect(post.status).toBe(200);
+    expect(post.text).toContain(AUTHOR_NAME);
+    expect((await request(createApp()).get(`/news/${ann.news_item_id}`)).status).toBe(404);
+
+    const notice = memberMail('announce_approved');
+    expect(notice).toHaveLength(1);
+    expect(notice[0]!.body_text).toContain(`/blog/${ann.news_item_id}`);
+    expect(notice[0]!.body_text).not.toContain('/news/');
+  });
+
+  // Defect caught: an approval for the list and the blog publishes to only one.
+  it('publishes to the list and the blog in one approval', async () => {
+    const { itemId, annId } = seedHeld(AUTHOR, { subject: 'List and blog', publish_to: 'list_blog' });
+    expect((await approve(itemId, UNTICKED)).status).toBe(303);
+    const ann = annRow(annId);
+    expect(listMail('List and blog').map((m) => m.recipient_member_id).sort()).toEqual([SUB_ONE, SUB_TWO]);
+    expect(newsRow(ann.news_item_id)?.news_type).toBe('blog_post');
   });
 
   // Defect caught: an approval for both places publishes to only one of them.

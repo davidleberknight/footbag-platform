@@ -11,9 +11,9 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 
 # An interpreter fed its program on standard input writes files without any shell
 # redirect, so the redirect guard cannot see it: `python3 - <<'PY'` carrying
-# open(path,'w') looks like an ordinary command and edits the tree. Root CLAUDE.md
-# already forbids the construct ("Edit files only through the Edit/Write tools"),
-# and the rewrite is always available, so this denies rather than asks -- the same
+# open(path,'w') looks like an ordinary command and edits the tree. Files are edited
+# only through the Edit and Write tools, and that rewrite is always available, so
+# this denies rather than asks -- the same
 # reasoning the leading-cd, shell-loop and process-substitution guards use, where a
 # false deny costs a rewrite and a prompt costs a human interruption.
 #

@@ -486,9 +486,9 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
     kind:          'waiting',
     alertTemplate: null,
     brief: {
-      what: 'A member wrote a community announcement and it waits for an administrator before it is published to the places they chose: the announcements list, the news feed, or both.',
+      what: 'A member wrote a community announcement and it waits for an administrator before it is published to the places they chose: the announcements list, the news feed or the blog, or the list with one of the two.',
       why:  'The member is waiting, and nothing is published until it is approved.',
-      todo: 'Read it against the Community Standards, then approve and publish it as written, or send it back with a note saying what to change. A post for the news feed must be news for the community, not opinion; send an opinion piece back.',
+      todo: 'Read it against the Community Standards, then approve and publish it as written, or send it back with a note saying what to change. A post for the news feed must be news for the community, not opinion; send an opinion piece back, saying it belongs on the blog. A blog post is the member\'s own writing and only has to keep to the Community Standards.',
     },
     entityTypes:   ['member_announcement'],
     routeTopic:    'moderation',

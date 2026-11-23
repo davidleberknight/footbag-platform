@@ -17,7 +17,7 @@ Which document to read for which need. Which source wins in a conflict is the au
 | Public-page rendering patterns, view-model contracts, page invariants | `.claude/rules/view-layer.md` and the owning service's file-header JSDoc |
 | Service ownership, service-layer patterns, service-level error semantics | the service's file-header JSDoc and `.claude/rules/service-layer.md`; pair with code, tests, and types for current method shapes |
 | Deriving, layering, or verifying tests | `docs/TESTING.md` for the doctrine; `.claude/rules/testing.md` and the `write-tests` skill when writing or fixing tests |
-| Current scope, tracked deviations, known bugs | the maintainers' private tracker (`tracker-ops` skill) |
+| Open work, tracked deviations, known bugs | the maintainers' private tracker (`tracker-ops` skill) |
 | Legacy data migration and the historical pipeline | the Legacy Data Migration decision in `docs/DESIGN_DECISIONS.md`; `legacy_data/CLAUDE.md` and the `pipeline-invariant-enforcer` skill for pipeline work; the pipeline validation gates in `docs/TESTING.md` |
 | Go-live gates, cutover sequencing, rollback, stakeholder coordination | GO_LIVE_PLAN.md (private GitHub repo) |
 | Freestyle tricks, dictionary, browse views and curated media | `docs/FREESTYLE.md`; the `footbag-freestyle-dictionary`, `freestyle-dictionary-surface` and `footbag-curated-media` skills |

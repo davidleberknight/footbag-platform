@@ -4,8 +4,8 @@
  *
  * Covers:
  *   GET /equipment — practical equipment guidance, one anchored section per topic
- *   GET /net, /freestyle, /sideline — each links to its rules and to its
- *     equipment section
+ *   GET /net, /freestyle, /x-square, /golf — each links to its rules and to
+ *     its equipment section; /sideline links to neither
  *
  * Contract verified:
  *   - every "Official IFPA rule" note links to a rule section that exists
@@ -211,7 +211,7 @@ describe('game pages link to their rules and equipment', () => {
       equipment: ['square-games'],
     },
     '/golf': { rules: ['/rules/golf/footbag-golf'], equipment: ['golf'] },
-    '/sideline': { rules: [], equipment: ['footbags'] },
+    '/sideline': { rules: [], equipment: [] },
   };
 
   it('each game page links to its rules and to equipment sections that exist', async () => {

@@ -353,9 +353,9 @@ Affidavits are one-per-nomination (`UNIQUE` on `nomination_id`).
 
 News items are hard-deleted immediately on admin action (US `A_Moderate_News_Item`; DD §2.3). No soft-delete grace period applies.
 
-News items are auto-generated as side effects of primary entity flows (event published, results posted, club created, HoF/BAP status granted, vote results published). Admins can also create manual announcements. An approved member announcement whose author chose the news feed becomes a Community post.
+News items are auto-generated as side effects of primary entity flows (event published, results posted, club created, HoF/BAP status granted, vote results published). Admins can also create manual announcements. An approved member announcement whose author chose the news feed becomes a Community post, and one whose author chose the blog becomes a blog post.
 
-An item written by a person records its author, and a Community post records the member announcement it came from. An automatic item is unique per type and source entity, so one event yields at most one item of each type. Deleting an event deletes its items, and deleting a member's account deletes their Community posts.
+An item written by a person records its author, and a Community post records the member announcement it came from. An automatic item is unique per type and source entity, so one event yields at most one item of each type. Deleting an event deletes its items, and deleting a member's account deletes their Community posts and blog posts.
 
 `news_type` values map to triggering events:
 
@@ -369,6 +369,7 @@ An item written by a person records its author, and a Community post records the
 | `vote_results` | Election/vote results published |
 | `announcement` | Admin-authored manual announcement |
 | `community_post` | A member's announcement approved with the news feed among its places |
+| `blog_post` | A member's announcement approved with the blog among its places, shown with its author on the blog and on no news surface |
 | `system` | System-generated operational notice |
 
 ### 4.8 Mailing Lists & Email
@@ -396,7 +397,7 @@ The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every 
 `email_archives` stores a record of bulk sends (mailing list blasts, event participant emails, announcements). `CHECK` constraints enforce that mailing-list sends reference a list and event-participant sends reference an event. Every row is retained indefinitely as the record of what the platform sent in IFPA's name; a row names no recipient, so erasure has nothing in it to reach beyond clearing `sender_member_id`.
 
 #### Member announcements
-`member_announcements` holds each community announcement a member submits while it waits for an administrator's decision: the member, the subject and body as typed, the status (`pending`, `approved` or `returned`), the administrator's comment and who decided and when, the places the member chose to publish it (the announce list, the news feed, or both), the news item an approved post produced, and the `email_archives` row the approved send produced, and `summary_event_id`, the sanctioned event an organizer marked it as the after-event summary of; an approved row carrying it meets that event's summary obligation. At most one row per member is pending. The archive row stays the record of what was sent; account erasure deletes the member's rows and closes any open review item.
+`member_announcements` holds each community announcement a member submits while it waits for an administrator's decision: the member, the subject and body as typed, the status (`pending`, `approved` or `returned`), the administrator's comment and who decided and when, the places the member chose to publish it (the announce list, the news feed or the blog, or the announce list with one of the other two), the news item an approved post produced, and the `email_archives` row the approved send produced, and `summary_event_id`, the sanctioned event an organizer marked it as the after-event summary of; an approved row carrying it meets that event's summary obligation. At most one row per member is pending. The archive row stays the record of what was sent; account erasure deletes the member's rows and closes any open review item.
 
 For a group-backed list these rows are not only a send log: they are the group's discussion, read on the group page per `M_Read_Group_Discussion`. `email_archives.parent_archive_id`, a nullable self-reference, carries the threading: a row with no parent opens a thread and a reply names the message it answers. Only sends to a group-backed list may set it, and a parent must belong to the same list, which the service enforces. The rows are retained indefinitely and are never edited or deleted, so a correction to a group message is a further message rather than a rewrite; account erasure clears `sender_member_id` and leaves the message standing.
 

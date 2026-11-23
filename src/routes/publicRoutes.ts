@@ -9,6 +9,7 @@ import { mediaController } from '../controllers/mediaController';
 import { mediaFlagController } from '../controllers/mediaFlagController';
 import { eventController } from '../controllers/eventController';
 import { newsController } from '../controllers/newsController';
+import { blogController } from '../controllers/blogController';
 import { historyController } from '../controllers/historyController';
 import { memberController } from '../controllers/memberController';
 import { memberGalleryController } from '../controllers/memberGalleryController';
@@ -229,6 +230,12 @@ publicRouter.post('/events/:eventKey/registration/partner',          requireMemb
 publicRouter.get('/news',             newsController.index);
 publicRouter.get('/news/year/:year',  newsController.year);
 publicRouter.get('/news/:newsId',     newsController.item);
+
+// The blog. /blog/year/:year precedes /blog/:postId, so the literal segment
+// "year" is never taken for a post id.
+publicRouter.get('/blog',             blogController.index);
+publicRouter.get('/blog/year/:year',  blogController.year);
+publicRouter.get('/blog/:postId',     blogController.post);
 
 // HP-only self-serve claim (scenarios D and E). Every claim flow, this one
 // included, belongs to the onboarding wizard at /register/wizard/legacy_claim:

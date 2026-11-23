@@ -281,6 +281,12 @@ bash scripts/install-git-hooks.sh
 # shellcheck source=scripts/lib/tool-report.sh
 source scripts/lib/tool-report.sh
 tool_report node python3 sqlite3 ffmpeg || cr_die "a tool the dev loop needs is missing or at the wrong version (listed above)."
+# Every other pinned workstation tool, warned rather than refused: the dev loop
+# runs without them, but the test runner and the deploy refuse a machine with any
+# of them off its pin, so the developer hears it here first, with the fix.
+if ! tool_report ffprobe jq age docker gitleaks terraform; then
+  cr_warn "a pinned workstation tool is missing or off its pin (listed above); the dev stack still starts, but the test runner and the deploy refuse it. Run bash scripts/setup-dev-workstation.sh to put every tool at its pin."
+fi
 
 # 2. Python venv + requirements
 # Built or repaired, installed and proved by the shared seeder-environment step.

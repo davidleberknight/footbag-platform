@@ -854,7 +854,7 @@ describe('GET /freestyle/concepts — the operators page is the per-operator ref
     expect(start).toBeGreaterThan(0);
     expect(end).toBeGreaterThan(start);
     const section = res.text.slice(start, end);
-    expect(section).toContain('class="action-link" href="/freestyle/operators"');
+    expect(section).toContain('class="btn btn-outline" href="/freestyle/operators"');
     // No per-operator entry is rendered on Concepts any more.
     expect(res.text).not.toContain('id="intermediate-operators"');
     expect(res.text).not.toContain('class="glossary-modifier-card"');

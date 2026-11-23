@@ -37,6 +37,7 @@
 import BetterSqlite3 from 'better-sqlite3';
 import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../lib/personaGuards';
 import type { ExpectedAnswerKind } from '../services/memberMessageService';
+import { eventItemText } from '../services/eventNewsText';
 import { seedFinanceDemo } from './financeDemoSeed';
 import {
   insertMember,
@@ -68,6 +69,7 @@ import {
   insertEvent,
   insertEventOrganizer,
   insertDiscipline,
+  insertNewsItem,
 } from './personaRowBuilders';
 import type {
   OnboardingTaskType,
@@ -672,6 +674,10 @@ export function personaEventId(slug: string): string {
 export function personaEventTagId(slug: string): string {
   return `${PERSONA_EVENT_TAG_ID_PREFIX}${slug}`;
 }
+/** The id of the news item announcing a persona's seeded event. */
+export function personaEventNewsId(slug: string): string {
+  return `news-test-persona-event-${slug}`;
+}
 
 function isoDateDaysFromNow(days: number): string {
   return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
@@ -1165,6 +1171,24 @@ export function seedPersona(
       } : {}),
     });
     insertEventOrganizer(db, eventId, memberId);
+    // The real flow announces a public event in the news feed: a free event
+    // when it is created, a sanctioned one when its sanction is approved.
+    // Seeding the row directly skips that flow, so the item is written here.
+    const sanctionedBy = ev.sanctionedWithFees
+      ? `${SEEDED_PERSONA_MEMBER_ID_PREFIX}${ev.sanctionedWithFees.byPersona}` : null;
+    const newsText = eventItemText(sanctionedBy ? 'sanctioned' : 'opened', {
+      title: ev.title, start_date: startDate, end_date: isoDateDaysFromNow(ev.startInDays + ev.days - 1),
+      city: ev.city, region: ev.region, country: ev.country,
+    });
+    insertNewsItem(db, {
+      id: personaEventNewsId(spec.slug),
+      news_type: 'event_published',
+      entity_type: 'event',
+      entity_id: eventId,
+      title: newsText.title,
+      body: newsText.body,
+      created_by: sanctionedBy ?? memberId,
+    });
     // The competitions a tournament of this kind runs; the open singles and
     // the mixed doubles let another persona register and try the partner and
     // gender rules.

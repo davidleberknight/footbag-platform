@@ -9,10 +9,11 @@
  *     `emitAutomaticItem`, inside that flow's own transaction. One source
  *     entity yields at most one automatic item of each type, however often
  *     its flow runs: a repeat leaves the first item standing and returns it.
- *   - The wording of the automatic event items (`eventItemText`): a free
- *     event's opening, a sanction grant, and the first results. Each names the
- *     event, its dates and its location, the organizer's words escaped so the
- *     body renders them exactly as typed.
+ *   - The wording of the automatic event items (`eventItemText`, kept pure in
+ *     its own module so the persona seed words a seeded event's item the same
+ *     way): a free event's opening, a sanction grant, and the first results.
+ *     Each names the event, its dates and its location, the organizer's words
+ *     escaped so the body renders them exactly as typed.
  *   - Removal of an entity's items with it: deleting an event deletes every
  *     item about it.
  *   - The authored-item rules: a title of at most 200 characters and a
@@ -20,7 +21,8 @@
  *     the moment of writing.
  *   - Display shaping: the label (News for an item in IFPA's voice, written by
  *     an administrator or created automatically; Community for a member's
- *     approved post), and the body rendered from Markdown to HTML. No item
+ *     approved post in the feed; Blog, on the administrators' pages only, for
+ *     a blog post), and the body rendered from Markdown to HTML. No item
  *     carries a byline: an author who wants their name on a Community post
  *     writes it into the text the administrator approves.
  *   - The public news pages, for any visitor, rendered identically for every
@@ -54,6 +56,8 @@
  *     records it.
  *   - The member's announcement and its approval, which the broadcast service
  *     owns; an approval with the feed among its places produces the post.
+ *   - Blog posts. They share the table and the authored-item rules, but the
+ *     blog service owns their pages, and no news surface shows one.
  *   - The administrators' news pages (writing, editing, hiding, restoring and
  *     deleting items), which the admin news service owns, applying the
  *     authored-item rules here.
@@ -78,8 +82,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { newsItems } from '../db/db';
-import { escapeNewsMarkdown, newsExcerpt, renderNewsMarkdown } from '../lib/newsMarkdown';
-import { personLocation } from './countryUtils';
+import { newsExcerpt, renderNewsMarkdown } from '../lib/newsMarkdown';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import type { DatedItemMeta, DatedItemView } from '../types/datedItem';
 import type { PageViewModel } from '../types/page';
@@ -98,12 +101,15 @@ export type NewsType =
   | 'vote_results'
   | 'announcement'
   | 'community_post'
+  | 'blog_post'
   | 'system';
 
 /** The types only the platform's own flows create, one per source entity. */
-export type AutomaticNewsType = Exclude<NewsType, 'announcement' | 'community_post'>;
+export type AutomaticNewsType = Exclude<NewsType, 'announcement' | 'community_post' | 'blog_post'>;
 
-export type NewsLabel = 'News' | 'Community';
+/** An item's label. Blog marks a blog post on the administrators' pages; no
+ *  news surface shows a blog post. */
+export type NewsLabel = 'News' | 'Community' | 'Blog';
 
 export const NEWS_TITLE_MAX_LENGTH = 200;
 
@@ -189,58 +195,26 @@ export interface NewsItemView {
   bodyHtml: string;
 }
 
-/** The three moments an event emits an automatic item. */
-export type EventNewsKind = 'opened' | 'sanctioned' | 'results';
-
-/** The event fields an automatic item's wording names. */
-export interface EventNewsFacts {
-  title: string;
-  start_date: string;
-  end_date: string;
-  city: string;
-  region: string | null;
-  country: string;
-}
-
-/**
- * An automatic event item's title and Markdown body. The title is plain text,
- * shown escaped; inside the body the organizer's own words (the title and the
- * location) are escaped so they render exactly as typed.
- */
-export function eventItemText(kind: EventNewsKind, event: EventNewsFacts): { title: string; body: string } {
-  const name = escapeNewsMarkdown(event.title);
-  const dates = escapeNewsMarkdown(eventDateRange(event.start_date, event.end_date));
-  const where = escapeNewsMarkdown(personLocation(event.city, event.region, event.country)?.text ?? '');
-  switch (kind) {
-    case 'opened':
-      return {
-        title: `New event: ${event.title}`,
-        body: `${name} runs ${dates} in ${where}. Details and registration are on the event page.`,
-      };
-    case 'sanctioned':
-      return {
-        title: `${event.title} is sanctioned by IFPA`,
-        body: `IFPA has sanctioned ${name}, which runs ${dates} in ${where}. Details and registration are on the event page.`,
-      };
-    case 'results':
-      return {
-        title: `Results posted for ${event.title}`,
-        body: `The results of ${name}, held ${dates} in ${where}, are now on the event page.`,
-      };
-  }
-}
+export { eventItemText, type EventNewsFacts, type EventNewsKind } from './eventNewsText';
 
 function newNewsItemId(): string {
   return `news_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 }
 
 export function newsLabelFor(newsType: NewsType): NewsLabel {
-  return newsType === 'community_post' ? 'Community' : 'News';
+  if (newsType === 'community_post') return 'Community';
+  if (newsType === 'blog_post') return 'Blog';
+  return 'News';
+}
+
+/** A member's post, Community or blog: the member's words, never edited. */
+export function isMemberPost(newsType: NewsType): boolean {
+  return newsType === 'community_post' || newsType === 'blog_post';
 }
 
 const NEWS_LABEL_CSS_CLASS = 'badge-muted';
 
-function newsYearOf(iso: string): number {
+export function newsYearOf(iso: string): number {
   return Number(iso.slice(0, 4));
 }
 
@@ -249,7 +223,7 @@ function newsYearHref(year: number, currentYear: number): string {
   return year === currentYear ? '/news' : `/news/year/${year}`;
 }
 
-function newsDateText(publishedAt: string): string {
+export function newsDateText(publishedAt: string): string {
   const day = publishedAt.slice(0, 10);
   return eventDateRange(day, day);
 }
@@ -372,13 +346,12 @@ export const newsService = {
   /** Shapes one item for display: its label and its rendered body. */
   shapeNewsItem(row: NewsItemRow): NewsItemView {
     const label = newsLabelFor(row.news_type);
-    const isCommunity = label === 'Community';
     return {
       id: row.id,
       title: row.title,
       label,
       publishedAt: row.published_at,
-      bodyHtml: renderNewsMarkdown(row.body, { memberAuthored: isCommunity }),
+      bodyHtml: renderNewsMarkdown(row.body, { memberAuthored: isMemberPost(row.news_type) }),
     };
   },
 

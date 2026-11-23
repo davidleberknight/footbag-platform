@@ -638,6 +638,23 @@ describe('what other people recorded about the member', () => {
     expectNoneOf(res.text, ['admin-voice-item', 'their-post']);
   });
 
+  // Defect caught: the member's own blog posts, hidden ones included, are
+  // missing from the download, or it carries another member's.
+  it('carries the member\'s blog posts and no other member\'s', async () => {
+    const { slug, id, other } = threeMembers('exp_blog');
+    withDb((db) => {
+      insertNewsItem(db, { news_type: 'blog_post', author_member_id: id, title: 'my-blog-shown', is_public: 1 });
+      insertNewsItem(db, { news_type: 'blog_post', author_member_id: id, title: 'my-blog-hidden', is_public: 0 });
+      insertNewsItem(db, { news_type: 'blog_post', author_member_id: other, title: 'their-blog' });
+    });
+
+    const res = await download(slug, id);
+    const doc = JSON.parse(res.text);
+
+    expect(doc.blogPosts.map((p: { title: string }) => p.title).sort()).toEqual(['my-blog-hidden', 'my-blog-shown']);
+    expectNoneOf(res.text, ['their-blog']);
+  });
+
   // Defect caught: the download holds the member's announcements without
   // saying where each was to be published, which the member chose and the
   // platform holds about them.

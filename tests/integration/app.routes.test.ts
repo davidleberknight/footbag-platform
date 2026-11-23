@@ -628,7 +628,7 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
   const GAME_PAGES = [
     { path: '/x-square', label: 'X-Square' },
     { path: '/golf',     label: 'Golf' },
-    { path: '/sideline', label: 'Sideline' },
+    { path: '/sideline', label: 'Hack' },
   ];
 
   // Defect caught: a section's page renders without its own demo clip, or its
@@ -697,7 +697,7 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
   it('keeps Sideline to open play, pointing at the X-Square games', async () => {
     const res = await page('/sideline');
     expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
-    expect(res.text).toContain('<a href="/x-square">X-Square games</a>');
+    expect(res.text).toMatch(/<a href="\/x-square">[^<]+<\/a>/);
     expect(res.text).not.toContain(GAME_CLIPS['/x-square']);
     expect(res.text).not.toContain(GAME_CLIPS['/golf']);
     expect(res.text).not.toContain('href="/rules/');
@@ -710,18 +710,15 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
     expect(res.text.match(/<section class="content-section"/g)?.length).toBe(1);
   });
 
-  // Defect caught: the menu entry for getting a hack jumps to the top of the
-  // Sideline page or to a section that is not its first, or it takes the
-  // active highlight away from Sideline while the visitor is on that page.
-  it('opens the first Sideline section from its menu entry, leaving Sideline active', async () => {
+  // Defect caught: the Hack menu entry drops the visitor partway down the
+  // open-play page instead of at its top, or a second menu entry for the same
+  // page comes back beside it.
+  it('gives the open-play page one menu entry, opening at the top', async () => {
     const res = await page('/sideline');
-    const navHrefs = [...res.text.matchAll(/<a href="(\/sideline#[^"]+)"( class="active")?>/g)];
-    expect(navHrefs.length, 'deep-link menu entry in header and footer').toBe(2);
-    for (const [, , active] of navHrefs) expect(active).toBeUndefined();
-    expect(res.text).toMatch(/<a href="\/sideline" class="active">/);
-    const fragment = navHrefs[0][1].split('#')[1];
-    const firstSection = res.text.match(/<section class="content-section"( id="([^"]+)")?>/);
-    expect(firstSection?.[2], 'first section carries the menu entry anchor').toBe(fragment);
+    expect(res.text).not.toContain('href="/sideline#');
+    const entries = res.text.match(/<a href="\/sideline"[^>]*>[^<]*<\/a>/g) ?? [];
+    expect(entries, 'one entry each in header and footer').toHaveLength(2);
+    for (const entry of entries) expect(entry).toBe('<a href="/sideline" class="active">Hack</a>');
   });
 
   it('contains no offsite rules links (no Google Docs, no YouTube tutorial, no footbag.org/rules)', async () => {

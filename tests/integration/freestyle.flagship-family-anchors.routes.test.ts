@@ -149,7 +149,7 @@ describe('every family link on a flagship page lands on something its target ren
   // The browse link the template writes, with Handlebars' escaping of "="
   // undone so it can be requested.
   const browseHref = (html: string): string => {
-    const m = html.match(/<a class="action-link" href="([^"]+)" data-family-browse>/);
+    const m = html.match(/<a class="btn btn-outline" href="([^"]+)" data-family-browse>/);
     expect(m, 'the page carries no family browse link').not.toBeNull();
     return m![1]!.replace(/&#x3D;/g, '=').replace(/&amp;/g, '&');
   };

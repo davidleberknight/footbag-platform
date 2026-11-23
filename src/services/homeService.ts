@@ -111,7 +111,7 @@ export const homeService = {
           description: 'Keep the footbag in the air for as many kicks as you can, and see the world records.',
         },
         {
-          label: 'Sideline',
+          label: 'Hack',
           href: '/sideline',
           description: 'Open play that anyone can join, starting with getting a hack: the cooperative circle game commonly known as "Hacky Sack."',
         },

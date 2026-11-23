@@ -704,10 +704,12 @@ CREATE TABLE news_items (
   published_at TEXT NOT NULL,
   news_type    TEXT NOT NULL
     -- 'club_archived' fires when an admin archives a club (A_Archive_Club).
-    -- 'community_post' is a member's approved announcement.
+    -- 'community_post' is a member's approved announcement in the news feed.
+    -- 'blog_post' is a member's approved announcement on the blog, shown with
+    -- its author and on no news surface.
     CHECK (news_type IN ('event_published','event_results','club_created','club_archived',
                          'member_honor','vote_results','announcement','community_post',
-                         'system')),
+                         'blog_post','system')),
   title       TEXT NOT NULL,
   -- Markdown as the author pasted it; rendered to HTML only for display.
   body        TEXT NOT NULL DEFAULT '',
@@ -715,7 +717,7 @@ CREATE TABLE news_items (
   entity_id   TEXT,
   is_public   INTEGER NOT NULL DEFAULT 1 CHECK (is_public IN (0,1)),
   -- The person who wrote the item: the administrator of an announcement, the
-  -- member of a Community post. Null on an automatic item.
+  -- member of a Community post or blog post. Null on an automatic item.
   author_member_id TEXT REFERENCES members(id)
 );
 
@@ -726,7 +728,7 @@ CREATE INDEX idx_news_published_at ON news_items(published_at);
 -- several posts about one event.
 CREATE UNIQUE INDEX idx_news_automatic_one_per_entity
   ON news_items(news_type, entity_type, entity_id)
-  WHERE news_type NOT IN ('announcement','community_post');
+  WHERE news_type NOT IN ('announcement','community_post','blog_post');
 
 -- =============================================================================
 -- SECTION 8: MAILING LISTS & EMAIL
@@ -951,11 +953,14 @@ CREATE TABLE member_announcements (
   -- approved and sent it meets that sanctioning obligation.
   summary_event_id     TEXT REFERENCES events(id),
   -- Where the member chose to publish it: the announce list, the news feed as
-  -- a Community post, or both. An approval publishes to exactly these places.
+  -- a Community post ('feed'), the blog ('blog'), or the list with one of the
+  -- two ('both' with the feed, 'list_blog' with the blog); never the feed and
+  -- the blog together. An approval publishes to exactly these places.
   publish_to           TEXT NOT NULL DEFAULT 'list'
-    CHECK (publish_to IN ('list','feed','both')),
-  -- The Community post an approval produced; null until approved with the
-  -- feed among its places, and cleared when an admin deletes the post.
+    CHECK (publish_to IN ('list','feed','both','blog','list_blog')),
+  -- The Community post or blog post an approval produced; null until approved
+  -- with the feed or the blog among its places, and cleared when an admin
+  -- deletes the post.
   news_item_id         TEXT REFERENCES news_items(id) ON DELETE SET NULL
 );
 

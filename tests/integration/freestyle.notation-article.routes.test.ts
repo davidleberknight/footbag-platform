@@ -55,6 +55,9 @@ describe('Freestyle Concepts Jobs-notation section — source-location prose rem
   it('links to the article page and keeps only the historical citation', async () => {
     const html = await concepts();
     expect(html).toContain('href="/freestyle/notation-article"');
+    // Defect caught: the pointer from the excerpt to the whole article falls
+    // back to a text link instead of the standard button that closes an excerpt.
+    expect(html).toContain('<a class="btn btn-outline" href="/freestyle/notation-article">');
     expect(html).toContain('To See the Entire Article, Press Here.');
     expect(html).toContain('Source: <em>By the Way, Not the Name</em>');
   });

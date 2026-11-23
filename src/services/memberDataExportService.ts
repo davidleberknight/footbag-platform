@@ -112,6 +112,7 @@ export interface MemberDataExport {
   messagesReceived: unknown[];
   announcements: unknown[];
   communityPosts: unknown[];
+  blogPosts: unknown[];
   clubs: {
     affiliations: unknown[];
     leadership: unknown[];
@@ -219,6 +220,7 @@ export const memberDataExportService = {
       messagesReceived:   capped('messagesReceived', memberExport.messagesReceived.all(memberId)),
       announcements:      capped('announcements', memberExport.memberAnnouncements.all(memberId)),
       communityPosts:     capped('communityPosts', memberExport.communityPosts.all(memberId)),
+      blogPosts:          capped('blogPosts', memberExport.blogPosts.all(memberId)),
       clubs: {
         affiliations:     capped('clubs.affiliations', memberExport.clubAffiliations.all(memberId)),
         leadership:       capped('clubs.leadership', memberExport.clubLeadership.all(memberId)),

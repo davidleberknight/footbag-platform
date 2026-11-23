@@ -107,7 +107,7 @@ async function formToken(): Promise<string> {
 function formBody(
   fields: { subject: string; bodyText: string; sendToken: string },
   ticked: boolean,
-  places: { list?: boolean; feed?: boolean } = { list: true },
+  places: { list?: boolean; feed?: boolean; blog?: boolean } = { list: true },
 ): string {
   const p = new URLSearchParams({ sendToken: fields.sendToken, subject: fields.subject, bodyText: fields.bodyText });
   p.append('agree', '0');
@@ -116,6 +116,8 @@ function formBody(
   if (places.list) p.append('publishList', '1');
   p.append('publishFeed', '0');
   if (places.feed) p.append('publishFeed', '1');
+  p.append('publishBlog', '0');
+  if (places.blog) p.append('publishBlog', '1');
   return p.toString();
 }
 
@@ -206,6 +208,7 @@ describe('the announce form', () => {
     // The form asks where to publish, with neither place chosen for the member.
     expect(res.text).toMatch(/<input type="checkbox" id="publishList" name="publishList" value="1"\s*\/>/);
     expect(res.text).toMatch(/<input type="checkbox" id="publishFeed" name="publishFeed" value="1"\s*\/>/);
+    expect(res.text).toMatch(/<input type="checkbox" id="publishBlog" name="publishBlog" value="1"\s*\/>/);
   });
 });
 
@@ -282,6 +285,60 @@ describe('where an announcement is published', () => {
     expect(changed.status).toBe(422);
     expect(heldPlaces()).toEqual(['list']);
     expect(reviewItems()).toHaveLength(1);
+  });
+
+  // Defect caught: the blog box is ignored, so a member's own post is held for
+  // no place or for the wrong one, and its approval publishes it elsewhere.
+  it('holds the blog alone as the blog, and the list with the blog as both of them', async () => {
+    expect((await submit(formBody(
+      { subject: 'My view', bodyText: 'Body', sendToken: await formToken() }, true, { blog: true },
+    ))).status).toBe(303);
+    withDb((db) => db.prepare("UPDATE member_announcements SET status = 'returned'").run());
+    expect((await submit(formBody(
+      { subject: 'My view, mailed', bodyText: 'Body', sendToken: await formToken() }, true, { list: true, blog: true },
+    ))).status).toBe(303);
+    expect(heldPlaces().sort()).toEqual(['blog', 'list_blog']);
+  });
+
+  // Defect caught: a post is held for the news feed and the blog together, so
+  // one approval publishes the same words in two homes; or the refusal drops
+  // the member's choices and the corrected form cannot be sent.
+  it('refuses the news feed and the blog together, keeping both ticked, and takes the corrected form', async () => {
+    const fields = { subject: 'Two homes', bodyText: 'Kept across the refusal', sendToken: await formToken() };
+    const refused = await submit(formBody(fields, true, { feed: true, blog: true }));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('class="form-error-banner"');
+    // The refusal names the conflict, not a missing place the member did choose.
+    const { FEED_AND_BLOG } = await import('../../src/services/broadcastService');
+    expect(refused.text).toContain(FEED_AND_BLOG);
+    expect(refused.text).toMatch(/name="publishFeed" value="1" checked/);
+    expect(refused.text).toMatch(/name="publishBlog" value="1" checked/);
+    expect(heldRows()).toHaveLength(0);
+
+    const corrected = await submit(formBody({ ...fields, sendToken: tokenFrom(refused.text) }, true, { blog: true }));
+    expect(corrected.status).toBe(303);
+    expect(heldPlaces()).toEqual(['blog']);
+  });
+
+  // Defect caught: a subject too long for a post title is held for the blog,
+  // and its approval then fails on the post's own rules.
+  it('refuses a subject longer than a news title when the blog is chosen', async () => {
+    const refused = await submit(formBody({ subject: 'x'.repeat(201), bodyText: 'Body', sendToken: await formToken() }, true, { blog: true }));
+    expect(refused.status).toBe(422);
+    expect(heldRows()).toHaveLength(0);
+  });
+
+  // Defect caught: a sent-back blog announcement reopens without the blog
+  // ticked, so resubmitting it as rendered sends it nowhere or elsewhere.
+  it('reopens a sent-back blog announcement with the blog ticked', async () => {
+    withDb((db) => insertMemberAnnouncement(db, {
+      member_id: ORGANIZER, subject: 'Returned post', body_text: 'Body', status: 'returned',
+      admin_comment: 'Shorten it.', publish_to: 'list_blog',
+    }));
+    const page = await request(createApp()).get(ANNOUNCE).set('Cookie', organizerCookie());
+    expect(page.text).toMatch(/name="publishBlog" value="1" checked/);
+    expect(page.text).toMatch(/name="publishList" value="1" checked/);
+    expect(page.text).not.toMatch(/name="publishFeed" value="1" checked/);
   });
 
   // Defect caught: a sent-back announcement reopens with no places ticked, so

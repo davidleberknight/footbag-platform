@@ -198,10 +198,11 @@ export const TEMPLATE_VARIANTS = {
   // Carries the administrator's comment and the subject the member chose, never
   // the body: the member wrote it and still has it on the form.
   announce_returned:               v('confidential', ['memberName', 'subject', 'comment']),
-  // An administrator hid or deleted the member's Community post: its title and
-  // the administrator's reason, with the way to appeal.
-  news_post_hidden:                v('confidential', ['memberName', 'title', 'note']),
-  news_post_deleted:               v('confidential', ['memberName', 'title', 'note']),
+  // An administrator hid or deleted the member's Community post or blog post:
+  // what kind of post and where it was, its title and the administrator's
+  // reason, with the way to appeal.
+  news_post_hidden:                v('confidential', ['memberName', 'postKind', 'placeName', 'title', 'note']),
+  news_post_deleted:               v('confidential', ['memberName', 'postKind', 'placeName', 'title', 'note']),
   admin_loss_recruitment:        v('internal',     ['itemUrl']),
   admin_queue_digest:              v('internal',     ['countPhrase', 'itemLines', 'queueUrl']),
   admin_queue_topic_digest:        v('internal',     ['areaLabel', 'countPhrase', 'itemLines', 'queueUrl']),
@@ -711,13 +712,13 @@ const SHAPERS = {
     variant: 'announce_returned',
     merge: { memberName: p.memberName, subject: p.subject, comment: p.comment },
   }),
-  news_post_hidden: (p: { memberName: string; title: string; note: string }): ShapedEmail => ({
+  news_post_hidden: (p: { memberName: string; postKind: string; placeName: string; title: string; note: string }): ShapedEmail => ({
     variant: 'news_post_hidden',
-    merge: { memberName: p.memberName, title: p.title, note: p.note },
+    merge: { memberName: p.memberName, postKind: p.postKind, placeName: p.placeName, title: p.title, note: p.note },
   }),
-  news_post_deleted: (p: { memberName: string; title: string; note: string }): ShapedEmail => ({
+  news_post_deleted: (p: { memberName: string; postKind: string; placeName: string; title: string; note: string }): ShapedEmail => ({
     variant: 'news_post_deleted',
-    merge: { memberName: p.memberName, title: p.title, note: p.note },
+    merge: { memberName: p.memberName, postKind: p.postKind, placeName: p.placeName, title: p.title, note: p.note },
   }),
   link_help_request_resolution: (p: { memberName: string; displayDecision: string; note: string }): ShapedEmail => ({
     variant: 'link_help_request_resolution',

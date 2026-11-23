@@ -6,7 +6,8 @@
 # hold only a machine-local fact or the user's own preference about how they work.
 # A write to the memory store is denied until it carries the pre-save audit: in the
 # memory file's own frontmatter (an "audit: lesson = ..." line), or, for an index
-# edit, in every memory file the edit links to. The human reviews it at the
+# edit, in every memory file the edit links to; an index edit that only deletes
+# lines passes. The human reviews it at the
 # user-scope approval prompt. The transcript is only a fallback: text sent with the
 # tool call is not in it yet when this hook runs.
 trap 'exit 2' ERR
@@ -43,6 +44,8 @@ audit_in_write() {
   # Claude Code quotes a frontmatter value when it saves the file.
   printf '%s' "$body" | grep -qE 'audit: "?lesson = ' && return 0
   [ "$(basename "$FILE_PATH")" = "MEMORY.md" ] || return 1
+  # An index edit that only deletes lines adds nothing to audit.
+  [ -z "$body" ] && return 0
   old="$(printf '%s' "$INPUT" | jq -r '[.tool_input.old_string, (.tool_input.edits[]?.old_string)] | map(select(. != null)) | join("\n")')"
   dir="$(dirname "$FILE_PATH")"
   links="$(comm -23 \

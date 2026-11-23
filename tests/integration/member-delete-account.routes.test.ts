@@ -254,10 +254,11 @@ describe('the deletion itself', () => {
     });
   });
 
-  // Defect caught: a deleted member's Community posts stay on the news feed,
-  // or the deletion takes an item they wrote as administrator, or another
-  // member's post, or the broadcast record of a post also mailed to the list.
-  it('deletes the member\'s Community posts at the request, and nothing else in the feed', async () => {
+  // Defect caught: a deleted member's Community posts or blog posts stay
+  // public, or the deletion takes an item they wrote as administrator, or
+  // another member's post, or the broadcast record of a post also mailed to
+  // the list.
+  it('deletes the member\'s Community posts and blog posts at the request, and nothing else', async () => {
     const slug = 'del_community_posts';
     const id = makeMember({ slug });
     const otherId = makeMember({ slug: 'del_community_other' });
@@ -266,19 +267,23 @@ describe('the deletion itself', () => {
       const hidden = insertNewsItem(db, { news_type: 'community_post', author_member_id: id, is_public: 0 });
       const asAdmin = insertNewsItem(db, { news_type: 'announcement', author_member_id: id });
       const others = insertNewsItem(db, { news_type: 'community_post', author_member_id: otherId });
+      const blog = insertNewsItem(db, { news_type: 'blog_post', author_member_id: id, title: 'my-blog' });
+      const othersBlog = insertNewsItem(db, { news_type: 'blog_post', author_member_id: otherId });
       const archive = insertEmailArchive(db, { archive_type: 'announce', mailing_list_id: 'announce', sender_member_id: id });
       const ann = insertMemberAnnouncement(db, {
         member_id: id, status: 'approved', publish_to: 'both', email_archive_id: archive, news_item_id: mine,
       });
-      return { mine, hidden, asAdmin, others, archive, ann };
+      return { mine, hidden, asAdmin, others, blog, othersBlog, archive, ann };
     });
     await deleteAccount(slug, id);
     expect(deletedAtOf(id)).not.toBeNull();
 
     withDb((db) => {
-      const left = (db.prepare('SELECT id FROM news_items WHERE id IN (?, ?, ?, ?)')
-        .all(seeded.mine, seeded.hidden, seeded.asAdmin, seeded.others) as Array<{ id: string }>).map((r) => r.id).sort();
-      expect(left).toEqual([seeded.asAdmin, seeded.others].sort());
+      const left = (db.prepare('SELECT id FROM news_items WHERE id IN (?, ?, ?, ?, ?, ?)')
+        .all(seeded.mine, seeded.hidden, seeded.asAdmin, seeded.others, seeded.blog, seeded.othersBlog) as Array<{ id: string }>)
+        .map((r) => r.id).sort();
+      // The member's blog post goes with their Community posts; another member's stays.
+      expect(left).toEqual([seeded.asAdmin, seeded.others, seeded.othersBlog].sort());
       expect(db.prepare('SELECT email_archive_id, news_item_id FROM member_announcements WHERE id = ?').get(seeded.ann))
         .toEqual({ email_archive_id: seeded.archive, news_item_id: null });
       expect(db.prepare('SELECT COUNT(*) AS c FROM email_archives WHERE id = ?').get(seeded.archive)).toEqual({ c: 1 });

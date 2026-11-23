@@ -118,7 +118,7 @@ describe('Trick-detail family context — families resolve to themselves', () =>
   // Defect caught: a branch family's trick sends a reader to its parent root's
   // membership, so the Torque tricks appear to belong to Osis.
   it('a torque-family trick and an osis-family trick each link their own family\'s membership', async () => {
-    const browse = /<a class="action-link" href="([^"]+)" data-family-browse>/;
+    const browse = /<a class="btn btn-outline" href="([^"]+)" data-family-browse>/;
     const unescape = (h: string | undefined) => (h ?? '').replace(/&#x3D;/g, '=').replace(/&amp;/g, '&');
     const torqueHref = unescape((await page('paradox-torque')).match(browse)?.[1]);
     const osisHref = unescape((await page('spinning-osis')).match(browse)?.[1]);

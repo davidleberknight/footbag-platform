@@ -40,6 +40,7 @@ const e2eCheck = (checks: string[]) => checks.find((c) => c.startsWith('npm run 
 const CANARY = [
   'tests/integration/authorization-matrix.test.ts',
   'tests/integration/csrf.sweep.test.ts',
+  'tests/integration/route-guard.presence.test.ts',
   'tests/integration/route-wiring.crawl.test.ts',
 ];
 

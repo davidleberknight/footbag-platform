@@ -148,6 +148,14 @@ export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries
     author_member_id: CRAWL_MEMBER_ID,
   });
   insertNewsItem(db, {
+    id: 'news_crawl_blog', published_at: anHourAgo, news_type: 'blog_post', title: 'Crawl Blog Post',
+    author_member_id: CRAWL_MEMBER_ID,
+  });
+  insertNewsItem(db, {
+    id: 'news_crawl_blog_earlier', published_at: '2024-05-01T12:00:00.000Z', news_type: 'blog_post',
+    title: 'Crawl Earlier Blog Post', author_member_id: CRAWL_MEMBER_ID,
+  });
+  insertNewsItem(db, {
     id: 'news_crawl_event', published_at: anHourAgo, news_type: 'event_published', title: 'Crawl Open Is Open',
     entity_type: 'event', entity_id: crawlEventId,
   });

@@ -9,12 +9,15 @@
  *   - The community announcement an organizer-tier member writes, held for
  *     review: the member's form (with its Community Standards agreement and
  *     its places: the announce list, the news feed as a Community post, or
- *     both), the held row, and the two decisions on it. Submitting writes the
+ *     the blog as the member's own post, or the list with one of the other
+ *     two, never the feed and the blog together), the held row, and the two
+ *     decisions on it. Submitting writes the
  *     row and raises an `announcement_review` work-queue item; nothing is
  *     published. Another administrator approves it as written, which publishes
  *     it to each place the member chose in one step: the announce list under
- *     the member's name, and a Community post in the news feed with the member
- *     as its author and the subject as its title. Or the administrator sends
+ *     the member's name, and a Community post in the news feed or a blog post
+ *     on the blog with the member as its author and the subject as its title.
+ *     Or the administrator sends
  *     it back with a note the member is emailed. A member has at most one
  *     awaiting review. An organizer of a sanctioned event that has ended may
  *     mark the announcement as that event's after-event summary; only an
@@ -51,8 +54,8 @@
  *   - The subject and body are cleaned with the shared write-time sanitizer
  *     before validation and before the send fingerprint is taken. An
  *     announcement's body is cleaned as Markdown, keeping each line's leading
- *     spaces, because the email sends it as typed and the Community post
- *     renders it as Markdown; with the feed among its places its subject must
+ *     spaces, because the email sends it as typed and the post renders it as
+ *     Markdown; with the feed or the blog among its places its subject must
  *     also fit a news item's title.
  *   - Emailed bodies are plain text. The subject stored on the archive row is
  *     the subject that went out, prefix included, so the record shows what
@@ -64,8 +67,8 @@
  *     in the last 24 hours whatever their places (a sent-back one never
  *     counts), and lets a ticked override through, recorded on its audit row.
  *     With the list among its places, a list nobody can receive refuses the
- *     approval and leaves it waiting. The send, the archive row, the Community
- *     post, the decision, the item's close, the audit row and the member's
+ *     approval and leaves it waiting. The send, the archive row, the post, the
+ *     decision, the item's close, the audit row and the member's
  *     email are one transaction, guarded on the announcement still pending, and
  *     the announcement's id is the send's token, so approving twice publishes
  *     once.
@@ -76,14 +79,15 @@
  *     and archive rows, which erasure reaches and the ledger does not.
  *
  * Persistence: email_archives (write/read), mailing_lists (read),
- * member_announcements (write/read), news_items (insert: the Community post,
- * through the news service's authored-item rules), events and
+ * member_announcements (write/read), news_items (insert: the Community post or
+ * blog post, through the news service's authored-item rules), events and
  * event_organizers (read: the summary choices), work_queue_items (resolve,
  * through the work-queue enqueue for the review item), outbox_emails (through
  * the enqueue path, never directly).
  *
  * Side effects: outbox enqueue, audit_entries append, work-queue insert and
- * resolve, news emission (the Community post), member act-notice email.
+ * resolve, news emission (the Community post or blog post), member act-notice
+ * email.
  */
 import { createHash, randomUUID } from 'crypto';
 
@@ -149,30 +153,37 @@ const TIER_LAPSED =
 
 const SUMMARY_EVENT_UNAVAILABLE =
   'That event cannot take an after-event summary from you: you do not organize it, or its summary has already been sent.';
-const PLACES_REQUIRED = 'Choose where to publish it: by email, in the news feed, or both.';
+const PLACES_REQUIRED = 'Choose where to publish it: by email, in the news feed or on the blog, or both.';
+export const FEED_AND_BLOG = 'Choose the news feed or the blog, not both.';
 const SUMMARY_NEEDS_LIST =
   'An after-event summary must go to the announcements list. Tick By email to the announcements list, or choose no event.';
-const FEED_SUBJECT_TOO_LONG = `Subject: at most ${NEWS_TITLE_MAX_LENGTH} characters for a news feed post.`;
+const FEED_SUBJECT_TOO_LONG = `Subject: at most ${NEWS_TITLE_MAX_LENGTH} characters for a news feed or blog post.`;
 
 /** Where a member's announcement is published: the announce list, the news
- *  feed as a Community post, or both. */
-type PublishTo = 'list' | 'feed' | 'both';
+ *  feed as a Community post, the blog as the member's own post, or the list
+ *  with one of the two. A post has one home, so never the feed and the blog. */
+type PublishTo = 'list' | 'feed' | 'both' | 'blog' | 'list_blog';
 
-function publishToOf(list: boolean, feed: boolean): PublishTo | null {
-  if (list && feed) return 'both';
+/** The places the ticked boxes name, or null when none is ticked. The feed and
+ *  the blog together are refused by the caller before this is asked. */
+function publishToOf(list: boolean, feed: boolean, blog: boolean): PublishTo | null {
+  if (feed) return list ? 'both' : 'feed';
+  if (blog) return list ? 'list_blog' : 'blog';
   if (list) return 'list';
-  if (feed) return 'feed';
   return null;
 }
 
-const includesList = (p: PublishTo): boolean => p === 'list' || p === 'both';
+const includesList = (p: PublishTo): boolean => p === 'list' || p === 'both' || p === 'list_blog';
 const includesFeed = (p: PublishTo): boolean => p === 'feed' || p === 'both';
+const includesBlog = (p: PublishTo): boolean => p === 'blog' || p === 'list_blog';
 
 /** The places an approval email names, completing "was approved". */
 const APPROVED_PLACES_PHRASE: Record<PublishTo, string> = {
   list: ' and sent to the announcements list',
   feed: ' and published in the footbag.org news feed',
   both: ', sent to the announcements list and published in the footbag.org news feed',
+  blog: ' and published on the footbag.org blog',
+  list_blog: ', sent to the announcements list and published on the footbag.org blog',
 };
 
 /** The sanctioned events a member organizes that have ended and still owe their summary. */
@@ -190,7 +201,7 @@ export type SubmitAnnouncementResult =
 
 export type AnnouncementDecisionResult =
   /** Published: the archive row when the list was among its places, the
-   *  Community post when the feed was. */
+   *  Community post when the feed was, the blog post when the blog was. */
   | { status: 'approved'; archiveId: string | null; newsItemId: string | null }
   | { status: 'returned' }
   /** This administrator's own decision, submitted again. */
@@ -373,9 +384,10 @@ const COMPOSE_NOTICES: Record<string, [OutcomeTone, string]> = {
  *  where their last announcement stands. */
 export interface AnnounceContent extends ComposeContent {
   agreeChecked: boolean;
-  /** The two places, ticked as submitted or as the sent-back one chose. */
+  /** The places, ticked as submitted or as the sent-back one chose. */
   publishListChecked: boolean;
   publishFeedChecked: boolean;
+  publishBlogChecked: boolean;
   /** Said while one of theirs awaits review. */
   pendingNotice: string | null;
   /** The administrator's note on the one sent back, while it is the latest. */
@@ -646,6 +658,7 @@ export const broadcastService = {
       /** The places as submitted, on a re-rendered refusal. */
       publishList?: boolean;
       publishFeed?: boolean;
+      publishBlog?: boolean;
       fieldErrors?: Record<string, string>;
       notice?: string;
     } = {},
@@ -660,6 +673,7 @@ export const broadcastService = {
     const returnedPlaces = !opts.submitted && isReturned && latest ? latest.publish_to : null;
     const publishListChecked = opts.publishList ?? (returnedPlaces ? includesList(returnedPlaces) : false);
     const publishFeedChecked = opts.publishFeed ?? (returnedPlaces ? includesFeed(returnedPlaces) : false);
+    const publishBlogChecked = opts.publishBlog ?? (returnedPlaces ? includesBlog(returnedPlaces) : false);
     // A sent-back announcement fills a fresh form; a re-rendered refusal keeps
     // what was just typed instead.
     const submitted = opts.submitted
@@ -677,7 +691,7 @@ export const broadcastService = {
       page: {
         ...vm.page,
         title: 'Send a Community Announcement',
-        intro: `Share news with the footbag community: an event you are running, a project, news worth the community's attention. Send it by email to the members who subscribed to community announcements, publish it in the news feed as a Community post, or both. Emails go out from ${vm.content.fromIdentityDisplay}. An administrator reads each announcement before it is published.`,
+        intro: `Share news with the footbag community: an event you are running, a project, news worth the community's attention. Send it by email to the members who subscribed to community announcements, publish it in the news feed as a Community post or on the blog as your own post, or both. Emails go out from ${vm.content.fromIdentityDisplay}. An administrator reads each announcement before it is published.`,
       },
       navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${memberKey}` }] },
       content: {
@@ -687,6 +701,7 @@ export const broadcastService = {
         agreeChecked: opts.agreeChecked ?? false,
         publishListChecked,
         publishFeedChecked,
+        publishBlogChecked,
         pendingNotice: latest?.status === 'pending' ? ONE_PENDING : null,
         returnedNotice: isReturned && comment
           ? `An administrator sent your last announcement back with this note: "${comment}"${afterQuote} Your text is below to change and submit again.`
@@ -714,6 +729,7 @@ export const broadcastService = {
   submitAnnouncement(
     input: ComposeInput & {
       agree?: string; summaryEventId?: string; publishList?: string; publishFeed?: string;
+      publishBlog?: string;
     },
     memberId: string,
   ): SubmitAnnouncementResult {
@@ -726,10 +742,16 @@ export const broadcastService = {
       fieldErrors = { ...(err.fieldErrors ?? {}) };
     }
     if (input.agree !== '1') fieldErrors.agree = AGREE_REQUIRED;
-    const publishTo = publishToOf(input.publishList === '1', input.publishFeed === '1');
-    if (!publishTo) fieldErrors.publishTo = PLACES_REQUIRED;
+    const wantsFeed = input.publishFeed === '1';
+    const wantsBlog = input.publishBlog === '1';
+    // A post has one home: the news feed or the blog, never both.
+    const publishTo = wantsFeed && wantsBlog
+      ? null
+      : publishToOf(input.publishList === '1', wantsFeed, wantsBlog);
+    if (wantsFeed && wantsBlog) fieldErrors.publishTo = FEED_AND_BLOG;
+    else if (!publishTo) fieldErrors.publishTo = PLACES_REQUIRED;
     // The post takes the subject as its title, so it must fit one.
-    if (compose && publishTo && includesFeed(publishTo)
+    if (compose && publishTo && (includesFeed(publishTo) || includesBlog(publishTo))
       && [...compose.subject].length > NEWS_TITLE_MAX_LENGTH && !fieldErrors.subject) {
       fieldErrors.subject = FEED_SUBJECT_TOO_LONG;
     }
@@ -801,7 +823,8 @@ export const broadcastService = {
   /**
    * Another administrator approves a held announcement as written, which
    * publishes it to each place the member chose: the announce list under the
-   * member's name, and a Community post in the news feed. The member's daily
+   * member's name, and a Community post in the news feed or a blog post on the
+   * blog. The member's daily
    * limit is counted here, from what was approved, and the administrator may
    * tick to allow one more, which the audit row records. A repeat of the
    * administrator's own approval reports it without publishing again or
@@ -869,17 +892,19 @@ export const broadcastService = {
         archiveId = sent.archiveId;
       }
 
-      // The Community post: the member's words under the news feed's own
-      // rules, published now, the member as its author and no byline.
+      // The post: the member's words under the news feed's own rules,
+      // published now with the member as its author. A Community post shows
+      // no byline; a blog post shows its author on the blog.
       let newsItemId: string | null = null;
-      if (includesFeed(places)) {
+      const postType = includesFeed(places) ? 'community_post' : includesBlog(places) ? 'blog_post' : null;
+      if (postType) {
         const post = newsService.validateAuthoredInput(
           { title: compose.subject, body: compose.bodyText }, nowIso,
         );
         newsItemId = `news_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
         newsItems.insertAuthored.run(
           newsItemId, nowIso, input.adminMemberId, nowIso, input.adminMemberId,
-          post.publishedAt, 'community_post', post.title, post.body, null, null,
+          post.publishedAt, postType, post.title, post.body, null, null,
           announcement.member_id,
         );
       }
@@ -916,7 +941,7 @@ export const broadcastService = {
           subject: announcement.subject,
           placesPhrase: APPROVED_PLACES_PHRASE[places],
           postUrl: newsItemId
-            ? `${config.publicBaseUrl.replace(/\/+$/, '')}/news/${newsItemId}`
+            ? `${config.publicBaseUrl.replace(/\/+$/, '')}/${postType === 'blog_post' ? 'blog' : 'news'}/${newsItemId}`
             : null,
         },
         memberId: announcement.member_id,

@@ -997,7 +997,7 @@ function shapeAnnouncementEvidence(
   announcementId: string,
 ): { subject: string; bodyParagraphs: string[]; placesLine: string } | null {
   const row = memberAnnouncements.findById.get(announcementId) as
-    | { subject: string; body_text: string; publish_to: 'list' | 'feed' | 'both' }
+    | { subject: string; body_text: string; publish_to: 'list' | 'feed' | 'both' | 'blog' | 'list_blog' }
     | undefined;
   if (!row) return null;
   return {
@@ -1008,10 +1008,12 @@ function shapeAnnouncementEvidence(
   };
 }
 
-const ANNOUNCEMENT_PLACES_LINE: Record<'list' | 'feed' | 'both', string> = {
+const ANNOUNCEMENT_PLACES_LINE: Record<'list' | 'feed' | 'both' | 'blog' | 'list_blog', string> = {
   list: 'Publish to: the announcements list',
   feed: 'Publish to: the news feed',
   both: 'Publish to: the announcements list and the news feed',
+  blog: 'Publish to: the blog',
+  list_blog: 'Publish to: the announcements list and the blog',
 };
 
 /** What the card shows the decision being made on, per the type's declaration. */

@@ -198,10 +198,12 @@ The trick detail page ships one relationship section, Related Tricks, driven by 
 These surfaces have **different semantics**; do not collapse them:
 
 - **Trick name** = a link to the trick detail page `/freestyle/tricks/<slug>`.
-- **Hashtag, Detail and Media** = the trick dictionary's four-control rule, stated once in the view-layer rule, "Hashtag and dictionary-filter links"; a click's destination is never guessed.
-- **Family navigation** = a separate family chip whose href the service supplies (view-layer rule, "Hashtag and dictionary-filter links").
+- **Hashtag, Detail and Media** = the trick dictionary's four-control rule, below; a click's destination is never guessed.
+- **Family navigation** = a separate family chip whose href the service supplies (below).
 
 Forbidden: hashtags must NOT trigger family filtering; slug-prefix matching is NOT used for filtering (narrow on `trick_family` only); family selection must NOT be derived from a hashtag.
+
+**Hashtag and dictionary-filter links.** Freestyle dictionary surfaces follow the view-layer href rule with no exceptions. Every media hashtag, family chip, and view filter (by-ADD, by-family, by-set, by-modifier) is a service-provided display-and-href pair: the service fixes the destination (a hashtag links to its media gallery `/media/browse?context=<slug>`; a family or view filter links to the filtered dictionary `/freestyle/tricks?...`; the plain-English trick name links to the trick detail page, and a separate "Detail" link resolves to the same page) and the template only renders the pair. Templates never assemble a `?family=` or `?context=` URL from a slug. A trick's slug, hashtag body, and `/freestyle/tricks/:slug` segment are one lowercase underscore token (no hyphens); the display name is the plain-English words, also without hyphens, except the names on the display-name exception list (src/content/freestyleDisplayNameExceptions.ts), which keep a genuine hyphen. The hashtag links to the trick's media gallery only when the trick has media (an existence check at render, not a count) and renders as a plain token otherwise. A "Media" link opens the same gallery as the hashtag and renders only when the trick has media, so media presence carries two agreeing signals rather than one. Name, hashtag, Detail, and Media stay four distinct controls. This four-control pattern is the trick dictionary's own standard and is not a site-wide list convention; other sections list their items their own way. A true community nickname renders inline beside the canonical name in quotes, never on a line of its own; a trick's genuine structural names (such as Gyro Torque for Mobius) show on its own page only, never on a list; initialisms, spelling variants, old terms, side-qualified phrases and misleading decompositions stay search-only.
 
 ---
 

@@ -24,6 +24,7 @@ each release contains is §1.3.
     - [V_Browse_Upcoming_Events](#v_browse_upcoming_events)
     - [V_Browse_Past_Events](#v_browse_past_events)
     - [V_View_News_Feed](#v_view_news_feed)
+    - [V_View_Blog](#v_view_blog)
     - [V_View_Tutorials](#v_view_tutorials)
     - [V_View_Gallery](#v_view_gallery)
     - [V_View_Trick_Reference_Videos](#v_view_trick_reference_videos)
@@ -416,10 +417,10 @@ Success Criteria:
 - The legacy footbag.org content is preserved as a read-only static archive at archive.footbag.org for authenticated members only.
 - The current footbagworldwide.com implementation is the basis of the new and improved footbag.org; domain and URL details for the final layout are deferred to the detailed design document.
 - Visitors can follow standard navigation (home, clubs, events, media) without leaving the modernized site. If they open the Legacy Archive, they see an access-denied page with a link to log in; only members can proceed to archive.footbag.org.
-- The top-level sections are public pages readable without logging in, rendering identically for every viewer: the Net section (`/net`), the X-Square (`/x-square`), Golf (`/golf`) and Consecutives (`/consecutives`) landing pages, the Sideline landing page (`/sideline`), the Hall of Fame landing page (`/hof`), and the Big Add Posse landing page (`/bap`). Their content is pipeline-authoritative and read-only on the running site.
+- The top-level sections are public pages readable without logging in, rendering identically for every viewer: the Net section (`/net`), the X-Square (`/x-square`), Golf (`/golf`) and Consecutives (`/consecutives`) landing pages, the Hack landing page (`/sideline`), the Hall of Fame landing page (`/hof`), and the Big Add Posse landing page (`/bap`). Their content is pipeline-authoritative and read-only on the running site.
 - The Net section presents footbag net: the `/net` home page carries the introduction, competition formats and a demonstration video, and links the events pages, the net rules and the net section of the equipment page.
 - `/x-square` presents X-Square (2-Square, 4-Square and 5-Square), and `/golf` presents footbag golf, each with demonstration clips and internal links to the matching rules pages and to the matching sections of the equipment page.
-- `/sideline` presents open play, which anyone joins with no registration and no bracket, opening with getting a hack, which the Hack menu entry links to: circle kicking with its demonstration clip and equipment link, and a link to the X-Square games, which are also played as open play.
+- `/sideline` is the Hack page, which the Hack menu entry opens at its top: open play, opening with getting a hack: circle kicking with its demonstration clip, placed within sideline play, and a link to the X-Square games (2-Square and 4-Square), which are also played as open play.
 - `/consecutives` presents consecutives on one page: what it is, how it is contested, a featured demonstration video, and the official IFPA records (consecutive-kicks current world records, highest official scores, record progression, and milestone firsts). Freestyle passback records are freestyle records, not official IFPA records, and are not shown there. Record holders link per the standard person-link rule.
 - `/hof` and `/bap` are editorial landing pages telling each honor's history and linking to its authoritative external home; in-site inductee rosters and per-person honor pages are out of scope by design, and honor badges on member and historical-person surfaces are governed by the Hall of Fame and Big Add Posse global behavior.
 - The freestyle encyclopedia is a separate regime: its visitor surfaces are specified by the Freestyle Encyclopedia stories, and its content is curated in-app after cutover rather than served as read-only pipeline content.
@@ -509,6 +510,24 @@ Success Criteria:
 - A post's body is text written in Markdown (headings, emphasis, lists and links) and cleaned against an allowlist before it is shown, so no script, style, frame or raw markup reaches a page. Its links may point to other pages on the site, such as a media gallery, a club or an event, or to outside pages, which open as external links. Photos and video reach a post as links to their gallery.
 - The home page shows, directly under its hero, a compact band listing the three newest published news items, each with its date, label and headline linking to its page. The band ends in a link to the news page, and with nothing to show it says so in one line.
 - A hidden item, and an item whose publication date has not arrived, appear on no public surface: not the year pages, the item page, or the home page band. Every news surface renders identically for every viewer, signed in or not.
+
+### V_View_Blog
+
+Access: Any visitor can read the blog.
+
+Story: As a visitor, I can read members' own writing about footbag under their names, so that I hear the community's voices beside IFPA's news.
+
+Success Criteria:
+
+- The blog is a public section of its own, separate from the news feed: news is IFPA's voice and a Community post is news for the community, while a blog post is a member's own writing, opinion welcome, under their name.
+- A Tier 2 or Tier 3 member submits a post through the announcement form (`M_Send_Announce_Email`) by choosing the blog among its places; nothing appears until an administrator approves it.
+- `/blog` shows the current year and `/blog/year/:year` any other year, one year per page, with the news feed's rules for the current year's own address, the empty current year, an empty or malformed other year, and the year navigation (`V_View_News_Feed`).
+- Within a year, posts are listed newest first by publication date as dated cards, the same look as events and news. Each entry shows its date, its author, its headline linking to the post's own page, and a short plain-text excerpt from the opening of its body.
+- Each post has its own permanent page at `/blog/:postId`, showing its title, author, publication date, its body and a back link to its year's page. A hidden post and an unknown id each answer the standard not-found page.
+- A post's body is Markdown, cleaned and rendered as a news post's body is; photos and video reach a post as links to their gallery.
+- A post shows its author's display name; for a signed-in member the name links to the author's profile, which stays member-only.
+- A blog post appears on no news surface (the year pages, the item pages, the home page band), and no news item appears on the blog. The blog carries no comments.
+- Administrators moderate blog posts as they do Community posts (`A_Moderate_News_Item`).
 
 ### V_View_Tutorials
 
@@ -910,7 +929,7 @@ Success Criteria:
 - Audit log rows are kept for a configurable period (default and minimum: 7 years) and then deleted by a daily job; they name people by member id, and account erasure does not reach a row inside that period.
 - Attempts to access the profile of a member in the deletion grace period, other than an HoF or BAP honoree whose profile keeps publishing, answer as a page that does not exist: the standard not-found page for a signed-in viewer and the sign-in page for a signed-out one. This would be an exceptional error case, as links to deleted members should not be shown.
 - Media uploaded by the deleted member (photos, videos, and galleries) is deleted immediately and permanently at the deletion request (no soft delete for photo data). The media is gone at the moment of the request and nothing brings it back.
-- The member's Community posts in the news feed are deleted immediately and permanently at the deletion request, as their media is. A post that was also mailed to the announce list keeps its broadcast record, with the sender cleared at the purge.
+- The member's Community posts in the news feed and their blog posts are deleted immediately and permanently at the deletion request, as their media is. A post that was also mailed to the announce list keeps its broadcast record, with the sender cleared at the purge.
 - Member receives email confirmation that the account is deleted, stating that the deletion is permanent, how long their personal details are held before erasure, how long the email address stays reserved, and that anyone who did not ask for this should contact IFPA.
 - Member sees a confirmation screen before deletion that asks whether they are sure and states plainly that deletion is permanent, that their photos, videos and galleries go now, that upcoming event registrations are withdrawn, that their personal details are erased within the configured grace period, and that the email address cannot be reused for that long.
 - Member sees a confirmation after deletion stating that the account is deleted, that it cannot be undone from the site, and how long their personal details are held before erasure.
@@ -947,7 +966,7 @@ Success Criteria:
 - The system generates a JSON export that includes: Member profile data (identity, contact, membership tier, Active Player status, etc.). Payment history associated with the member. Event registrations and participation data. Media metadata uploaded by the member (e.g., file names, timestamps, captions, hashtags). Audit log entries where the member is the actor or the subject (action type and timestamp only).
 - Vote data in the export: Indicates which votes the member participated in and relevant metadata (vote title, vote ID, submission timestamp). Does not include raw ballot content, receipt tokens, or receipt token hashes. Members who need to verify a ballot must use the receipt information from their original vote-confirmation email; the system does not store plaintext receipt tokens.
 - The data export is delivered as a human-readable JSON file with a documented structure.
-- Export contents include: member profile, membership tier and Active Player status, email subscription settings, club memberships/roles, event registrations, uploaded media metadata owned by the member (including hashtags/captions/links), payment history entries that reference the member, vote participation records (but never vote selections), and audit log entries where the member is the actor or the subject (action type and timestamp only).
+- Export contents include: member profile, membership tier and Active Player status, email subscription settings, club memberships/roles, event registrations, uploaded media metadata owned by the member (including hashtags/captions/links), the member's announcements and their published Community posts and blog posts, payment history entries that reference the member, vote participation records (but never vote selections), and audit log entries where the member is the actor or the subject (action type and timestamp only).
 - What other people recorded about the member (a flag on their media, an administrator's message or note, a work-queue item, a vouch, the reason given for a grant) is included, with the other person's identity and personal details left out. Mail sent to the member is listed by subject, kind and time, without its body.
 - A section cut off at the per-section ceiling is named in the export, so the member knows the file is incomplete.
 - Delivery: Member presses a "Download my data" button on their own profile page, and the system builds the JSON file and returns it as a download in the same response. Only the signed-in member can download their own export, and it is built fresh on each request.
@@ -1814,10 +1833,10 @@ Story: As a Tier 2 or Tier 3 member, I can send an email to the IFPA announce ma
 
 Success Criteria:  
 - Email form includes: subject, message body, preview.  
-- The form asks where the announcement is published: the announce list, the news feed as a Community post (`V_View_News_Feed`), or both, and refuses a submission that chooses neither. The subject and body are written once: the post takes the subject as its title and renders the body as Markdown, and the email sends the body as typed.
+- The form asks where the announcement is published: the announce list, the news feed as a Community post (`V_View_News_Feed`), or the blog as the member's own post (`V_View_Blog`), or the announce list with one of the other two. It refuses a submission that chooses none, or both the news feed and the blog. The subject and body are written once: the post takes the subject as its title and renders the body as Markdown, and the email sends the body as typed.
 - Submitting holds the announcement for an administrator's approval and raises a Someone Is Waiting work-queue item in the moderation topic; nothing is published until it is approved. The review item shows the places the member chose.
-- An administrator approves it as written, which publishes it to each place the member chose: the configured announce list address (default [announce@footbag.org](mailto:announce@footbag.org)) under the member's name, the news feed, or both, in one step. An administrator approves a post with the news feed among its places only when it is news for the community, not opinion, and otherwise sends it back. Or the administrator sends it back with a required comment that the member receives by email. The administrator never edits the member's text, never changes the places chosen, and cannot approve their own announcement.
-- The member is emailed when the announcement is approved, naming where it was published and linking to the news post when the feed was chosen, or when it is sent back; a sent-back announcement opens in the form with its text and its places, ready to change and resubmit.
+- An administrator approves it as written, which publishes it to each place the member chose: the configured announce list address (default [announce@footbag.org](mailto:announce@footbag.org)) under the member's name, the news feed, or both, in one step. An administrator approves a post with the news feed among its places only when it is news for the community, not opinion, and otherwise sends it back; an opinion piece belongs on the blog. Or the administrator sends it back with a required comment that the member receives by email. The administrator never edits the member's text, never changes the places chosen, and cannot approve their own announcement.
+- The member is emailed when the announcement is approved, naming where it was published and linking to the post when the news feed or the blog was chosen, or when it is sent back; a sent-back announcement opens in the form with its text and its places, ready to change and resubmit.
 - A member may have one announcement awaiting review at a time. At most one announcement per member is approved per day, whichever places it goes to (admin-configurable); an administrator approving a further one that day ticks a box to allow it, and the override is audit-logged. A sent-back announcement does not count.
 - The form requires the member to tick a box saying they have read and agree to the Community Standards (`V_View_Community_Standards`), which the box links to. An announcement without the tick is refused with a field error, and the form re-renders with the subject and body as typed.
 - All sends audit-logged (actor ID, list, archive row, recipient counts, timestamp); the subject and body stay on the archive row.
@@ -2914,7 +2933,7 @@ Success Criteria:
 
 - The restriction is reached from the member detail view (`A_Override_Member_Data`), takes a mandatory reason, and previews before it writes, naming what it does.
 - A restriction ends every session the member holds and refuses every later sign-in, including through an email-verification link. A sign-in with the correct password tells the person the account is restricted and that the email IFPA sent explains why and how to respond; a wrong password gets the ordinary refusal.
-- A restriction is protective, not a sanction: it changes no membership tier, cancels nothing, and leaves the member's public profile, media, results and published Community posts as they are, since content is either fully public or removed item by item through the moderation actions.
+- A restriction is protective, not a sanction: it changes no membership tier, cancels nothing, and leaves the member's public profile, media, results and published Community posts and blog posts as they are, since content is either fully public or removed item by item through the moderation actions.
 - An announcement the member has waiting for administrator approval is returned when the restriction is applied, whichever places it was meant for.
 - The member is emailed that the account is restricted, with the administrator's reason, that the IFPA board decides any further action under Article X, and how to respond. The email carries everything the member needs, because a restricted member cannot sign in to read anything.
 - Lifting the restriction is the same shape: from the member detail view, with a mandatory reason, a preview, an audit row and an email telling the member they can sign in again. A restriction set by a board suspension cannot be lifted by an administrator, because the board's decision is final; it lifts on the suspension's end date (`SYS_Apply_Membership_Discipline`).
@@ -3712,15 +3731,15 @@ Story: As an admin, I can review and moderate auto-generated news feed items so 
 
 Success Criteria:
 
-- The admin news list shows every item, newest first, with its label, its publication date, whether it is hidden or still to be published, and where it came from (written by an administrator, created automatically, or a member's post), each linking to its actions.
-- Admin can edit a News item's title, body, linked entity and publish date. A Community post keeps its member's words: an admin may reject or delete it, never edit it.
+- The admin news list shows every item, newest first, with its label, its publication date, whether it is hidden or still to be published, and where it came from (written by an administrator, created automatically, or a member's post), blog posts included, each linking to its actions.
+- Admin can edit a News item's title, body, linked entity and publish date. A Community post or blog post keeps its member's words: an admin may reject or delete it, never edit it.
 - Edited items will reflect updated text in news feed.
 - Admin can reject an item, which hides it from every public news surface, and can restore a rejected item. Rejecting takes a mandatory reason (max 500 chars).
 - Admin can delete a NewsItem permanently (hard delete). Deletion is immediate and irreversible.
 - Delete action requires a reason (mandatory text field, max 500 chars).
 - Deletion goes through a confirmation page that states the action is permanent before the final button.
 - On delete: NewsItem is immediately and permanently removed from the database and hidden from the public feed. The deletion is recorded in the audit log with admin ID, news item ID, reason, and timestamp.
-- When an admin rejects or deletes a Community post, its member is emailed with the reason and told they may appeal (`V_View_Community_Standards`).
+- When an admin rejects or deletes a Community post or blog post, its member is emailed with the reason and told they may appeal (`V_View_Community_Standards`).
 - All actions audit-logged.
 
 ### A_Archive_Club

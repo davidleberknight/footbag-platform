@@ -34,8 +34,9 @@
 #     middleware, env config, the shared factories and test database) reach most
 #     of the suite and grep to hundreds of false hits on names like `db` and
 #     `env`. They get their own suite and the suites naming their repository
-#     path (the schema parity checks name `database/schema.sql`), plus the three
-#     app-wide sweeps as a canary, and a note that the full gate is needed at
+#     path (the schema parity checks name `database/schema.sql`), plus the four
+#     app-wide sweeps as a canary (one keeps every route guarded or listed
+#     public by design, so a new route fails it until classified), and a note that the full gate is needed at
 #     the end of the session. The shared test-data builders are decided by
 #     what changed: a working-tree change inside an exported builder reaches
 #     every suite calling that builder by name, so a changed default is caught
@@ -102,6 +103,7 @@ CANARY=(
   tests/integration/route-wiring.crawl.test.ts
   tests/integration/authorization-matrix.test.ts
   tests/integration/csrf.sweep.test.ts
+  tests/integration/route-guard.presence.test.ts
 )
 CONFORMANCE_GLOBS=('template-*.test.ts' '*-conformance.test.ts')
 

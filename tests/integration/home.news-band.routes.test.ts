@@ -79,7 +79,7 @@ function region(html: string, id: string): string {
   const start = html.indexOf(`id="${id}"`);
   expect(start, `region ${id} present`).toBeGreaterThan(-1);
   // The list ends in its full-page link, so the region runs to that link's end.
-  const link = html.indexOf('class="action-link"', start);
+  const link = html.indexOf('class="btn btn-outline" href="/news"', start);
   expect(link, `region ${id} ends in its link`).toBeGreaterThan(start);
   return html.slice(start, html.indexOf('</p>', link));
 }
@@ -118,9 +118,9 @@ describe('the home page news list', () => {
     expect(news).not.toContain('card-thumb');
   });
 
-  it('ends in a link to the news page', async () => {
+  it('ends in a button to the news page', async () => {
     const res = await page('/');
-    expect(region(res.text, 'home-news')).toMatch(/<a class="action-link" href="\/news">/);
+    expect(region(res.text, 'home-news')).toMatch(/<a class="btn btn-outline" href="\/news">/);
   });
 
   it('lists no events, which are on the events page', async () => {

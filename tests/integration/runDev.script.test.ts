@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -46,7 +46,13 @@ beforeEach(() => {
     copyFileSync(join(REPO, 'scripts', 'lib', lib), join(tree, 'scripts', 'lib', lib));
   }
   file('scripts/lib/npm-deps.sh', 'npm_deps_current() { return 0; }\n', 0o644);
-  file('scripts/lib/tool-report.sh', 'tool_report() { return 0; }\n', 0o644);
+  // The stand-in records every tool it is asked about, and reports the one tool
+  // a case names in STUB_TOOL_OFF as off its pin.
+  file(
+    'scripts/lib/tool-report.sh',
+    `tool_report() { printf '%s\\n' "$*" >> "${join(scratch, 'tools-asked')}"; [[ " $* " == *" \${STUB_TOOL_OFF:-none} "* ]] && return 1; return 0; }\n`,
+    0o644,
+  );
   file('scripts/lib/seeder-env.sh', 'seeder_env_ensure() { return "${STUB_SEEDER_EXIT:-0}"; }\n', 0o644);
   file('scripts/install-git-hooks.sh', 'exit 0\n');
   file(
@@ -129,5 +135,42 @@ describe('run_dev.sh — the closing report comes before the hand-off', () => {
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/^Usage: \.\/run_dev\.sh/m);
     expect(r.launched).toBe(false);
+  });
+});
+
+describe('run_dev.sh — pinned workstation tools', () => {
+  /** The tools the setup script verifies, read from its own final report call. */
+  function setupTools(): string[] {
+    const src = readFileSync(join(REPO, 'scripts/setup-dev-workstation.sh'), 'utf8');
+    const m = /^tool_report ([a-z0-9 ]+?)(?: \|\||$)/m.exec(src);
+    expect(m, 'the setup script ends with a tool report').not.toBeNull();
+    return m![1].trim().split(/\s+/);
+  }
+
+  // Defect caught: a developer on a Docker engine behind the pin runs the dev
+  // stack for days and first hears of it when the deploy refuses, or the dev
+  // stack refuses to start over a tool it does not use.
+  it('warns about a tool the loop does not need being off its pin, naming the setup script, and still launches', () => {
+    const r = run([], { STUB_TOOL_OFF: 'docker' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.launched).toBe(true);
+    expect(r.report).toMatch(/Warnings \(1\):\n {2}- a pinned workstation tool is missing or off its pin .*bash scripts\/setup-dev-workstation\.sh/);
+  });
+
+  // Defect caught: the dev loop starts on a node or sqlite3 it cannot run with.
+  it('still refuses to launch when a tool the loop needs is off its pin', () => {
+    const r = run([], { STUB_TOOL_OFF: 'node' });
+    expect(r.status).not.toBe(0);
+    expect(r.launched).toBe(false);
+    expect(r.report).toMatch(/- a tool the dev loop needs is missing or at the wrong version/);
+  });
+
+  // Defect caught: a pinned tool the setup script installs is never checked by
+  // the dev stack, so its drift goes unheard until the deploy refuses.
+  it('asks about every tool the setup script verifies', () => {
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    const asked = readFileSync(join(scratch, 'tools-asked'), 'utf8').split(/\s+/).filter(Boolean);
+    expect([...asked].sort()).toEqual([...setupTools()].sort());
   });
 });

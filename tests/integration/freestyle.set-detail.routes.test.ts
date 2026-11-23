@@ -146,6 +146,9 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="set-detail-trick-list"');
     expect(res.text).toContain('href="/freestyle/tricks?view=set&amp;set=pixie">Browse This Set in the Dictionary<');
+    // Defect caught: the pointer to the full set falls back to a text link a
+    // reader passes over, instead of the standard button that closes a preview.
+    expect(res.text).toContain('<a class="btn btn-outline" href="/freestyle/tricks?view=set&amp;set=pixie">');
     // The link lands on Pixie's own page in the set view, listing its trick.
     const target = await page('/freestyle/tricks?view=set&set=pixie');
     expect(target.status).toBe(200);

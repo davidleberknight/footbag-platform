@@ -85,7 +85,7 @@ describe('a trick page names only what a curator related, never its family', () 
   // family's membership.
   it('links the family view in place of the family list', async () => {
     const res = await page(`/freestyle/tricks/${CURRENT}`);
-    expect(sectionOf(res.text, 'related-tricks')).toMatch(/<a class="action-link" href="[^"]+" data-family-browse>/);
+    expect(sectionOf(res.text, 'related-tricks')).toMatch(/<a class="btn btn-outline" href="[^"]+" data-family-browse>/);
   });
 
   // Defect caught: a reverse pair a curator stored does not link the two

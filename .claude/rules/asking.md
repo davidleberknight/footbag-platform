@@ -137,7 +137,10 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
 ## During execution
 
 Run an approved plan to completion, through its deferred and follow-on tasks; do not pause for
-continuation or trivial review. Re-gate only for a real reason:
+continuation or trivial review. Agreed in-scope work is done in the session, never put off to a
+later one unless it is blocked on another person, on access or on a date. An error Claude made (a
+doc edit, code, a claim) is corrected in the same pass and shown, never put to the human as a
+question. Re-gate only for a real reason:
 
 - A new material decision the plan did not anticipate, or a finding that contradicts the plan's premise or makes the work materially larger or different than approved.
 - Finished UI work: have the human review the new or changed UI visually, giving them `./run_dev.sh` to start it (or starting it if they ask); discuss significant visual changes before building them.

@@ -20,7 +20,7 @@
 
 IFPA applies GDPR and UK GDPR to every member regardless of location.
 
-- **Lawful basis.** Account, membership, event and payment data are processed to perform the membership agreement; financial records are kept to meet legal obligations; official competition results are published in IFPA's legitimate interest in the sport's historical record; optional profile visibility and announcement mail rest on the member's own opt-in.
+- **Lawful basis.** Account, membership, event and payment data are processed to perform the membership agreement; financial records are kept to meet legal obligations; official competition results are published in IFPA's legitimate interest in the sport's historical record; optional profile visibility, announcement mail and a blog post's public byline rest on the member's own opt-in.
 - **Purposes.** Running memberships, events, payments, clubs and member communications, and preserving the sport's official record. Data is not used for advertising, analytics or profiling, and member addresses are never shared or sold.
 - **Processors.** Amazon Web Services hosts the platform, its storage and backups, and sends its email; Stripe processes payments, and card details never reach the platform; Cloudflare runs the human-verification check on sign-in and registration pages; Google screens the links members submit against its Safe Browsing list. Production member data stays in AWS, except the copies the design decisions admit once production is live: staging, and the developer machines invited to receive copies, which keep their disks encrypted.
 - **Access and portability.** A member downloads all their personal data from their own account tools (`M_Download_Data`); that self-export is the answer to an access request.

@@ -238,6 +238,20 @@ describe('editing an item', () => {
     expect(newsRow(id)!.title).toBe('A member wrote this');
   });
 
+  // Defect caught: an administrator rewrites a member's blog post under the
+  // member's name.
+  it('never edits a blog post', async () => {
+    const id = insertNewsItem(db, { news_type: 'blog_post', title: 'A member blogged this', author_member_id: AUTHOR_ID });
+    const page = await get(`/admin/news/${id}`, admin());
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('id="admin-news-community-post"');
+    expect(page.text).not.toContain('name="title"');
+
+    const res = await post(`/admin/news/${id}`, admin(), validBody({ title: 'Rewritten by an admin' }));
+    expect(res.status).toBe(404);
+    expect(newsRow(id)!.title).toBe('A member blogged this');
+  });
+
   it('answers not found for an unknown item', async () => {
     expect((await get('/admin/news/news_nope', admin())).status).toBe(404);
     expect((await get('/admin/news/news_nope/delete', admin())).status).toBe(404);
@@ -271,6 +285,26 @@ describe('hiding and restoring', () => {
     expect(newsRow(id)!.is_public).toBe(1);
     expect(audits(id, 'news.item.restored')).toHaveLength(1);
     expect((await get(`/news/${id}`)).status).toBe(200);
+  });
+
+  // Defect caught: hiding a blog post leaves it on the blog, never tells its
+  // author, or tells them it was taken off the news feed it was never in.
+  it('hides a blog post off the blog and emails its member naming the blog', async () => {
+    const id = insertNewsItem(db, { news_type: 'blog_post', title: 'Blog to hide', author_member_id: AUTHOR_ID, published_at: '2026-04-02T00:00:00.000Z' });
+    expect((await get(`/blog/${id}`)).status).toBe(200);
+    const before = noticesTo(AUTHOR_ID, 'news_post_hidden');
+
+    const res = await post(`/admin/news/${id}/reject`, admin(), { reason: 'Off topic.' });
+    expect(res.status).toBe(303);
+    expect(newsRow(id)!.is_public).toBe(0);
+    expect((await get(`/blog/${id}`)).status).toBe(404);
+    expect(noticesTo(AUTHOR_ID, 'news_post_hidden')).toBe(before + 1);
+    const mail = db.prepare(
+      "SELECT subject, body_text FROM outbox_emails WHERE recipient_member_id = ? AND template_key = 'news_post_hidden' AND body_text LIKE ?",
+    ).get(AUTHOR_ID, '%Blog to hide%') as { subject: string; body_text: string };
+    expect(mail.subject).toContain('blog post');
+    expect(mail.body_text).toContain('from the blog');
+    expect(mail.body_text).not.toContain('news feed');
   });
 
   it('hides a News item without emailing anyone', async () => {

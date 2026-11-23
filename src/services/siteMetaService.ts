@@ -40,6 +40,7 @@ import { getIfpaDocs } from '../lib/ifpaLoader';
 const STATIC_PUBLIC_PATHS = [
   '/',
   '/news',
+  '/blog',
   '/events',
   '/clubs',
   '/freestyle',
@@ -125,6 +126,15 @@ function collectPublicPaths(): string[] {
     if (yr.year !== currentNewsYear) paths.add(`/news/year/${yr.year}`);
     for (const row of newsItems.listPublicByYear.all(nowIso, String(yr.year)) as Array<{ id: string }>) {
       paths.add(`/news/${row.id}`);
+    }
+  }
+
+  // Blog: each earlier year holding public posts, the same way, and every
+  // public post's own page.
+  for (const yr of newsItems.listPublicBlogYears.all(nowIso) as Array<{ year: number }>) {
+    if (yr.year !== currentNewsYear) paths.add(`/blog/year/${yr.year}`);
+    for (const row of newsItems.listPublicBlogByYear.all(nowIso, String(yr.year)) as Array<{ id: string }>) {
+      paths.add(`/blog/${row.id}`);
     }
   }
 
@@ -225,6 +235,7 @@ export const siteMetaService = {
       '## Browse',
       '',
       `- [News](${b}/news): news from IFPA and posts from the footbag community, by year.`,
+      `- [Blog](${b}/blog): members' own writing about footbag, by year.`,
       `- [Events](${b}/events): footbag tournaments worldwide, with results and yearly archives.`,
       `- [Clubs](${b}/clubs): footbag clubs and communities by country.`,
       `- [Freestyle](${b}/freestyle): the freestyle trick dictionary, families, and notation.`,

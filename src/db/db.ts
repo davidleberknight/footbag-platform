@@ -92,10 +92,23 @@ const PUBLIC_UPCOMING_VISIBLE_STATUS_SQL = PUBLIC_UPCOMING_VISIBLE_STATUSES
 // A news item is public when it is not hidden, its publication time has come
 // (the one `?`, the current instant), and, when it is about an event, that
 // event is publicly visible. Every public news read applies it, joined to the
-// event as `e`.
+// event as `e`. A blog post shares the table but belongs to the blog alone, so
+// no news surface shows one.
 const PUBLIC_NEWS_VISIBLE = `n.is_public = 1 AND n.published_at <= ?
+    AND n.news_type <> 'blog_post'
     AND (n.entity_type IS NULL OR n.entity_type <> 'event'
          OR e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL}))`;
+
+// A blog post is public when it is not hidden and its publication time has
+// come (the one `?`, the current instant). Every public blog read applies it.
+const PUBLIC_BLOG_VISIBLE = `n.news_type = 'blog_post' AND n.is_public = 1 AND n.published_at <= ?`;
+
+// A blog post with its author, read through the onboarded-member surface.
+const PUBLIC_BLOG_SELECT = `
+    SELECT n.id, n.title, n.body, n.published_at,
+           m.display_name AS author_display_name, m.slug AS author_slug
+    FROM news_items AS n
+    JOIN members_onboarded AS m ON m.id = n.author_member_id`;
 
 const PUBLIC_NEWS_SELECT = `
     SELECT n.id, n.news_type, n.title, n.body, n.published_at,
@@ -10651,7 +10664,7 @@ export const workQueue = {
 
 // ── newsItems ───────────────────────────────────────────────────────────────
 //
-// The news feed's items. A hard-delete table: the base table is the only read
+// The news feed's items and the blog's posts. A hard-delete table: the base table is the only read
 // surface. Automatic items are unique per type and source entity through a
 // partial unique index, which the automatic insert names as its conflict
 // target, so a flow that runs twice leaves its first item standing.
@@ -10665,7 +10678,7 @@ export const newsItems = {
       published_at, news_type, title, body, entity_type, entity_id, is_public
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(news_type, entity_type, entity_id)
-      WHERE news_type NOT IN ('announcement','community_post')
+      WHERE news_type NOT IN ('announcement','community_post','blog_post')
     DO NOTHING
   `); },
 
@@ -10752,11 +10765,12 @@ export const newsItems = {
     DELETE FROM news_items WHERE id = ?
   `); },
 
-  // A member's Community posts, deleted at their account deletion request. An
-  // item they wrote as administrator is an act on the platform and stays.
-  // Params: (memberId).
-  get deleteCommunityPostsForMember() { return db.prepare(`
-    DELETE FROM news_items WHERE author_member_id = ? AND news_type = 'community_post'
+  // A member's Community posts and blog posts, deleted at their account
+  // deletion request. An item they wrote as administrator is an act on the
+  // platform and stays. Params: (memberId).
+  get deleteMemberPostsForMember() { return db.prepare(`
+    DELETE FROM news_items
+    WHERE author_member_id = ? AND news_type IN ('community_post','blog_post')
   `); },
 
   // One item whatever its state, with the event or club it is about, archived
@@ -10784,6 +10798,31 @@ export const newsItems = {
 
   get countForAdmin() { return db.prepare(`
     SELECT COUNT(*) AS n FROM news_items
+  `); },
+
+  // The blog's public reads: a member's approved post with its author. A post
+  // shows only while it is public and its publication time has arrived.
+
+  // Params: (nowIso, year as four digits). Newest first.
+  get listPublicBlogByYear() { return db.prepare(`
+    ${PUBLIC_BLOG_SELECT}
+    WHERE ${PUBLIC_BLOG_VISIBLE} AND substr(n.published_at, 1, 4) = ?
+    ORDER BY n.published_at DESC, n.id DESC
+  `); },
+
+  // Params: (id, nowIso).
+  get getPublicBlogById() { return db.prepare(`
+    ${PUBLIC_BLOG_SELECT}
+    WHERE n.id = ? AND ${PUBLIC_BLOG_VISIBLE}
+  `); },
+
+  // Every year holding a public blog post, newest first. Params: (nowIso).
+  get listPublicBlogYears() { return db.prepare(`
+    SELECT DISTINCT CAST(substr(n.published_at, 1, 4) AS INTEGER) AS year
+    FROM news_items AS n
+    JOIN members_onboarded AS m ON m.id = n.author_member_id
+    WHERE ${PUBLIC_BLOG_VISIBLE}
+    ORDER BY year DESC
   `); },
 
   // The event or club carrying one hashtag, in its stored form; a hashtag
@@ -13075,6 +13114,14 @@ export const memberExport = {
     SELECT title, body, published_at, is_public
     FROM news_items
     WHERE author_member_id = ? AND news_type = 'community_post'
+    ORDER BY published_at, id
+  `); },
+
+  // The member's blog posts, shown or hidden.
+  get blogPosts() { return db.prepare(`
+    SELECT title, body, published_at, is_public
+    FROM news_items
+    WHERE author_member_id = ? AND news_type = 'blog_post'
     ORDER BY published_at, id
   `); },
 

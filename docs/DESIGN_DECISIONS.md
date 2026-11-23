@@ -184,7 +184,7 @@ SQL Knowledge Required: Volunteers need basic SQL for queries and migrations. Ac
 
 Migrations Require Maintenance: Brief downtime acceptable for community site. Backward-compatible migrations preferred.
 
-Local Database Unencrypted: SQLite file on the instance is unencrypted at rest (S3 backups are encrypted). This is an explicit MVP trade-off for non-regulated data. Mitigations: restrict instance access (SSH/IAM), keep the instance private where feasible, apply OS security updates, limit who can access backups, and rely on encrypted backups and short backup retention.
+Local Database Unencrypted: SQLite file on the instance is unencrypted at rest (S3 backups are encrypted). This is an explicit trade-off for non-regulated data. Mitigations: restrict instance access (SSH/IAM), keep the instance private where feasible, apply OS security updates, limit who can access backups, and rely on encrypted backups and short backup retention.
 
 No Encapsulation: Services access prepared statements directly. Code review catches violations. Acceptable for small volunteer team, risky for large team.
 
@@ -2523,7 +2523,7 @@ Impact:
 
 Decision:
 
-Client-side TypeScript handles user interactions: validation before form submission, dynamic form behavior, client-side previews, and autocomplete. Pages are server-rendered; TypeScript attaches event handlers and manages client behavior on top of server-rendered HTML. Forms submit via traditional browser POST with full-page reloads.
+Client-side JavaScript handles user interactions: validation before form submission, dynamic form behavior, client-side previews, and autocomplete. Pages are server-rendered; JavaScript attaches event handlers and manages client behavior on top of server-rendered HTML. Forms submit via traditional browser POST with full-page reloads.
 
 Rationale:
 
@@ -2881,7 +2881,7 @@ Impact:
 
 Decision:
 
-Every control on a public page belongs to one of six tiers, and the tier fixes its treatment: the primary action, a secondary action, a prominent action link, a prose link, a tag or chip, and a non-clickable token. A control that changes state is always a button, drawn as a button, never as text. Inside a list item, a table row or a filter bar a button takes the compact size, and a row of controls wraps as whole buttons on a narrow screen. Navigation is a link; a link is drawn as a button only where it is a page's call to action. The class each tier takes, and the conventions that apply it, live in the view-layer rule.
+Every control on a public page belongs to one of six tiers, and the tier fixes its treatment: the primary action, a secondary action, a prominent action link, a prose link, a tag or chip, and a non-clickable token. A control that changes state is always a button, drawn as a button, never as text. Inside a list item, a table row or a filter bar a button takes the compact size, and a row of controls wraps as whole buttons on a narrow screen. Navigation is a link; a link is drawn as a button only where it is a page's call to action or where it closes a list, an excerpt or a preview and leads to the full set. The class each tier takes, and the conventions that apply it, live in the view-layer rule.
 
 Rationale:
 
@@ -2891,9 +2891,13 @@ Rationale:
 
 - A fixed set of tiers stops each surface inventing its own control styles.
 
+- The pointer from a list, an excerpt or a preview to the full set is the step a reader most often takes next, so it takes the standard button a reader recognises at a glance rather than a text link they can pass over.
+
 Requirements:
 
 - A `<button>` that posts is drawn as a primary or outlined button.
+
+- The pointer that closes a list, an excerpt or a preview and leads to the full set is an outlined button standing on its own, never compact.
 
 - A button inside a list item, a table row or a filter bar is compact, and a compact button keeps a target of at least 24 by 24 CSS pixels.
 

@@ -46,6 +46,14 @@ const REPO = process.cwd();
 // The Node pin, read from the committed file the script checks against, so a
 // Node bump never leaves this suite's "every tool at its pin" machine behind.
 const NODE_PIN = readFileSync(join(REPO, '.nvmrc'), 'utf8').trim().replace(/^v/, '');
+// The workstation Docker pin, read the same way, so an engine bump never leaves
+// the engine stand-ins answering at the previous version. DOCKER_PIN_BUILD is
+// the epoch, version and package revision (5:29.10.0-1), DOCKER_PIN_ENGINE the
+// version the engine itself reports (29.10.0).
+const DOCKER_PIN_BUILD = (
+  /^DOCKER_ENGINE_WORKSTATION=([^~\n]+)/m.exec(readFileSync(join(REPO, 'ops', 'tool-versions.env'), 'utf8')) ?? []
+)[1] ?? '';
+const DOCKER_PIN_ENGINE = DOCKER_PIN_BUILD.replace(/^\d+:/, '').replace(/-.*$/, '');
 // The machine's own jq, which the jq stand-in hands every call but --version to.
 const REAL_JQ = (spawnSync('bash', ['-c', 'command -v jq'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').trim();
 
@@ -105,7 +113,7 @@ function stubCompleteMachine() {
   stub('terraform', 'echo "Terraform v1.14.7"');
   // The engine answers at the pinned workstation version (the version part of
   // the apt pin), which the closing report compares.
-  stub('docker', '[ "$1" = version ] && echo 29.3.0; exit 0');
+  stub('docker', `[ "$1" = version ] && echo ${DOCKER_PIN_ENGINE}; exit 0`);
   stub('dpkg-query', 'printf "install ok installed"');
   // sqlite3, jq, age, ffmpeg and ffprobe answer with their pinned versions. jq
   // is otherwise the real one: the script reads the browser manifest with it.
@@ -1002,12 +1010,14 @@ describe('setup-dev-workstation.sh — the link to the dev-tester clone', () => 
 describe('setup-dev-workstation.sh — the Docker engine at the workstation pin', () => {
   // Captured 2026-11-13 from `apt-cache madison docker-ce` on an Ubuntu 24.04.4
   // workstation with Docker's apt repository configured (two of its lines). The
-  // script finds the pinned build by its version column in this listing.
+  // script finds the pinned build by its version column in this listing. The
+  // second line's version is the pin's, so the listing offers the pinned build
+  // whatever the pin is.
+  const NOBLE_BUILD = `${DOCKER_PIN_BUILD}~ubuntu.24.04~noble`;
   const MADISON_SAMPLE = [
     ' docker-ce | 5:29.7.2-1~ubuntu.24.04~noble | https://download.docker.com/linux/ubuntu noble/stable amd64 Packages',
-    ' docker-ce | 5:29.3.0-1~ubuntu.24.04~noble | https://download.docker.com/linux/ubuntu noble/stable amd64 Packages',
+    ` docker-ce | ${NOBLE_BUILD} | https://download.docker.com/linux/ubuntu noble/stable amd64 Packages`,
   ].join('\n');
-  const NOBLE_BUILD = '5:29.3.0-1~ubuntu.24.04~noble';
   const engineState = () => join(root, 'engine-version');
   const aptMarkLog = () => join(root, 'apt-mark.log');
   const aptCalls = () => (existsSync(aptLog) ? readFileSync(aptLog, 'utf-8') : '');
@@ -1032,7 +1042,7 @@ describe('setup-dev-workstation.sh — the Docker engine at the workstation pin'
       [
         '#!/bin/bash',
         `echo "$@" >> ${aptLog}`,
-        opts.delivers === false ? '' : `[[ " $* " == *" docker-ce=${NOBLE_BUILD} "* ]] && echo 29.3.0 > ${engineState()}`,
+        opts.delivers === false ? '' : `[[ " $* " == *" docker-ce=${NOBLE_BUILD} "* ]] && echo ${DOCKER_PIN_ENGINE} > ${engineState()}`,
         'exit 0',
         '',
       ].join('\n'),
@@ -1059,7 +1069,7 @@ describe('setup-dev-workstation.sh — the Docker engine at the workstation pin'
     const r = run(['--check'], seams);
     expect(r.status).toBe(1);
     expect(r.stdout).toContain(
-      `docker: install engine 29.3.0 (docker-ce and docker-ce-cli ${NOBLE_BUILD}, replacing 5:29.7.2-1~ubuntu.24.04~noble)`,
+      `docker: install engine ${DOCKER_PIN_ENGINE} (docker-ce and docker-ce-cli ${NOBLE_BUILD}, replacing 5:29.7.2-1~ubuntu.24.04~noble)`,
     );
     expect(r.stdout).not.toContain('jammy');
     expect(r.stderr).toContain('SYNTHETIC: SETUP_DEV_APT_CACHE is set');
@@ -1067,7 +1077,7 @@ describe('setup-dev-workstation.sh — the Docker engine at the workstation pin'
     expect(existsSync(aptMarkLog())).toBe(false);
   });
 
-  it('downgrades both packages to that build and holds them, then proves the engine answers at the pin', () => {
+  it('moves both packages to that build and holds them, then proves the engine answers at the pin', () => {
     // Defect caught: apt refused the install as a downgrade, or left the
     // packages unheld so the next apt upgrade moved the engine off the pin again.
     const seams = engineOffPin();

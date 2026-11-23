@@ -699,6 +699,12 @@ export function refreshAllPersonas(
     delIn('registrations', 'id', personaRegistrationIds);
     delIn('event_organizers', 'event_id', removedEventIds);
     delIn('event_disciplines', 'event_id', removedEventIds);
+    // The news items about a persona event go with it, as deleting an event
+    // deletes every item about it.
+    db.prepare(
+      `DELETE FROM news_items WHERE entity_type = 'event'
+        AND entity_id IN (${placeholders(removedEventIds.length)})`,
+    ).run(...removedEventIds);
     delIn('events', 'id', removedEventIds);
     delIn('tag_stats', 'tag_id', [FINANCE_DEMO_EVENT_TAG_ID, ...personaEventTagIds]);
     delIn('tags', 'id', [FINANCE_DEMO_EVENT_TAG_ID, ...personaEventTagIds]);

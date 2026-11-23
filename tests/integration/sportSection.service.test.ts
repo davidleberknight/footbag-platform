@@ -77,7 +77,7 @@ describe('game section landing pages (X-Square, Golf, Sideline)', () => {
     expect(pages.sideline.content.games).toHaveLength(1);
   });
 
-  // Defect caught: the Hack menu entry's anchor leaks onto an X-Square or Golf
+  // Defect caught: a section anchor leaks onto an X-Square or Golf
   // explainer, giving them a subsection address nothing links to.
   it('anchors no X-Square or Golf explainer', () => {
     expect(pages['x-square'].content.explainer?.id).toBeUndefined();

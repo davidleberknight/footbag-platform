@@ -168,6 +168,27 @@ describe('bump-tool.sh', () => {
     expect(bump(['COMPOSE_VERSION', 'v5.2.0', '--apply']).status).toBe(0);
   });
 
+  it('looks for an apt package pin as the bare version the engine reports, in the documents too', () => {
+    // Defect caught: the workstation engine pin moves while a guide still tells
+    // developers the engine must be 29.3.0 and a script still compares against
+    // 29.3.0, so the setup a developer follows names an engine the checks refuse.
+    writeFileSync(list, 'DOCKER_ENGINE_WORKSTATION=5:29.3.0-1~ubuntu.22.04~jammy\n');
+    put('docs/DEV_ONBOARDING.md', 'The engine must be the pinned version (29.3.0).\n');
+    put('scripts/check.sh', '[[ "$(docker version --format x)" == 29.3.0 ]]\n');
+    const r = bump(['DOCKER_ENGINE_WORKSTATION', '5:29.10.0-1~ubuntu.22.04~jammy', '--apply']);
+    expect(r.status).toBe(1);
+    const rep = report(r.out);
+    expect(rep).toContain('docs/DEV_ONBOARDING.md:1:');
+    expect(rep).toContain('scripts/check.sh:1:');
+    expect(readFileSync(list, 'utf-8')).toMatch(/^DOCKER_ENGINE_WORKSTATION=5:29\.3\.0-1/m);
+
+    put('docs/DEV_ONBOARDING.md', 'The engine must be the pinned version (29.10.0).\n');
+    put('scripts/check.sh', '[[ "$(docker version --format x)" == 29.10.0 ]]\n');
+    const again = bump(['DOCKER_ENGINE_WORKSTATION', '5:29.10.0-1~ubuntu.22.04~jammy', '--apply']);
+    expect(again.status, again.out).toBe(0);
+    expect(readFileSync(list, 'utf-8')).toMatch(/^DOCKER_ENGINE_WORKSTATION=5:29\.10\.0-1/m);
+  });
+
   it('refuses a digest from two downloads that differ, changing nothing', () => {
     // Defect caught: an address serving a moving or truncated file gets one
     // download's digest pinned, and every install after it refuses or, worse,

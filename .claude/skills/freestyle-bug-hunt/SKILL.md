@@ -180,8 +180,7 @@ with no deterministic check is handed there as a named defect class, never recor
    remembered list.
 4. The four freestyle-domain skills named above — they carry the invariants.
 5. The path-scoped rules: enumerate `.claude/rules/` fresh and read every rule that
-   governs a surface this run touches (at minimum `view-layer.md` for the hashtag and
-   dictionary-filter link rules and template mechanics, `testing.md`, `comments.md`).
+   governs a surface this run touches (at minimum `view-layer.md` for template mechanics, `testing.md`, `comments.md`).
 6. `docs/FREESTYLE.md` (the maintainer guide, including its publication gate and
    terminology sections), the freestyle user stories in `docs/USER_STORIES.md` (public,
    admin curation, and the freestyle content source-of-truth story), and the freestyle

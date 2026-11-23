@@ -39,6 +39,7 @@ onRateLimitRefusal((action) => logger.warn('rate_limit.refused', { action }));
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
   { href: '/',          section: 'home',      label: 'Home' },
   { href: '/news',      section: 'news',      label: 'News' },
+  { href: '/blog',      section: 'blog',      label: 'Blog' },
   { href: '/events',    section: 'events',    label: 'Events' },
   { href: '/clubs',     section: 'clubs',     label: 'Clubs' },
   { href: '/net',       section: 'net',       label: 'Net' },
@@ -46,10 +47,9 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/x-square',  section: 'x-square',  label: 'X-Square' },
   { href: '/golf',      section: 'golf',      label: 'Golf' },
   { href: '/consecutives', section: 'consecutives', label: 'Consecutives' },
-  // Hack opens the circle kicking section of the Sideline page, so it has
-  // no branch in the active-section mapping below; Sideline stays the active entry.
-  { href: '/sideline#hack', section: 'hack', label: 'Hack' },
-  { href: '/sideline',  section: 'sideline',  label: 'Sideline' },
+  // The open-play page keeps the /sideline address because it places circle
+  // kicking within sideline play.
+  { href: '/sideline',  section: 'sideline',  label: 'Hack' },
   { href: '/ifpa',      section: 'ifpa',      label: 'IFPA' },
   { href: '/rules',     section: 'rules',     label: 'Rules' },
   { href: '/equipment', section: 'equipment', label: 'Equipment' },
@@ -466,6 +466,7 @@ export function createApp(): express.Express {
     res.locals.currentSection = req.path === '/' ? 'home'
       : req.path.startsWith('/events') ? 'events'
       : req.path.startsWith('/news') ? 'news'
+      : req.path.startsWith('/blog') ? 'blog'
       : req.path.startsWith('/members') ? 'members'
       : req.path.startsWith('/history') ? 'history'
       : req.path.startsWith('/clubs') ? 'clubs'

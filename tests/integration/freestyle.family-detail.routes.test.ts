@@ -142,6 +142,9 @@ describe('GET /freestyle/families/:slug — page budget and examples', () => {
   it('links to the whole family in the dictionary and counts every member', async () => {
     const res = await page('/freestyle/families/inside_stall');
     expect(res.text).toContain('href="/freestyle/tricks?view=family&amp;family=inside_stall"');
+    // Defect caught: the pointer to the whole family falls back to a text link
+    // a reader passes over, instead of the standard button that closes a preview.
+    expect(res.text).toContain('<a class="btn btn-outline" href="/freestyle/tricks?view=family&amp;family=inside_stall">');
     expect(res.text).toMatch(/<span class="section-count">12<\/span>/);
     // The link lands on the family's own page in the family view.
     const target = await page('/freestyle/tricks?view=family&family=inside_stall');

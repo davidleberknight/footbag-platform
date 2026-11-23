@@ -1,7 +1,7 @@
 {
   "templateKey": "news_post_hidden",
-  "subjectTemplate": "Your footbag.org community post has been hidden",
-  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has hidden your community post \"{title}\" from the news feed. Your account and membership are unchanged.\n\nAdministrator's note:\n{note}\n\nIf you believe this was decided in error, you can appeal within 30 days through the contact form on your profile edit page, saying which decision you are appealing. An administrator who did not make this decision will review it and reply with reasons.\n\nInternational Footbag Players Association",
+  "subjectTemplate": "Your footbag.org {postKind} has been hidden",
+  "bodyTemplate": "Hi {memberName},\n\nAn IFPA administrator has hidden your {postKind} \"{title}\" from {placeName}. Your account and membership are unchanged.\n\nAdministrator's note:\n{note}\n\nIf you believe this was decided in error, you can appeal within 30 days through the contact form on your profile edit page, saying which decision you are appealing. An administrator who did not make this decision will review it and reply with reasons.\n\nInternational Footbag Players Association",
   "piiClassification": "confidential",
   "isEnabled": true
 }

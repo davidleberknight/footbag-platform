@@ -1810,6 +1810,45 @@ fi
 rm -f "$tr"
 # Not a question at all: never enforced.
 expect_q 'State 4 is where the cutover lands.' defer
+
+# guard-handed-commands.sh is a Stop hook: it blocks a final message that hands the
+# human a state-changing command to type, and passes one that names a script the
+# repository holds. Drive it with the final message in the Stop input.
+HC=guard-handed-commands.sh
+expect_h() {
+  local text="$1" want="$2" ev out got
+  ev="$(jq -cn --arg m "$text" '{stop_hook_active:false,last_assistant_message:$m}')"
+  out="$(printf '%s' "$ev" | CLAUDE_PROJECT_DIR="$PWD" ".claude/hooks/$HC")"
+  if grep -q '"block"' <<< "$out"; then got=block; else got=defer; fi
+  if [ "$got" != "$want" ]; then
+    echo "[hooks] FAIL ($HC): want $want, got $got: $text" >&2
+    fail=1
+  fi
+}
+# Blocked: a package upgrade, a prune, an AWS or Terraform mutation, a script that
+# does not exist, in a fence, on a "$ " line or in inline code.
+expect_h $'Run this:\n```\nsudo apt-get install --only-upgrade docker-ce docker-ce-cli \\\n  containerd.io docker-buildx-plugin\n```' block
+expect_h $'```bash\ndocker builder prune -af\n```' block
+expect_h 'Clear the cache with `docker builder prune -af` and re-run.' block
+expect_h $'Then:\n$ aws s3 rm s3://bucket/key' block
+expect_h $'```\nterraform apply\n```' block
+expect_h $'```\nbash scripts/no-such-script.sh --apply\n```' block
+expect_h $'```\nls && apt-get install jq\n```' block
+# Passed: an existing script, a read, quoted output, and prose that names a tool.
+expect_h $'Run:\n```\nbash scripts/setup-dev-workstation.sh\n```' defer
+expect_h 'Then run `bash scripts/bump-tool.sh DOCKER_ENGINE_WORKSTATION 1 --apply`.' defer
+expect_h 'Re-run `./deploy_to_aws.sh` as before.' defer
+expect_h $'```\ndocker system df\naws sts get-caller-identity\n```' defer
+expect_h $'The log:\n```text\nsudo: a password is required\n```' defer
+expect_h 'It needs sudo, so run it in your own terminal; `sudo` prompts there.' defer
+expect_h 'The cleanup step lives in `scripts/deploy-rebuild.sh`.' defer
+# A hook-forced continuation is not blocked again.
+out="$(jq -cn '{stop_hook_active:true,last_assistant_message:"```\nsudo rm -rf /x\n```"}' | ".claude/hooks/$HC")"
+if grep -q '"block"' <<< "$out"; then
+  echo "[hooks] FAIL ($HC): continuation was blocked" >&2
+  fail=1
+fi
+
 # A hook-forced continuation is not blocked again, however the flag is spaced.
 q_cont() {
   # $1 = raw Stop event JSON, $2 = label
@@ -1892,7 +1931,8 @@ expect_memory "$CLAUDE_PROJECT_DIR/src/app.ts" "" defer
 
 # The audit carried in the write itself passes with no transcript at all, because
 # text sent with the tool call is not in the transcript yet when the hook runs; an
-# index edit passes only when every memory file it links to carries the audit.
+# index edit passes only when every memory file it links to carries the audit, or
+# when it only deletes lines.
 # expect_memory_write <tool-input-json> <deny|defer>
 expect_memory_write() {
   local input="$1" want="$2" out decision
@@ -1919,6 +1959,8 @@ expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_st
 # A link the edit keeps from its old text is context, not an addition.
 expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook", new_string: "- [B](plain.md) -- hook\n- [A](audited.md) -- hook"}')" defer
 expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook", new_string: "- [B](plain.md) -- edited"}')" deny
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook\n", new_string: ""}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/plain.md" '{file_path: $p, old_string: "x", new_string: ""}')" deny
 rm -rf "${memdir%/.claude/projects/-x/memory}"
 
 # expect_gate <session-id> <command> <deny|defer> [reason-substring]: feed the

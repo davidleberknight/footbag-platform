@@ -70,6 +70,7 @@ import {
   insertSystemJobRun,
   insertReconciliationIssue,
   insertMemberAnnouncement,
+  insertNewsItem,
 } from '../../src/testkit/personaRowBuilders';
 
 export {
@@ -123,6 +124,7 @@ export {
   insertSystemJobRun,
   insertReconciliationIssue,
   insertMemberAnnouncement,
+  insertNewsItem,
 };
 
 export type {
@@ -173,6 +175,7 @@ export type {
   SystemJobRunOverrides,
   ReconciliationIssueOverrides,
   MemberAnnouncementOverrides,
+  NewsItemOverrides,
 } from '../../src/testkit/personaRowBuilders';
 
 // Default timestamps are one second before the insert, read per call, for the
@@ -492,45 +495,6 @@ export function insertEmailArchive(
   return id;
 }
 
-/**
- * One news feed item. The default is an administrator-style News item with no
- * source entity; an automatic item passes its type and entity, and a
- * Community post passes `community_post` and its author. The body is stored
- * as the Markdown the author wrote, so a test may pass any Markdown here.
- */
-export interface NewsItemOverrides {
-  id?: string;
-  published_at?: string;
-  news_type?: string;
-  title?: string;
-  body?: string;
-  entity_type?: string | null;
-  entity_id?: string | null;
-  is_public?: 0 | 1;
-  author_member_id?: string | null;
-}
-
-export function insertNewsItem(db: BetterSqlite3.Database, o: NewsItemOverrides = {}): string {
-  const id = o.id ?? `news-test-${uid()}`;
-  db.prepare(`
-    INSERT INTO news_items (
-      id, created_at, created_by, updated_at, updated_by, version,
-      published_at, news_type, title, body, entity_type, entity_id, is_public,
-      author_member_id
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, ?, ?, ?)
-  `).run(
-    id, nowIso(), nowIso(),
-    o.published_at ?? nowIso(),
-    o.news_type ?? 'announcement',
-    o.title ?? 'Footbag news worth sharing',
-    o.body ?? 'A short **Markdown** body.',
-    o.entity_type ?? null,
-    o.entity_id ?? null,
-    o.is_public ?? 1,
-    o.author_member_id ?? null,
-  );
-  return id;
-}
 
 
 /**

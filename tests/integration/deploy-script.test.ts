@@ -90,7 +90,7 @@ const HAS_DOCKER = requireToolInCI('docker', '--version');
 // wrapper reads from the tree.
 // The closing-report library and the deploy verdict the deploy scripts source,
 // copied beside a staged script so it runs as it does in the checkout.
-const REPORT_LIBS = ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh', 'deploy-verdict.sh'];
+const REPORT_LIBS = ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh', 'deploy-verdict.sh', 'tool-report.sh'];
 function copyReportLibs(root: string): void {
   fs.mkdirSync(path.join(root, 'scripts', 'lib'), { recursive: true });
   for (const lib of REPORT_LIBS) {
