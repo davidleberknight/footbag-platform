@@ -341,6 +341,9 @@ export interface FreestyleRecordGroup {
   records: FreestyleRecordViewModel[];
 }
 
+/** A row of a trick page's records table: the record, with "Earlier record" when it was beaten. */
+export type FreestyleTrickRecordRowViewModel = FreestyleRecordViewModel & { statusLabel: string | null };
+
 /** One step in a record's progression, oldest first, labelled by its status. */
 export interface FreestyleRecordProgressionStep {
   value: number;
@@ -1142,11 +1145,11 @@ export interface FreestyleTrickContent {
   // Phonetic respelling shown as a compact fact chip when the trick has a
   // non-obvious pronunciation (e.g. guay = "gwhy"); null otherwise.
   pronunciation: string | null;
-  records: FreestyleRecordViewModel[];      // current holders only (superseded_by IS NULL)
-  recordCount: number;
+  // One table: the current records, highest count first, then the earlier
+  // (superseded) ones, each of those labelled "Earlier record".
+  records: FreestyleTrickRecordRowViewModel[];
+  recordCount: number;                      // current holders only (superseded_by IS NULL)
   topValue: number;
-  progression: FreestyleRecordViewModel[];  // all records including superseded, newest first
-  hasProgression: boolean;                  // true when any records are superseded
   // Dictionary info, null when trick has no dictionary entry
   dictEntry: FreestyleTrickDictEntry | null;
   // Hero family chip — parent-resolved family; null when the trick's family is
@@ -5316,7 +5319,11 @@ export const freestyleService = {
       ? Number(dictRow.adds)
       : null;
     const pageTrickAdds = pageTrickAddsValue === null ? undefined : () => pageTrickAddsValue;
-    const hasProgression = allTrickRows.some(r => r.superseded_by);
+    const earlierRows = allTrickRows.filter(r => r.superseded_by);
+    const trickRecordRows: FreestyleTrickRecordRowViewModel[] = [
+      ...currentRows.map(r => ({ ...shapeFreestyleRecord(r, undefined, pageTrickAdds), statusLabel: null })),
+      ...earlierRows.map(r => ({ ...shapeFreestyleRecord(r, undefined, pageTrickAdds), statusLabel: 'Earlier record' })),
+    ];
 
     const topValue = currentRows[0]?.value_numeric ?? 0;
 
@@ -5638,11 +5645,9 @@ export const freestyleService = {
           slug,
           pronunciation: dictRow?.pronunciation ?? null,
           trickTag,
-          records:          currentRows.map(r => shapeFreestyleRecord(r, undefined, pageTrickAdds)),
+          records:          trickRecordRows,
           recordCount:      currentRows.length,
           topValue,
-          progression:      allTrickRows.map(r => shapeFreestyleRecord(r, undefined, pageTrickAdds)),
-          hasProgression,
           dictEntry,
           familyChip:       familySlug
             ? { label: `${familyName} family`, slug: familySlug, isMinorLineage: familyIsMinorLineage(familySlug), href: `/freestyle/tricks?family=${encodeURIComponent(familySlug)}` }

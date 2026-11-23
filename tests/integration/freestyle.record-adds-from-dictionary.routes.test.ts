@@ -57,12 +57,14 @@ describe('record tables show the dictionary ADD', () => {
     expect(addsCellFor(res.text, 'Dictionary Holder')).toBe('4');
   });
 
-  // Defect caught: the trick's own page states 4 ADD at the top and 5 in the
-  // record row beneath it.
-  it('the trick page shows its own ADD in its record table', async () => {
+  // Defect caught: the trick's own page states 4 ADD at the top and another
+  // figure in the record row beneath it. Its records table carries no ADD
+  // column, since every row would repeat the page's own ADD.
+  it('the trick page lists its records with no ADD of their own', async () => {
     const res = await request(createApp()).get('/freestyle/tricks/bladerunner');
     expect(res.status).toBe(200);
-    expect(addsCellFor(res.text, 'Dictionary Holder')).toBe('4');
+    expect(res.text).toContain('Dictionary Holder');
+    expect(res.text).not.toContain('class="col-adds"');
   });
 
   // Defect caught: a record whose trick has no dictionary row loses the only

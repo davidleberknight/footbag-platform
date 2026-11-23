@@ -916,23 +916,28 @@ describe('GET /freestyle/tricks/:slug', () => {
     expect(res.text).toContain('https://youtu.be/abc123defgh');
   });
 
-  it('shows Record Progression section when superseded records exist', async () => {
-    // Torque has fr-old (30) superseded by fr-public-linked (42)
+  // Defect caught: the trick page draws its records twice, the current record
+  // in one table and again in a second, or lists a beaten record first or as
+  // if it still stood.
+  it('lists the records in one table, the current one first, a beaten one after it labelled earlier', async () => {
+    // Torque: Alice Shredder's 42 stands; Old Record Holder's 30 was beaten by it.
     const res = await page('/freestyle/tricks/torque');
-    expect(res.text).toContain('Record Progression');
+    expect(res.text.match(/<table class="data-table">/g) ?? []).toHaveLength(1);
+    const rows = [...res.text.matchAll(/<tr>\s*<td class="col-holder">([\s\S]*?)<\/tr>/g)].map(m => m[1]);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toContain('Alice Shredder');
+    expect(rows[0]).toMatch(/<td><\/td>\s*$/);
+    expect(rows[1]).toContain('Old Record Holder');
+    expect(rows[1]).toMatch(/<td>Earlier record<\/td>\s*$/);
   });
 
-  it('shows superseded holder in progression section', async () => {
-    const res = await page('/freestyle/tricks/torque');
-    // Old Record Holder is superseded but should appear in progression history
-    expect(res.text).toContain('Old Record Holder');
-  });
-
-  it('does not show progression section for a trick with only one record', async () => {
-    // 'Whirl' has only one record (no superseded entries)
+  // Defect caught: a trick whose only record still stands shows an earlier
+  // label or a second table.
+  it('labels nothing earlier for a trick whose only record stands', async () => {
     const res = await page('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('Record Progression');
+    expect(res.text).not.toContain('Earlier record');
+    expect(res.text.match(/<table class="data-table">/g) ?? []).toHaveLength(1);
   });
 
   it('shows records without the authority caveat, and ends the page on the two links alone', async () => {

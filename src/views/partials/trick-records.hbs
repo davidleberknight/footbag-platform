@@ -1,25 +1,24 @@
 {{!--
-  Passback records table. Renders only when recordCount > 0.
+  The trick's records: current records first, then earlier (beaten) ones,
+  each of those labelled. Renders only when the trick has a record.
 --}}
-{{#if content.recordCount}}
+{{#if content.records.length}}
 <section id="passback-records" class="content-section">
 <div class="section-heading"><h2>Consecutive Records</h2></div>
 <div class="records-table-wrap" tabindex="0" role="region" aria-label="Consecutive Records">
   <table class="data-table">
     <thead>
       <tr>
-        <th class="col-rank">#</th>
         <th>Holder</th>
         <th class="col-num">Count</th>
-        <th class="col-adds">ADD (recorded)</th>
         <th>Date</th>
         <th>Video</th>
+        <th>Status</th>
       </tr>
     </thead>
     <tbody>
       {{#each content.records}}
       <tr>
-        <td class="col-rank">{{add @index 1}}</td>
         <td class="col-holder">
           {{#if holderHref}}
             <a href="{{holderHref}}">{{holderName}}</a>
@@ -28,7 +27,6 @@
           {{/if}}
         </td>
         <td class="col-num">{{valueNumeric}}</td>
-        <td class="col-adds">{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
         <td class="col-date">
           {{#if achievedDate}}
             {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
@@ -43,6 +41,7 @@
             &mdash;
           {{/if}}
         </td>
+        <td>{{statusLabel}}</td>
       </tr>
       {{/each}}
     </tbody>
