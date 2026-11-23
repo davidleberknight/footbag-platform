@@ -211,6 +211,50 @@ def test_freestyle_records_loader_refuses_rows_sharing_a_record_id(tmp_path: Pat
     assert count(db, "freestyle_records") == 2, "both records must load"
 
 
+def test_freestyle_records_loader_refuses_a_date_its_precision_cannot_hold(tmp_path: Path) -> None:
+    """A record whose date is known only to the month or the year is entered as the
+    first of that month, or the first of January. A year-end placeholder stored at
+    month precision showed readers "December" for a date the source knew only to the
+    year. The loader refuses such a CSV, naming each row, and writes nothing; the
+    same record entered as 1 January with the Year flag loads at year precision."""
+    db = make_db(tmp_path)
+    fields = ["record_id", "unit", "confidence", "player", "record_value",
+              "trick_name", "sort_name", "adds", "date_normalized", "approx_date", "video"]
+    base = {
+        "record_id": "prec-rec-1", "unit": "consecutive_completions",
+        "confidence": "high", "player": "Prec Player", "record_value": "13",
+        "trick_name": "clipper", "sort_name": "clipper", "adds": "3",
+        "date_normalized": "12/31/2011", "approx_date": "Yes", "video": "",
+    }
+    loader = ["freestyle/loaders/10_load_freestyle_records_to_sqlite.py", "--db", str(db)]
+
+    bad = write_csv(tmp_path / "bad.csv", fields, [
+        base,
+        dict(base, record_id="prec-rec-2", date_normalized="6/15/2012", approx_date="Year"),
+        dict(base, record_id="prec-rec-3", date_normalized="1/1/2012", approx_date="Maybe"),
+    ])
+    r = run(loader + ["--records-csv", str(bad)])
+    assert r.returncode == 1, f"a date its precision cannot hold must be refused.\nstdout: {r.stdout}"
+    for rid in ("prec-rec-1", "prec-rec-2", "prec-rec-3"):
+        assert rid in r.stderr, f"the refusal must name {rid}.\nstderr: {r.stderr}"
+    assert count(db, "freestyle_records") == 0, "a refused CSV must write no record"
+
+    good = write_csv(tmp_path / "good.csv", fields, [
+        dict(base, date_normalized="1/1/2011", approx_date="Year"),
+        dict(base, record_id="prec-rec-2", date_normalized="9/1/2010"),
+    ])
+    r = run(loader + ["--records-csv", str(good)])
+    assert r.returncode == 0, f"dates on the first must load.\nstderr: {r.stderr}"
+    conn = sqlite3.connect(db)
+    try:
+        stored = dict(conn.execute(
+            "SELECT id, date_precision || ' ' || achieved_date FROM freestyle_records"
+        ).fetchall())
+    finally:
+        conn.close()
+    assert stored == {"prec-rec-1": "year 2011-01-01", "prec-rec-2": "month 2010-09-01"}
+
+
 def test_given_name_variants_loader_counts_a_repeated_pair_apart_from_inserts(tmp_path: Path) -> None:
     """A pair the curated file lists twice is stored once. The loader reports it as a
     repeated pair rather than counting the ignored row as inserted, so its counters

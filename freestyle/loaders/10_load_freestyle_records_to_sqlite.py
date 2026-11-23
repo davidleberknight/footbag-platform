@@ -81,6 +81,31 @@ def parse_date(raw: str) -> str | None:
     return None
 
 
+# How much of a record's date is known, from the CSV's approx_date column: blank
+# or "No" is the exact day, "Yes" the month, "Year" the year. A date known only to
+# the month is entered as the first of that month, and one known only to the year
+# as the first of January, the same forms the record editor requires.
+APPROX_DATE_PRECISION = {"": "day", "no": "day", "yes": "month", "year": "year"}
+
+
+def date_precision_for(raw: str) -> str | None:
+    """The stored precision for an approx_date value, or None when it is unknown."""
+    return APPROX_DATE_PRECISION.get(raw.strip().lower())
+
+
+def date_precision_problem(achieved_date: str | None, precision: str | None) -> str | None:
+    """Why a row's date and precision cannot be loaded together, or None."""
+    if precision is None:
+        return "approx_date must be blank, No (day), Yes (month) or Year"
+    if achieved_date is None:
+        return None
+    if precision == "month" and achieved_date[8:10] != "01":
+        return "a date known only to the month is entered as the first of that month"
+    if precision == "year" and achieved_date[5:10] != "01-01":
+        return "a date known only to the year is entered as the first of January"
+    return None
+
+
 def parse_adds(raw: str) -> int | None:
     v = raw.strip()
     if not v or v.upper() == "N/A":
@@ -211,6 +236,24 @@ def main() -> None:
         )
         sys.exit(1)
 
+    # A date whose precision it cannot carry would show a reader more than the
+    # source knows (a year-end placeholder read as December), so the CSV is
+    # refused, naming each row, before anything is written.
+    date_problems = []
+    for r in rows:
+        problem = date_precision_problem(
+            parse_date(r.get("date_normalized", "")), date_precision_for(r.get("approx_date", ""))
+        )
+        if problem:
+            date_problems.append(f"{r['record_id'].strip()}: {problem}")
+    if date_problems:
+        print(
+            f"ERROR: {len(date_problems)} row(s) of {records_csv} carry a date their "
+            f"precision cannot hold: {'; '.join(date_problems)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
     ts           = now_iso()
     system_user  = "system:freestyle_records_seed"
 
@@ -272,7 +315,7 @@ def main() -> None:
 
             # date
             achieved_date  = parse_date(row.get("date_normalized", ""))
-            date_precision = "month" if row.get("approx_date", "").strip().lower() == "yes" else "day"
+            date_precision = date_precision_for(row.get("approx_date", ""))
 
             # value
             raw_value = row.get("record_value", "").strip()
