@@ -81,12 +81,6 @@ comes to cite one as its blocker, it is promoted into `QUESTION_REGISTRY.csv` fi
 - **The general osis-suffix rule.** Is there a single rule for what an osis suffix
   contributes across the compounds that carry it? A general answer would replace
   the per-row curator path for the whole osis-suffix band.
-- **The Blink path-vocabulary exception.** Blink ships promoted at 2 ADD as a
-  documented notation exception: its dexterity is written with a `BACK SWIRL` path
-  token that sits outside the ratified IN/OUT vocabulary. The ask is the
-  path-vocabulary ruling the Notation paper's rotational-dex register defers to —
-  sanction rotational path tokens as a register, or re-derive the movement in
-  IN/OUT terms. Until it lands, `BACK SWIRL` stays confined to this one exception.
 - **The Motorfly memory check.** One source carries the name Motorfly with no
   technical name, and nothing else appears anywhere. The ask is simply whether
   anyone remembers what it is. The History paper carries this as the
@@ -123,8 +117,7 @@ double-tracked as dictionary gates.
 ## Who should review it
 
 The rules expert owns the movement rulings: the sumo X-Dex, the pogo terminal, the
-jani-walker and twisting structures, the spyro prefix, the osis-suffix rule, and the
-path-vocabulary ruling behind the Blink exception. The 9-ADD landing needs
+jani-walker and twisting structures, the spyro prefix, and the osis-suffix rule. The 9-ADD landing needs
 witnesses and footage before it can be read at all, so it is a memory-and-evidence
 ask first and a ruling second. The Motorfly memory check belongs to reachable
 old-schoolers, not to any single authority. The records-only riders block only

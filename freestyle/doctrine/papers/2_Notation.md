@@ -40,8 +40,9 @@ inherits them.
   previously re-derived by the ratified clipper-terminal matrix into plain
   IN/OUT dexes remain valid directional decompositions and are not reopened by
   this rule. No additional folding or unfolding follows without a separate
-  structural ruling. Whether `BACK SWIRL` remains confined to the documented
-  Blink exception is the rider's separate path-vocabulary question.
+  structural ruling. `BACK SWIRL` is the explicit path token Blink's dexterity
+  takes, under the curator ruling that a sourced path the in and out vocabulary
+  cannot write takes one.
 - **The twelve core atoms are the foundational terminal vocabulary.** Toe-stall,
   clipper-stall, around-the-world, orbit, legover, pickup, mirage, illusion,
   butterfly, osis, whirl, swirl. Many tricks terminate directly in one of them,
@@ -68,9 +69,8 @@ inherits them.
 - **Cross-body and side are independent.** The `[XBD]` cross-body flag does not by
   itself imply an `OP` side; a component's side is read only from its explicit
   `SAME` or `OP` token, and a cross-body terminal is written on either side (both
-  `SAME ... [XBD]` and `OP ... [XBD]` are valid). This is the working reading,
-  recorded in the positional-identity doctrine, and it awaits the rules expert's
-  confirmation in the open queue ("Cross-body and OP").
+  `SAME ... [XBD]` and `OP ... [XBD]` are valid). This is settled as a rule of the
+  notation model (the curator ruling "Cross-body and side are independent").
 - **Notation uniqueness is a target invariant.** Complete operational notation
   should uniquely represent each ruled structural movement. Aliases and alternate
   names for the same movement may share notation. When distinct canonical

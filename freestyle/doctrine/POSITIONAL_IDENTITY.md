@@ -172,15 +172,13 @@ genuinely unresolved atoms:
   The same-side execution is the marked distinct canonical
   (`butterfly_same_side`), so a `far-butterfly` name is an alias of the base and
   a same-side name resolves to the same-side canonical.
-- **Open — clipper.** Clipper is a catch surface with no scored dex; a side word
-  targets the `[XBD]` catch itself. Whether cross-body `[XBD]` inherently encodes OP
-  (making `same-side-clipper` the marked distinct and `far-clipper` redundant), or
-  the cross-body axis is independent of the SAME/OP axis, is unruled. Evidence from
-  the ratified clipper-terminal matrix: the `[XBD]` bracket is written on both
-  sides — whirl and reverse whirl terminate `OP CLIP [XBD] [DEL]` while swirl and
-  reverse swirl terminate `SAME CLIP [XBD] [DEL]` — so the built canon writes side
-  independently of the cross-body flag. The matrix is evidence for the
-  independent-axes reading, not the ruling itself, which stays with Red.
+- **Settled — clipper.** Clipper is a catch surface with no scored dex; a side word
+  targets the `[XBD]` catch itself. The cross-body axis is independent of the
+  SAME/OP axis (curator ruling, "Cross-body and side are independent"), so a side
+  word on a clipper names its side and neither `same-side-clipper` nor `far-clipper`
+  is redundant. The ratified clipper-terminal matrix already writes it that way:
+  whirl and reverse whirl terminate `OP CLIP [XBD] [DEL]` while swirl and reverse
+  swirl terminate `SAME CLIP [XBD] [DEL]`.
 - **Open — osis.** Two compounding ambiguities (back-or-front spin plus an ambiguous
   `SAME/OP` catch) mean polarity cannot fix the side; osis needs a ruling tying spin
   direction to catch side before any `*-osis` side qualifier resolves.

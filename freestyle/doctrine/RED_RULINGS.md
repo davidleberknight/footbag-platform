@@ -25,6 +25,13 @@ per-row provenance lives where each ruling is applied.
 - **Family and identity doctrine:** the sibling documents in this directory
   (`DOWN_FAMILY.md`, `POSITIONAL_IDENTITY.md`, `MIRROR_RULE.md`,
   `OPERATOR_DERIVATIONS.md`).
+- **Who rules what** (curator ruling, 2026-11-23): the rules expert rules footbag
+  doctrine, meaning what a movement physically is, how it scores, and what a word
+  means in the movement. The curator owns the site's notation: how a ruled
+  movement is written, which syntax a terminal or path takes, and whether the
+  notation can express a distinction. Whether an old folk name stays as an
+  alternate name is a curator decision; what its words mean in the movement is the
+  rules expert's.
 
 ## Supersession method
 
@@ -168,6 +175,15 @@ silently reshaping either side.
 - **Railing, Surfing, Splicing and Floating are first-class named sets, even if
   uncommon** (rules-expert ruling, 2026-10-18). Each keeps its composite definition
   in the registry; being a composition does not make a named set any less a set.
+- **Cross-body and side are independent** (curator ruling, 2026-11-23): the
+  `[XBD]` cross-body flag records the body relationship of a component, and
+  `SAME` or `OP` records its side; neither determines the other, so a cross-body
+  terminal is written on either side. This is a rule of the notation model.
+- **A sourced path the in and out vocabulary cannot write takes an explicit path
+  token** (curator ruling, 2026-11-23): where a movement genuinely follows a path
+  that `IN` and `OUT` cannot faithfully encode, the notation names the path rather
+  than forcing it into those terms for uniformity. Blink's `BACK SWIRL` dexterity
+  is the case in use.
 
 ## Operator rulings in force
 
@@ -338,6 +354,16 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   without narrowing that eligibility. This settles the start-delay question
   only; whether Bedwetter and Shooting Legover are one movement is a separate
   open queue question and is not decided here.
+- **Probe and clipper stall are distinct tricks** (curator ruling, 2026-11-23):
+  Probe is the clipper stall reached from a blind set off the opposite shoulder,
+  passing behind the head (footbag.org newmoves 35). Both keep their rows; the
+  shared compact formula `SET > OP CLIP [XBD] [DEL]` is an accepted limit of the
+  notation, and the distinction lives in each trick's structural definition.
+- **Paradon and atomic butterfly are distinct tricks** (curator ruling,
+  2026-11-23): they differ in which leg sets and which leg circles, and in
+  Paradon's hop. Both keep their rows; the shared formula
+  `TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]` is the same accepted
+  limit, and Paradon's `OP OUT > OP OUT` core stays the ruled Down-grid chassis.
 
 ## Adjacent adjudications recorded here for completeness
 

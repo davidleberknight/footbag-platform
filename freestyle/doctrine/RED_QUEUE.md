@@ -179,10 +179,6 @@ defines the movement, and its weight where the weight is not yet evidenced.
 
 Each is separable and answered on its own.
 
-- **Cross-body and OP.** Does a cross-body `[XBD]` token inherently encode an OP side
-  relationship, or is side independent of it? Carried in `POSITIONAL_IDENTITY.md`
-  under the atom-level foundations; it governs how every cross-body terminal's side
-  reads.
 - **Paradox bracket, physical or convention (registry Q01).** Is the paradox `[PDX]`
   term physical content that one source records and another elides, or a notation
   convention? The answer also settles, for every blurry-named row, whether each
@@ -193,9 +189,6 @@ Each is separable and answered on its own.
 - **Inward-on-a-gyro direction (registry Q09).** What does an inward qualifier denote
   on a gyro, whose base already carries its own OUT direction? It decides the
   withdrawn Inward Gyro batch.
-- **Path or catch terminal encoding (registry Q07).** How is a path/catch terminal
-  written in operational notation? A framing standard, not per-row rulings; it
-  decides how the ambiguous-terminal formula names read.
 - **Directional-syntax tokens (registry Q08).** Are the unresolved directional tokens
   in folk names (the alpine rows' inward and outward-style syntax) sanctioned path
   vocabulary, and how do they map onto the ratified IN and OUT terms?
@@ -398,30 +391,6 @@ Each is separable and answered on its own.
   the prefix in the operator authority if it is ruled one, correct any row whose
   notation or base the ruling changes, write the seven openings, and remove this queue
   entry.
-
-- **Probe vs clipper stall shared notation.** Probe and clipper stall share the
-  byte-identical formula `SET > OP CLIP [XBD] [DEL]`. Probe is source-attested
-  (footbag.org newmoves 35) as a clipper stall set from the opposite-side
-  shoulder, passing behind the head, blind. The distinguishing variable is the
-  set's character, and the notation's generic `SET` entry cannot encode it.
-  These are distinct canonicals colliding within the present model, not
-  aliases. Local recommendation: retain both unchanged and add no new notation
-  token. Ask for the rules expert: is the blind behind-the-head set the correct
-  defining distinction, and should the shared notation be accepted as a known
-  limitation? No merge or alias change is authorized before that ruling.
-  Close condition: record the ruling and remove this entry.
-
-- **Paradon vs atomic butterfly shared notation.** Both carry
-  `TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`. Paradon's
-  `OP OUT > OP OUT` core is the ruled four-cell Down-grid chassis (the toe-set
-  other-leg cell) and stays load-bearing doctrine: Fusion, Cold Fusion, and ID
-  decompose over it. The unresolved distinction from atomic butterfly is
-  setting-leg versus circling-leg identity plus the hop mechanics in Paradon's
-  source description, an axis the notation does not encode, the same
-  limitation family the gyro-versus-spinning finding records. Distinct
-  canonicals; no merge and no formula change. Ask for the rules expert:
-  confirm the leg-identity distinction and accept the shared notation as a
-  known limitation. Close condition: record the ruling and remove this entry.
 
 - **Tombstone vs stepping reverse swirl shared notation.** Both carry
   `CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]`. The bases
@@ -682,11 +651,6 @@ Each is separable and answered on its own.
   contributes across the compounds that carry it? A general answer replaces the
   per-row curator path for the whole osis-suffix band; the general osis-suffix
   compositional default is already ruled, and this is the finer question that remains.
-- **The Blink path-vocabulary exception.** Blink ships at 2 ADD as a documented
-  notation exception: its dexterity is written with a `BACK SWIRL` path token outside
-  the ratified IN and OUT vocabulary. The ask is whether rotational path tokens are
-  sanctioned as a register, or whether the movement must be re-derived in IN and OUT
-  terms. Until it lands, `BACK SWIRL` stays confined to this one exception.
 - **X-Dex on the atomic whirl.** Two folk-named rows and two derived rows describe
   what the outside sources treat as two tricks. FootbagMoves gives Reactor's
   technical name as Atomic Whirl and Gary Coleman's as Atomic Symposium Whirl, and
@@ -739,6 +703,12 @@ in the maintainers' private tracker.
 
 ## With the curator
 
+- **Path or catch terminal syntax (registry Q07).** How a trick that ends on a path
+  or a catch, rather than a stall, is written in operational notation. This is a
+  notation-syntax rule for the curator to write, not a question for the rules
+  expert; it goes to the rules expert only where a particular movement's physical
+  ending is in doubt. It decides how the ambiguous-terminal formula names read.
+  Close: the syntax rule is recorded and the affected notations follow it.
 - **Orbit canonical name.** Direction is structural, so orbit and around-the-world
   are separate tricks; that is settled and not at issue. What is open is which name
   the orbit row carries as canonical. The dictionary names it by the folk name
