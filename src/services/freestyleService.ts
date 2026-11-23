@@ -63,6 +63,7 @@ import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import type { SportSectionProseSegment } from '../types/sportSection';
 import { personHref } from './personLink';
 import { PLAYER_TAG_PREFIX } from './slugify';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
@@ -323,13 +324,12 @@ export interface FreestyleRecordGroup {
 }
 
 export interface FreestyleRecordsContent {
+  // The opening paragraph: what these records are, linking to the official
+  // IFPA records on the Consecutives page.
+  introSegments: SportSectionProseSegment[];
   groups: FreestyleRecordGroup[];
   totalRecords: number;
   totalHolders: number;
-  // True when at least one record's trick name has no matching dictionary
-  // entry, so its name renders without a link; drives an honest note that
-  // some historical record names are not in the current dictionary.
-  hasUnlinkedRecords: boolean;
   // Count of records whose canonical identity is under curator review, each
   // shown with a "Needs curator review" status and its open question; drives
   // the explanatory note for that cohort.
@@ -5112,9 +5112,6 @@ export const freestyleService = {
     const groups = groupByType(rows);
     const holderSet = new Set(rows.map(r => r.person_id ?? r.holder_name));
     const shapedRecords = groups.flatMap(g => g.records);
-    // Curator-review records carry their own explanation, so they are excluded
-    // from the generic "name not in the dictionary" note.
-    const hasUnlinkedRecords = shapedRecords.some(r => r.trickHref == null && r.reviewNote == null);
     const curatorReviewCount = shapedRecords.filter(r => r.reviewNote != null).length;
 
     return {
@@ -5127,16 +5124,19 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_records',
         title:      'Trick Records',
-        intro:      'Some freestyle tricks have been landed hundreds of times in a row.',
       },
       navigation: {
         contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
       },
       content: {
+        introSegments: [
+          { text: 'These are freestyle trick records. The official IFPA records are on the ' },
+          { text: 'Consecutives page', href: '/consecutives' },
+          { text: '.' },
+        ],
         groups,
         totalRecords: rows.length,
         totalHolders: holderSet.size,
-        hasUnlinkedRecords,
         curatorReviewCount,
       },
     };

@@ -16,6 +16,8 @@
 
 <div class="wrapper">
 
+  <p>{{#each content.introSegments}}{{#if href}}<a href="{{href}}">{{text}}</a>{{else}}{{text}}{{/if}}{{/each}}</p>
+
   <p>
     A consecutive record is the most times a player has landed a single
     trick in a row without a miss. It is a test of focus and endurance as
@@ -23,13 +25,6 @@
     type.
   </p>
   <p><a class="action-link" href="/freestyle/leaders">Record Leaders</a></p>
-
-  {{#if content.hasUnlinkedRecords}}
-  <p class="fs-sm">
-    A few of these record names come from older sources and do not match a
-    trick in the current dictionary, so those names are shown without a link.
-  </p>
-  {{/if}}
 
   {{#if content.curatorReviewCount}}
   <p class="fs-sm">
@@ -66,9 +61,6 @@
                 {{else}}
                   <span class="trick-name">{{trickName}}</span>
                 {{/if}}
-                {{#if sortName}}
-                <span class="trick-sort-name">{{sortName}}</span>
-                {{/if}}
                 {{#if reviewNote}}
                 <span class="record-review-flag">Needs curator review</span>
                 <span class="record-review-note">{{reviewNote}}</span>
@@ -87,7 +79,7 @@
               </td>
               <td class="col-date">
                 {{#if achievedDate}}
-                  {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
+                  {{formatDate achievedDate}}
                 {{else}}
                   &mdash;
                 {{/if}}
@@ -114,7 +106,7 @@
   <p class="source-note">
     These records are drawn from documented freestyle video archives and
     community tracking; historical coverage is incomplete and keeps growing.
-    A date shown as a month or a year is known only that precisely; one marked <em>approx.</em> is an estimate.
+    A date shown as a month or a year is known only that precisely.
     The records are well documented from video evidence, but most have not
     been independently verified.
   </p>

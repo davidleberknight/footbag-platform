@@ -66,6 +66,7 @@ beforeAll(async () => {
     person_id:    PERSON_ID,
     display_name: 'Alice Shredder',
     trick_name:   'Torque',
+    sort_name:    'Gyro Whirl (op)',
     value_numeric: 42,
     confidence:   'probable',
     video_url:    'https://youtu.be/abc123defgh',
@@ -352,9 +353,27 @@ describe('GET /freestyle/records', () => {
     expect(res.text).not.toContain('href="/history/"');
   });
 
-  it('notes that some record names are not in the current dictionary when a record is unlinked', async () => {
+  // Defect caught: a visitor on the freestyle records page has no way to reach
+  // the official IFPA records, or the page carries a second intro line in the hero.
+  it('opens with a link to the official records, ahead of the tables, and no hero subtitle', async () => {
+    // The site navigation also links /consecutives, so look in the body's own
+    // first paragraph, the one ahead of the record tables.
     const res = await page('/freestyle/records');
-    expect(res.text).toMatch(/not match a[\s\S]*trick in the current dictionary/i);
+    const opening = res.text.match(/<div class="wrapper">\s*<p>([\s\S]*?)<\/p>/);
+    expect(opening, 'the body opens with a paragraph').not.toBeNull();
+    expect(opening![1]).toMatch(/<a href="\/consecutives">[^<]+<\/a>/);
+    expect(res.text.indexOf(opening![0])).toBeLessThan(res.text.indexOf('<table'));
+    expect(res.text).not.toContain('class="hero-subtitle"');
+  });
+
+  // Defect caught: a record row shows its structured sort name, notation a
+  // visitor cannot read, or an unresolved trick name becomes a broken link.
+  it('shows each trick by its recorded name only, linking only a name that resolves', async () => {
+    const res = await page('/freestyle/records');
+    expect(res.text).toContain('href="/freestyle/tricks/torque"');
+    expect(res.text).not.toContain('Gyro Whirl (op)');
+    expect(res.text).toContain('<span class="trick-name">Whirl</span>');
+    expect(res.text).not.toContain('href="/freestyle/tricks/whirl"');
   });
 
   it('does not show provisional records', async () => {
