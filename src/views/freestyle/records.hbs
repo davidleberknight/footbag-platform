@@ -103,6 +103,22 @@
   <div class="empty-state">No records found.</div>
   {{/if}}
 
+  {{#if content.fearlessProgression.length}}
+  <section class="records-group">
+    <h2 class="section-heading">Unique Fearless Over the Years</h2>
+    <p>
+      The record for the most distinct tricks of 5 ADD or higher landed in one run
+      has climbed for nearly two decades. The two earliest marks are provisional:
+      they are recorded but not yet confirmed.
+    </p>
+    <ul>
+      {{#each content.fearlessProgression}}
+      <li>{{value}} · {{#if holderHref}}<a href="{{holderHref}}">{{holderName}}</a>{{else}}{{holderName}}{{/if}}{{#if year}} · {{year}}{{/if}}{{#if statusLabel}} ({{statusLabel}}){{/if}}</li>
+      {{/each}}
+    </ul>
+  </section>
+  {{/if}}
+
   <p class="source-note">
     These records are drawn from documented freestyle video archives and
     community tracking; historical coverage is incomplete and keeps growing.

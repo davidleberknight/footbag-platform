@@ -2449,6 +2449,40 @@ export const freestyleRecords = {
     ORDER BY fr.value_numeric DESC
   `); },
 
+  // Every step of one named record over time, superseded and provisional ones
+  // included, for a progression the page labels by status. A disputed record
+  // is not a step.
+  get listProgressionByTrickName() { return db.prepare(`
+    SELECT
+      fr.id,
+      fr.record_type,
+      fr.person_id,
+      COALESCE(hp.person_name, fr.display_name) AS holder_name,
+      m.slug AS holder_member_slug,
+      fr.trick_name,
+      fr.sort_name,
+      fr.adds_count,
+      fr.value_numeric,
+      fr.achieved_date,
+      fr.date_precision,
+      fr.confidence,
+      fr.superseded_by,
+      fr.video_url,
+      fr.video_timecode,
+      fr.notes,
+      fr.curator_review_note
+    FROM freestyle_records AS fr
+    LEFT JOIN historical_persons AS hp
+      ON hp.person_id = fr.person_id
+    LEFT JOIN members_onboarded AS m
+      ON m.historical_person_id = fr.person_id
+      AND m.deleted_at IS NULL
+    WHERE fr.trick_name = ?
+      AND fr.confidence IN ('verified', 'probable', 'provisional')
+      AND (fr.person_id IS NOT NULL OR fr.display_name IS NOT NULL)
+    ORDER BY fr.achieved_date ASC, fr.value_numeric ASC, fr.id ASC
+  `); },
+
   get listAllByTrickName() { return db.prepare(`
     SELECT
       fr.id,

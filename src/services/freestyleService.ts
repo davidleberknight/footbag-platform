@@ -64,6 +64,10 @@ import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import type { SportSectionProseSegment } from '../types/sportSection';
+import { PUBLIC_FREESTYLE_RECORD_CONFIDENCES } from './freestyleRecordVisibility';
+
+/** The record whose progression the records page shows, by the maintainer's ruling. */
+const FEARLESS_RECORD_NAME = 'Unique Fearless';
 import { personHref } from './personLink';
 import { PLAYER_TAG_PREFIX } from './slugify';
 import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
@@ -323,10 +327,23 @@ export interface FreestyleRecordGroup {
   records: FreestyleRecordViewModel[];
 }
 
+/** One step in a record's progression, oldest first, labelled by its status. */
+export interface FreestyleRecordProgressionStep {
+  value: number;
+  holderName: string;
+  holderHref: string | null;
+  year: string | null;
+  /** "provisional" for an unconfirmed step, "current record" for the standing one, else null. */
+  statusLabel: string | null;
+}
+
 export interface FreestyleRecordsContent {
   // The opening paragraph: what these records are, linking to the official
   // IFPA records on the Consecutives page.
   introSegments: SportSectionProseSegment[];
+  // The Unique Fearless record over time, provisional steps labelled as such;
+  // empty when no step is recorded, and the section is then not drawn.
+  fearlessProgression: FreestyleRecordProgressionStep[];
   groups: FreestyleRecordGroup[];
   totalRecords: number;
   totalHolders: number;
@@ -5112,6 +5129,20 @@ export const freestyleService = {
     const groups = groupByType(rows);
     const holderSet = new Set(rows.map(r => r.person_id ?? r.holder_name));
     const shapedRecords = groups.flatMap(g => g.records);
+    const fearlessProgression = (runSqliteRead('freestyleRecords.listProgressionByTrickName', () =>
+      freestyleRecords.listProgressionByTrickName.all(FEARLESS_RECORD_NAME) as FreestyleRecordRow[],
+    )).map((row): FreestyleRecordProgressionStep => {
+      const shaped = shapeFreestyleRecord(row);
+      const standing = row.superseded_by == null
+        && (PUBLIC_FREESTYLE_RECORD_CONFIDENCES as readonly string[]).includes(row.confidence);
+      return {
+        value:       shaped.valueNumeric,
+        holderName:  shaped.holderName,
+        holderHref:  shaped.holderHref,
+        year:        shaped.achievedDate ? shaped.achievedDate.slice(0, 4) : null,
+        statusLabel: row.confidence === 'provisional' ? 'provisional' : standing ? 'current record' : null,
+      };
+    });
     const curatorReviewCount = shapedRecords.filter(r => r.reviewNote != null).length;
 
     return {
@@ -5134,6 +5165,7 @@ export const freestyleService = {
           { text: 'Consecutives page', href: '/consecutives' },
           { text: '.' },
         ],
+        fearlessProgression,
         groups,
         totalRecords: rows.length,
         totalHolders: holderSet.size,

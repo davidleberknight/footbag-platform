@@ -127,6 +127,26 @@ beforeAll(async () => {
     confidence:    'provisional',  // must NOT appear on player page
   });
 
+  // The Unique Fearless record over time: a provisional early step, a
+  // superseded step, the standing record, and a disputed claim that is no step.
+  insertFreestyleRecord(db, {
+    id: 'fr-fearless-standing', display_name: 'Fearless Standing', trick_name: 'Unique Fearless',
+    value_numeric: 25, confidence: 'probable', achieved_date: '2023-07-23',
+  });
+  insertFreestyleRecord(db, {
+    id: 'fr-fearless-early', display_name: 'Fearless Early', trick_name: 'Unique Fearless',
+    value_numeric: 19, confidence: 'provisional', achieved_date: '2005-06-01', date_precision: 'month',
+  });
+  insertFreestyleRecord(db, {
+    id: 'fr-fearless-beaten', display_name: 'Fearless Beaten', trick_name: 'Unique Fearless',
+    value_numeric: 22, confidence: 'probable', achieved_date: '2017-02-01',
+    superseded_by: 'fr-fearless-standing',
+  });
+  insertFreestyleRecord(db, {
+    id: 'fr-fearless-disputed', display_name: 'Fearless Disputed', trick_name: 'Unique Fearless',
+    value_numeric: 30, confidence: 'disputed', achieved_date: '2020-01-01',
+  });
+
   // ── Reference Media filter fixtures (trick page) ───────────────────────
   // Two media items tagged #ref-media-audit: one tutorial-tier
   // (source_id=tt_youtube), one record-tier (source_id=passback_records).
@@ -364,6 +384,26 @@ describe('GET /freestyle/records', () => {
     expect(opening![1]).toMatch(/<a href="\/consecutives">[^<]+<\/a>/);
     expect(res.text.indexOf(opening![0])).toBeLessThan(res.text.indexOf('<table'));
     expect(res.text).not.toContain('class="hero-subtitle"');
+  });
+
+  // Defect caught: the Fearless progression drops a step, reorders the years,
+  // presents an unconfirmed step as a confirmed record, or counts a disputed
+  // claim as a step; while the record table keeps showing only the standing one.
+  it('shows the Fearless record over time, oldest first, each step labelled by its status', async () => {
+    const res = await page('/freestyle/records');
+    const section = res.text.match(/<section class="records-group">\s*<h2 class="section-heading">Unique Fearless Over the Years<\/h2>([\s\S]*?)<\/section>/);
+    expect(section, 'the progression section').not.toBeNull();
+    const steps = [...section![1].matchAll(/<li>([\s\S]*?)<\/li>/g)].map(m => m[1].trim());
+    expect(steps).toEqual([
+      '19 · Fearless Early · 2005 (provisional)',
+      '22 · Fearless Beaten · 2017',
+      '25 · Fearless Standing · 2023 (current record)',
+    ]);
+    const table = res.text.slice(0, res.text.indexOf(section![0]));
+    expect(table).toContain('Fearless Standing');
+    expect(table).not.toContain('Fearless Early');
+    expect(table).not.toContain('Fearless Beaten');
+    expect(res.text).not.toContain('Fearless Disputed');
   });
 
   // Defect caught: a record row shows its structured sort name, notation a
