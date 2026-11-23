@@ -8,8 +8,8 @@ tricks need new primary tutorials and which can be left alone.
 Source graph:
   The UNIFIED media graph (media_items + media_tags). A trick is "covered" when
   a curated media item (one carrying the #curated tag) is tagged with its
-  #<slug>; coverage strength is derived from the item's source_id. The
-  deprecated freestyle_media_* graph is no longer read.
+  #<slug>; coverage strength is derived from the item's content-type tag
+  (#tutorial, #demo or #record; an untyped clip counts as a demonstration).
 
 Input:
   --db <path> against a seeded DB is the supported path: curated media_items are
@@ -35,7 +35,7 @@ Stdout:
 
 Validation (non-zero exit on any failure):
   - report row count == total freestyle_tricks row count
-  - every curated media item's (non-blank) source_id is a recognized source
+  - no curated media item carries more than one content-type tag
   - every embedded_coverage.csv slug (embedded + host) resolves to a real trick
   (A curated tag that matches no trick slug is a freeform tag: it neither counts
   as coverage nor fails the run.)
@@ -316,10 +316,6 @@ def validate(conn: sqlite3.Connection, rows: list[dict]) -> list[str]:
     #    error here: it counts as a demonstration, the same default both public
     #    readers apply, and the media-tag invariant is where completeness is
     #    enforced.
-    #
-    #    This replaced a check that hard-failed the run on any source id missing
-    #    from a hand-maintained map. That was a registration chore rather than a
-    #    data defect, and it stopped the whole rebuild over one.
     multi_typed = sorted({
         r[0] for r in conn.execute("""
             SELECT t.media_id FROM media_tags t

@@ -1,6 +1,8 @@
 /**
- * FreestyleService -- public freestyle section pages (read-only). All routes are public and
- * unauthenticated. Each page method returns PageViewModel<...Content>.
+ * FreestyleService -- freestyle section pages (read-only). Every page is public and
+ * unauthenticated except one admin page, the Emerging Vocabulary workbench at
+ * GET /admin/freestyle/emerging-vocabulary (getInternalEmergingVocabularyPage), which the admin
+ * mount gates. Each page method returns PageViewModel<...Content>.
  *
  * Serves:
  *   - Landing: GET /freestyle (getLandingPage).
@@ -9,6 +11,8 @@
  *     addTier; the canonical URL for one ADD tier), GET /freestyle/tricks/:slug
  *     (getTrickDetailPage), GET /freestyle/families/:slug
  *     (getFamilyDetailPage; first-class Family Parents only).
+ *   - Search: GET /freestyle/search (getFreestyleTrickSearchPage), /freestyle/search/suggest
+ *     (getSearchSuggestions).
  *   - Reference: GET /freestyle/glossary (getGlossaryPage; the A–Z term list),
  *     /freestyle/concepts (getConceptsPage; the short conceptual reference), /freestyle/operators
  *     (getOperatorsPage), /freestyle/modifier/:slug (getModifierDetail -> teaching | stub),
@@ -16,11 +20,12 @@
  *     (getObservationalLayerPage).
  *   - Sets: /freestyle/sets (getSetsEncyclopediaPage, with Holden's compilation from
  *     getHoldenCompilation), /freestyle/sets/:slug (getCanonicalSetDetailPage).
- *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/competition, /freestyle/partnerships, /freestyle/add-analysis
- *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
- *     /freestyle/by-the-numbers (getByTheNumbersPage).
+ *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/competition
+ *     (getFreestyleCompetitionPage), /freestyle/partnerships (getFreestylePartnershipsPage),
+ *     /freestyle/add-analysis (getAddAnalysisPage), /freestyle/combo-analysis
+ *     (getComboAnalysisPage), /freestyle/by-the-numbers (getByTheNumbersPage).
  *   - Pedagogy: /freestyle/start (getStartPage, ending with the six next-step lessons),
- *     /freestyle/about, /freestyle/history.
+ *     /freestyle/about (getAboutPage), /freestyle/history (getFreestyleHistoryPage).
  *
  * Rendering contract:
  *   - Every trick-dictionary browse view renders the same shared two-line trick row; the
@@ -28,9 +33,9 @@
  *   - Detail routes for trick and modifier throw NotFoundError on an unknown slug, which renders
  *     404 (anti-enumeration); getCanonicalSetDetailPage and getFamilyDetailPage instead return
  *     null for an unknown or non-first-class slug (the controller maps null to 404).
- *   - Tier-4 executable-accounting notation surfaces render only on sanctioned places (the
- *     trick-detail Notation summary, first-class pilot browse cards, and ADD Analysis); the
- *     Tier-3 absence contract holds everywhere else.
+ *   - A trick's Difficulty breakdown (the readable ADD derivation) renders only on its trick
+ *     page and on ADD Analysis; browse rows and the landing show the ADD value alone, and a
+ *     trick with no published derivation shows none rather than a placeholder.
  *
  * Ontology layering (load-bearing, never collapsed):
  *   - Canonical curated tricks are the only first-class structures. The observational / emerging-
