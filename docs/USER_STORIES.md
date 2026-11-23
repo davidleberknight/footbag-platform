@@ -712,7 +712,7 @@ Story: As a visitor, I can view freestyle world records and their leaders so tha
 
 Success Criteria:
 
-- `/freestyle/records` lists the curated freestyle world records, the passback records among them. `/freestyle/leaders` aggregates record counts by player.
+- `/freestyle/records` lists the curated freestyle world records, the passback records among them, and names who holds the most of them.
 - A record links to a canonical trick detail page when its recorded trick name resolves to a canonical trick, directly or through an alias; a legacy name that resolves to nothing renders as plain text, never a broken link.
 - Where a record's recorded difficulty differs from the trick's canonical ADD, both are presented honestly as distinct facts; neither silently overwrites the other.
 - Provenance and verification status are stated plainly. Unknown data stays unknown: no fabricated dates, names, or values, and placeholder source dates are never displayed as real dates.

@@ -45,7 +45,6 @@ const STATIC_PUBLIC_PATHS = [
   '/freestyle',
   '/freestyle/tricks',
   '/freestyle/records',
-  '/freestyle/leaders',
   '/freestyle/competition',
   '/freestyle/partnerships',
   '/freestyle/history',

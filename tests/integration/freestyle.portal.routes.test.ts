@@ -382,7 +382,7 @@ describe('GET /freestyle — two-band landing', () => {
     }
   });
 
-  it('keeps the landing to one tile per destination, and Record Leaders stays reachable from Records', async () => {
+  it('keeps the landing to one tile per destination', async () => {
     // Merged or dropped tiles: a second tile for a page another tile already
     // covers, or for a page well linked elsewhere, is what made the landing a
     // wall of near-duplicates.
@@ -395,10 +395,6 @@ describe('GET /freestyle — two-band landing', () => {
     ]) {
       expect(landing.text, `landing tile for ${href}`).not.toContain(`href="${href}"`);
     }
-    // The Leaders page lost its landing tile, so Records must carry the way in.
-    const records = await page('/freestyle/records');
-    expect(records.status).toBe(200);
-    expect(records.text).toContain('href="/freestyle/leaders"');
   });
 
   it('the retired Insights address is not found and nothing links to it', async () => {

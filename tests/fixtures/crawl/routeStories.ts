@@ -53,7 +53,6 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /freestyle/search/suggest': { stories: ['V_Search_Tricks'] },
   'GET /freestyle/search': { stories: ['V_Search_Tricks'] },
   'GET /freestyle/media': { stories: ['V_View_Freestyle_Media_Hub'] },
-  'GET /freestyle/leaders': { stories: ['V_View_Trick_Records'] },
   'GET /freestyle/competition': { stories: ['V_Learn_Freestyle'] },
   'GET /freestyle/partnerships': { stories: ['V_Learn_Freestyle'] },
   'GET /freestyle/history': { stories: ['V_Learn_Freestyle'] },

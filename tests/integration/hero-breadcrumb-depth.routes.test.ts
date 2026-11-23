@@ -18,7 +18,6 @@ const page = cachedGet(() => createApp());
 // Every page one level below its section's landing page, with that landing.
 const ONE_LEVEL: ReadonlyArray<{ path: string; landing: string }> = [
   { path: '/freestyle/records', landing: '/freestyle' },
-  { path: '/freestyle/leaders', landing: '/freestyle' },
   { path: '/freestyle/competition', landing: '/freestyle' },
   { path: '/freestyle/partnerships', landing: '/freestyle' },
   { path: '/freestyle/history', landing: '/freestyle' },

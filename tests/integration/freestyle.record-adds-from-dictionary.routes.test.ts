@@ -42,7 +42,9 @@ afterAll(() => cleanupTestDb(dbPath));
 
 /** The ADD cell of the table row that names the given holder. */
 function addsCellFor(html: string, holder: string): string | null {
-  const row = html.split('<tr').find(chunk => chunk.includes(holder));
+  // A holder is also named in the records page's leaders line, above the
+  // tables, so the row is the one that carries an ADD cell.
+  const row = html.split('<tr').find(chunk => chunk.includes('class="col-adds"') && chunk.includes(holder));
   return row?.match(/class="col-adds">\s*([^<\s]+)\s*</)?.[1] ?? null;
 }
 

@@ -127,6 +127,17 @@ beforeAll(async () => {
     confidence:    'provisional',  // must NOT appear on player page
   });
 
+  // A second current record each for Alice and Bob, so they tie as the
+  // holders of the most records; Bob's provisional record does not count.
+  insertFreestyleRecord(db, {
+    id: 'fr-alice-2', person_id: PERSON_ID, display_name: 'Alice Shredder', trick_name: 'Mobius',
+    value_numeric: 5, confidence: 'probable',
+  });
+  insertFreestyleRecord(db, {
+    id: 'fr-bob-2', person_id: FREESTYLE_PLAYER_ID, display_name: 'Bob Freestyler', trick_name: 'Blender',
+    value_numeric: 7, confidence: 'probable',
+  });
+
   // The Unique Fearless record over time: a provisional early step, a
   // superseded step, the standing record, and a disputed claim that is no step.
   insertFreestyleRecord(db, {
@@ -386,6 +397,21 @@ describe('GET /freestyle/records', () => {
     expect(res.text).not.toContain('class="hero-subtitle"');
   });
 
+  // Defect caught: the records page names the wrong leader, drops one of two
+  // tied leaders, counts a provisional or superseded record, or leaves a link
+  // to the leaders page the line replaces.
+  it('names every holder tied for the most current records, linked, with their count', async () => {
+    const res = await page('/freestyle/records');
+    const line = res.text.match(/<p>([^<]*<a href="\/history\/[^"]+">[\s\S]*?)<\/p>/);
+    expect(line, 'the leaders line').not.toBeNull();
+    expect(line![1]).toContain(`<a href="/history/${PERSON_ID}">Alice Shredder</a>`);
+    expect(line![1]).toContain(`<a href="/history/${FREESTYLE_PLAYER_ID}">Bob Freestyler</a>`);
+    expect(line![1]).toMatch(/\b2\b/);
+    expect(line![1]).not.toContain('Unknown Player');
+    expect(line![1]).not.toContain('Hidden Player');
+    expect(res.text).not.toContain('href="/freestyle/leaders"');
+  });
+
   // Defect caught: the Fearless progression drops a step, reorders the years,
   // presents an unconfirmed step as a confirmed record, or counts a disputed
   // claim as a step; while the record table keeps showing only the standing one.
@@ -437,33 +463,19 @@ describe('GET /freestyle/records', () => {
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle/leaders', () => {
-  it('shows Alice Shredder as a leader (has 1 public record)', async () => {
+  // Defect caught: the retired leaders address still serves a page, or
+  // redirects, when a retired route of this site gets the not-found page.
+  it('is not found, and the records page that replaced it is', async () => {
     const res = await page('/freestyle/leaders');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Alice Shredder');
-  });
-
-  it('links resolved person_id holders to /history/:personId', async () => {
-    const res = await page('/freestyle/leaders');
-    expect(res.text).toContain(`/history/${PERSON_ID}`);
-  });
-
-  it('renders unresolved holder as plain text', async () => {
-    const res = await page('/freestyle/leaders');
-    expect(res.text).toContain('Unknown Player');
-    expect(res.text).not.toContain('/history/null');
-  });
-
-  it('does not include provisional records in leader counts', async () => {
-    const res = await page('/freestyle/leaders');
-    expect(res.text).not.toContain('Hidden Player');
+    expect(res.status).toBe(404);
+    expect((await page('/freestyle/records')).status).toBe(200);
   });
 });
 
 // ---------------------------------------------------------------------------
 
 describe('GET /freestyle — enriched landing page', () => {
-  it('surfaces the records page (leaders is reachable from there)', async () => {
+  it('surfaces the records page', async () => {
     const res = await page('/freestyle');
     expect(res.text).toContain('/freestyle/records');
   });

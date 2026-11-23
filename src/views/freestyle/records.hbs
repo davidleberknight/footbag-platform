@@ -24,7 +24,9 @@
     much as skill. The records below are the documented bests, grouped by
     type.
   </p>
-  <p><a class="action-link" href="/freestyle/leaders">Record Leaders</a></p>
+  {{#if content.leaderSegments.length}}
+  <p>{{#each content.leaderSegments}}{{#if href}}<a href="{{href}}">{{text}}</a>{{else}}{{text}}{{/if}}{{/each}}</p>
+  {{/if}}
 
   {{#if content.curatorReviewCount}}
   <p class="fs-sm">

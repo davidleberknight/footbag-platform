@@ -16,8 +16,7 @@
  *     (getObservationalLayerPage).
  *   - Sets: /freestyle/sets (getSetsEncyclopediaPage, with Holden's compilation from
  *     getHoldenCompilation), /freestyle/sets/:slug (getCanonicalSetDetailPage).
- *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/leaders (getLeadersPage),
- *     /freestyle/competition, /freestyle/partnerships, /freestyle/add-analysis
+ *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/competition, /freestyle/partnerships, /freestyle/add-analysis
  *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
  *     /freestyle/by-the-numbers (getByTheNumbersPage).
  *   - Pedagogy: /freestyle/start (getStartPage, ending with the six next-step lessons),
@@ -232,6 +231,29 @@ import {
   type StartNextStepSource,
 } from '../content/freestyleStartNextSteps';
 
+/**
+ * The records page's line naming who holds the most current public records:
+ * "<name> holds the most trick records, with <n>." or, for a tie, "<a> and <b>
+ * hold the most trick records, with <n> each." Rows arrive highest count first.
+ */
+function recordLeaderSegments(rows: FreestyleLeaderRow[]): SportSectionProseSegment[] {
+  if (rows.length === 0) return [];
+  const top = rows[0].record_count;
+  const leaders = rows.filter(r => r.record_count === top);
+  const segments: SportSectionProseSegment[] = [];
+  leaders.forEach((r, i) => {
+    if (i > 0) segments.push({ text: i === leaders.length - 1 ? ' and ' : ', ' });
+    const href = personHref(r.holder_member_slug, r.person_id);
+    segments.push(href ? { text: r.holder_name, href } : { text: r.holder_name });
+  });
+  segments.push({
+    text: leaders.length === 1
+      ? ` holds the most trick records, with ${top}.`
+      : ` hold the most trick records, with ${top} each.`,
+  });
+  return segments;
+}
+
 function labelForType(recordType: string): string {
   return recordTypeLabel(recordType);
 }
@@ -333,6 +355,9 @@ export interface FreestyleRecordsContent {
   // The opening paragraph: what these records are, linking to the official
   // IFPA records on the Consecutives page.
   introSegments: SportSectionProseSegment[];
+  // Who holds the most current public records, each name linked where a
+  // person page exists; empty when there are no records.
+  leaderSegments: SportSectionProseSegment[];
   // The Unique Fearless record over time, provisional steps labelled as such;
   // empty when no step is recorded, and the section is then not drawn.
   fearlessProgression: FreestyleRecordProgressionStep[];
@@ -458,21 +483,6 @@ function runTrickSearch(query: string, limit: number): FreestyleTrickSearchResul
     }
     return out;
   });
-}
-
-export interface FreestyleLeaderViewModel {
-  rank: number;
-  holderName: string;
-  holderHref: string | null;
-  recordCount: number;
-  topValue: number;
-  topTrick: string | null;
-}
-
-export interface FreestyleLeadersContent {
-  leaders: FreestyleLeaderViewModel[];
-  totalHolders: number;
-  totalRecords: number;
 }
 
 export interface FreestyleLandingExplainer {
@@ -2721,17 +2731,6 @@ function groupByType(rows: FreestyleRecordRow[]): FreestyleRecordGroup[] {
     recordType,
     label:   labelForType(recordType),
     records: typeRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug, trickAdds)),
-  }));
-}
-
-function shapeLeaders(rows: FreestyleLeaderRow[]): FreestyleLeaderViewModel[] {
-  return rows.map((row, i) => ({
-    rank:        i + 1,
-    holderName:  row.holder_name,
-    holderHref:  personHref(row.holder_member_slug, row.person_id),
-    recordCount: row.record_count,
-    topValue:    row.top_value,
-    topTrick:    row.top_trick,
   }));
 }
 
@@ -5119,6 +5118,10 @@ export const freestyleService = {
         statusLabel: row.confidence === 'provisional' ? 'provisional' : standing ? 'current record' : null,
       };
     });
+    const leaderRows = runSqliteRead('freestyleRecords.listLeaders', () =>
+      freestyleRecords.listLeaders.all() as FreestyleLeaderRow[],
+    );
+    const leaderSegments = recordLeaderSegments(leaderRows);
     const curatorReviewCount = shapedRecords.filter(r => r.reviewNote != null).length;
 
     return {
@@ -5141,6 +5144,7 @@ export const freestyleService = {
           { text: 'Consecutives page', href: '/consecutives' },
           { text: '.' },
         ],
+        leaderSegments,
         fearlessProgression,
         groups,
         totalRecords: rows.length,
@@ -5203,36 +5207,6 @@ export const freestyleService = {
         resultCount: results.length,
         hasMore,
         hasNoResults: hasQuery && !tooShort && familyResults.length === 0 && results.length === 0,
-      },
-    };
-  },
-
-  getLeadersPage(): PageViewModel<FreestyleLeadersContent> {
-    const rows = runSqliteRead('freestyleRecords.listLeaders', () =>
-      freestyleRecords.listLeaders.all() as FreestyleLeaderRow[],
-    );
-
-    const leaders = shapeLeaders(rows);
-    const totalRecords = rows.reduce((sum, r) => sum + r.record_count, 0);
-
-    return {
-      seo: {
-        title: 'Record Leaders',
-        description: 'The players who hold the most documented freestyle trick records.',
-      },
-      page: {
-        sectionKey: 'freestyle',
-        pageKey:    'freestyle_leaders',
-        title:      'Record Leaders',
-        intro:      'Players with the most documented trick records.',
-      },
-      navigation: {
-        contextLinks: [{ label: 'Back to Freestyle Footbag', href: '/freestyle' }],
-      },
-      content: {
-        leaders,
-        totalHolders: leaders.length,
-        totalRecords,
       },
     };
   },

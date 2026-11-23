@@ -58,16 +58,6 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/leaders */
-  leaders(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleService.getLeadersPage();
-      res.render('freestyle/leaders', vm);
-    } catch (err) {
-      handleControllerError(err, res, next, 'freestyle controller');
-    }
-  },
-
   /** GET /freestyle/tricks/:slug */
   trick(req: Request, res: Response, next: NextFunction): void {
     try {

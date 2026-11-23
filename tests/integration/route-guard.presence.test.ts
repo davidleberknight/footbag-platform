@@ -52,7 +52,7 @@ open('the public site: pages any visitor reads, with member-only enhancements sh
   'GET /media/item/:mediaId', 'GET /media/:galleryId', 'GET /media/:galleryId/:mediaId',
   'GET /hof', 'GET /bap',
   'GET /freestyle', 'GET /freestyle/records', 'GET /freestyle/search', 'GET /freestyle/media',
-  'GET /freestyle/leaders', 'GET /freestyle/competition', 'GET /freestyle/partnerships',
+  'GET /freestyle/competition', 'GET /freestyle/partnerships',
   'GET /freestyle/history', 'GET /freestyle/about', 'GET /freestyle/add-analysis',
   'GET /freestyle/combo-analysis', 'GET /freestyle/sets/:slug', 'GET /freestyle/sets',
   'GET /freestyle/glossary', 'GET /freestyle/concepts', 'GET /freestyle/notation-article',
