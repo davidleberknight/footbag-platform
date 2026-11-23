@@ -2,6 +2,18 @@ import { FreestyleRecordRow } from '../db/db';
 import { personHref } from './personLink';
 import { parseVideoLink } from '../lib/videoPlatforms';
 
+/** The one plain name for each freestyle record type, public and admin alike. */
+const RECORD_TYPE_LABELS: Record<string, string> = {
+  trick_consecutive:        'Consecutive Completions',
+  trick_consecutive_dex:   'Consecutive Completions (Dex)',
+  trick_consecutive_juggle: 'Consecutive Juggle',
+};
+
+/** A record type's plain name, or the stored code when no name is set. */
+export function recordTypeLabel(recordType: string): string {
+  return RECORD_TYPE_LABELS[recordType] ?? recordType;
+}
+
 export function trickNameToSlug(name: string): string {
   // The slug is the lexical form of the name only: lowercase, non-alphanumeric
   // runs to underscores. A positional qualifier (ss / op / near / far / same side) is

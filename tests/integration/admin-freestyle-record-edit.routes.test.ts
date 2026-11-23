@@ -156,6 +156,30 @@ describe('GET /admin/freestyle/records — admin gate + browse', () => {
     expect(res.text).toContain('Superseded');
   });
 
+  // Defect caught: each row carries the record type and confidence columns that
+  // hold one value in nearly every row, or the hero repeats a row count, so the
+  // curator scans clutter to find the holder and the action.
+  it('lists each record as holder, trick, value, status and its edit action, with no row count', async () => {
+    const res = await get('/admin/freestyle/records', admin());
+    const row = res.text.match(/<tr>\s*<td>Real Historical Holder<\/td>([\s\S]*?)<\/tr>/);
+    expect(row, 'the seeded holder row').not.toBeNull();
+    expect((row![0].match(/<td>/g) ?? []).length).toBe(5);
+    expect(res.text).not.toMatch(/\d+ row\(s\)/);
+  });
+
+  // Defect caught: the record-type filter offers stored codes such as
+  // trick_consecutive_dex, which a curator has to decode, while the filter
+  // still has to submit the code the search matches on.
+  it('offers each record type by its plain name while submitting its stored code', async () => {
+    const res = await get('/admin/freestyle/records', admin());
+    const options = [...res.text.matchAll(/<option value="(trick_[a-z_]+)"[^>]*>([^<]*)<\/option>/g)];
+    expect(options.map(o => o[1])).toContain('trick_consecutive_dex');
+    for (const [, code, label] of options) {
+      expect(label.trim(), code).not.toBe(code);
+      expect(label, code).not.toContain('_');
+    }
+  });
+
   it('redirects an unauthenticated visitor to login', async () => {
     const res = await get('/admin/freestyle/records');
     expect(res.status).toBe(302);

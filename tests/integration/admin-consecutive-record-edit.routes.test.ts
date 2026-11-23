@@ -126,6 +126,16 @@ describe('GET /admin/freestyle/consecutive-records — admin gate + grouped brow
     expect(res.text).toContain('WR Holder');        // a row's players
   });
 
+  // Defect caught: each row leads with its global display position, a number a
+  // curator does not use to find a record, or the hero repeats a row count.
+  it('lists each record as players, score and its edit action, with no position or row count', async () => {
+    const res = await get('/admin/freestyle/consecutive-records', admin());
+    const row = res.text.match(/<tr>\s*<td>WR Holder[^<]*<\/td>([\s\S]*?)<\/tr>/);
+    expect(row, 'the seeded holder row').not.toBeNull();
+    expect((row![0].match(/<td>/g) ?? []).length).toBe(3);
+    expect(res.text).not.toMatch(/\d+ row\(s\)/);
+  });
+
   it('redirects an unauthenticated visitor to login', async () => {
     const res = await get('/admin/freestyle/consecutive-records');
     expect(res.status).toBe(302);

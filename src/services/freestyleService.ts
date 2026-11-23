@@ -74,6 +74,7 @@ import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 import { shapePartnershipPair } from './playerShaping';
 import {
   FreestyleRecordViewModel,
+  recordTypeLabel,
   shapeFreestyleRecord,
   stripDisplaySideQualifier,
   trickNameToSlug,
@@ -231,17 +232,8 @@ import {
   type StartNextStepSource,
 } from '../content/freestyleStartNextSteps';
 
-// ---------------------------------------------------------------------------
-// Record type labels
-// ---------------------------------------------------------------------------
-const RECORD_TYPE_LABELS: Record<string, string> = {
-  trick_consecutive:        'Consecutive Completions',
-  trick_consecutive_dex:   'Consecutive Completions (Dex)',
-  trick_consecutive_juggle: 'Consecutive Juggle',
-};
-
 function labelForType(recordType: string): string {
-  return RECORD_TYPE_LABELS[recordType] ?? recordType;
+  return recordTypeLabel(recordType);
 }
 
 // ── Media-tag display shaping ───────────────────────────────────────────

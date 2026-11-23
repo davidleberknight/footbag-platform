@@ -82,7 +82,6 @@ function isDuplicateKeyError(err: unknown): boolean {
 
 export interface ConsecutiveBrowseRow {
   id: string;
-  sortOrder: number;
   players: string;
   score: string;
   editHref: string;
@@ -97,7 +96,6 @@ export interface ConsecutiveSectionGroup {
 }
 export interface ConsecutiveBrowseContent {
   sections: ConsecutiveSectionGroup[];
-  totalCount: number;
   hasRows: boolean;
 }
 
@@ -220,7 +218,6 @@ export const consecutiveKicksCurationService = {
       }
       discipline.rows.push({
         id:        r.id,
-        sortOrder: r.sort_order,
         players:   joinPlayers(r.player_1, r.player_2),
         score:     numOrEmpty(r.score),
         editHref:  `/admin/freestyle/consecutive-records/${r.id}/edit`,
@@ -240,7 +237,7 @@ export const consecutiveKicksCurationService = {
           ],
         },
       },
-      content: { sections, totalCount: rows.length, hasRows: rows.length > 0 },
+      content: { sections, hasRows: rows.length > 0 },
     };
   },
 

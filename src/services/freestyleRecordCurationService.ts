@@ -48,6 +48,7 @@ import { freestyleRecords, historicalPersonLookup, transaction } from '../db/db'
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { parseVideoLink } from '../lib/videoPlatforms';
+import { recordTypeLabel } from './freestyleRecordShaping';
 import { PageViewModel } from '../types/page';
 import { PICKER_LIMIT, buildRecordPicker, type MemberPickerView, type PickIntent } from './memberPicker';
 import { adminHistoricalRecordService } from './adminHistoricalRecordService';
@@ -68,18 +69,15 @@ interface FilterOption {
 
 export interface FreestyleRecordBrowseRow {
   id: string;
-  recordType: string;
   holderName: string;
   trickName: string;
   value: string;
-  confidence: string;
   statusLabel: string;
   editHref: string;
 }
 
 export interface FreestyleRecordBrowseContent {
   rows: FreestyleRecordBrowseRow[];
-  totalCount: number;
   hasRows: boolean;
   filters: FreestyleRecordBrowseFilters;
 }
@@ -346,18 +344,16 @@ export const freestyleRecordCurationService = {
       })
       .map((r) => ({
         id:          r.id,
-        recordType:  r.record_type,
         holderName:  r.holder_name ?? '',
         trickName:   r.trick_name ?? '',
         value:       numOrEmpty(r.value_numeric),
-        confidence:  r.confidence,
         statusLabel: r.superseded_by ? 'Superseded' : 'Current',
         editHref:    `/admin/freestyle/records/${r.id}/edit`,
       }));
 
     const recordTypeOptions: FilterOption[] = [
       { value: '', label: 'Any Record Type', selected: typeFilter === '' },
-      ...recordTypes.map((t) => ({ value: t, label: t, selected: t === typeFilter })),
+      ...recordTypes.map((t) => ({ value: t, label: recordTypeLabel(t), selected: t === typeFilter })),
     ];
 
     return {
@@ -375,7 +371,6 @@ export const freestyleRecordCurationService = {
       },
       content: {
         rows,
-        totalCount: rows.length,
         hasRows: rows.length > 0,
         filters: {
           query,
