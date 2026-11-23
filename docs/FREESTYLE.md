@@ -22,10 +22,10 @@ pieces:
   consecutive-kicks records pages, and curated media. These are read-only
   projections of the dictionary tables, shaped by `src/services/freestyleService.ts`
   and its helpers.
-- **The dictionary tables.** Fifteen tables (nine `freestyle_*`, the
+- **The dictionary tables.** Nineteen tables (thirteen `freestyle_*`, the
   consecutive-kicks records table, and five `symbolic_*`) hold the trick corpus,
-  its provenance and aliases, the modifier registry, the records, the community
-  tips, and the observational symbolic-grammar layer. See section 3.
+  its provenance and aliases, the modifier registry, the records, and the
+  observational symbolic-grammar layer. See section 3.
 - **The doctrine record.** `freestyle/doctrine/` holds the standing rulings that
   govern classification, scoring, and naming. See section 6.
 - **The code-side exception modules.** `src/content/` holds only the content
@@ -73,13 +73,13 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
 4. **Sealed provenance inputs.** `freestyle/inputs/footbag_org_moves_metadata.ndjson`
    is a sealed, immutable archive artifact preserved for provenance and as a
    future description-upgrade source. No loader consumes it.
-5. **Public content derived from the corpus, served from the database.** The
-   Emerging Vocabulary universe is computed at request time from database rows:
-   the documented names, doctrine questions and decision groups are rows, and
-   rulings are recorded in the app. Until version 2 it is served from the
-   code-side exception module named above. No other TypeScript in the app is
-   generated, and curator data lives in the database, not in code; the other
-   generated content modules that exist before go-live are removed before cutover.
+5. **Public content derived from the corpus.** In version 2 the Emerging
+   Vocabulary universe is computed at request time from database rows: the
+   documented names, doctrine questions and decision groups are rows, and
+   rulings are recorded in the app. Until then it is served from the code-side
+   exception module named above, which ships frozen at go-live. No other
+   TypeScript in the app is generated, and curator data lives in the database,
+   not in code.
 
 The single-authority rule (tier 2), the alias and slug identity rules, and the
 surface-propagation-by-pointer rule are the invariants every curation edit must
@@ -88,7 +88,7 @@ authority order in the root `CLAUDE.md`.
 
 ## 3. The data model (table level)
 
-Fifteen tables are freestyle-owned: nine `freestyle_*` tables,
+Nineteen tables are freestyle-owned: thirteen `freestyle_*` tables,
 `consecutive_kicks_records`, and five `symbolic_*` tables. Each one's role is
 described in `docs/DATA_MODEL.md` (Pipeline-produced canonical content), and
 column-level detail lives in the inline comments in `database/schema.sql`.

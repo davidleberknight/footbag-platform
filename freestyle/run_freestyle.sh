@@ -1,9 +1,14 @@
 #!/usr/bin/env bash
-# Rebuild every freestyle table from the committed inputs in freestyle/inputs/.
+# Refresh every freestyle table from the committed inputs in freestyle/inputs/.
 # Needs no mirror and no network: the footbag.org move corpus is the committed
-# snapshot, not a live scrape. Idempotent and safe to re-run: loaders are
-# DELETE+INSERT except loader 10 (records), which is additive (INSERT OR IGNORE,
-# no DELETE), so record edits take effect only on a fresh DB build.
+# snapshot, not a live scrape. Idempotent and safe to re-run: it reconciles in
+# place rather than clearing and repopulating. Each trick-producing loader upserts
+# the rows its own input carries, retirement runs after them over the complete
+# desired map, and the curator save files are applied after the rulings load, so
+# curator work saved through the admin screens survives. Only the wholly derived tables are cleared
+# and reloaded: consecutive records, modifier registry rows absent from the input,
+# and the symbolic grammar. Loader 10 (records) is additive (INSERT OR IGNORE, no
+# DELETE), so a record edit takes effect only on a fresh database build.
 #
 # Usage:  freestyle/run_freestyle.sh [path/to/footbag.db]   (default: database/footbag.db)
 #

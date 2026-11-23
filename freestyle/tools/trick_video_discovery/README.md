@@ -27,9 +27,9 @@ Structured research project to inventory video documentation for footbag tricks.
 | `trick_search_terms.csv` | Canonical names + all aliases for search |
 | `known_sources.csv` | Registry of known video sources/channels |
 | `video_coverage.csv` | Main output: one row per trick-video match |
-| `review_queue.csv` | Uncertain matches needing human review |
+| `passback_review_queue.csv` | Uncertain matches needing human review |
 | `seed_from_records.py` | Extracts existing video URLs from freestyle_records |
-| `coverage_report.py` | Generates summary statistics |
+| `embedded_coverage.csv` | Embedded-video coverage read by `freestyle/loaders/24_qc_freestyle_media_coverage.py`, which reports the coverage summary |
 
 ## Output Schema (video_coverage.csv)
 

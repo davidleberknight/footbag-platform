@@ -4,8 +4,9 @@ Committed inputs for the observational-layer content generator
 (`freestyle/scripts/build_observational_universe_content.py`), which emits
 `src/content/freestyleObservationalUniverse.ts`. They live under `freestyle/inputs/`
 so the freestyle pipeline stays self-contained and independent of the
-`legacy_data/` freeze. Like the rest of the pipeline, these inputs are pre-go-live
-and are deleted after cutover.
+`legacy_data/` freeze. Unlike the rest of the pipeline, these inputs are kept after
+cutover, because the frozen module they generate stays until Emerging Vocabulary
+moves into the database in version 2.
 
 | File | What it is |
 |---|---|
