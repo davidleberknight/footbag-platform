@@ -86,7 +86,7 @@ hold is revisited when its named doctrine question closes.
 | Row | JOB value | Authority class | Basis |
 |---|---|---|---|
 | `mobius` | `MOBIUS` | direct convention | established community name; the gyro-torque lineage is preserved in the modifier links |
-| `sumo` | `SUMO` | provisional hold | its Nuclear-Mirage-with-added-cross-dex decomposition is contested; revisits to decomposition form when the cross-dex reading settles |
+| `sumo` | `SUMO` | direct convention | established community name; its ruled X-Dex is not expressible in decomposition form |
 | `barfly` | `BARFLY` | provisional hold | its Double-Infinity ontology is an open doctrine-queue question; revisits when that settles |
 
 ## Relationship to other doctrine
