@@ -352,8 +352,8 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   either a clipper delay or an osis delay and remains Bedwetter from either
   start; the canonical formula writes the clipper start as the default form
   without narrowing that eligibility. This settles the start-delay question
-  only; whether Bedwetter and Shooting Legover are one movement is a separate
-  open queue question and is not decided here.
+  only; that Bedwetter and Shooting Legover are two distinct movements is a
+  separate rules-expert ruling, recorded below.
 - **Probe and clipper stall are distinct tricks** (curator ruling, 2026-11-23):
   Probe is the clipper stall reached from a blind set off the opposite shoulder,
   passing behind the head (footbag.org newmoves 35). Both keep their rows; the
@@ -364,6 +364,42 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   Paradon's hop. Both keep their rows; the shared formula
   `TOE > OP OUT [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]` is the same accepted
   limit, and Paradon's `OP OUT > OP OUT` core stays the ruled Down-grid chassis.
+- **Gyro and spinning compounds are distinct tricks** (rules-expert ruling by email,
+  recorded 2026-11-23): "Keep them distinct even where their notation collides. Both
+  receive an ADD for the turn." The gyro and spinning forms of Barfly, Butterfly Swirl,
+  Double Over Down and Symposium Swirl keep their rows; their shared formula is an
+  accepted limit of the notation, and both operators keep the +1 the registry gives
+  them. The ruling does not define what distinguishes the two turns.
+- **Butterfly and reverse whirl are distinct tricks** (rules-expert ruling by email,
+  recorded 2026-11-23): "The defining physical distinction is knee-driven versus
+  hip-driven." Butterfly and Reverse Whirl, and their pairs Dimwalk / Pixie Reverse
+  Whirl, Ripwalk / Stepping Reverse Whirl, Spinning Butterfly / Spinning Reverse Whirl,
+  Nuclear Butterfly / Nuclear Reverse Whirl, Fairy Butterfly / Fairy Reverse Whirl and
+  Blazing Butterfly / Bling Blang, keep their rows; the shared formula is an accepted
+  limit of the notation. Footbag.org's reverse whirl description gives the sides: the
+  reverse whirl's dexterity is driven from the knee with the ankle circling the bag, the
+  butterfly's from the hip through the upper leg.
+- **Bedwetter and Shooting Legover are distinct tricks** (rules-expert ruling by email,
+  recorded 2026-11-23): "They are two distinct movements." Both keep their rows; the
+  shared formula `CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] > SAME TOE [DEL]`
+  is an accepted limit of the notation. Stepping Paradox Eggbeater, Bedwetter's
+  footbag.org technical name (newmoves 108), stays Bedwetter's.
+- **Surging and Spinning Mirage are distinct tricks** (rules-expert ruling by email,
+  recorded 2026-11-23): "They are distinct movements despite the notation collision."
+  Both keep their rows; the shared formula `CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]`
+  is an accepted limit of the notation. Whether surging is a set, a modifier or a trick
+  is a separate question this does not decide.
+- **Reverse Torque and Same-Side Blender are distinct movements** (rules-expert ruling
+  by email, recorded 2026-11-23): "Reverse Torque is an Outside-In dexterity to Far Osis.
+  Same-Side Blender, or Blender, is an Inside-Out dexterity to Same-Side Osis." In the
+  notation, outside-in is `OUT` and inside-out is `IN`; a far osis is an `OP CLIP` catch
+  and a same-side osis a `SAME CLIP` one. Reverse Torque's stored notation
+  (`SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`) writes an inward
+  dexterity to a same-side catch and disagrees with the ruled movement; its correction
+  is open.
+- **Merlin is Miraging Symposium Mirage** (rules-expert ruling by email, recorded
+  2026-11-23), distinct from Symposium Miraging Mirage. Both rows stay; their stored
+  formula is identical and does not yet record what distinguishes them.
 
 ## Adjacent adjudications recorded here for completeness
 

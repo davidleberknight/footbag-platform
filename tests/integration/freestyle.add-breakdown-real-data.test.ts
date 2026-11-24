@@ -91,7 +91,7 @@ const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   ['reactor', 'add'],              // the atomic-whirl X-Dex question
   ['voodoo', 'identity'],          // possibly Paradox Merlin
   ['tap', 'positional'],           // tapping side registration
-  ['butterfly', 'notation'],       // shares its notation with the reverse whirl
+  ['royale', 'notation'],          // the reverse-drifter dex direction
   // Kept in the dictionary with an incomplete formula only because each carries
   // a world record, so the notice is what keeps the page honest.
   ['terrage', 'notation'],
@@ -99,6 +99,9 @@ const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   // Settled by the swing-element ruling: its open "(contact)" ending is the
   // ruled form, not a gap, so it carries no notice.
   ['pendulum', null],
+  // Ruled distinct from the reverse whirl it shares a notation with, so the
+  // shared formula is an accepted limit of the notation, not an open question.
+  ['butterfly', null],
   ['whirl', null],                 // settled
 ];
 const reviewAspectSeen = new Map<string, string | null>();

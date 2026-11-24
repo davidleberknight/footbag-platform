@@ -186,6 +186,9 @@ Each is separable and answered on its own.
   variant.
 - **Osis spin-to-catch relationship (registry Q10).** What is the structural
   relationship between the osis spin and its catch (the Butterfly near Osis hold)?
+  The same question decides `double_spinning_clipper` and `gyro_osis`, which share a
+  two-spin terminal-clipper formula on different asserted bases: whether Osis
+  structurally embeds a spin.
 - **Inward-on-a-gyro direction (registry Q09).** What does an inward qualifier denote
   on a gyro, whose base already carries its own OUT direction? It decides the
   withdrawn Inward Gyro batch.
@@ -215,151 +218,31 @@ Each is separable and answered on its own.
   contacts, with or without the body-spin frame inversion. It decides the three
   base-label tension rows (shooting star, tapping double over down, venom; detail in
   `DOWN_FAMILY.md`). No ADD changes ride on it.
-- **Butterfly vs reverse-whirl shared notation.** Butterfly and reverse whirl,
-  plus their six derivative pairs (Dimwalk / Pixie Reverse Whirl, Ripwalk /
-  Stepping Reverse Whirl, Spinning Butterfly / Spinning Reverse Whirl, Nuclear
-  Butterfly / Nuclear Reverse Whirl, Fairy Butterfly / Fairy Rev Whirl, and
-  Blazing Butterfly / Bling Blang), share byte-identical operational notation. The
-  curated descriptions and existing family taxonomy nevertheless preserve them as
-  distinct movements: reverse-whirl-family dexterities are described as knee-driven,
-  with the ankle circling the bag, while butterfly-family dexterities are described
-  as hip-driven through the upper leg. The current notation records set, dexterity
-  side and direction, and terminal contact, but not this driving mechanism.
-  Therefore these are distinct canonical movements whose formulas collide within the
-  present notation model, not aliases or formula errors. One root finding covers all
-  seven pairs, not seven separate identity questions. Reverse whirl collides with
-  butterfly because its outward dexterity occupies the same encoded side-and-direction
-  cell butterfly does, whereas the forward whirl stays distinguishable through its
-  inward dexterity; this explains the collision and is not a full definition of
-  reverse whirl. Ask for the rules expert: is the knee-driven versus hip-driven
-  mechanism the correct defining distinction, and should the byte-identical notation
-  be accepted as a known limitation of Jobs notation? Recommendation: yes; retain
-  both families unchanged and do not add a new notation token. Close condition: the
-  rules expert confirms the mechanism distinction and the acceptability of the
-  collision; on confirmation, record the ruling in `RED_RULINGS.md` and delete this
-  entry.
-- **Gyro vs spinning shared notation.** The spinning and gyro forms of four bases
-  (Barfly, Butterfly Swirl, Double Over Down, and Symposium Swirl) share
-  byte-identical operational notation. In each pair, the rotation is represented by
-  one `(back) SPIN [BOD]` component, and both operators contribute +1 ADD.
-
-  The canonical operator reference and structural teaching content distinguish the
-  operators as follows: Spinning is a full, approximately 360-degree turn; Gyro is a
-  half, approximately 180-degree turn whose dexterity is performed with the same foot
-  that set the bag. The current operational notation records the presence and
-  direction of body rotation and component-relative side relationships, but it does
-  not encode rotation magnitude or preserve the performing leg's identity across the
-  set, rotation, and dexterity components. The byte-identical formulas are therefore a
-  representational collision, not evidence that the tricks are aliases or that either
-  formula is erroneous.
-
-  The four pairs remain distinct canonicals, and one root finding covers all four. Ask
-  for the rules expert: Is the full-turn versus half-turn-with-setting-foot-dexterity
-  distinction the correct defining difference between Spinning and Gyro, and should
-  their byte-identical operational notation be accepted as a known limitation of the
-  model? Recommendation: yes; retain both operators and all affected tricks unchanged,
-  and add no new notation token.
-
-  Documentation rider: after confirmation, align the canonical explanatory wording so
-  it states the complete distinction consistently. Preserve the historical wording in
-  the ratified-rulings record rather than silently rewriting the ruling; add
-  clarification or update the current operator authority as appropriate.
-
-  Separate question: `double_spinning_clipper` and `gyro_osis` share a two-spin
-  terminal-clipper formula but have different asserted bases. That collision depends on
-  whether Osis structurally embeds a spin and must be adjudicated independently as an
-  Osis core-atom question.
-- **Miraging-symposium name order (Merlin).** `miraging_symposium_mirage`, which
-  carries the community name Merlin, and `symposium_miraging_mirage` share
-  byte-identical operational notation:
-
-  `SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]`
-
-  Both score 4 ADD, both come from the Red-curated source, and both have
-  expert-reviewed status.
-
-  Under current doctrine, Miraging is a historical descriptive name for the single
-  leading inward dexterity represented by `SET > OP IN [DEX] >`; it is not an
-  independently scored, formula-bearing operator. Symposium is the actual plus-one
-  no-plant discipline applied to a dexterity component. Consequently, the two names
-  currently decompose to the same physical and notational sequence: a leading inward
-  dexterity followed by a symposium Mirage. No additional component, timing
-  relationship, or operator event is presently identified by reversing the words
-  'Miraging' and 'Symposium.'
-
-  This therefore appears to be a naming-order duplication rather than two distinct
-  movements whose difference is lost by the notation model. Local recommendation:
-  retain `miraging_symposium_mirage` as the canonical survivor because it carries the
-  established community name Merlin, and convert `symposium_miraging_mirage` into a
-  redirect alias after confirmation.
-
-  Because both names were supplied in the Red-curated source, do not merge them
-  autonomously. Ask for the rules expert: Do these names denote one movement, with the
-  word order reflecting alternate decomposition language, or does their order identify
-  a real execution distinction not represented in the current formula? Recommendation:
-  one movement, with `miraging_symposium_mirage` surviving and
-  `symposium_miraging_mirage` becoming an alias.
-
-  Documentation rider: the Merlin description currently assigns a plus-one value to
-  Miraging. That conflicts with the settled doctrine that Miraging is not a scored
-  operator. The trick's 4-ADD total remains correct from the scored notation, but the
-  explanatory decomposition should be rewritten after the identity ruling so it does
-  not credit Miraging with an independent ADD.
-
-  Close condition: after the rules expert rules the identities, record the ruling in
-  the ratified-rulings record and remove this queue entry. If ruled one movement,
-  perform the survivor-and-alias merge and correct the decomposition wording. If ruled
-  distinct, document the physical distinction and the limitation preventing the
-  formulas from expressing it.
-- **Reverse Torque vs Same-Side Blender shared notation.** `reverse_torque` and
-  `blender_same_side` share byte-identical operational notation:
-
-  `SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`
-
-  Both score 4 ADD, both come from the Red-curated source, and both have
-  expert-reviewed status.
-
-  The surrounding Osis-derived chassis forms a complete dexterity-side × terminal-side
-  matrix:
-
-  - Torque: `OP IN` dexterity, terminal `OP CLIP`
-  - Blender: `OP IN` dexterity, terminal `SAME CLIP`
-  - Reverse Blender: `SAME IN` dexterity, terminal `OP CLIP`
-  - Same-Side Blender and Reverse Torque: `SAME IN` dexterity, terminal `SAME CLIP`
-
-  The established reverse transformation across this chassis flips both the
-  dexterity-side and terminal-side relations. Reversing Torque therefore lands
-  consistently in the `SAME IN` / `SAME CLIP` cell occupied by `reverse_torque`. This
-  makes the earlier provisional side-marker-error explanation unlikely: changing either
-  side marker would move the row into another already represented structural cell rather
-  than repairing an evident malformed derivation.
-
-  The matrix establishes that the Reverse Torque formula is structurally coherent, but it
-  does not by itself settle identity. The strongest evidence for distinct movements comes
-  from the documented entry mechanisms:
-
-  - Torque is described as a Mirage entry into an Osis.
-  - Blender is described as a Whirl entry into an Osis.
-  - Reverse Torque therefore represents the reversed Mirage-entry lineage.
-  - Same-Side Blender represents the same-side Whirl-entry lineage.
-
-  The current notation reduces both entries to `SAME IN [DEX]`. It records the entry
-  dexterity's side and direction but does not identify whether that dexterity is executed
-  through the Mirage-entry or Whirl-entry mechanism. On the available evidence, the shared
-  formula is therefore most likely a representational collision between distinct
-  movements, not a transcription error and not presently an alias identity.
-
-  Local recommendation: retain both canonicals unchanged and add no new notation token.
-
-  Ask for the rules expert: Are Reverse Torque and Same-Side Blender distinct movements
-  defined respectively by reversed-Mirage and same-side-Whirl entries into the Osis
-  chassis? If so, should their byte-identical operational notation be accepted as a known
-  limitation of the current model? Recommendation: yes. If the two entry descriptions are
-  instead alternate names for the same physical execution, merge them only after that
-  ruling.
-
-  Close condition: record the expert ruling in the ratified-rulings record, apply any
-  resulting identity or documentation change, and remove this queue entry.
+- **What distinguishes the gyro turn.** The rules expert ruled gyro and spinning
+  compounds distinct, each adding one for its turn, without saying what distinguishes
+  the turns. The ratified-rulings record reads gyro as spinning with the dexterity on
+  the setting foot; the operator reference reads it as a half turn where spinning is a
+  full one. Ask: which is the definition? Close: record it, align the operator
+  reference, and remove this entry.
+- **What distinguishes Merlin from Symposium Miraging Mirage.** The rules expert ruled
+  Merlin (Miraging Symposium Mirage) distinct from Symposium Miraging Mirage. Both store
+  `SET > OP IN [DEX] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]` at 4 ADD, and
+  Symposium Miraging Mirage's own review note places its symposium on the first
+  dexterity, where its formula puts it on the second. FootbagMoves gives Merlin 5 with
+  an X-Dex. Ask: what physically distinguishes the two, and is Merlin 4 or 5? Close:
+  record the answer, correct the formula that differs, and remove this entry.
+- **Reverse Torque's notation, and whether it is Flux.** The rules expert ruled Reverse
+  Torque an outward dexterity to a far osis; its stored notation
+  `SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]` writes an inward
+  dexterity to a same-side catch. FootbagMoves gives Reverse Torque as Flux's technical
+  name, `Set >> Op Out (DEX) > (front) Spin (BOD) > Op Clip (XBD)(DEL)`, which agrees
+  with the ruling and matches Flux's stored formula on a toe set; footbag.org gives Flux
+  as Atomic Osis and a Stanford list as Illusioning Osis. Ask: are Reverse Torque and
+  Flux one movement? The same answer names Same-Side Blender: the ruling describes it
+  as Blender's own movement ("Same-Side Blender, or Blender"), while the stored
+  `blender_same_side` row writes a `SAME IN` dexterity no source gives. Close: record
+  the answer, correct Reverse Torque's notation, fold or keep each row accordingly, and
+  remove this entry.
 
 - **Reverse swirling as a prefix.** Seven active rows carry a reverse swirling
   prefix: `reverse_swirling_pickup`, `reverse_swirling_osis`,
@@ -376,15 +259,17 @@ Each is separable and answered on its own.
   `SAME SYMP [DEX]` token found nowhere else in the dictionary, where the standard
   form of a no-plant dexterity is `(no plant while)` with `[BOD]`. And Reverse
   Swirling Paradox Torque is stored on a Torque base while its notation ends
-  `SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`, the same-side
-  cell the Reverse Torque entry above shows Torque does not occupy.
+  `SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`, a same-side
+  inward dexterity to a same-side catch, a cell neither Torque (an inward dexterity
+  to a far osis) nor Reverse Torque (an outward dexterity to a far osis, by the rules
+  expert's ruling) occupies.
 
   Ask for the rules expert: What does a reverse swirling prefix contribute? Is it the
   same-side inward dexterity five of the rows show, and if so, is Reverse Swirling
   Osis's opposite-side form an error or a different movement? Should
   `SAME SYMP [DEX]` be read as an ordinary no-plant dexterity? Is Reverse Swirling
-  Paradox Torque built on Torque, or on the form Reverse Torque and Same-Side Blender
-  share, which depends on the answer above?
+  Paradox Torque built on Torque, on Reverse Torque, or on the same-side form its
+  notation ends in?
 
   Until then the seven rows keep their current openings and receive no plain-language
   rewrite. Close condition: record the ruling in the ratified-rulings record, define
@@ -437,30 +322,6 @@ Each is separable and answered on its own.
   merge, rename, or retain the derived row accordingly, and remove this
   entry.
 
-- **Bedwetter vs shooting legover shared notation.** After the source
-  correction restoring Bedwetter's paradox structure, Bedwetter and shooting
-  legover share `CLIP > OP IN [DEX] > OP OUT [PDX] [DEX] > OP OUT [DEX] >
-  SAME TOE [DEL]` at 5 ADD: stepping(+1) + paradox(+1) + eggbeater(3) and
-  shooting(+3) + legover(2) tile the same component string. This is an
-  evidence question about a folk name versus a technical decomposition, the
-  same shape as settled folk/technical folds, but both rows are
-  expert-curated, so no merge, alias change, or retirement without a ruling.
-  Bedwetter starts from either a clipper or an osis delay and remains
-  Bedwetter from either start; the canonical formula writes the clipper
-  start as the default form without narrowing that eligibility.
-  Close condition: rule whether the two names are one movement; fold or
-  document accordingly and remove this entry.
-
-- **Surging vs Spinning Mirage shared notation.** Activating the correctly
-  authored standalone `surging` row exposes byte-identical notation and ADD
-  with `spinning_mirage`: both are 3 ADD and currently render as
-  `CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP TOE [DEL]`. Their names imply
-  different structural decompositions - Surging as a set-to-toe-stall trick,
-  Spinning Mirage as a spinning entry plus Mirage - but the present notation
-  cannot distinguish those readings. Retain both as separate active canonicals
-  pending evidence. No merge, alias change, formula change, or scoring change
-  is authorized. Close when identity is ruled or the notation-model limitation
-  is explicitly documented.
 
 - **Spun Down compounds vs the Barfly cell: frame-inversion identity.** The
   spinning and gyro forms of Barfly and Double-Over-Down (four rows), and the
