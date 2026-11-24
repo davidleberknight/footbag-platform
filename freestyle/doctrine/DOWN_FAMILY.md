@@ -94,8 +94,8 @@ corrected.
 
 ## Display-layer umbrella
 
-The public By-family browse represents the ruling as a Down umbrella in
-`src/content/freestylePublicFamilies.ts`: a `down` root with the four cells (barfly,
+The public By-family browse represents the ruling as a Down umbrella in the family
+roster (the `freestyle_families` table): a `down` parent with the four cells (barfly,
 double_over_down, paradon, down_double_down) as its variant branches, aggregated into
 one Down section. This is the curated public-display layer only; it never changes
 canonical `trick_family` values, and the raw `dod` family label folds into
