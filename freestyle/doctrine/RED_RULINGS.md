@@ -205,6 +205,11 @@ ruling batches.
   Coleman the atomic symposium whirl at 6, each carrying the other name as a shown
   structural name with no separate row. Ego (Atomic Ducking Whirl) carries the same
   X-Dex on its whirl, so it stands at 6.
+- **Atomic Miraging Butterfly is 6** (rules-expert ruling by email, recorded
+  2026-11-23): "It is 6 ADD. The middle inward dexterity correctly earns X-Dex."
+  Atomic(+1), the leading inward dexterity (+1) and its X-Dex (+1) on butterfly (3),
+  as FootbagMoves records. This supersedes the 2026-06-20 row reading that a
+  butterfly base cannot receive it.
 - **Spyro** (rules-expert ruling by email, recorded 2026-11-23; the spyro half of
   registry Q14): "Spyro means Giro with a plant: the foot that normally would not
   touch the ground makes contact with it." A spyro is a gyro whose free foot plants.

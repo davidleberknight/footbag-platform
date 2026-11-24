@@ -226,7 +226,7 @@ describe('Concepts trick links use canonical underscore slugs (no dead hyphenate
   // template; a hyphenated slug never resolves. Each of these must render as the
   // canonical underscore slug.
   const UNDERSCORE_TARGETS = [
-    'atom_smasher', 'atomic_miraging_butterfly', 'quantum_mirage',
+    'atom_smasher', 'atomic_butterfly', 'quantum_mirage',
   ];
 
   it('links the template tricks by their canonical underscore slug', async () => {

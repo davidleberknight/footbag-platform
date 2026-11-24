@@ -372,15 +372,6 @@ Each is separable and answered on its own.
   `CLIP > OP IN [DEX] > OP PINCHER [UNS] [DEL]` under the name "Stepping op Squeeze";
   the three readings imply different set, terminal, and decomposition, so the row
   stays held until one is chosen.
-- **Atomic Miraging Butterfly's scoring.** The row (`atomic_miraging_butterfly`,
-  base butterfly, linked to atomic only) stores 5 ADD and the notation
-  `TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`.
-  FootbagMoves lists it at 6, with an X-Dex on the middle inward dexterity:
-  `Toe > Op Out (DEX) >> Op In (DEX)(XDEX) > Op Out (DEX) > Op Clip (XBD)(DEL)`.
-  Settled doctrine says miraging is not a scored operator, which leaves atomic(+1) on
-  butterfly(3) at 4. Ask for the rules expert: does the middle inward dexterity score,
-  and does it carry the X-Dex FootbagMoves gives it, making the trick 4, 5 or 6 ADD?
-  The row stays held, with no opening, until that is ruled.
 - **Voodoo's structure, and whether Symposium Blur is Voodoo.** Footbag.org move 157
   gives Voodoo (technical name "Paradox Symposium Blur") at 5 ADD as
   `CLIP > SAME IN [DEX] [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]`;

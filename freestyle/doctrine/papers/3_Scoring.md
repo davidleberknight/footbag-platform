@@ -24,7 +24,10 @@ applied at scoring time but not itself a scoring rule.
   the following dex, and only when that dex is a far move landing on a receiving
   base: mirage, illusion, whirl, torque, or drifter. It does not apply to swirl,
   barfly, or the down family, it attaches to the dex and not to the set, and it
-  never applies twice. Where it fires the notation carries `[XDEX]`.
+  never applies twice. Where it fires the notation carries `[XDEX]`. Two rules-expert
+  rulings score it beyond this wording, without restating the general rule: Sumo's
+  X-Dex after a nuclear set, and Atomic Miraging Butterfly's on its middle inward
+  dexterity (both recorded in `RED_RULINGS.md`).
 - **Composite operators score as the sum of their parts.** Surging is spinning
   plus stepping (+2); blurry is a stepping entry that carries a paradox in its
   default compound reading, though whether every historical blurry-named trick

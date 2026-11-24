@@ -1151,7 +1151,7 @@ paradox-symposium-eggbeater,operational_notation,,CLIP (plant) > (no plant while
 tapping-symposium-whirl,notation,,TAPPING SYMPOSIUM WHIRL,W9o 2026-05-27: JOB per mechanical uppercase rule.
 tapping-symposium-whirl,operational_notation,,TOE > OP OUT [DEX] >> (no plant while) OP IN [BOD] [DEX] > OP CLIP [XBD] [DEL],W9o 2026-05-27: W9l tapping prefix + symposium-whirl chain. 5 brackets matches 5 ADD.
 atomic-miraging-butterfly,notation,,ATOMIC MIRAGING BUTTERFLY,W9o 2026-05-27: JOB per mechanical uppercase rule.
-atomic-miraging-butterfly,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],"2026-06-20 X-Dex ruling supersedes the earlier [XDEX] reading: butterfly is a non-receiver and an inserted modifier (miraging) does not grant X-Dex eligibility, so no [XDEX] fires. atomic-butterfly canonical plus miraging OP IN [DEX] injection. 5 brackets matches 5 ADD."
+atomic-miraging-butterfly,operational_notation,,TOE > OP OUT [DEX] > OP IN [DEX] [XDEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL],"Rules-expert ruling by email, recorded 2026-11-23: the middle inward dexterity correctly earns the X-Dex. atomic-butterfly canonical plus a leading inward dexterity carrying the X-Dex. 6 brackets matches 6 ADD."
 pixie-miraging-flail,notation,,PIXIE MIRAGING FLAIL,W9o 2026-05-27: JOB per mechanical uppercase rule.
 pixie-miraging-flail,operational_notation,,TOE > SAME IN [DEX] > OP IN [DEX] > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL],W9o 2026-05-27: pixie prefix + miraging injection + flail body. First pixie+miraging stack. 5 brackets matches 5 ADD.
 paradox-blender,operational_notation,,SET > SAME IN [PDX] [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL],"Curator-ruled 2026-05-29: sibling-derived from blender base; paradox adds [PDX] on first dex with OP->SAME flip per the whirl/flurry rotational-body precedent. 5 brackets == 5 ADD."
@@ -4082,7 +4082,6 @@ reverse_magellan,learning_notes,"The move runs the two circles in the reverse of
 reverse_magellan,prerequisite_notes,Comfort with both an around the world and an orbit off a toe set is the core skill. The new piece is connecting the two opposite circles with a fast replant.,\N,Held until the Reverse Magellan direction-or-side question is ruled: the text taught reversed directions while the notation flips sides. Cleared rather than rewritten; restore from the rows above once ruled.
 atom_bomb,review_aspect,,add,"Waits on the two-symposium-actions question with the rules expert (asked with Bill and Ted): 6 if FootbagMoves' two no-plant steps count, 4 if the written symposium only restates the flailing set."
 atomic_butterfly,review_aspect,,identity,Open question still pending; clear once ruled.
-atomic_miraging_butterfly,review_aspect,,add,Open question still pending; clear once ruled.
 backside_magellan,review_aspect,,positional,Open question still pending; clear once ruled.
 backside_paste,review_aspect,,positional,Open question still pending; clear once ruled.
 backside_symposium_smear,review_aspect,,positional,Open question still pending; clear once ruled.
