@@ -232,13 +232,14 @@ ruling batches.
   timing-individuates entry under Structural doctrine in force). The atomic +1 and
   X-Dex rules are unaffected. The atomic entry in the `freestyle_operators` table
   is the canonical statement of the atomic +1 / X-Dex doctrine.
-- **Terraging** (pt8; rules-expert ruling by email, recorded 2026-11-23, registry Q05):
+- **Terraging** (pt8; rules-expert ruling by email, recorded 2026-11-23, the count half
+  of registry Q05):
   its own +3 element, NOT a parallel form of barraging (correcting pt6 phrasing).
   Terraging is "a triple Outside-In dex/set from a clipper": three outside-in
   dexterities off a clipper, which is the registry's +3 by the bracket count. The
   shipped two-dexterity notations and footbag.org's double-pixie Terrage each carry
   one dexterity fewer. The ruling does not give each dexterity's side or Terrage's
-  entry surface, so no terraging notation is written yet.
+  entry surface, so no terraging notation is written yet; Q05 stays open for them.
 - **Shooting** (pt7, pt9): both a set and a modifier, at the same weight, holding
   on rotational bases.
 - **Rooted** (pt8): a unique set with one initial dexterity attached; non-scoring

@@ -962,6 +962,7 @@ def main() -> None:
 
         if blocker not in VALID_BLOCKERS:
             raise SystemExit(f"unknown blocker '{blocker}' on '{r['name']}' — not a registered question or decision group")
+        held_by = blocker
         blocker, released = active_blocker(blocker, questions)
         if blocker in questions:
             q = questions[blocker]
@@ -1030,6 +1031,7 @@ def main() -> None:
             # its question is answered; the row now waits on the curator's authoring
             pub, section = "adjudication-pending", "decide"
             blocker = "A0"
+            r["releasedFrom"] = held_by
         elif blocker == "source-recovery":
             pub, section = "evidence-pending", "evidence"
         elif blocker in DECISION_GROUP_IDS or (owner == "james" and blocker == ""):
@@ -1359,6 +1361,9 @@ def main() -> None:
         "   *  (D1..D6, A0), or 'source-recovery'. A doctrine block MUST carry a\n"
         "   *  registered question id. */\n"
         "  blockerId: string;\n"
+        "  /** The answered question that held this row, when its answer released it\n"
+        "   *  to the curator's authoring; absent otherwise. Provenance only. */\n"
+        "  releasedFrom?: string;\n"
         "  /** Decision owner: mechanical | james | james+dave | james+red |\n"
         "   *  evidence | none. */\n"
         "  owner: string;\n"

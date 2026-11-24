@@ -472,7 +472,7 @@ Each is separable and answered on its own.
   appears twice in one compound (miraging then miraging), does the second occurrence
   add again? Four rows sit in this gate, plus the active canonical paradox blur, a
   double-paradox whose asserted ADD waits on the same answer.
-- **Terraging's three dexterities.** The rules expert ruled terraging "a triple
+- **Terraging's three dexterities (registry Q05).** The rules expert ruled terraging "a triple
   Outside-In dex/set from a clipper", which settles its +3. It does not give the side
   of each of the three dexterities, nor whether Terrage, which its stored notation,
   its aliases and every outside source enter from a toe, is entered from a clipper.

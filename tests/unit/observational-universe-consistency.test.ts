@@ -80,7 +80,15 @@ describe('lifecycle model: every row carries valid orthogonal dimensions', () =>
         expect(/^Q\d\d$/.test(r.blockerId), `${r.name}: ruling row without question id`).toBe(true);
       }
       if (r.publicSection === 'decide') {
-        expect(r.owner, `${r.name}: decide row not curator-owned`).toBe('james');
+        // A row an answered question released keeps its joint owner as history
+        // and names that question; any other decide row is the curator's alone.
+        if (r.releasedFrom) {
+          const q = EMERGING_QUESTIONS.find(x => x.id === r.releasedFrom);
+          expect(q?.status.toLowerCase().startsWith('answered'),
+            `${r.name}: released from ${r.releasedFrom}, which is not an answered question`).toBe(true);
+        } else {
+          expect(r.owner, `${r.name}: decide row not curator-owned`).toBe('james');
+        }
       }
       if (r.publicSection === 'evidence') {
         expect(r.blockerId, `${r.name}: evidence row without source-recovery blocker`).toBe('source-recovery');
