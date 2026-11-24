@@ -66,7 +66,7 @@ export const STAGED_OPERATORS: readonly StagedOperator[] = [
     slug: "blurry",
     name: "Blurry",
     kind: "compound-set",
-    definition: "Recorded as a +1 set modifier. Some named blurry compounds (Blur, Blurry Whirl) have expanded Stepping Paradox structures whose ADD follows the full decomposition rather than a flat blurry-plus-base sum. Operational form: CLIP > OP IN [DEX] > OP OUT [DEX] > (op side).",
+    definition: "The stepping set carrying a paradox, scored as its parts: stepping (+1) and paradox (+1), for +2. A stepping dexterity off the clipper, then the base's own dexterity made paradox. Operational form: CLIP > OP IN [DEX] > OP IN [PDX] [DEX] > (the base continues).",
     decomposition: "stepping paradox",
     decompositionNote: null,
     workedExamples: ["Blurry (Stepping Paradox)"],
