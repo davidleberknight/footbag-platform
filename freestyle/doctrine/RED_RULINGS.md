@@ -263,8 +263,12 @@ ruling batches.
   the standing confirm-or-deny in the negative: flailing is NOT the prefix form of
   flail. Flail remains a symposium illusion in its own right, and flailing is a
   distinct set combining the symposium and atomic treatments. The set's weight is
-  corpus-settled at +2 by the six published atomic-symposium compounds; the proof
-  and the naming consequence are in `OPERATOR_DERIVATIONS.md`.
+  corpus-settled at +2 by the six published atomic-symposium compounds; the proof is
+  in `OPERATOR_DERIVATIONS.md`. A Symposium written beside it adds its own ADD
+  (rules-expert ruling by email, recorded 2026-11-23): "The written symposium adds an
+  ADD to the first op-dex." Atom Bomb (Flailing Symposium Mirage) is 6 and Bill Ted's
+  Excellent Adventure is 6, the X-Dex FootbagMoves writes on its eggbeater being
+  unruled.
 - **Blazing** (curator-relayed, 2026-08-21): blazing is a Whirling set, an uptime
   whirl that the following trick is performed off of (Red's example: Blazing
   Paradox Mirage). This closes the open movement/notation half of the blazing

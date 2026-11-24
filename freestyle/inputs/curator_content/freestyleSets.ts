@@ -222,7 +222,7 @@ export const STAGED_SETS: readonly StagedSet[] = [
     setGroup: "composite-derived",
     sortOrder: 200,
     formula: "SET > (no plant while) OP OUT [BOD] [DEX] >",
-    explanation: "A Symposium Atomic set: the atomic dex leads and the base's own leading dex becomes a no-plant body dex, so the launch reads as one movement rather than two. As a set treatment it contributes +2, and a Symposium written alongside Flailing in a folk name expands this set rather than adding a second symposium treatment. A positional qualifier reads against the side the set originates from: on that side is same-side, crossing to the other is opposite.",
+    explanation: "A Symposium Atomic set: the atomic dex leads and the base's own leading dex becomes a no-plant body dex, so the launch reads as one movement rather than two. As a set treatment it contributes +2, and a Symposium written alongside Flailing in a folk name adds one more. A positional qualifier reads against the side the set originates from: on that side is same-side, crossing to the other is opposite.",
     relatedSets: [],
     heldFromList: false,
   },

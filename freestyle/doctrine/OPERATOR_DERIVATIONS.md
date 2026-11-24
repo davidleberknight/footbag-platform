@@ -227,7 +227,7 @@ footbag.org-cited ones. And the seven unsourced `whirling_*` rows already use th
 explicit register, so nominating it for new authoring changes nothing on disk; those
 rows carry no citation and are never evidence for the register they use.
 
-## Flailing = a Symposium Atomic set (+2), and its written Symposium is redundant
+## Flailing = a Symposium Atomic set (+2), and a written Symposium adds +1
 
 Red ruled flailing a Symposium Atomic set, which denies the older hypothesis that
 flailing is the prefix form of flail. Two things follow, both settled by the
@@ -249,20 +249,12 @@ The shape is consistent too: the atomic dex is prepended and the base's leading
 dex becomes a no-plant `[BOD] [DEX]`, which is the symposium treatment and is
 exactly what flail is on its own.
 
-**Ruling: in a flailing compound name, an immediately associated Symposium token
-is an explanatory expansion of the flailing set, not a second symposium
-treatment, unless a source explicitly establishes two distinct symposium
-actions. It adds no ADD beyond flailing's +2.**
-
-The proof is arithmetic, not a reading of the wording. Bill Ted's Excellent
-Adventure is published at 5 ADD and carries the registered alias "flailing ss
-symposium eggbeater". Eggbeater is 3, and flailing contributes 2, giving 5. Were
-the written symposium a second scored treatment the row would be 6, contradicting
-its own published count.
-
-So the folk names unpack the set rather than stacking on it: Flailing Symposium
-Whirl is 5, and Flailing Symposium Eggbeater is 5. No repeated-operator question
-arises.
+**A written Symposium adds +1.** The rules expert ruled that the written symposium
+in a flailing name adds an ADD to the first op-dex (`RED_RULINGS.md`), so it is a
+second treatment rather than a restatement of the set. Flailing Symposium Mirage
+(Atom Bomb) is 6 with its X-Dex, and Bill Ted's Excellent Adventure, "flailing ss
+symposium eggbeater", is 6 before the X-Dex FootbagMoves writes on its eggbeater,
+which is not ruled.
 
 **Not derived here, but since ruled: the positional qualifier.** Several flailing
 names carry `ss` or `far`, and nothing in the arithmetic above says what that

@@ -151,7 +151,7 @@ promotion.
 | Floatation | 7 | **6** | Platform | floating = quantum + symposium + quantum (3 ADD) |
 | Liquifier | 7 | **6** | Platform | splicing = gyro + reving |
 | Oh Wheely | 7 | **6** | Platform | nova = symposium-DLO; nuclear's X-Dex does not fire on a legover base |
-| Bill & Ted's Excellent Adventure | 7 | **5** | Platform | flailing = symposium illusioning; FM's explicit Symposium term is redundant |
+| Bill & Ted's Excellent Adventure | 7 | **6** | Platform | flailing (+2) and the written symposium (+1, by the rules expert's ruling) on eggbeater; FM's X-Dex on the eggbeater is not ruled |
 | Shooting Star | 8 | **7** | Platform | "shooting" (+3) is not a qualifying X-Dex trigger set; the cross-dex bonus FM adds does not fire |
 | Shooting Barfly | 8 | **7** | Platform | same shooting mechanism |
 | Redwetter | 7 | **6** | Platform | same shooting mechanism |

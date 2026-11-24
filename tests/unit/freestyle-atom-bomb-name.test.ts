@@ -2,10 +2,9 @@
  * Flailing Symposium Mirage is Atom Bomb's name, not a second trick.
  *
  * FootbagMoves gives Flailing Symposium Mirage as Atom Bomb's technical name and
- * Shred Global prints the two as one entry. Its count is still open: 6 if the
- * written symposium is a second no-plant action, 4 if it only restates the
- * flailing set. So the name resolves to Atom Bomb and stays hidden while that
- * question is open, and no separate candidate proposes it at 4.
+ * Shred Global prints the two as one entry. The written symposium adds its own
+ * ADD, so the name reads 6, Atom Bomb's count: it resolves to Atom Bomb, shows
+ * there as its structural name, and no separate candidate proposes it at 4.
  *
  * These read the committed curator inputs, so a regression fails without a
  * built database.
@@ -35,13 +34,13 @@ describe('Flailing Symposium Mirage resolves to Atom Bomb', () => {
     expect(row![8]).toBe('A');
   });
 
-  // Defect caught: a search for the name finding nothing, or the name shown on
-  // Atom Bomb's page as if its count were settled.
-  it('is carried on Atom Bomb and held hidden pending the count', () => {
+  // Defect caught: a search for the name finding nothing, or its genuine
+  // structural name left hidden on Atom Bomb's page after its count was ruled.
+  it('is carried on Atom Bomb and shown as its structural name', () => {
     const atomBomb = additions.find(l => l.startsWith('atom bomb,'))?.split(',');
     expect(atomBomb?.[4].split('|')).toContain('flailing symposium mirage');
     const ov = overrides.find(l => l.startsWith('flailing_symposium_mirage,'));
-    expect(ov?.split(',').slice(1, 4)).toEqual(['retype', 'structural', '0']);
-    expect(ov).toContain('Pending ruling:');
+    expect(ov?.split(',').slice(1, 4)).toEqual(['retype', 'structural', '1']);
+    expect(ov).not.toContain('Pending ruling:');
   });
 });

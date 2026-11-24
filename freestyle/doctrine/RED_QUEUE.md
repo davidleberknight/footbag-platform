@@ -381,21 +381,12 @@ Each is separable and answered on its own.
   Ask: is the first dexterity a body mark or a paradox, and is Vudoo Paradox Merlin?
   Close: record the answer, correct the first dexterity if it is a paradox, and remove
   this entry.
-- **Two symposium actions in a flailing compound (Bill and Ted).** The flailing
-  derivation rules that a Symposium written after flailing restates the set and adds
-  nothing, unless a source shows two distinct symposium actions, and proves it from
-  Bill Ted's Excellent Adventure being published at 5 ADD. FootbagMoves gives that
-  trick ("Flailing ss Symposium Eggbeater") at 7 ADD with two separate no-plant
-  steps and an X-Dex:
-  `Toe > (no plant while) Op Out (DEX)(BOD) >> (no plant while) Same Out (DEX)(XDEX)(BOD) > Op Out (DEX) > Same Toe (DEL)`,
-  and Bill & Ted's Bogus Journey ("Flailing ss Symposium Double Legover") at 6 with
-  the same two no-plant steps. Ask for the rules expert: is Bill and Ted 5 ADD
-  (flailing on eggbeater) or 7 (flailing, a symposium eggbeater and an X-Dex), and
-  does the redundancy ruling stand? The row (`bill_ted_s_excellent_adventure`, 5 ADD,
-  no notation) stays held, with no opening, until that is ruled. The same answer
-  decides Atom Bomb (`atom_bomb`, 6 ADD), whose FootbagMoves technical name is
-  Flailing Symposium Mirage and whose notation carries the same two no-plant steps
-  and an X-Dex: 6 if they count, 4 if the redundancy ruling stands.
+- **Bill and Ted's X-Dex.** The rules expert ruled that the written symposium adds an
+  ADD, so Bill Ted's Excellent Adventure is 6 or 7. FootbagMoves writes an X-Dex on
+  the eggbeater's first dexterity:
+  `Toe > (no plant while) Op Out (DEX)(BOD) >> (no plant while) Same Out (DEX)(XDEX)(BOD) > Op Out (DEX) > Same Toe (DEL)`.
+  Ask: does that X-Dex score? The row (`bill_ted_s_excellent_adventure`, no notation)
+  stays held until ruled.
 - **Whether Blizzard is already a symposium move.** Blizzard (`blizzard`, 3 ADD,
   stepping on illusion) stores `SET > OP IN [DEX] > OP OUT [DEX] > OP TOE [DEL]`, with
   the support foot planted, while its own opening, footbag.org's description, calls it

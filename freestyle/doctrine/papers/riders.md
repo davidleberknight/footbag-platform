@@ -60,8 +60,8 @@ comes to cite one as its blocker, it is promoted into `QUESTION_REGISTRY.csv` fi
   qualifier could attach to any of the three. None of the six published
   atomic-symposium compounds carries a positional form, so the corpus cannot answer
   it. Bill Ted's Excellent Adventure, recorded as "flailing ss symposium eggbeater",
-  is published at 5 (eggbeater 3 plus flailing 2), but FootbagMoves gives it 7 with
-  two no-plant steps and an X-Dex; that count is its own open question in the queue.
+  is 6 under the written-symposium ruling (eggbeater 3, flailing 2, symposium 1), and
+  FootbagMoves' X-Dex point is its own open question in the queue.
   This rider asks only where `ss` lands.
 
   Between them the two answers affect ten rows whose notation is blank or held — the
