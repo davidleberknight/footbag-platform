@@ -2146,7 +2146,7 @@ quantum-ducking-whirl,base_trick,whirl,ducking-whirl,"Base trick set to the imme
 quantum-gyro-mirage,base_trick,mirage,gyro-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 quantum-symposium-mirage,base_trick,mirage,symposium-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 quantum-symposium-whirl,base_trick,whirl,symposium-whirl,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
-reverse-swirling-paradox-symposium-whirl,base_trick,whirl,swirling-paradox-symposium-whirl,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
+reverse-swirling-paradox-symposium-whirl,base_trick,whirl,paradox-symposium-whirl,"Base trick set to the immediate compositional parent: the rules expert ruled that the reverse swirling prefix names one set (email, recorded 2026-11-23), so the parent is the base with that set removed, Paradox Symposium Whirl, not the forward swirling compound."
 reverse-whirling-rake,base_trick,rake,whirling-rake,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 shooting-ducking-butterfly,base_trick,butterfly,ducking-butterfly,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 shooting-gyro-mirage,base_trick,mirage,gyro-mirage,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -4128,10 +4128,10 @@ probe,review_aspect,,identity,Open question still pending; clear once ruled.
 quantum_butterfly,review_aspect,,identity,Open question still pending; clear once ruled.
 reverse_drifter,review_aspect,,positional,Open question still pending; clear once ruled.
 reverse_magellan,review_aspect,,notation,Open question still pending; clear once ruled.
-reverse_swirling_blender,review_aspect,,add,Open question still pending; clear once ruled.
-reverse_swirling_paradox_symposium_whirl,review_aspect,,add,Open question still pending; clear once ruled.
-reverse_swirling_pickup,review_aspect,,add,Open question still pending; clear once ruled.
-reverse_swirling_symposium_mirage,review_aspect,,add,Open question still pending; clear once ruled.
+reverse_swirling_blender,review_aspect,,notation,"Waits on whether a base keeps its own side markers after the reverse swirling set: the rules expert ruled the prefix names the set, and this row's stored chain flips the base's sides."
+reverse_swirling_paradox_symposium_whirl,review_aspect,,notation,"Waits on whether a base keeps its own side markers after the reverse swirling set: the rules expert ruled the prefix names the set, and this row's stored chain flips the base's sides."
+reverse_swirling_pickup,review_aspect,,notation,"Waits on whether a base keeps its own side markers after the reverse swirling set: the rules expert ruled the prefix names the set, and this row's stored chain flips the base's sides."
+reverse_swirling_symposium_mirage,review_aspect,,notation,"Waits on whether a base keeps its own side markers after the reverse swirling set: the rules expert ruled the prefix names the set, and this row's stored chain flips the base's sides."
 reverse_torque,review_aspect,,identity,Open question still pending; clear once ruled.
 royale,review_aspect,,notation,Open question still pending; clear once ruled.
 sailing_double_over_down,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4151,7 +4151,7 @@ surging_same_side_osis,review_aspect,,identity,Open question still pending; clea
 symposium_blizzard,review_aspect,,identity,Open question still pending; clear once ruled.
 symposium_bubba,review_aspect,,add,Open question still pending; clear once ruled.
 symposium_miraging_mirage,review_aspect,,notation,"Ruled distinct from Merlin (Miraging Symposium Mirage); its stored formula is identical to Merlin's, so the notation does not yet record what distinguishes them."
-symposium_reverse_swirling_pickup,review_aspect,,add,Open question still pending; clear once ruled.
+symposium_reverse_swirling_pickup,review_aspect,,notation,"Waits on whether a base keeps its own side markers after the reverse swirling set: the rules expert ruled the prefix names the set, and this row's stored chain flips the base's sides."
 symposium_whirling_mirage,review_aspect,,add,Open question still pending; clear once ruled.
 tap,review_aspect,,positional,Open question still pending; clear once ruled.
 tapping_double_over_down,review_aspect,,identity,Open question still pending; clear once ruled.
@@ -4167,9 +4167,7 @@ venom,review_aspect,,identity,Open question still pending; clear once ruled.
 vudoo,review_aspect,,identity,"Ruled 6 ADD and distinct from Symposium Blur; whether it is Paradox Merlin, with a paradox first dexterity as FootbagMoves writes it, is open."
 bill_ted_s_excellent_adventure,is_active,1,0,"Held out of the main dictionary: no execution notation, and its ADD is 6 or 7 on the open X-Dex question. Listed in Emerging Vocabulary until ruled."
 bill_ted_s_excellent_adventure,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
-reverse_swirling_osis,is_active,1,0,"Held out of the main dictionary: its notation puts the reverse swirl on the opposite side, which the reverse-swirling question has not ruled. Listed in Emerging Vocabulary until ruled."
-reverse_swirling_osis,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
-reverse_swirling_paradox_torque,is_active,1,0,"Held out of the main dictionary: its base contradicts its place in the reverse-swirling grid, which the reverse-swirling question has not ruled. Listed in Emerging Vocabulary until ruled."
+reverse_swirling_paradox_torque,is_active,1,0,"Held out of the main dictionary: the rules expert ruled it built on the torque form, but its stored chain ends on a same-side catch where torque's is far, and rewriting it needs the reverse swirling set dexterity's side, which is open. Listed in Emerging Vocabulary until ruled."
 reverse_swirling_paradox_torque,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
 terraging_illusion,is_active,1,0,"Held out of the main dictionary: no execution notation while the terraging-chain arithmetic is open. Listed in Emerging Vocabulary until ruled."
 terraging_illusion,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.

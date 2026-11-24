@@ -111,7 +111,7 @@ const reviewAspectSeen = new Map<string, string | null>();
 // or contradicts itself while an open question decides it. Each must leave the
 // dictionary and appear in Emerging Vocabulary instead.
 const HELD_OUT_TRICKS = [
-  'bill_ted_s_excellent_adventure', 'reverse_swirling_osis',
+  'bill_ted_s_excellent_adventure',
   'reverse_swirling_paradox_torque', 'terraging_illusion',
   'terraging_mirage', 'terraging_opposite_clipper', 'terraging_same_clipper',
 ] as const;

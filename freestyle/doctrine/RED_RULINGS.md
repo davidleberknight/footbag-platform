@@ -175,6 +175,17 @@ silently reshaping either side.
 - **Railing, Surfing, Splicing and Floating are first-class named sets, even if
   uncommon** (rules-expert ruling, 2026-10-18). Each keeps its composite definition
   in the registry; being a composition does not make a named set any less a set.
+- **A reverse swirling name opens on the reverse swirling set** (rules-expert ruling
+  by email, recorded 2026-11-23): "The prefix identifies the set." A reverse swirling
+  compound is that set performed into the named base, so its parent is the base with
+  the prefix removed. "SAME SYMP means same-side symposium": the `SAME SYMP [DEX]`
+  component three reverse swirling rows carry is a same-side symposium dexterity.
+  "Reverse Swirling Osis is represented correctly": its form
+  `SET > OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]` stands. "Reverse
+  Swirling Paradox Torque should be based on the reverse-swirling form; if that is
+  unavailable, use the torque form": the dictionary has no reverse swirling torque,
+  so it is built on Torque. The ruling does not say which side the set's own dexterity
+  takes, nor whether a base keeps its own side markers after the set.
 - **Cross-body and side are independent** (curator ruling, 2026-11-23): the
   `[XBD]` cross-body flag records the body relationship of a component, and
   `SAME` or `OP` records its side; neither determines the other, so a cross-body

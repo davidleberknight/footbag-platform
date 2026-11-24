@@ -248,38 +248,17 @@ Each is separable and answered on its own.
   the answer, correct Reverse Torque's notation, fold or keep each row accordingly, and
   remove this entry.
 
-- **Reverse swirling as a prefix.** Seven active rows carry a reverse swirling
-  prefix: `reverse_swirling_pickup`, `reverse_swirling_osis`,
-  `reverse_swirling_blender`, `reverse_swirling_paradox_torque`,
-  `reverse_swirling_symposium_mirage`, `symposium_reverse_swirling_pickup` and
-  `reverse_swirling_paradox_symposium_whirl`. None can be described yet, because the
-  record gives the prefix no single meaning. Swirling is defined only in its outward
-  form, a same-side outward dexterity ahead of the base; the reverse rule in the
-  operator derivations covers a swirl appended at the end of a trick, not a reverse
-  swirling dexterity in front. The rows also disagree with each other: five open with
-  a same-side inward dexterity (`SET > SAME IN [DEX] > …`), while Reverse Swirling Osis
-  opens with an opposite-side inward dexterity and a forward spin
-  (`SET > OP IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]`). Three carry a
-  `SAME SYMP [DEX]` token found nowhere else in the dictionary, where the standard
-  form of a no-plant dexterity is `(no plant while)` with `[BOD]`. And Reverse
-  Swirling Paradox Torque is stored on a Torque base while its notation ends
-  `SAME IN [DEX] [PDX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`, a same-side
-  inward dexterity to a same-side catch, a cell neither Torque (an inward dexterity
-  to a far osis) nor Reverse Torque (an outward dexterity to a far osis, by the rules
-  expert's ruling) occupies.
-
-  Ask for the rules expert: What does a reverse swirling prefix contribute? Is it the
-  same-side inward dexterity five of the rows show, and if so, is Reverse Swirling
-  Osis's opposite-side form an error or a different movement? Should
-  `SAME SYMP [DEX]` be read as an ordinary no-plant dexterity? Is Reverse Swirling
-  Paradox Torque built on Torque, on Reverse Torque, or on the same-side form its
-  notation ends in?
-
-  Until then the seven rows keep their current openings and receive no plain-language
-  rewrite. Close condition: record the ruling in the ratified-rulings record, define
-  the prefix in the operator authority if it is ruled one, correct any row whose
-  notation or base the ruling changes, write the seven openings, and remove this queue
-  entry.
+- **The reverse swirling set's dexterity side.** The rules expert ruled that the
+  prefix names the set and that Reverse Swirling Osis is represented correctly, but
+  the rows still disagree on the set's own dexterity: five open with a same-side
+  inward dexterity (`SET > SAME IN [DEX] > …`), while Reverse Swirling Osis, ruled
+  correct, opens with an opposite-side one (`SET > OP IN [DEX] > …`). The four rows
+  built on pickup, mirage and blender also carry their base's chain with its sides
+  flipped. Ask: which side does the reverse swirling set's dexterity take, and does a
+  base keep its own sides after it? Reverse Swirling Paradox Torque, ruled built on
+  Torque, stays held until then, since rewriting its chain to Torque's needs that
+  side. Close: correct the rows the answer changes, release the torque row, write the
+  seven openings, and remove this entry.
 
 - **Tombstone vs stepping reverse swirl shared notation.** Both carry
   `CLIP > OP IN [DEX] >> SAME IN [DEX] > SAME CLIP [XBD] [DEL]`. The bases
