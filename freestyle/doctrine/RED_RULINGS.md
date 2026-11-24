@@ -425,6 +425,13 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   (`SET > SAME IN [DEX] > (back) SPIN [BOD] > SAME CLIP [XBD] [DEL]`) writes an inward
   dexterity to a same-side catch and disagrees with the ruled movement; its correction
   is open.
+- **Vudoo, not Voodoo** (rules-expert ruling by email, recorded 2026-11-23): "Correct
+  the name from 'Voodoo' to Vudoo. It was created by Tuan Vu and scores 6 ADD by X-Dex
+  standards. Keep Symposium Blur as a separate trick." Its notation is footbag.org move
+  157's with an X-Dex on the opposite-side second dexterity; "voodoo" stays a hidden
+  search name. Stepping Vudoo is called Voulez-Vu: Tuan Vu confirmed the name and that
+  he hit it first. No source gives Voulez-Vu's ADD, so it has no row. The creator is
+  recorded here as provenance only; public pages credit no person for a trick.
 - **Merlin is Miraging Symposium Mirage** (rules-expert ruling by email, recorded
   2026-11-23), distinct from Symposium Miraging Mirage. Both rows stay; their stored
   formula is identical and does not yet record what distinguishes them.

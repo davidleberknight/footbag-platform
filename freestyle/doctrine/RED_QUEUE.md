@@ -372,18 +372,15 @@ Each is separable and answered on its own.
   `CLIP > OP IN [DEX] > OP PINCHER [UNS] [DEL]` under the name "Stepping op Squeeze";
   the three readings imply different set, terminal, and decomposition, so the row
   stays held until one is chosen.
-- **Voodoo's structure, and whether Symposium Blur is Voodoo.** Footbag.org move 157
-  gives Voodoo (technical name "Paradox Symposium Blur") at 5 ADD as
-  `CLIP > SAME IN [DEX] [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL]`;
-  FootbagMoves gives it as "Paradox Merlin" at 6 ADD,
-  `Clip >> Same In (DEX)(PDX) > (no plant while) Op In (DEX)(XDEX)(BOD) > Op Toe (DEL)`.
-  Both are Merlin's shape with the first dexterity changed; they differ on whether that
-  dexterity is a body or a paradox mark and on whether the symposium dexterity carries
-  an X-Dex. Ask for the rules expert: is Voodoo paradox Merlin, and is it 5 or 6 ADD?
-  The same answer decides Symposium Blur (`symposium_blur`, 5 ADD), a row whose name
-  came from footbag.org text and whose notation the pipeline composed, with the
-  symposium on Blur's first dexterity: is it Voodoo under another name, or a distinct
-  trick? Both rows stay held, with no opening, until that is ruled.
+- **Whether Vudoo is Paradox Merlin.** The rules expert ruled Vudoo 6 ADD by X-Dex
+  standards and Symposium Blur a separate trick. Its notation is footbag.org move 157's
+  with an X-Dex on the second dexterity,
+  `CLIP > SAME IN [DEX] [BOD] > (no plant while) OP IN [BOD] [DEX] [XDEX] > OP TOE [DEL]`;
+  FootbagMoves gives it as "Paradox Merlin", writing the first dexterity as a paradox
+  mark, `Clip >> Same In (DEX)(PDX) > (no plant while) Op In (DEX)(XDEX)(BOD) > Op Toe (DEL)`.
+  Ask: is the first dexterity a body mark or a paradox, and is Vudoo Paradox Merlin?
+  Close: record the answer, correct the first dexterity if it is a paradox, and remove
+  this entry.
 - **Two symposium actions in a flailing compound (Bill and Ted).** The flailing
   derivation rules that a Symposium written after flailing restates the set and adds
   nothing, unless a source shows two distinct symposium actions, and proves it from

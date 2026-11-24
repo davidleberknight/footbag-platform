@@ -2054,8 +2054,8 @@ toe-double-drifter,operational_notation,,TOE > OP IN [DEX] > SAME IN [DEX] > SAM
 toe-double-drifter,operational_notation_source,,Source: footbag.org newmoves (curator-reviewed).,Second-batch archival provenance.
 toe-whirr,operational_notation,,TOE > OP IN [DEX] > SAME IN [DEX] > OP CLIP [XBD] [DEL],Operational notation promoted from the footbag.org Jobs notation already in the notation column; bracket-count==ADD.
 toe-whirr,operational_notation_source,,Source: footbag.org newmoves (curator-reviewed).,Second-batch archival provenance.
-voodoo,operational_notation,,CLIP > SAME IN [DEX] [BOD] > (no plant while) OP IN [BOD] [DEX] > OP TOE [DEL],Operational notation promoted from the footbag.org Jobs notation already in the notation column; bracket-count==ADD.
-voodoo,operational_notation_source,,Source: footbag.org newmoves (curator-reviewed).,Second-batch archival provenance.
+vudoo,operational_notation,,CLIP > SAME IN [DEX] [BOD] > (no plant while) OP IN [BOD] [DEX] [XDEX] > OP TOE [DEL],"Footbag.org move 157's notation with an X-Dex on the opposite-side second dexterity: the rules expert ruled 6 ADD by X-Dex standards (email, recorded 2026-11-23). 6 brackets == 6 ADD. Whether the first dexterity is a paradox mark, as FootbagMoves writes it, is open."
+vudoo,operational_notation_source,,Source: footbag.org newmoves (curator-reviewed).,Second-batch archival provenance.
 atomic-inspinning-butterfly,base_trick,butterfly,inspinning-butterfly,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 atomic-symposium-butterfly,base_trick,butterfly,symposium-butterfly,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
 atomic-symposium-eggbeater,base_trick,eggbeater,symposium-eggbeater,"Base trick set to the immediate compositional parent (outermost operator stripped), not the terminal family"
@@ -4162,7 +4162,6 @@ stepping_reverse_swirl,review_aspect,,positional,Open question still pending; cl
 sumo,review_aspect,,add,Open question still pending; clear once ruled.
 surging_same_side_osis,review_aspect,,identity,Open question still pending; clear once ruled.
 symposium_blizzard,review_aspect,,identity,Open question still pending; clear once ruled.
-symposium_blur,review_aspect,,identity,Open question still pending; clear once ruled.
 symposium_bubba,review_aspect,,add,Open question still pending; clear once ruled.
 symposium_miraging_mirage,review_aspect,,notation,"Ruled distinct from Merlin (Miraging Symposium Mirage); its stored formula is identical to Merlin's, so the notation does not yet record what distinguishes them."
 symposium_reverse_swirling_pickup,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4178,7 +4177,7 @@ toe_double_drifter,review_aspect,,add,Open question still pending; clear once ru
 tombstone,review_aspect,,positional,Open question still pending; clear once ruled.
 trixie,review_aspect,,add,Open question still pending; clear once ruled.
 venom,review_aspect,,identity,Open question still pending; clear once ruled.
-voodoo,review_aspect,,identity,Open question still pending; clear once ruled.
+vudoo,review_aspect,,identity,"Ruled 6 ADD and distinct from Symposium Blur; whether it is Paradox Merlin, with a paradox first dexterity as FootbagMoves writes it, is open."
 bill_ted_s_excellent_adventure,is_active,1,0,"Held out of the main dictionary: no execution notation, and its ADD is 5 or 7 on an open question. Listed in Emerging Vocabulary until ruled."
 bill_ted_s_excellent_adventure,review_status,expert_reviewed,pending,Held out of the main dictionary until its open question is ruled.
 reverse_swirling_osis,is_active,1,0,"Held out of the main dictionary: its notation puts the reverse swirl on the opposite side, which the reverse-swirling question has not ruled. Listed in Emerging Vocabulary until ruled."

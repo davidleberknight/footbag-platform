@@ -89,7 +89,7 @@ const heldProseStructure: string[] = [];
 // each with the aspect its open question could change.
 const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   ['bubba', 'add'],                // what the bubba prefix adds
-  ['voodoo', 'identity'],          // possibly Paradox Merlin
+  ['vudoo', 'identity'],           // possibly Paradox Merlin
   ['tap', 'positional'],           // tapping side registration
   ['royale', 'notation'],          // the reverse-drifter dex direction
   // Kept in the dictionary with an incomplete formula only because each carries
