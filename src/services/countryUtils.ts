@@ -483,9 +483,11 @@ export function canonicalCountryName(country: string): string | null {
  * the canonical name, so one place reads the same on every page, and comes
  * last after any city and region, joined with commas the way club and event
  * locations are. A spelling that names no country (only raw legacy data) is
- * shown as written. `label` names the fact on a person's own page: "Country"
- * when the country is all that is known, "Location" once a city or region is.
- * A list or table shows `text` alone.
+ * shown as written. A region with no letter in it (a French department stored
+ * as "44", a lone dash) names no place to a reader and is left out. `label`
+ * names the fact on a person's own page: "Country" when the country is all
+ * that is known, "Location" once a city or region is. A list or table shows
+ * `text` alone.
  */
 export interface PersonLocation {
   label: 'Country' | 'Location';
@@ -498,7 +500,8 @@ export function personLocation(
   country: string | null | undefined,
 ): PersonLocation | null {
   const c = city?.trim() ?? '';
-  const r = region?.trim() ?? '';
+  const trimmedRegion = region?.trim() ?? '';
+  const r = /\p{L}/u.test(trimmedRegion) ? trimmedRegion : '';
   const raw = country?.trim() ?? '';
   const co = raw ? (canonicalCountryName(raw) ?? raw) : '';
   const parts = [c, r, co].filter(Boolean);

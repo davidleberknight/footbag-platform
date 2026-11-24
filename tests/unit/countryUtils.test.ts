@@ -115,6 +115,15 @@ describe('a person\'s location reads one way on every page', () => {
     expect(personLocation(null, null, 'Cananda')?.text).toBe('Cananda');
   });
 
+  it('leaves out a region that names no place, such as a bare number or a dash', () => {
+    // Broken, an event in Nantes would read "Nantes, 44, France": legacy data
+    // stores some French departments by number and some regions as a lone dash.
+    expect(personLocation('Nantes', '44', 'France')?.text).toBe('Nantes, France');
+    expect(personLocation(null, ' - ', 'France')).toEqual({ label: 'Country', text: 'France' });
+    // A region that is a word, in any script, still shows.
+    expect(personLocation('Zürich', 'Zürich', 'Switzerland')?.text).toBe('Zürich, Zürich, Switzerland');
+  });
+
   it('gives nothing when no part is on file', () => {
     // Broken, the facts strip would render an empty "Country:" fact.
     expect(personLocation(null, null, null)).toBeNull();
