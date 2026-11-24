@@ -8,6 +8,8 @@
 
 **Adapter Pattern**: Design pattern abstracting external dependencies behind interfaces. Footbag.org uses adapters to isolate infrastructure concerns per DD §1.9: `MediaStorageAdapter` (S3 in staging/production; `LocalMediaStorageAdapter` in dev), `SesAdapter` (`LiveSesAdapter` sends via AWS SES on armed production; `StubSesAdapter` captures messages in memory for dev, test, staging, and dark production), `PaymentAdapter` (Stripe), `JwtSigningAdapter` (`createKmsJwtAdapter` uses AWS KMS Sign/GetPublicKey in production with RS256; `createLocalJwtAdapter` uses a file-based RSA keypair in dev/test with the same RS256 algorithm), `SecretsAdapter` (`LiveSecretsAdapter` reads SSM SecureString parameters in staging and production; `StubSecretsAdapter` is an in-memory map used by tests and by dev), `SafeBrowsingAdapter`, `CaptchaAdapter` (Cloudflare Turnstile in production; stub on dev and staging), `HttpReachabilityAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, and `BallotEncryptionAdapter` (KMS envelope encryption in production; local-keyed in dev/test). Enables testing without external services and dev/prod parity by configuration swap.
 
+**ADD (freestyle)**: Additional Degree of Difficulty: a freestyle trick's count of scoring components, which measures its structure rather than how hard it feels to execute. A trick's ADD is stored on its dictionary row; a modifier's ADD is stored in the modifier registry and edited in the modifier editor. Public definition: `/freestyle/glossary#term-add`.
+
 **AES-256-GCM**: Authenticated encryption algorithm providing both confidentiality and integrity through authentication tags. Used for voting ballot encryption with server-side envelope encryption: member submits vote over HTTPS, server requests a fresh data key from AWS KMS (GenerateDataKey), encrypts the ballot payload using AES-256-GCM, and stores only the ciphertext alongside the encrypted data key. The plaintext data key is never persisted. Admin tallying decrypts ballots using a separate privileged role after polls close.
 
 **age**: A small open-source file-encryption tool that encrypts a file to an SSH public key, so only the holder of the matching private key can open it. Footbag.org uses it for one job, sealing a dev-and-tester's onboarding to the public key they sent. The holder who onboards them, the dev-and-tester, and the CI runner need it (`sudo apt install age` on Ubuntu).
@@ -40,6 +42,8 @@
 
 **CMK (Customer Master Key)**: AWS KMS term for a named encryption key managed in the KMS service, backed by hardware security modules. Footbag.org uses, per environment, a secrets CMK that encrypts SSM SecureString parameters and the notification topics, and a separate CMK for JWT asymmetric signing (kms:Sign, kms:GetPublicKey); ballot envelope encryption takes its own dedicated CMK (kms:GenerateDataKey for encryption, kms:Decrypt in tally role only), provisioned with the voting subsystem.
 
+**Contact surface**: In freestyle, where the foot or body meets the bag. Public definition: `/freestyle/glossary#term-contact-surface`.
+
 **Content-Hash Filename**: Static asset filename that includes a hash of the file's content (e.g., app.a3f8b2c.js), making each version unique and immutable. Footbag.org's build pipeline generates content-hash filenames for CSS, JavaScript, and image assets, enabling CloudFront to cache them for one year without staleness concerns; the hash changes automatically whenever content changes.
 
 **Controller**: Application layer component handling HTTP requests and responses. Footbag.org controllers receive requests from Express routes, validate inputs, invoke service layer methods, and format responses as JSON or HTML. Controllers contain no business logic; only request/response orchestration.
@@ -64,6 +68,8 @@
 
 **Dev-and-tester**: The only kind of named identity, not a level of seniority: a contributor who develops locally and, when their work needs the deployed staging environment, reaches it through a staging host account and an AWS identity of their own. They hold no `footbag-operator` key, no shared `footbag` host password, no credential vault access and no production access, and they act on staging only through the switch `scripts/as-dev-tester.sh --account <name>`; a command run without it has no identity and is refused. An administrator may also be onboarded as one, through the same path as anybody else.
 
+**Dex**: Short for dexterity: in freestyle, the foot circles the bag while it is in the air. Public definition: `/freestyle/glossary#term-dex`.
+
 **Discipline**: IFPA's term for a branch of the sport: net, freestyle, golf, consecutives or X-Square. X-Square holds 2-Square, 4-Square and 5-Square, all sideline games that a tournament director may offer for fun or as a competition; consecutives holds the timed consecutives competitions and the consecutive-kicks world records. Sideline is open play, not a discipline. The internal names keep an older sense and are not shown to visitors: an `event_disciplines` row is one contested unit at an event, a category's division as played (a game, an entry size, a gender eligibility and a class, shown by a generated name such as "Women's Singles Net"), to which entries, draws, results and records belong. The docs call it a division, or a competition category and division where a reader sees or picks it, and name the table `event_disciplines`; its `discipline_category` holds the IFPA discipline. Historical results keep the grouping the legacy data recorded, so a historical X-Square or consecutives row carries `sideline`. The rulebook files record their discipline in a `category` field. In running prose the word may keep its everyday sense of a practice or a self-imposed rule.
 
 **Division**: IFPA's term for a player bracket by class or gender, such as the Women's division, the Intermediate division, or Women's Intermediate. A division is part of a category: offering a Women's division in a category means offering at least one `event_disciplines` row of that category whose gender is women's. Pro or Amateur is a player's status, not a division.
@@ -82,6 +88,8 @@
 
 **Eligibility Snapshot**: Frozen list of voter member IDs captured when election opens, preventing manipulation by retroactively adjusting membership dates or tiers. Only members eligible at snapshot time can vote, even if their status changes during voting period.
 
+**Emerging Vocabulary**: The freestyle curation staging ground for new or unsettled trick names, movements, aliases and terminology that are not yet ready for the canonical Trick Dictionary. Entries stay separate from canonical dictionary browse and search while evidence, structure, identity and doctrine are worked out, and become canonical only through the publication workflow. Public page: `/freestyle/observational`.
+
 **Encryption**: Converting data into secret code that only authorized parties can read. Footbag.org uses encryption for HTTPS connections (TLS), ballot storage (AES-256-GCM), and sensitive configuration values (AWS Parameter Store SecureString).
 
 **Enumeration Protection**: Security pattern preventing account discovery attacks where attackers systematically test email addresses to find valid accounts. Footbag.org returns identical responses whether email exists or not during password reset, thwarting enumeration attempts.
@@ -93,6 +101,8 @@
 **EXIF (Exchangeable Image File Format)**: Metadata embedded in photos including camera settings, GPS coordinates, timestamps, and camera model. Footbag.org strips all EXIF data during image processing to protect member privacy and reduce file sizes.
 
 **Express**: Minimal Node.js web framework providing straightforward HTTP routing, middleware support, and request/response handling. Footbag.org uses Express for thin controllers and server-rendered page routes, along with selected machine-readable operational endpoints where explicitly documented.
+
+**Family (freestyle)**: A lineage of freestyle tricks that share a conserved terminal, the structure they land into. The family roster is the `freestyle_families` table, edited in the family editor. Public definition: `/freestyle/glossary#term-family`.
 
 **footbag-operator**: The directly authenticated AWS IAM user, held only by the project's AWS administrators, and the default identity for every operator run. It is also the name of the workstation profile that holds its key: a profile is a local configuration entry naming which key to sign with, not an identity. Administrators have no named identity as administrators; one who has also been onboarded as a dev-and-tester switches any one command to that identity with `scripts/as-dev-tester.sh --account <name>`. Distinct from `footbag`, the shared Linux account on each host.
 
@@ -140,6 +150,8 @@
 
 **JavaScript**: Programming language running in web browsers enabling interactive features. On footbag.org it enhances server-rendered pages with client-side form validation, autocomplete and media previews; pages render and forms submit without it, since server-side validation is authoritative. TypeScript (which compiles to JavaScript) is used for all client-side code.
 
+**Jobs notation**: The 1995 freestyle notation that describes a trick by the movement it is rather than the name it carries. Public definition: `/freestyle/glossary#term-jobs-notation`.
+
 **JSON (JavaScript Object Notation)**: Lightweight text format for structured data using keys and values. Footbag.org uses JSON as the data interchange format for API responses, webhook payloads, and local development configuration files.
 
 **JWT (JSON Web Token)**: Compact, URL-safe means of representing claims between parties using JSON and cryptographic signatures. Footbag.org uses JWTs in secure cookies for stateless authentication, including member ID, roles, and passwordVersion for immediate cross-device logout on password change.
@@ -158,11 +170,17 @@
 
 **Middleware**: Express function executing during request/response cycle before reaching route handlers. Footbag.org uses middleware for authentication (JWT validation), logging (request/response tracking), error handling (consistent error responses), and request parsing (JSON body parsing).
 
+**Modifier (freestyle)**: A transformation applied to an existing freestyle trick and not normally performed on its own. Each modifier and its ADD is a row in the modifier registry, edited in the modifier editor. Public definition: `/freestyle/glossary#term-modifier`.
+
 **Nginx**: High-performance web server and reverse proxy. Footbag.org uses nginx container for TLS termination, static asset serving, and routing requests to Express application containers.
 
 **Node.js:** JavaScript runtime built on Chrome's V8 engine enabling server-side JavaScript execution. Footbag.org uses the exact Node.js LTS (Long Term Support) version pinned in `.nvmrc` as the application runtime for both web server and background workers. Single language (TypeScript/JavaScript) across frontend and backend.
 
 **OOM (Out of Memory)**: Condition where a process attempts to allocate more memory than its limit allows. Docker kills a container that exceeds its mem_limit with an OOM error; Footbag.org configures restart policies so killed containers restart automatically and CloudWatch alerts fire when container memory usage approaches 80-90% to provide advance warning.
+
+**Operational notation**: The token-by-token spelling of a freestyle trick, and the source of truth for what it scores. Public definition: `/freestyle/glossary#term-operational-notation`.
+
+**Operator (freestyle)**: A named set, body movement or structural relationship that combines with a base trick to build a new named trick. Operator structure is the `freestyle_operators` table, edited in the operator editor. Public definition: `/freestyle/glossary#term-operator`.
 
 **Outbox Pattern**: Reliability pattern ensuring email delivery despite transient failures. Footbag.org inserts outbox records into the SQLite database within the same transaction as the business operation that triggers the email, guaranteeing that if the transaction commits the email is queued and if it rolls back neither the event nor the email record exists. A background worker scans for pending entries on a configurable interval (default 30 seconds via `outbox_poll_interval_seconds`), sends via SES with retries and exponential backoff, and moves entries to dead-letter status after maximum retries for admin review.
 
@@ -210,6 +228,8 @@
 
 **Session Manager**: AWS service providing IAM-authenticated shell access to managed instances. The project does not use it. Adopting it for Lightsail would require Systems Manager Hybrid Activations, installing the SSM Agent on each instance, and turning on the advanced-instances tier (approximately $5/month per Lightsail instance for non-EC2 Session Manager access). The added cost and operational surface conflict with the volunteer-maintainability and cost-ceiling principles in DD §1.6 and §9.2. Host shell access uses hardened SSH instead, on separate paths for administrators and dev-and-testers; see DEVOPS_GUIDE.md (private GitHub repo), "Host shell access".
 
+**Set (freestyle)**: The launch action that begins a freestyle trick and positions the bag; also the named launch systems. Public definition: `/freestyle/glossary#term-set`.
+
 **SSH (Secure Shell)**: Standard secure remote shell protocol for host administration. Footbag.org uses hardened SSH on Lightsail for exceptional operational tasks, administrators to the shared `footbag` account with their own keys and dev-and-testers to their own named staging accounts such as troubleshooting, deployment verification, restore work, patching, and manual recovery. Private keys are never shared between people; shell access is controlled through individual accounts, key lifecycle management, and source-IP-restricted port-22 rules.
 
 **Sharp**: High-performance Node.js image processing library using libvips. Footbag.org uses Sharp to resize uploaded photos to two variants (thumbnail bounded at 600 pixels on the longest edge, display 800px width), re-encode at 85% JPEG quality, and strip all EXIF metadata. Re-encoding through Sharp also destroys any malware embedded in uploaded files by converting to raw pixels and back. Processing is synchronous; users wait 2-5 seconds and receive immediate success or failure feedback.
@@ -236,6 +256,8 @@
 
 **Stateless JWT**: Authentication approach using self-contained tokens that carry claims (member ID, roles, passwordVersion) without requiring server-side session storage. Note that Footbag.org's implementation is not purely stateless: every authenticated request verifies the JWT signature cryptographically and then reads the member record from the database to confirm passwordVersion matches, enabling immediate cross-device invalidation on password change. JWT claims serve as routing hints; the database read is authoritative for access control.
 
+**String notation**: Writing linked freestyle tricks out with an arrow between them, for example Mirage>Clipper>ss Legover. Public definition: `/freestyle/glossary#term-string-notation`.
+
 **Stripe**: Payment processor handling credit card transactions, subscriptions, and payouts. Footbag.org uses Stripe Checkout for one-time payments (membership dues, event registrations, one-time donations), Stripe Subscriptions for recurring annual donations, and Stripe webhooks (HMAC SHA-256 validated) for payment status notifications. PCI compliance handled by Stripe's hosted forms.
 
 **Stripe Checkout**: Hosted payment page managed by Stripe collecting card details securely. Footbag.org redirects members to Stripe Checkout for payment; Stripe handles PCI compliance and returns to Footbag.org with payment result.
@@ -245,6 +267,8 @@
 **Stripe Webhook**: HTTP callback from Stripe notifying Footbag.org of payment events (payment succeeded, subscription canceled, payment failed). Footbag.org validates webhook signatures using HMAC-SHA256 and processes each event synchronously and idempotently, deduplicated via the `stripe_events` table.
 
 **Terraform**: Open-source infrastructure-as-code tool using declarative configuration files (.tf) to provision and manage cloud resources. Footbag.org defines all AWS infrastructure in Terraform under the /terraform directory; running terraform plan shows a diff of planned changes and terraform apply creates or updates resources, enabling reproducible environment creation and infrastructure change review via pull requests.
+
+**Tier**: On this site, a member's membership tier, Tier 0 to Tier 3, set out in the user stories' Membership Tiers and Flags section. Freestyle uses two other senses, always with their qualifier: an ADD level, the group of tricks sharing one ADD value on the dictionary's by-ADD view; and a string-quality level, a named minimum ADD for every trick in a string, such as Tiltless (at least 2 ADD).
 
 **TLS (Transport Layer Security)**: Cryptographic protocol encrypting internet communications between browsers and servers. Footbag.org uses TLS 1.2+ for all HTTPS connections via CloudFront and nginx, protecting credentials and personal data in transit.
 

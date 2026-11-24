@@ -235,7 +235,7 @@ are owned by the dictionary tables, the modifier registry for operator ADD, and
 the `freestyle_operators` table for operator structure and X-Dex. The
 reader-facing explanation of terms is the public Freestyle Concepts page, with the
 public A–Z glossary giving each term a one-line definition that links there. `docs/GLOSSARY.md`
-is the project technical glossary. This guide points to those homes and never
+is the project technical glossary, with a one-line developer definition of each freestyle term. This guide points to those homes and never
 copies their content, so a term's meaning has exactly one authoritative source.
 
 One class of terms is owned here directly, because it describes strings of
