@@ -3,8 +3,8 @@
 `overrides/event_equivalence.csv` declares pairs of event records that are one
 competition, and the remediation pass folds the loser's rows into the winner. The
 winner's own placements stand. A competition only the loser recorded comes across
-whole, competitors included, which is how the 1997 Worlds overall titles and the
-1984 Women's Team Freestyle reach the surviving event. Extra places the loser
+whole, competitors included, which is how the 1997 Worlds overall titles reach
+the surviving event. Extra places the loser
 holds in a competition the winner already recorded are tie leftovers and are
 dropped, and the named duplicate spellings of a winner competition are not
 carried at all.

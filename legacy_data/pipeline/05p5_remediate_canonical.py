@@ -234,7 +234,7 @@ _VALID_FIX_TYPES  = {
     "rename_and_retag",
     "reshape_doubles_to_singles",   # structural repair: doubles-shaped → true singles
 }
-_VALID_TEAM_TYPES = {"singles", "doubles"}
+_VALID_TEAM_TYPES = {"singles", "doubles", "team"}
 _VALID_CATEGORIES = {"net", "freestyle", "golf", "sideline"}
 discipline_fixes: list[dict] = []
 if DISCIPLINE_FIXES.exists():
@@ -265,7 +265,7 @@ if DISCIPLINE_FIXES.exists():
                                  f"fix_type '{ft}' requires new_team_type")
             if new_tt and new_tt not in _VALID_TEAM_TYPES:
                 raise SystemExit(f"canonical_discipline_fixes.csv line {lineno}: "
-                                 f"invalid new_team_type '{new_tt}' — must be 'singles' or 'doubles'")
+                                 f"invalid new_team_type '{new_tt}' — must be 'singles', 'doubles' or 'team'")
             # reshape_doubles_to_singles: new_team_type defaults to 'singles' if not set;
             # original_team_type=doubles is required (validated at application time).
             if ft == "reshape_doubles_to_singles" and new_tt and new_tt != "singles":
@@ -2273,7 +2273,15 @@ _F13_TARGETS: list[tuple[str, str]] = [
     ("1984_worlds_golden_wfa", "open_singles_net"),
     ("1984_worlds_golden_wfa", "open_team_freestyle"),
 ]
-MERGE_DUPLICATE_DISCIPLINES = frozenset(_F13_TARGETS)
+# The 1984 WFA Worlds women's team contest arrives twice: as "Women's Freestyle"
+# from the authoritative 1980-85 results file, with its complete three-player
+# third team, and as "Women's Team Freestyle" merged in from the 1984 Nationals
+# source, with the same teams and one player missing. The merged-in copy is the
+# duplicate. It is named here rather than in _F13_TARGETS, which holds only the
+# empty "open_"-prefixed slots.
+MERGE_DUPLICATE_DISCIPLINES = frozenset(_F13_TARGETS) | {
+    ("1984_worlds_golden_wfa", "womens_team_freestyle"),
+}
 
 
 def merge_loser_into_winner(winner_key, loser_key, disciplines, results, participants,

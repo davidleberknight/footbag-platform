@@ -190,13 +190,23 @@ def test_the_loader_refuses_a_name_the_structure_does_not_list(tmp_path, categor
     assert helpers.count(db, "event_disciplines") == 0
 
 
-def test_a_team_division_is_withheld_whole_never_loaded_as_singles(tmp_path):
-    # Defect caught: a team contest the schema cannot record loading as a
-    # singles division, so the site shows a team result as an individual one.
+def test_a_team_division_is_withheld_whole_never_loaded_as_singles(tmp_path, monkeypatch, capsys):
+    # Defect caught: a withheld team contest loading as a singles division
+    # anyway, so the site shows a team result as an individual one.
+    # The committed structure, with Team Freestyle withheld whatever the real
+    # file says of it, so the test holds once the real row is mapped.
+    structure = tmp_path / "structure.csv"
+    with STRUCTURE.open(encoding="utf-8") as f:
+        lines = [ln for ln in f.read().splitlines() if not ln.startswith("freestyle,Team Freestyle,")]
+    lines.append("freestyle,Team Freestyle,,,,,team entry withheld for this test,1,")
+    structure.write_text("\n".join(lines) + "\n", encoding="utf-8")
     seed = _seed_with_divisions(tmp_path, [("freestyle", "Team Freestyle"),
                                            ("net", "Open Singles Net")])
-    db, result = _load(tmp_path, seed)
-    assert result.returncode == 0, result.stderr
+    db = helpers.make_db(tmp_path)
+    monkeypatch.setattr(loader, "DIVISION_STRUCTURE", structure)
+    monkeypatch.setattr("sys.argv", ["08", "--db", str(db), "--seed-dir", str(seed), "--no-backup"])
+    loader.main()
+    stdout = capsys.readouterr().out
     assert set(_parts(db)) == {("net", "Open Singles Net")}
     conn = sqlite3.connect(db)
     try:
@@ -212,7 +222,7 @@ def test_a_team_division_is_withheld_whole_never_loaded_as_singles(tmp_path):
     # The seed's one placed player belongs to the team division.
     assert _count_test_rows(db, "event_result_entries") == 0
     assert _count_test_rows(db, "event_result_entry_participants") == 0
-    assert "withheld" in result.stdout
+    assert "withheld" in stdout
 
 
 def test_a_structure_row_names_exactly_one_of_game_custom_name_or_reason(tmp_path):
@@ -245,7 +255,7 @@ def test_a_withheld_row_must_say_why(tmp_path):
 def test_every_committed_division_is_mapped_and_mixed_only_on_doubles():
     # Defect caught: the committed results carrying a name the structure lacks
     # (the load would refuse), or a mixed division tagged singles, which the
-    # database refuses because mixed is only ever doubles.
+    # database refuses because mixed is only ever a pair or a team.
     structure = loader.read_division_structure(STRUCTURE)
     with CANONICAL_DISCIPLINES.open(encoding="utf-8") as f:
         rows = [r for r in csv.DictReader(f)
@@ -258,7 +268,7 @@ def test_every_committed_division_is_mapped_and_mixed_only_on_doubles():
                      if structure[(r["discipline_category"], r["discipline_name"])]
                      ["gender_eligibility"] == "mixed"
                      and not structure[(r["discipline_category"], r["discipline_name"])]["withhold"]
-                     and r["team_type"] != "doubles"]
+                     and r["team_type"] not in ("doubles", "team")]
     assert mixed_singles == [], f"mixed divisions tagged singles: {mixed_singles}"
 
 

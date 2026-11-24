@@ -34,7 +34,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1001076315,2001,Intermediate Freestyle,freestyle,6,player,447600ec-d319-51d8-b1e2-8017e4be0811,,Tapio Karhunen,,complete,,tapio karhunen,Intermediate Freestyle
 1001076315,2001,Intermediate Freestyle,freestyle,7,player,7a8ebf46-3df4-5114-9913-7154c9e52708,,Pekka Raitio,,complete,,pekka raitio,Intermediate Freestyle
 1001076315,2001,Intermediate Freestyle,freestyle,8,team,,64c620d4-b2f3-56af-b87b-21c3ed26b216|507cac49-7144-5ab4-b0ef-07938254c278,__NON_PERSON__,Henry Rautio / Halli,unresolved,,,Intermediate Freestyle
-1001076315,2001,Intermediate Freestyle,freestyle,8,player,98cee1b4-8771-5d83-b62c-24d9dcba0450,,Heikki Rautio,,complete,,heikki rautio,Intermediate Freestyle
+1001076315,2001,Intermediate Freestyle,freestyle,8,player,04ec794c-27b3-5d3f-a9c0-4058fbaa133d,,Henry Rautio,,complete,,henry rautio,Intermediate Freestyle
 1001076315,2001,Intermediate Freestyle,freestyle,9,player,07d6a45a-d9ce-5003-a788-a09bc63a4cd6,,Teemu Ahlfors,,complete,,teemu ahlfors,Intermediate Freestyle
 1001076315,2001,Intermediate Singles Net,net,1,player,dfd9c592-0f50-582b-8e8c-fcb60d9c2bb8,,Tuukka Antikainen,,complete,,tuukka antikainen,
 1001076315,2001,Intermediate Singles Net,net,2,player,7ed608a7-7311-52f9-935b-7951158d56e8,,Kari Uusitalo,,complete,,kari uusitalo,
@@ -2310,7 +2310,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1076876907,2004,Open Singles Freestyle,freestyle,4,player,80696601-2e8f-54d7-8573-0e0d015bd5a9,,Arkady Kemp Lobankov,,complete,,arkady kemp lobankov,
 1076876907,2004,Open Singles Freestyle,freestyle,5,player,13272576-5e70-5828-89eb-5068ad59ace5,,Kuharenko Evgeniy,,complete,,kuharenko evgeniy,
 1076876907,2004,Open Singles Freestyle,freestyle,5,player,5c0a3bfe-be36-5f21-9ce1-2700c8af27f3,,Ilkka Malin,,complete,,ilkka malin,
-1076876907,2004,Open Singles Freestyle,freestyle,5,player,,,Kirill Gurov,,complete,1,kirill gurov,
+1076876907,2004,Open Singles Freestyle,freestyle,5,player,a6352d66-fad2-591b-bd83-06d4f57e981a,,Kirill Kaluga Gurov,,complete,,kirill kaluga gurov,
 1076876907,2004,Open Singles Freestyle,freestyle,5,player,,,Maxim Erashov,,complete,1,maxim erashov,
 1076876907,2004,Unknown,freestyle,1,player,,,__NON_PERSON__,,complete,False,footcraft,
 1076876907,2004,Unknown,freestyle,2,player,,,__NON_PERSON__,,complete,False,team spirit,
@@ -2523,7 +2523,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 1081766954,2004,Open Singles Freestyle,freestyle,3,player,d180df28-54ca-5842-b649-39d94414afd6,,Ling Pikalov,,mostly_complete,,ling pikalov,
 1081766954,2004,Open Singles Freestyle,freestyle,4,player,d5485a38-cb0a-5f72-adfa-7f427aef1f6f,,Kemp Lobankov,,mostly_complete,,kemp lobankov,
 1081766954,2004,Open Singles Freestyle,freestyle,7,player,6d74f8f5-c8d0-5e3d-90ad-bb6323776ad1,,Andrey Jamiro Egorov,,mostly_complete,,jamiro egorov,
-1081766954,2004,Open Singles Freestyle,freestyle,8,player,8748b1e3-776e-5296-bcda-91205be6a4eb,,Kaluga Gurov,,mostly_complete,,kaluga gurov,
+1081766954,2004,Open Singles Freestyle,freestyle,8,player,a6352d66-fad2-591b-bd83-06d4f57e981a,,Kirill Kaluga Gurov,,mostly_complete,,kirill kaluga gurov,
 1081766954,2004,Open Singles Freestyle,freestyle,9,player,,,Boriskov,,mostly_complete,True,boriskov,
 1083699966,2004,Open Singles Net Open Doubles Net,net,1,team,,790435fd-8bdb-57b8-a9d0-708b61b20b72|af11aae3-104f-53f5-b529-14182e5087b6,__NON_PERSON__,Tuomas Kärki 1. Tuomas Kärki / Olli Savolainen,unresolved,,,Open Singles Net Open Doubles Net
 1083699966,2004,Open Singles Net Open Doubles Net,net,1,player,e7937047-c7f1-5739-bb84-aceb23c17dd7,,Tuomas Karki,,partial,,tuomas karki,
@@ -26144,7 +26144,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 941418343,2000,Open Singles Freestyle,freestyle,29,player,c7acd339-db7e-5b05-8361-402f65be77ce,,Stu Macpherson,,complete,,stuart macferson,
 941418343,2000,Open Singles Freestyle,freestyle,30,player,6dd904b7-11c6-5d62-af34-dad61040e67e,,Sebastien Duchesne,,complete,,sebastien duchesne,
 941418343,2000,Open Singles Freestyle,freestyle,31,player,97d60d0e-3503-5814-8b1d-3fe6bb6bff86,,Yacine Merzouk,,complete,,yacine merzouk,
-941418343,2000,Open Singles Freestyle,freestyle,32,player,3d493481-3f0f-5731-9824-c55940a16045,,Damian Budzik,,complete,,damien coventry,
+941418343,2000,Open Singles Freestyle,freestyle,32,player,3d493481-3f0f-5731-9824-c55940a16045,,Damien Coventry,,complete,,damien coventry,
 941418343,2000,Open Singles Freestyle,freestyle,33,player,bc7d95b1-dc06-50b3-a03b-977d2facdb77,,Jeremy Kumbruch,,complete,,jeremy kumbruch,
 941418343,2000,Open Singles Freestyle,freestyle,34,player,092d4205-dbd7-59e7-8ec4-53b306eb83b3,,Justin Sexton,,complete,,justin sexton,
 941418343,2000,Open Singles Net,net,1,player,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,,Emmanuel Bouchard,,mostly_complete,,emmanuel bouchard,
@@ -26754,7 +26754,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 967817818,2000,Women's Singles Net,net,3,player,324e8281-d669-5099-95c9-bcb620dfc605,,Rachel Abramson,,complete,,d rachel abramson,
 973573676,2001,Mens Open Freestyle,freestyle,1,player,ebbab34d-36f8-541b-9151-362cbe66b96e,,Ryan Donohoe,,complete,,ryan donohoe,
 973573676,2001,Mens Open Freestyle,freestyle,2,player,,,nd= Adrian Dick,,unresolved,1,nd= adrian dick,Mens Open Freestyle
-973573676,2001,Solo Consec's,sideline,1,player,a3781ac2-c529-5316-b22b-2bdcfa67bb67,,Damian Budzik,,complete,,damian budzik,
+973573676,2001,Solo Consec's,sideline,1,player,3d493481-3f0f-5731-9824-c55940a16045,,Damien Coventry,,complete,,damien coventry,
 973573676,2001,Solo Consec's,sideline,2,player,ebbab34d-36f8-541b-9151-362cbe66b96e,,Ryan Donohoe,,complete,,ryan donohoe,
 973573676,2001,Team Consec's,sideline,1,team,,3407f138-033b-5394-aa63-571171be4336|45b15a46-6813-5e73-a1bb-4da46805b2b5,__NON_PERSON__,Hanz Freller / Jono Heyes,complete,,,
 973573676,2001,Team Consec's,sideline,2,team,,558f73af-2549-54c5-90b0-864f050c3c8f|aa5f0e41-79db-5da1-a7dd-d47f3bd16cc2,__NON_PERSON__,Adrian Dick / Stu Macferson,complete,,,
@@ -27567,7 +27567,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 992517335,2001,Shred:30,freestyle,7,player,a7b5d479-6c69-58fe-be82-ecef17c80069,,Sakarias Liukko,,complete,,sakarias liukko,
 992517335,2001,Shred:30,freestyle,8,player,e0ff5af1-8b97-5b29-af49-1792c3746c0f,,Iisak Liukko,,complete,,iisak liukko,
 992517335,2001,Shred:30,freestyle,9,player,41163548-0bf9-55e0-a0d8-7d3c886b2576,,Jouni Rissanen,,complete,,jouni rissanen,
-992517335,2001,Shred:30,freestyle,10,player,98cee1b4-8771-5d83-b62c-24d9dcba0450,,Heikki Rautio,,complete,,henry rautio,
+992517335,2001,Shred:30,freestyle,10,player,04ec794c-27b3-5d3f-a9c0-4058fbaa133d,,Henry Rautio,,complete,,henry rautio,
 992517335,2001,Shred:30,freestyle,11,player,fb975dca-5348-559e-aede-88918ce88632,,Aku Kolu,,complete,,aku kolu,
 992517335,2001,Shred:30,freestyle,12,player,98cee1b4-8771-5d83-b62c-24d9dcba0450,,Heikki Rautio,,complete,,heikki rautio,
 992517335,2001,Sick 5,freestyle,1,player,0f6326d1-3099-5489-b003-2e4b9d876292,,Janne Pesonen,,mostly_complete,,janne pesonen,
@@ -27579,7 +27579,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 992517335,2001,Sick 5,freestyle,9,player,41163548-0bf9-55e0-a0d8-7d3c886b2576,,Jouni Rissanen,,mostly_complete,,jouni rissanen,
 992517335,2001,Sick 5,freestyle,10,player,98cee1b4-8771-5d83-b62c-24d9dcba0450,,Heikki Rautio,,mostly_complete,,heikki rautio,
 992517335,2001,Sick 5,freestyle,11,player,7444ebf8-86b3-5daf-b170-aebb4f0c8dbf,,Ville Laasko,,mostly_complete,,ville laasko,
-992517335,2001,Sick 5,freestyle,12,player,98cee1b4-8771-5d83-b62c-24d9dcba0450,,Heikki Rautio,,mostly_complete,,henry rautio,
+992517335,2001,Sick 5,freestyle,12,player,04ec794c-27b3-5d3f-a9c0-4058fbaa133d,,Henry Rautio,,mostly_complete,,henry rautio,
 992517335,2001,Tiltless Ironman,freestyle,1,player,a7b5d479-6c69-58fe-be82-ecef17c80069,,Sakarias Liukko,,complete,,sakarias liukko,
 996293200,2001,Doubles Freestyle,freestyle,1,player,aa5f0e41-79db-5da1-a7dd-d47f3bd16cc2,,Adrian Dick,,complete,,adrian dick,
 996293200,2001,Doubles Freestyle,freestyle,1,team,,aa5f0e41-79db-5da1-a7dd-d47f3bd16cc2|c7acd339-db7e-5b05-8361-402f65be77ce,__NON_PERSON__,Adrian Dick / Stu Macpherson,complete,,,
@@ -27594,7 +27594,7 @@ event_id,year,division_canon,division_category,place,competitor_type,person_id,t
 996293200,2001,Singles Freestyle,freestyle,1,player,8a740aac-66c5-5fe2-a482-2acd1d1cdc11,,Lynton Stephens,,complete,,lynton stephens,
 996293200,2001,Singles Freestyle,freestyle,2,player,aa5f0e41-79db-5da1-a7dd-d47f3bd16cc2,,Adrian Dick,,complete,,adrian dick,
 996293200,2001,Singles Freestyle,freestyle,3,player,c7acd339-db7e-5b05-8361-402f65be77ce,,Stu Macpherson,,complete,,stu macpherson,
-996293200,2001,Singles Freestyle,freestyle,4,player,a3781ac2-c529-5316-b22b-2bdcfa67bb67,,Damian Budzik,,complete,,damian budzik,
+996293200,2001,Singles Freestyle,freestyle,4,player,3d493481-3f0f-5731-9824-c55940a16045,,Damien Coventry,,complete,,damien coventry,
 996293200,2001,Singles Freestyle,freestyle,5,player,40cdaedc-f9bd-5f3d-980b-78049305799b,,Floyd Morgan,,complete,,floyd morgan,
 996293200,2001,Singles Freestyle,freestyle,6,player,b35d9868-bdc1-5cb4-9a75-ab4d97823af5,,Matt Baker,,complete,,matt baker,
 996293200,2001,Singles Freestyle,freestyle,7,player,3407f138-033b-5394-aa63-571171be4336,,Hanz Freller,,complete,,hanz freller,

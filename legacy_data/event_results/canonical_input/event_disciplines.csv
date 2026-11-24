@@ -21,13 +21,13 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1981_mike_marshall_memorial,open_doubles_net,Open Doubles Net,net,doubles,2,partial,,0
 1981_mike_marshall_memorial,womens_doubles_net,Women's Doubles Net,net,doubles,3,partial,,0
 1981_mike_marshall_memorial,open_singles_consecutive,Open Singles Consecutive,sideline,singles,4,partial,,0
-1981_mike_marshall_memorial,open_team_consecutive,Open Team Consecutive,sideline,doubles,5,partial,,0
+1981_mike_marshall_memorial,open_team_consecutive,Open Team Consecutive,sideline,team,5,partial,,0
 1981_mike_marshall_memorial,womens_singles_consecutive,Women's Singles Consecutive,sideline,singles,6,partial,,0
 1981_texas_state,open_singles_net,Open Singles Net,net,singles,1,partial,,0
 1981_worlds,intermediate_singles_consecutive_kicks,Intermediate Singles Consecutive Kicks,sideline,singles,1,partial,,0
 1981_worlds,singles_consecutive_kicks,Singles Consecutive Kicks,sideline,singles,2,partial,,0
 1981_worlds,womens_singles_consecutive_kicks,Women's Singles Consecutive Kicks,sideline,singles,3,partial,,0
-1981_worlds,team_consecutive_kicks,Team Consecutive Kicks,sideline,doubles,4,partial,,0
+1981_worlds,team_consecutive_kicks,Team Consecutive Kicks,sideline,team,4,partial,,0
 1981_worlds,intermediate_singles_net,Intermediate Singles Net,net,singles,5,partial,,0
 1981_worlds,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,6,partial,,0
 1981_worlds,singles_net,Singles Net,net,singles,7,partial,,0
@@ -44,7 +44,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1982_worlds_golden,womens_singles_net,Womens Singles Net,net,singles,3,partial,,0
 1982_worlds_golden,advanced_singles_net,Advanced Singles Net,net,singles,4,partial,,0
 1982_worlds_golden,freestyle_singles,Freestyle Singles,freestyle,singles,5,partial,,0
-1982_worlds_golden,team_freestyle,Team Freestyle,freestyle,doubles,6,partial,,0
+1982_worlds_golden,team_freestyle,Team Freestyle,freestyle,team,6,partial,,0
 1982_rocky_mountain,open_doubles_net,Open Doubles Net,net,doubles,1,partial,,0
 1982_rocky_mountain,freestyle,Freestyle,freestyle,singles,2,partial,,0
 1982_westregion,open_doubles_net,Open Doubles Net,net,doubles,1,partial,,0
@@ -68,7 +68,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1983_worlds_golden,womens_singles_net,Womens Singles Net,net,singles,3,partial,,0
 1983_worlds_golden,advanced_singles_net,Advanced Singles Net,net,singles,4,partial,,0
 1983_worlds_golden,freestyle_singles,Freestyle Singles,freestyle,singles,5,partial,,0
-1983_worlds_golden,team_freestyle,Team Freestyle,freestyle,doubles,6,partial,,0
+1983_worlds_golden,team_freestyle,Team Freestyle,freestyle,team,6,partial,,0
 1983_worlds_golden,singles_consecutive,Singles Consecutive,sideline,singles,7,partial,,0
 1983_oregon_state,open_singles,Open Singles,net,singles,1,partial,,0
 1983_secret_underground,open_freestyle,Open Freestyle,freestyle,singles,1,partial,,0
@@ -89,7 +89,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1983_worlds_boulder_wfa,womens_doubles_net,Women's Doubles Net,net,doubles,4,partial,,0
 1983_worlds_boulder_wfa,mixed_doubles_net,Mixed Doubles Net,net,doubles,5,partial,,0
 1983_worlds_boulder_wfa,singles_freestyle,Singles Freestyle,freestyle,singles,6,partial,,0
-1983_worlds_boulder_wfa,team_freestyle,Team Freestyle,freestyle,doubles,7,partial,,0
+1983_worlds_boulder_wfa,team_freestyle,Team Freestyle,freestyle,team,7,partial,,0
 1983_worlds_boulder_wfa,singles_consecutive_kicks,Singles Consecutive Kicks,sideline,singles,8,partial,,0
 1983_worlds_boulder_wfa,golf,Golf,golf,singles,9,partial,,0
 1983_worlds_oregon_city,open_singles_net,Open Singles Net,net,singles,1,partial,,0
@@ -100,7 +100,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1984_worlds_golden_fbw,womens_singles_net,Womens Singles Net,net,singles,3,partial,,0
 1984_worlds_golden_fbw,advanced_singles_net,Advanced Singles Net,net,singles,4,partial,,0
 1984_worlds_golden_fbw,freestyle_singles,Freestyle Singles,freestyle,singles,5,partial,,0
-1984_worlds_golden_fbw,team_freestyle,Team Freestyle,freestyle,doubles,6,partial,,0
+1984_worlds_golden_fbw,team_freestyle,Team Freestyle,freestyle,team,6,partial,,0
 1984_worlds_golden_fbw,singles_consecutive,Singles Consecutive,sideline,singles,7,partial,,0
 1984_eurochamp,open_singles_net,Open Singles Net,net,singles,1,partial,,0
 1984_worlds_golden_wfa,intermediate_singles_net,Intermediate Singles Net,net,singles,1,partial,,0
@@ -123,14 +123,14 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1984_worlds_golden_wfa,ultra_singles_net,Ultra Singles Net,net,singles,18,partial,,0
 1984_worlds_golden_wfa,ultra_doubles_net,Ultra Doubles Net,net,doubles,19,partial,,0
 1984_worlds_golden_wfa,singles_freestyle,Singles Freestyle,freestyle,singles,20,partial,,0
-1984_worlds_golden_wfa,team_freestyle,Team Freestyle,freestyle,doubles,21,partial,,0
+1984_worlds_golden_wfa,team_freestyle,Team Freestyle,freestyle,team,21,partial,,0
 1984_worlds_golden_wfa,singles_consecutive_kicks,Singles Consecutive Kicks,sideline,singles,22,partial,,0
 1984_worlds_golden_wfa,doubles_consecutive_kicks,Doubles Consecutive Kicks,sideline,doubles,23,partial,,0
 1984_worlds_golden_wfa,doubles_one_pass_consecutive_kicks,Doubles One-Pass Consecutive Kicks,sideline,doubles,24,partial,,0
 1984_worlds_oregon_city,open_singles_net,Open Singles Net,net,singles,1,partial,,0
 1984_worlds_oregon_city,womens_singles_net,Womens Singles Net,net,singles,2,partial,,0
 1985_holiday,singles_freestyle,Singles Freestyle,freestyle,singles,1,partial,,0
-1985_holiday,team_freestyle,Team Freestyle,freestyle,doubles,2,partial,,0
+1985_holiday,team_freestyle,Team Freestyle,freestyle,team,2,partial,,0
 1985_national,mens_overall,Men's Overall,,singles,1,partial,,1
 1985_national,womens_overall,Women's Overall,,singles,2,partial,,1
 1985_national,open_singles_net,Open Singles Net,net,singles,3,partial,,0
@@ -139,9 +139,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1985_national,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1985_national,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1985_national,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1985_national,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1985_national,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1985_national,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1985_national,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1985_national,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1985_national,open_singles_consecutive,Open Singles Consecutive,sideline,singles,12,partial,,0
 1985_national,open_doubles_consecutive,Open Doubles Consecutive,sideline,doubles,13,partial,,0
 1985_national,open_doubles_1_pass_consecutive,Open Doubles 1-Pass Consecutive,sideline,doubles,14,partial,,0
@@ -197,7 +197,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1985_worlds_golden,golf,Golf,golf,singles,8,partial,,0
 1985_worlds_golden,womens_freestyle,Women's Freestyle,freestyle,doubles,9,partial,,0
 1985_worlds_golden,singles_freestyle,Singles Freestyle,freestyle,singles,10,partial,,0
-1985_worlds_golden,team_freestyle,Team Freestyle,freestyle,doubles,11,partial,,0
+1985_worlds_golden,team_freestyle,Team Freestyle,freestyle,team,11,partial,,0
 1985_worlds_golden,intermediate_singles_net,Intermediate Singles Net,net,singles,12,partial,,0
 1985_worlds_golden,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,13,partial,,0
 1985_worlds_golden,mixed_doubles_net,Mixed Doubles Net,net,doubles,14,partial,,0
@@ -218,7 +218,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1986_worlds_golden,advanced_doubles_footbag_net,Advanced Doubles Footbag Net,net,doubles,7,partial,,0
 1986_worlds_golden,open_singles_footbag_freestyle,Open Singles Footbag Freestyle,freestyle,singles,8,partial,,0
 1986_worlds_golden,womens_footbag_freestyle,Women's Footbag Freestyle,freestyle,singles,9,partial,,0
-1986_worlds_golden,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,10,partial,,0
+1986_worlds_golden,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,10,partial,,0
 1986_worlds_golden,open_footbag_golf_3_rounds,Open Footbag Golf 3 Rounds,golf,singles,11,partial,,0
 1986_worlds_golden,womens_footbag_golf_3_rounds,Women's Footbag Golf 3 Rounds,golf,singles,12,partial,,0
 1986_worlds_golden,open_singles_footbag_consecutive,Open Singles Footbag Consecutive,sideline,singles,13,partial,,0
@@ -251,7 +251,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1987_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1987_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1987_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1987_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1987_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1987_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
 1987_worlds,open_doubles_1_pass_consecutive,Open Doubles 1-Pass Consecutive,sideline,doubles,11,partial,,0
 1987_worlds,womens_doubles_1_pass_consecutive,Women's Doubles 1-Pass Consecutive,sideline,doubles,12,partial,,0
@@ -281,9 +281,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1989_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1989_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1989_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1989_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1989_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1989_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1989_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1989_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1989_worlds,open_singles_5_minute_consecutive,Open Singles 5-Minute Consecutive,sideline,singles,12,partial,,0
 1989_worlds,open_doubles_distance_1_pass_consecutive,Open Doubles Distance 1-Pass Consecutive,sideline,doubles,13,partial,,0
 1989_worlds,womens_singles_5_minute_consecutive,Women's Singles 5-Minute Consecutive,sideline,singles,14,partial,,0
@@ -298,9 +298,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1990_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1990_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1990_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1990_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1990_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1990_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1990_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1990_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1990_worlds,open_singles_5_minute_consecutive,Open Singles 5-Minute Consecutive,sideline,singles,12,partial,,0
 1990_worlds,open_doubles_distance_1_pass_consecutive,Open Doubles Distance 1-Pass Consecutive,sideline,doubles,13,partial,,0
 1990_worlds,womens_singles_5_minute_consecutive,Women's Singles 5-Minute Consecutive,sideline,singles,14,partial,,0
@@ -326,9 +326,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1991_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1991_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1991_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1991_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1991_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1991_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1991_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1991_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1991_worlds,open_singles_5_minute_consecutive,Open Singles 5-Minute Consecutive,sideline,singles,12,partial,,0
 1991_worlds,open_doubles_distance_1_pass_consecutive,Open Doubles Distance 1-Pass Consecutive,sideline,doubles,13,partial,,0
 1991_worlds,womens_singles_5_minute_consecutive,Women's Singles 5-Minute Consecutive,sideline,singles,14,partial,,0
@@ -352,7 +352,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1992_eurochamp,womens_singles_net,Women's Singles Net,net,singles,3,partial,,0
 1992_eurochamp,mixed_doubles_net,Mixed Doubles Net,net,doubles,4,partial,,0
 1992_eurochamp,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,5,partial,,0
-1992_eurochamp,open_team_freestyle,Open Team Freestyle,freestyle,doubles,6,partial,,0
+1992_eurochamp,open_team_freestyle,Open Team Freestyle,freestyle,team,6,partial,,0
 1992_eurochamp,open_golf,Open Golf,golf,singles,7,partial,,0
 1992_worlds,mens_overall,Men's Overall,,singles,1,partial,,1
 1992_worlds,womens_overall,Women's Overall,,singles,2,partial,,1
@@ -362,9 +362,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1992_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1992_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1992_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1992_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1992_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1992_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1992_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1992_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1992_worlds,open_singles_5_minute_consecutive,Open Singles 5-Minute Consecutive,sideline,singles,12,partial,,0
 1992_worlds,open_doubles_distance_1_pass_consecutive,Open Doubles Distance 1-Pass Consecutive,sideline,doubles,13,partial,,0
 1992_worlds,womens_singles_5_minute_consecutive,Women's Singles 5-Minute Consecutive,sideline,singles,14,partial,,0
@@ -379,9 +379,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1993_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1993_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1993_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1993_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1993_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1993_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1993_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1993_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1993_worlds,open_singles_5_minute_consecutive,Open Singles 5-Minute Consecutive,sideline,singles,12,partial,,0
 1993_worlds,open_doubles_distance_1_pass_consecutive,Open Doubles Distance 1-Pass Consecutive,sideline,doubles,13,partial,,0
 1993_worlds,womens_singles_5_minute_consecutive,Women's Singles 5-Minute Consecutive,sideline,singles,14,partial,,0
@@ -398,21 +398,21 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1993_california_state,womens_singles_footbag_net,Women's Singles Footbag Net,net,singles,3,partial,,0
 1993_california_state,womens_doubles_footbag_net,Women's Doubles Footbag Net,net,doubles,4,partial,,0
 1993_california_state,open_singles_footbag_freestyle,Open Singles Footbag Freestyle,freestyle,singles,5,partial,,0
-1993_california_state,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,6,partial,,0
+1993_california_state,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,6,partial,,0
 1993_california_state,womens_singles_footbag_freestyle,Women's Singles Footbag Freestyle,freestyle,singles,7,partial,,0
-1993_california_state,womens_team_footbag_freestyle,Women's Team Footbag Freestyle,freestyle,doubles,8,partial,,0
+1993_california_state,womens_team_footbag_freestyle,Women's Team Footbag Freestyle,freestyle,team,8,partial,,0
 1993_california_state,open_footbag_golf,Open Footbag Golf,golf,singles,9,partial,,0
 1993_westregion,open_singles_footbag_net,Open Singles Footbag Net,net,singles,1,partial,,0
 1993_westregion,open_doubles_footbag_net,Open Doubles Footbag Net,net,doubles,2,partial,,0
 1993_westregion,womens_singles_footbag_net,Women's Singles Footbag Net,net,singles,3,partial,,0
 1993_westregion,mixed_doubles_footbag_net,Mixed Doubles Footbag Net,net,doubles,4,partial,,0
 1993_westregion,open_singles_footbag_freestyle,Open Singles Footbag Freestyle,freestyle,singles,5,partial,,0
-1993_westregion,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,6,partial,,0
+1993_westregion,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,6,partial,,0
 1993_westregion,womens_singles_footbag_freestyle,Women's Singles Footbag Freestyle,freestyle,singles,7,partial,,0
-1993_westregion,womens_team_footbag_freestyle,Women's Team Footbag Freestyle,freestyle,doubles,8,partial,,0
+1993_westregion,womens_team_footbag_freestyle,Women's Team Footbag Freestyle,freestyle,team,8,partial,,0
 1993_westregion,open_footbag_golf,Open Footbag Golf,golf,singles,9,partial,,0
 1993_westregion,womens_footbag_golf,Women's Footbag Golf,golf,singles,10,partial,,0
-1993_heartland,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,1,partial,,0
+1993_heartland,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,1,partial,,0
 1993_heartland,open_singles_footbag_net,Open Singles Footbag Net,net,singles,2,partial,,0
 1993_heartland,open_doubles_footbag_net,Open Doubles Footbag Net,net,doubles,3,partial,,0
 1993_heartland,open_overall,Open Overall,,singles,4,partial,,1
@@ -437,23 +437,23 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1993_southern,open_5_minute_timed_footbag_consecutive,Open 5-Minute Timed Footbag Consecutive,sideline,singles,5,partial,,0
 1993_southern,open_footbag_golf,Open Footbag Golf,golf,singles,6,partial,,0
 1993_southern,open_singles_footbag_freestyle,Open Singles Footbag Freestyle,freestyle,singles,7,partial,,0
-1993_southern,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,8,partial,,0
+1993_southern,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,8,partial,,0
 1993_usopen,open_singles_footbag_net,Open Singles Footbag Net,net,singles,1,partial,,0
-1993_usopen,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,2,partial,,0
+1993_usopen,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,2,partial,,0
 1994_westregion,open_singles_footbag_net,Open Singles Footbag Net,net,singles,1,partial,,0
 1994_westregion,open_doubles_footbag_net,Open Doubles Footbag Net,net,doubles,2,partial,,0
 1994_westregion,womens_singles_footbag_net,Women's Singles Footbag Net,net,singles,3,partial,,0
 1994_westregion,mixed_doubles_footbag_net,Mixed Doubles Footbag Net,net,doubles,4,partial,,0
 1994_westregion,open_singles_footbag_freestyle,Open Singles Footbag Freestyle,freestyle,singles,5,partial,,0
-1994_westregion,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,6,partial,,0
+1994_westregion,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,6,partial,,0
 1994_westregion,womens_singles_footbag_freestyle,Women's Singles Footbag Freestyle,freestyle,singles,7,partial,,0
-1994_westregion,womens_team_footbag_freestyle,Women's Team Footbag Freestyle,freestyle,doubles,8,partial,,0
+1994_westregion,womens_team_footbag_freestyle,Women's Team Footbag Freestyle,freestyle,team,8,partial,,0
 1994_westregion,open_footbag_golf,Open Footbag Golf,golf,singles,9,partial,,0
 1994_westregion,womens_footbag_golf,Women's Footbag Golf,golf,singles,10,partial,,0
 1994_eurochamp,open_singles_footbag_net,Open Singles Footbag Net,net,singles,1,partial,,0
 1994_eurochamp,open_doubles_footbag_net,Open Doubles Footbag Net,net,doubles,2,partial,,0
 1994_eurochamp,open_singles_footbag_freestyle,Open Singles Footbag Freestyle,freestyle,singles,3,partial,,0
-1994_eurochamp,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,doubles,4,partial,,0
+1994_eurochamp,open_team_footbag_freestyle,Open Team Footbag Freestyle,freestyle,team,4,partial,,0
 1994_eurochamp,open_footbag_golf,Open Footbag Golf,golf,singles,5,partial,,0
 1994_worlds,mens_overall,Men's Overall,,singles,1,partial,,1
 1994_worlds,womens_overall,Women's Overall,,singles,2,partial,,1
@@ -463,9 +463,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1994_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1994_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1994_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1994_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1994_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1994_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1994_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1994_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1994_worlds,open_singles_5_minute_consecutive,Open Singles 5-Minute Consecutive,sideline,singles,12,partial,,0
 1994_worlds,open_doubles_distance_1_pass_consecutive,Open Doubles Distance 1-Pass Consecutive,sideline,doubles,13,partial,,0
 1994_worlds,womens_singles_5_minute_consecutive,Women's Singles 5-Minute Consecutive,sideline,singles,14,partial,,0
@@ -480,9 +480,9 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1995_worlds,womens_doubles_net,Women's Doubles Net,net,doubles,6,partial,,0
 1995_worlds,mixed_doubles_net,Mixed Doubles Net,net,doubles,7,partial,,0
 1995_worlds,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,partial,,0
-1995_worlds,open_team_freestyle,Open Team Freestyle,freestyle,doubles,9,partial,,0
+1995_worlds,open_team_freestyle,Open Team Freestyle,freestyle,team,9,partial,,0
 1995_worlds,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,10,partial,,0
-1995_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,11,partial,,0
+1995_worlds,womens_team_freestyle,Women's Team Freestyle,freestyle,team,11,partial,,0
 1995_worlds,open_doubles_distance_1_pass_consecutive,Open Doubles Distance 1-Pass Consecutive,sideline,doubles,12,partial,,0
 1995_worlds,womens_singles_5_minute_consecutive,Women's Singles 5-Minute Consecutive,sideline,singles,13,partial,,0
 1995_worlds,womens_doubles_distance_1_pass_consecutive,Women's Doubles Distance 1-Pass Consecutive,sideline,doubles,14,partial,,0
@@ -491,7 +491,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1995_worlds,open_singles_5_minute_consecutive,Open Singles 5-Minute Consecutive,sideline,singles,17,partial,,0
 1995_worlds,intermediate_doubles_footbag_net,Intermediate Doubles Footbag Net,net,doubles,18,partial,,0
 1995_worlds,intermediate_singles_footbag_freestyle,Intermediate Singles Footbag Freestyle,freestyle,singles,19,partial,,0
-1995_worlds,mixed_team_footbag_freestyle_demonstration_round,Mixed Team Footbag Freestyle Demonstration Round,freestyle,doubles,20,partial,,0
+1995_worlds,mixed_team_footbag_freestyle_demonstration_round,Mixed Team Footbag Freestyle Demonstration Round,freestyle,team,20,partial,,0
 1995_worlds,intermediate_singles_footbag_net,Intermediate Singles Footbag Net,net,singles,21,partial,,0
 1995_worlds,intermediate_womens_singles_footbag_net,Intermediate Women's Singles Footbag Net,net,singles,22,partial,,0
 1995_worlds,intermediate_footbag_golf,Intermediate Footbag Golf,golf,singles,23,partial,,0
@@ -509,8 +509,8 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1996_worlds_montreal,intermediate_singles_routines,Intermediate Singles Routines,freestyle,singles,10,partial,,0
 1996_worlds_montreal,womens_open_singles_routines,Women's Open Singles Routines,freestyle,singles,11,partial,,0
 1996_worlds_montreal,mixed_doubles_freestyle_non_official_event,Mixed Doubles Freestyle Non-Official Event,freestyle,doubles,12,partial,,0
-1996_worlds_montreal,womens_open_team_routines,Women's Open Team Routines,freestyle,doubles,13,partial,,0
-1996_worlds_montreal,open_team_routines,Open Team Routines,freestyle,doubles,14,partial,,0
+1996_worlds_montreal,womens_open_team_routines,Women's Open Team Routines,freestyle,team,13,partial,,0
+1996_worlds_montreal,open_team_routines,Open Team Routines,freestyle,team,14,partial,,0
 1996_worlds_montreal,open_singles_routines,Open Singles Routines,freestyle,singles,15,partial,,0
 1996_worlds_montreal,womens_intermediate_singles_net,Women's Intermediate Singles Net,net,singles,16,partial,,0
 1996_worlds_montreal,intermediate_singles_net,Intermediate Singles Net,net,singles,17,partial,,0
@@ -703,7 +703,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_funtastik_summer,pro_golf,Pro Golf,golf,singles,9,complete,,0
 1998_funtastik_summer,pro_single_freestyle,Pro Single Freestyle,freestyle,singles,10,complete,,0
 1998_funtastik_summer,pro_singles_net,Pro Singles Net,net,singles,11,complete,,0
-1998_funtastik_summer,team_freestyle,Team Freestyle,freestyle,doubles,12,complete,,0
+1998_funtastik_summer,team_freestyle,Team Freestyle,freestyle,team,12,complete,,0
 1998_emeraldcity,advanced_5_minute_timed_footbag_consecutive,Advanced 5 Minute Timed Footbag Consecutive,sideline,singles,1,complete,,0
 1998_emeraldcity,advanced_doubles_footbag_net,Advanced Doubles Footbag Net,net,doubles,2,complete,,0
 1998_emeraldcity,advanced_singles_footbag_net,Advanced Singles Footbag Net,net,singles,3,complete,,0
@@ -1078,7 +1078,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2000_funtastik_summer,pro_golf,Pro Golf,golf,singles,8,complete,,0
 2000_funtastik_summer,pro_single_freestyle,Pro Single Freestyle,freestyle,singles,9,complete,,0
 2000_funtastik_summer,pro_singles_net,Pro Singles Net,net,singles,10,complete,,0
-2000_funtastik_summer,team_freestyle,Team Freestyle,freestyle,doubles,11,complete,,0
+2000_funtastik_summer,team_freestyle,Team Freestyle,freestyle,team,11,complete,,0
 2000_montreal,interm_diaire_double_net,Intermédiaire - Double Net,net,doubles,1,complete,,0
 2000_montreal,interm_diaire_simple_net,Intermédiaire - Simple Net,net,singles,2,complete,,0
 2000_montreal,interm_diaire_freestyle,Intermédiaire Freestyle,freestyle,singles,3,unresolved,,0
@@ -1176,8 +1176,8 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2001_southern,womens_singles_net,Women's Singles Net,net,singles,12,complete,,0
 2001_new_zealand,mens_open_freestyle,Mens Open Freestyle,freestyle,singles,1,complete,,0
 2001_new_zealand,solo_consecs,Solo Consec's,sideline,singles,2,complete,,0
-2001_new_zealand,team_consecs,Team Consec's,sideline,doubles,3,complete,,0
-2001_new_zealand,team_distance_pass,Team Distance Pass,sideline,doubles,4,complete,,0
+2001_new_zealand,team_consecs,Team Consec's,sideline,team,3,complete,,0
+2001_new_zealand,team_distance_pass,Team Distance Pass,sideline,team,4,complete,,0
 2001_new_zealand,womens_freestyle,Women's Freestyle,freestyle,singles,5,complete,,0
 2001_turku_finland,doubles_net,Doubles Net,net,doubles,1,complete,,0
 2001_turku_finland,freestyle,Freestyle,freestyle,singles,2,complete,,0
@@ -1245,7 +1245,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2001_funtastik_summer,pro_golf,Pro Golf,golf,singles,9,complete,,0
 2001_funtastik_summer,pro_single_net,Pro Single Net,net,singles,10,complete,,0
 2001_funtastik_summer,pro_singles_freestyle,Pro Singles Freestyle,freestyle,singles,11,complete,,0
-2001_funtastik_summer,team_freestyle,Team Freestyle,freestyle,doubles,12,complete,,0
+2001_funtastik_summer,team_freestyle,Team Freestyle,freestyle,team,12,complete,,0
 2001_footbagjam_keuruu,guiltless_ironman,Guiltless Ironman,freestyle,singles,1,complete,,0
 2001_footbagjam_keuruu,shred_30,Shred:30,freestyle,singles,2,complete,,0
 2001_footbagjam_keuruu,sick_5,Sick 5,freestyle,singles,3,mostly_complete,,0
@@ -1381,7 +1381,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2002_de_france_de,open_single_net,Open Single Net,net,singles,5,complete,,0
 2002_de_france_de,open_women_single_freestyle,Open Women Single Freestyle,freestyle,singles,6,complete,,0
 2002_de_france_de,sick_3_at_3am_in_the_bar,Sick 3 At 3Am In The Bar,freestyle,singles,7,complete,,0
-2002_de_france_de,team_freestyle,Team Freestyle,freestyle,doubles,8,complete,,0
+2002_de_france_de,team_freestyle,Team Freestyle,freestyle,team,8,complete,,0
 2002_de_france_de,unknown,Overall Champions,,singles,9,mostly_complete,,1
 2002_cinco_de_mayo,novice_4_square,Novice 4 Square,sideline,singles,1,complete,,0
 2002_cinco_de_mayo,novice_timed_3_minute_consecutives,Novice Timed 3 Minute Consecutives,sideline,singles,2,complete,,0
@@ -1468,7 +1468,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2003_french,open_single,Open Single,freestyle,singles,5,complete,,0
 2003_french,open_single_freestyle_women,Open Single Freestyle Women,freestyle,singles,6,complete,,0
 2003_french,open_single_net,Open Single Net,net,singles,7,mostly_complete,,0
-2003_french,open_team_freestyle,Open Team Freestyle,freestyle,doubles,8,complete,,0
+2003_french,open_team_freestyle,Open Team Freestyle,freestyle,team,8,complete,,0
 2003_canadian,intermediate_singles_freestyle,Intermediate Singles Freestyle,freestyle,singles,1,complete,,0
 2003_canadian,novice_singles_net,Novice Singles Net,net,singles,2,complete,,0
 2003_canadian,open_doubles_net,Open Doubles Net,net,doubles,3,complete,,0
@@ -2009,7 +2009,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2006_de_france_de,open_doubles_net,Open Doubles Net,net,doubles,7,complete,,0
 2006_de_france_de,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,8,mostly_complete,,0
 2006_de_france_de,open_singles_net,Open Singles Net,net,singles,9,complete,,0
-2006_de_france_de,open_team_freestyle,Open Team Freestyle,freestyle,doubles,10,complete,,0
+2006_de_france_de,open_team_freestyle,Open Team Freestyle,freestyle,team,10,complete,,0
 2006_de_france_de,shred_30,Shred 30?,freestyle,singles,11,complete,,0
 2006_de_france_de,sick_3,Sick 3,freestyle,singles,12,complete,,0
 2006_de_france_de,spinning_simple_swirl_net,Spinning Simple Swirl Net,net,singles,13,complete,,0
@@ -2264,7 +2264,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2007_championnats_de_france,sick3,Sick3,freestyle,singles,3,complete,,0
 2007_championnats_de_france,singles_freestyle,Singles Freestyle,freestyle,doubles,4,mostly_complete,,0
 2007_championnats_de_france,singles_net,Singles Net,net,singles,5,complete,,0
-2007_championnats_de_france,team_freestyle,Team Freestyle,freestyle,singles,6,partial,,0
+2007_championnats_de_france,team_freestyle,Team Freestyle,freestyle,team,6,partial,,0
 2007_footbagjam_ithaca,intermediate_circle,Intermediate Circle,freestyle,singles,1,complete,,0
 2007_footbagjam_ithaca,open_circle,Open Circle,freestyle,singles,2,complete,,0
 2007_finnish,circle_competition,Circle Competition,freestyle,singles,1,complete,,0
@@ -2361,7 +2361,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2008_eurochamp_montpellier,open_shred30_freestyle,Open Shred30 Freestyle,freestyle,singles,5,complete,,0
 2008_eurochamp_montpellier,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,6,partial,,0
 2008_eurochamp_montpellier,open_singles_net,Open Singles Net,net,singles,7,complete,,0
-2008_eurochamp_montpellier,open_team_freestyle,Open Team Freestyle,freestyle,doubles,8,complete,,0
+2008_eurochamp_montpellier,open_team_freestyle,Open Team Freestyle,freestyle,team,8,complete,,0
 2008_eurochamp_montpellier,request_contest,Request Contest,freestyle,singles,9,complete,,0
 2008_eurochamp_montpellier,short_technical_program,Short Technical Program,freestyle,singles,10,complete,,0
 2008_eurochamp_montpellier,women_doubles_net,Women Doubles Net,net,doubles,11,complete,,0
@@ -4385,6 +4385,5 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2002_montreal_international,open_mixed_doubles_net,Open Mixed Doubles Net,net,doubles,3,complete,,0
 2002_montreal_international,open_womens_doubles_net,Open Women's Doubles Net,net,doubles,4,complete,,0
 2002_montreal_international,open_doubles_net,Open Doubles Net,net,doubles,5,complete,,0
-1984_worlds_golden_wfa,womens_team_freestyle,Women's Team Freestyle,freestyle,doubles,10,partial,,0
 1997_worlds_portland,mens_overall,Men's Overall,,singles,1,partial,,1
 1997_worlds_portland,womens_overall,Women's Overall,,singles,2,partial,,1
