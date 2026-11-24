@@ -256,8 +256,13 @@ ruling batches.
   on rotational bases.
 - **Rooted** (pt8): a unique set with one initial dexterity attached; non-scoring
   like the standalone pogo set.
-- **Sailing** (pt9): a set equivalent to the Pixie Quantum set; set-standalone
-  value stated, modifier behavior not classified.
+- **Sailing** (pt9; rules-expert ruling by email, recorded 2026-11-23): a set worth
+  2 ADD. "The second component of the sailing set is atomic": a pixie dexterity
+  followed by atomic's opposite-side outward dexterity
+  (`TOE > SAME IN [DEX] > OP OUT [DEX] >`), the count unchanged. Pixie Eggbeater and
+  Sailing Legover are therefore one movement written two ways; Sailing Legover is
+  folded into Pixie Eggbeater (curator ruling, 2026-11-23). Modifier behavior is not
+  classified.
 - **Backside** (pt9): a body modifier.
 - **Flailing** (curator-relayed): flailing is a Symposium Atomic set. This answers
   the standing confirm-or-deny in the negative: flailing is NOT the prefix form of

@@ -1706,8 +1706,6 @@ sailing-butterfly,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > SAM
 sailing-butterfly,notation,,SAILING BUTTERFLY,JOB per mechanical uppercase rule.
 sailing-mirage,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP TOE [DEL],Sailing chassis + mirage. 4 brackets == 4 ADD.
 sailing-mirage,notation,,SAILING MIRAGE,JOB per mechanical uppercase rule.
-sailing-legover,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Sailing chassis + legover. 4 brackets == 4 ADD.
-sailing-legover,notation,,SAILING LEGOVER,JOB per mechanical uppercase rule.
 sailing-eggbeater,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL],Sailing chassis + eggbeater (>> X-dex marker preserved). 5 brackets == 5 ADD.
 sailing-eggbeater,notation,,SAILING EGGBEATER,JOB per mechanical uppercase rule.
 sailing-whirl,operational_notation,,TOE > SAME IN [DEX] > OP OUT [DEX] > OP IN [DEX] > OP CLIP [XBD] [DEL],Sailing chassis + whirl. 5 brackets == 5 ADD.
@@ -3179,7 +3177,7 @@ sailing_double_leg_over_same_side,operational_notation,,TOE > SAME IN [DEX] > SA
 sailing_double_leg_over_same_side,trick_family,,double_leg_over,loader-19 override: base_trick sailing-double-leg-over defaults trick_family to it; the compound follows its plain sibling into the double-leg-over family.
 sailing_illusion_same_side,operational_notation,,TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP TOE [DEL],Composite same-side authoring (sailing + illusion; the plain form is absent so the row composes directly); bracket count 4 = ADD; collision-free.
 sailing_legover_same_side,operational_notation,,TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > SAME TOE [DEL],Distributive same-side derivation from sailing_legover; bracket count 4 = ADD; collision-free.
-sailing_legover_same_side,trick_family,,legover,loader-19 override: base_trick sailing-legover defaults trick_family to it; the compound follows its plain sibling into the legover family.
+sailing_legover_same_side,trick_family,,legover,"loader-19 override: the compound is the sailing set on legover, so it sits in the legover family."
 sailing_mirage_same_side,operational_notation,,TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME IN [DEX] > OP TOE [DEL],Distributive same-side derivation from sailing_mirage; bracket count 4 = ADD; collision-free.
 sailing_mirage_same_side,trick_family,,mirage,loader-19 override: base_trick sailing-mirage defaults trick_family to it; the compound follows its plain sibling into the mirage family.
 sailing_pickup_same_side,operational_notation,,TOE > SAME IN [DEX] > SAME OUT [DEX] > SAME IN [DEX] > SAME TOE [DEL],Distributive same-side derivation from sailing_pickup; bracket count 4 = ADD; collision-free.
@@ -3577,7 +3575,6 @@ clipper_ducking_whirl,description,Clipper ducking whirl.,"A whirl with a duck fi
 railing_illusion,description,A railing entry into an illusion.,"An illusion with a railing set: two set dexterities off the toe, then the illusion's out-to-in dexterity and a toe catch.","Opening rewrite: composed from the illusion description, the stored railing note and the stored execution notation; replaces a line restating the trick's modifier."
 railing_legover,description,A railing entry into a legover.,"A legover with a railing set: two set dexterities off the toe, then the leg passes over the bag to a toe catch.","Opening rewrite: composed from the legover description, the stored railing note and the stored execution notation; replaces a line restating the trick's modifier."
 railing_mirage,description,A railing entry into a mirage.,"A mirage with a railing set: two set dexterities off the toe, then the mirage's dexterity and a toe catch.","Opening rewrite: composed from the mirage description, the stored railing note and the stored execution notation; replaces a line restating the trick's modifier."
-sailing_legover,description,Sailing Legover: the Sailing set (a pixie-illusion entry) prepended onto the legover base.,"A legover with a sailing set: two set dexterities off the toe, one inward and one outward, then the leg passes over the bag to a toe catch.","Opening rewrite: composed from the legover description, the stored sailing note and the stored execution notation; replaces a line carrying internal wording."
 stepping_eggbeater,description,Stepping Eggbeater.,"An eggbeater with a stepping set: one dexterity off the clipper as the support foot relocates, then the eggbeater's two dexterities and the toe catch.","Opening rewrite: composed from the eggbeater opening, the stored stepping note and the stored execution notation; replaces a line restating the trick's name."
 paradox_mirage,description,Paradox-modified mirage.,"A mirage with the hips switching sides: off the clipper set, the mirage's dexterity with the body changing sides around it, then a toe catch.","Opening rewrite: composed from the mirage description, the stored paradox note and the stored execution notation; replaces a line restating the trick's modifier."
 paradox_illusion,description,Paradox-modified illusion.,"An illusion with the hips switching sides: off the clipper set, the illusion's out-to-in dexterity with the body changing sides around it, then a toe catch.","Opening rewrite: composed from the illusion description, the stored paradox note and the stored execution notation; replaces a line restating the trick's modifier."
@@ -4125,7 +4122,6 @@ miraging_symposium_mirage,review_aspect,,add,"Ruled Merlin and distinct from Sym
 osis,review_aspect,,positional,Open question still pending; clear once ruled.
 paradon,review_aspect,,identity,Open question still pending; clear once ruled.
 paradox_blur,review_aspect,,add,Open question still pending; clear once ruled.
-pixie_eggbeater,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_opposite_clipper,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_same_clipper,review_aspect,,add,Open question still pending; clear once ruled.
 pixie_spinning_paradox_blender,review_aspect,,add,Open question still pending; clear once ruled.
@@ -4141,7 +4137,6 @@ reverse_swirling_symposium_mirage,review_aspect,,add,Open question still pending
 reverse_torque,review_aspect,,identity,Open question still pending; clear once ruled.
 royale,review_aspect,,notation,Open question still pending; clear once ruled.
 sailing_double_over_down,review_aspect,,add,Open question still pending; clear once ruled.
-sailing_legover,review_aspect,,add,Open question still pending; clear once ruled.
 shooting_clipper_same_side,review_aspect,,identity,Open question still pending; clear once ruled.
 shooting_star,review_aspect,,identity,Open question still pending; clear once ruled.
 spinal_tap,review_aspect,,positional,Open question still pending; clear once ruled.

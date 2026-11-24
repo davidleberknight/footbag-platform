@@ -296,20 +296,6 @@ Each is separable and answered on its own.
   re-registering tapping guay would make it identical to tapping reverse guay.
   Close condition: record the ruling and remove this entry.
 
-- **Sailing's structural decomposition.** Sailing's scored value is settled:
-  a +2 set. Its decomposition is not: the modifier registry note reads
-  pixie + quantum, the sailing legover description reads a pixie-illusion
-  entry, the stored formula algebra reads a pixie lead plus an outward
-  opposite-side dex, and the operator reference carries no sailing entry at
-  all. The pixie eggbeater / sailing legover collision (byte-identical
-  formulas, both 4 ADD) is held until this is settled: if sailing's second
-  component is the outward opposite-side dex, the two names are one movement
-  bracketed two ways; if not, they are distinct and the notation
-  under-describes sailing. No disposition of the pair, no alias change, and
-  no operator-reference entry before the decomposition is ruled.
-  Close condition: rule the decomposition, add the operator-reference entry,
-  dispose the pair accordingly, and remove this entry.
-
 - **Quantum butterfly's derived formula.** Two sources agree on what quantum
   butterfly is: FootbagMoves names Tripwalk's form "Quantum Butterfly", and
   footbag.org newmoves 135 gives the same dual naming, both with the planted
@@ -472,7 +458,7 @@ Each is separable and answered on its own.
   resolving to a clipper contain a two-dex Down chassis plus one added dex, or a
   distinct Triple or Fusion movement whose parity is defined independently of the
   four-cell grid? These three stay bounded row-level holds. `sailing_double_over_down`
-  is not one of them; its cell-dex rendering is a separate bounded question, held pending the Sailing decomposition.
+  is not one of them; its cell-dex rendering is a separate bounded question.
 - **Plasma parity, source evidence needed.** `plasma`
   (`TOE > OP IN [DEX] > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]`, family
   `plasma`, no base trick, named a quantum double-over-down) has a mixed
@@ -508,6 +494,13 @@ in the maintainers' private tracker.
 
 ## With the curator
 
+- **Pigbeater and Pixie Eggbeater.** FootbagMoves gives Pigbeater's technical name as
+  Pixie Eggbeater, and the two rows differ only by Pigbeater's `>>` no-plant link
+  (`TOE > SAME IN [DEX] >> OP OUT [DEX] > OP OUT [DEX] > SAME TOE [DEL]`). Decide whether
+  the link marks a distinct movement or whether one row folds into the other. Sailing's
+  operator-reference entry (a pixie dexterity then an atomic one, by the rules
+  expert's ruling) is also still to write. Close: dispose the pair, write the entry,
+  and remove this entry.
 - **Path or catch terminal syntax (registry Q07).** How a trick that ends on a path
   or a catch, rather than a stall, is written in operational notation. This is a
   notation-syntax rule for the curator to write, not a question for the rules

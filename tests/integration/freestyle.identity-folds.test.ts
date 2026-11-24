@@ -289,6 +289,18 @@ const FOLDS = [
     shown: true,
   },
   {
+    // The sailing set's second component is atomic, so a sailing legover is the
+    // pixie eggbeater written two ways; the sourced name survives.
+    retired: 'sailing_legover',
+    retiredName: 'sailing legover',
+    survivor: 'pixie_eggbeater',
+    // The same-side form is built on legover with the sailing set, as the
+    // retired row was, so nothing names the retired row as its base.
+    dependants: [],
+    movedFields: [],
+    shown: true,
+  },
+  {
     retired: 'atomic_symposium_whirl',
     retiredName: 'atomic symposium whirl',
     survivor: 'gary_coleman',
