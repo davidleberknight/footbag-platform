@@ -662,7 +662,7 @@ const FURIOUS_SET_CONTENT: SetEducationInput = {
           'Fury is a named trick built on the furious launch, 5 ADD.',
       },
       {
-        slug:      'furious_butterfly',
+        slug:      'jani_walker',
         baseLabel: 'Butterfly family',
         prose:
           'The furious launch opening a butterfly, 5 ADD.',

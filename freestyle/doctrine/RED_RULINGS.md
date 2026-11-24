@@ -373,9 +373,10 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
   2026-11-23, registry Q13): "Its movement is a Furious Butterfly." Its notation
   (`CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`, 5 ADD) is
   the furious set on butterfly, 2 + 3. Barraging is Furious, so footbag.org's
-  "Barraging Butterfly" reading is the one now ruled. The separate Furious Butterfly
-  row therefore duplicates Jani Walker; its disposition is with the curator. The
-  Sidewinder = fairy gyro Jani Walker identity is not ruled by this answer.
+  "Barraging Butterfly" reading is the one now ruled. The Furious Butterfly row is
+  folded into Jani Walker (curator ruling, 2026-11-23), its name shown as Jani
+  Walker's structural name. The Sidewinder = fairy gyro Jani Walker identity is not
+  ruled by this answer.
 - Terrage and Barrage are standalone AND compositional; Merkon is standalone;
   Sidewalk, Tombstone, Flail, and Omelette are common names that belong in the
   dictionary; Royale and Ripstein are primary entries; Eclipse counts its hop-over

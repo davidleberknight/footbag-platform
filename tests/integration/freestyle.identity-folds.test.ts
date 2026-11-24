@@ -278,6 +278,17 @@ const FOLDS = [
     shown: true,
   },
   {
+    // The rules expert ruled Jani Walker's movement a Furious Butterfly; the
+    // folk name survives and the structural row's prose and link move to it.
+    retired: 'furious_butterfly',
+    retiredName: 'furious butterfly',
+    survivor: 'jani_walker',
+    dependants: [],
+    movedFields: ['description', 'execution_summary', 'learning_notes', 'prerequisite_notes'],
+    movedLinks: 'furious',
+    shown: true,
+  },
+  {
     retired: 'atomic_symposium_whirl',
     retiredName: 'atomic symposium whirl',
     survivor: 'gary_coleman',

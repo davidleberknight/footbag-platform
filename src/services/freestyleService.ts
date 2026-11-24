@@ -3019,7 +3019,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'fairy_whirl',
   // Furious-set + base batch (two-dex +2 chassis; furious=+2; historical name barraging; all bases canonical).
   'barraging_barfly',
-  'furious_butterfly',
+  'jani_walker',
   'furious_illusion',
   'furious_legover',
   'furious_mirage',
@@ -3335,7 +3335,8 @@ export const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // reaper and refraction released: footbag.org's notation for each now
   // answers the question the workbook hold recorded (reaper's dex directions,
   // refraction's decomposition).
-  'jani_walker',
+  // jani_walker released: the rules expert ruled its movement a Furious
+  // Butterfly, and the Furious Butterfly row folded into it.
 ]);
 
 // Curator-published flag-component decompositions for atomic singletons.

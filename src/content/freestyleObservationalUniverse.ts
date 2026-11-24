@@ -179,11 +179,11 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Barraging Legover", "slug": "barraging-legover", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "barraging(+2) + legover(2) = 4", "semanticJob": "BARRAGING LEGOVER", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:furious_legover", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barraginglegover", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Barraging Pickup", "slug": "barraging-pickup", "source": "SG", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "barraging(+2) + pickup(2) = 4", "semanticJob": "BARRAGING PICKUP", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:furious_pickup", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingpickup", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "PS Illusion", "slug": "paradox-symposium-illusion", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "paradox(+1) + symposium(+1) + illusion(2) = 4", "semanticJob": "PARADOX SYMPOSIUM ILLUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:paradox_flail", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "paradoxsymposiumillusion", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
-  {"name": "Barraging Butterfly", "slug": "barraging-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Barraging Butterfly (same side)", "Barraging far Butterfly", "Barraging near Butterfly"], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:furious_butterfly", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
-  {"name": "Barraging Butterfly (same side)", "slug": "barraging-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:furious_butterfly", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingbutterflysameside", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
-  {"name": "Barraging far Butterfly", "slug": "barraging-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:furious_butterfly", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingfarbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Barraging Butterfly", "slug": "barraging-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Barraging Butterfly (same side)", "Barraging far Butterfly", "Barraging near Butterfly"], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:jani_walker", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Barraging Butterfly (same side)", "slug": "barraging-butterfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:jani_walker", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingbutterflysameside", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Barraging far Butterfly", "slug": "barraging-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:jani_walker", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingfarbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Barraging far Eggbeater", "slug": "barraging-eggbeater", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + eggbeater(3) = 5", "semanticJob": "BARRAGING EGGBEATER", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:clown_face", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingfareggbeater", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
-  {"name": "Barraging near Butterfly", "slug": "barraging-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:furious_butterfly", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingnearbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Barraging near Butterfly", "slug": "barraging-butterfly", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "barraging(+2) + butterfly(3) = 5", "semanticJob": "BARRAGING BUTTERFLY", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:jani_walker", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingnearbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Barraging Barfly", "slug": "barraging-barfly", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "barraging(+2) + barfly(4) = 6", "semanticJob": "BARRAGING BARFLY", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:nemesis", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "barragingbarfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Pdx. Fusion", "slug": "paradox-fusion", "source": "PB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "paradox(+1) + fusion(5) = 6", "semanticJob": "PARADOX. FUSION", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:cold_fusion", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "paradoxfusion", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Atomic Pickup (same side)", "slug": "atomic-pickup", "source": "MULTI", "ecosystem": "atomic", "parentFamily": "", "section": "ready", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "atomic(+1) + pickup(2) = 3", "semanticJob": "ATOMIC PICKUP", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:scrambled_eggbeater", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicpickupsameside", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
@@ -602,6 +602,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Blurry Voodoo", "slug": "blurry-voodoo", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "doctrine/C", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "Q01", "owner": "james+red", "publicationState": "doctrine-blocked", "publicSection": "ruling", "resolutionConflict": false, "identityKey": "blurryvoodoo", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Blurry Zulu Butterfly", "slug": "blurry-zulu-butterfly", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive", "ledger": "doctrine/C", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "Q01", "owner": "james+red", "publicationState": "doctrine-blocked", "publicSection": "ruling", "resolutionConflict": false, "identityKey": "blurryzulubutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Blurry Zulu Mirage", "slug": "blurry-zulu-mirage", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "doctrine", "cluster": "other", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "doctrine_unresolved", "lexicalVariants": [], "layer": "archive", "ledger": "doctrine/C", "resolvedTarget": "", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "Q01", "owner": "james+red", "publicationState": "doctrine-blocked", "publicSection": "ruling", "resolutionConflict": false, "identityKey": "blurryzulumirage", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Furious Butterfly (Jani Walker)", "slug": "furious-butterfly-jani-walker", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "canonical:jani_walker", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "furiousbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Furious Double Legover", "slug": "furious-double-legover", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "compression-ambiguity", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:nebula", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "furiousdoublelegover", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Furious Eggbeater", "slug": "furious-eggbeater", "source": "FM", "ecosystem": "blurry/furious", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "unresolved_candidate", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:clown_face", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "furiouseggbeater", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Furious Eggbeater (Clown Face)", "slug": "furious-eggbeater-clown-face", "source": "SG", "ecosystem": "blurry/furious", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "blocked", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "canonical:clown_face", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "furiouseggbeater", "groupPrimary": true, "alsoRecordedAs": ["Furious Eggbeater"], "readiness": ""},
@@ -1151,7 +1152,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 976,
+    "total": 977,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1160,7 +1161,7 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
     "promotionFrontier": 208,
-    "lexicalArchive": 748,
+    "lexicalArchive": 749,
     "intakeBuckets": {
       "promotion_ready": {
         "names": 60,
@@ -1175,8 +1176,8 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 109
       },
       "alias": {
-        "names": 341,
-        "distinctStructures": 341
+        "names": 342,
+        "distinctStructures": 342
       },
       "equivalence": {
         "names": 0,
@@ -1196,14 +1197,14 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "publicSections": {
-      "archive": 605,
+      "archive": 606,
       "decide": 48,
       "evidence": 19,
       "ruling": 210
     },
     "publicationStates": {
       "adjudication-pending": 48,
-      "already-represented": 516,
+      "already-represented": 517,
       "doctrine-blocked": 210,
       "evidence-pending": 19,
       "not-a-trick": 17,
@@ -1234,10 +1235,10 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "evidence": 19,
       "james": 47,
       "james+red": 214,
-      "mechanical": 369,
+      "mechanical": 370,
       "none": 233
     },
-    "identityCount": 882,
+    "identityCount": 883,
     "reconciliationWarnings": {
       "conflicting-parenthetical-resolutions": 2,
       "positional-paren-resolution-held": 4
@@ -1245,15 +1246,15 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "ready": 67,
     "frontier": 114,
     "doctrineBlocked": 53,
-    "folkUnresolved": 434,
+    "folkUnresolved": 435,
     "parserUnresolved": 308,
     "promotionReadyPct": 19,
     "doctrineBlockedPct": 5,
-    "folkUnresolvedPct": 44,
+    "folkUnresolvedPct": 45,
     "parserUnresolvedPct": 32,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 433,
+      "SG": 434,
       "FM": 235,
       "PB": 235,
       "FB": 57,
