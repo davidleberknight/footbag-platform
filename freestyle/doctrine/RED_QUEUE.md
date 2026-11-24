@@ -99,11 +99,13 @@ defines the movement, and its weight where the weight is not yet evidenced.
   Torque.
 - **Slicing.** Undefined. Affected names: Slicing Butterfly, Slicing far Butterfly,
   Slicing Infinity (Lawn Moir's base reading, pending a notation authoring attempt).
-- **Spyro.** Spyro is ruled a trick, not a general modifier; the open question is
-  what a spyro prefix means (registry Q14). Affected held names: spyro illusion,
-  spyro mirage, spyro whirl, fairy spyro mirage. The active row Colossus
-  (`colossus`, 6 ADD, technical name Spyro Diving Symposium Whirl) waits on the same
-  answer: its opening stays held until the prefix is ruled.
+- **Spyro's weight.** The rules expert ruled what spyro is: a gyro whose free foot
+  plants (see the Spyro ruling). He did not say what it adds; every stored spyro
+  total already reads it as gyro's +1, the plant scoring nothing. Ask: does the plant
+  add anything? Its held names (spyro illusion, spyro mirage, spyro whirl, fairy
+  spyro mirage) sit under registry Q14 with twisting, so they stay held until both
+  halves are answered; Colossus (`colossus`, 6 ADD, technical name Spyro Diving
+  Symposium Whirl) keeps its opening held until the weight is confirmed.
 - **Zipper.** Undefined. Affected name: Zipper Stepping Op Butterfly Zipper.
 - **Blistering.** Undefined, and open since the batch that answered its paired
   question (sailing) left this one unanswered; the ask is the movement. No canonical
@@ -370,17 +372,6 @@ Each is separable and answered on its own.
   `CLIP > OP IN [DEX] > OP PINCHER [UNS] [DEL]` under the name "Stepping op Squeeze";
   the three readings imply different set, terminal, and decomposition, so the row
   stays held until one is chosen.
-- **Sidewinder and the jani-walker structure (registry Q13).** What is the
-  jani-walker structure? The same answer decides Sidewinder, which reads as a fairy
-  gyro jani-walker. Jani-walker's own structure is authored; Sidewinder is held as a
-  source and expert rider, not established by inference alone.
-- **Sumo implicit-paradox X-Dex (registry Q11).** Does sumo's provisional `[XDEX]`
-  stand, the hypothesis that sumo carries an implicit paradox qualifying its receiver
-  as far? It decides Nuclear Ducking Mirage and its Sumo Thong twin, whose ADD is 5
-  without the X-Dex and 6 with it.
-- **Pogo-clipper terminal (registry Q12).** Is the pogo-clipper terminal a kick or a
-  stall? Row-specific to Pogo Clipper and its same-side form; pogo's `+1` operator
-  contract is already settled, only the terminal contact is open.
 - **Atomic Miraging Butterfly's scoring.** The row (`atomic_miraging_butterfly`,
   base butterfly, linked to atomic only) stores 5 ADD and the notation
   `TOE > OP OUT [DEX] > OP IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`.
@@ -481,12 +472,15 @@ Each is separable and answered on its own.
   appears twice in one compound (miraging then miraging), does the second occurrence
   add again? Four rows sit in this gate, plus the active canonical paradox blur, a
   double-paradox whose asserted ADD waits on the same answer.
-- **Terraging chain arithmetic (registry Q05).** The registry's +3, the shipped
-  two-dex clipper notations, footbag.org's 3-bracket terrage, and Red's ruled 4
-  cannot all be reconciled from the record; which value is authoritative for the
-  terraging chain? Five active rows wait on it, each with its opening held: Terraging
-  Illusion, Terraging Legover and Terraging Mirage, which also have no execution
-  notation, and Terraging Opposite Clipper and Terraging Same Clipper.
+- **Terraging's three dexterities.** The rules expert ruled terraging "a triple
+  Outside-In dex/set from a clipper", which settles its +3. It does not give the side
+  of each of the three dexterities, nor whether Terrage, which its stored notation,
+  its aliases and every outside source enter from a toe, is entered from a clipper.
+  Five rows stay held until then: Terraging Illusion, Terraging Legover and Terraging
+  Mirage, which have no execution notation, and Terraging Opposite Clipper and
+  Terraging Same Clipper, whose published 4 ADD a three-dexterity reading would make
+  5. Ask: which side does each dexterity take, and where does Terrage start? Close:
+  write the notations, settle the clipper rows' ADD, and remove this entry.
 - **Cross-body rake base (registry Q06).** What is the cross-body rake base
   structurally, a terminal contact posture like clipper, or a raking path? One
   contract, and every rake compound composes defined operators onto it; Snowflake

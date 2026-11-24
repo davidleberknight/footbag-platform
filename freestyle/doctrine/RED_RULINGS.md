@@ -198,6 +198,14 @@ ruling batches.
   earlier reading, while the STANDALONE pogo set keeps its 0-ADD identity (both
   halves recorded in the registry and the pogo row's provenance; evidence dossier
   at `exploration/pogo-add-doctrine-packet/CURATOR_PACKET.md`).
+- **Spyro** (rules-expert ruling by email, recorded 2026-11-23; the spyro half of
+  registry Q14): "Spyro means Giro with a plant: the foot that normally would not
+  touch the ground makes contact with it." A spyro is a gyro whose free foot plants.
+  The ruling defines the movement and states no weight; the twisting half of Q14
+  stays open.
+- **Pogo Clipper ends in a stall** (rules-expert ruling by email, recorded 2026-11-23;
+  registry Q12): "The terminal contact is a stall, not a kick." Pogo Clipper is the
+  pogo set into a clipper stall, and its same-side form follows the plain form.
 - **Furious = Barraging** (pt14; rules-expert ruling, 2026-10-18): the same
   concept, with Furious the canonical and commonly used name. Compounds named for
   the Barraging set take the Furious name (rules-expert ruling, 2026-10-18):
@@ -212,7 +220,9 @@ ruling batches.
   weight; it differs in rotation direction (front where spinning is back).
 - **Nuclear** (pt9, pt14): structurally a paradox dex plus a downtime illusioning
   dex; nuclear itself carries no X-Dex — Sumo (Nuclear Mirage) is the named
-  exception whose extra count is an X-Dex on the following far mirage.
+  exception whose extra count is an X-Dex on the following far mirage. Sumo's X-Dex
+  scores (rules-expert ruling by email, recorded 2026-11-23; registry Q11): Sumo is 5,
+  and Nuclear Ducking Mirage, with its Sumo Thong twin, is 6.
 - **Atomic and X-Dex**: atomic is a flat +1 on every base with no rotational class;
   X-Dex is a separate, receiver-gated +1 that fires only where the notation carries
   `[XDEX]` on an eligible far-form receiver dex, never inferred from an operator
@@ -222,9 +232,13 @@ ruling batches.
   timing-individuates entry under Structural doctrine in force). The atomic +1 and
   X-Dex rules are unaffected. The atomic entry in the `freestyle_operators` table
   is the canonical statement of the atomic +1 / X-Dex doctrine.
-- **Terraging** (pt8): its own +3 body modifier, NOT a parallel form of barraging
-  (correcting pt6 phrasing). The unreconciled terraging-chain arithmetic is an open
-  rider — see `RED_QUEUE.md`.
+- **Terraging** (pt8; rules-expert ruling by email, recorded 2026-11-23, registry Q05):
+  its own +3 element, NOT a parallel form of barraging (correcting pt6 phrasing).
+  Terraging is "a triple Outside-In dex/set from a clipper": three outside-in
+  dexterities off a clipper, which is the registry's +3 by the bracket count. The
+  shipped two-dexterity notations and footbag.org's double-pixie Terrage each carry
+  one dexterity fewer. The ruling does not give each dexterity's side or Terrage's
+  entry surface, so no terraging notation is written yet.
 - **Shooting** (pt7, pt9): both a set and a modifier, at the same weight, holding
   on rotational bases.
 - **Rooted** (pt8): a unique set with one initial dexterity attached; non-scoring
@@ -338,12 +352,13 @@ Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable 
 - The surging compounds (pt2): Bigwalk = Surging Butterfly, Surge = Surging Paradox
   Mirage, Surreal = Surging Paradox Whirl, Surgery = Surging Symposium Reverse
   Whirl, Venom = Surging Barfly.
-- Jani Walker (pt8 + curator): ADD ruled without structure originally (Red declined
-  the footbag.org "Barraging Butterfly" reading; the row activated on ADD authority);
-  the structure is now authored and answered
-  (`CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`, 5 ADD).
-  Only the Sidewinder = fairy gyro Jani Walker identity remains open, held as a
-  source/Red rider (not established by inference alone).
+- **Jani Walker is a Furious Butterfly** (pt8; rules-expert ruling by email, recorded
+  2026-11-23, registry Q13): "Its movement is a Furious Butterfly." Its notation
+  (`CLIP > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]`, 5 ADD) is
+  the furious set on butterfly, 2 + 3. Barraging is Furious, so footbag.org's
+  "Barraging Butterfly" reading is the one now ruled. The separate Furious Butterfly
+  row therefore duplicates Jani Walker; its disposition is with the curator. The
+  Sidewinder = fairy gyro Jani Walker identity is not ruled by this answer.
 - Terrage and Barrage are standalone AND compositional; Merkon is standalone;
   Sidewalk, Tombstone, Flail, and Omelette are common names that belong in the
   dictionary; Royale and Ripstein are primary entries; Eclipse counts its hop-over

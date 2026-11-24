@@ -21,20 +21,10 @@ the operational riders beneath it do not yet carry one.
 
 Each of these is a row-level movement question the rules expert owns.
 
-1. **The sumo implicit-paradox X-Dex (Q11).** Does sumo's provisional `[XDEX]`
-   stand — the hypothesis that sumo carries an implicit paradox that qualifies its
-   receiver as far? It decides Nuclear Ducking Mirage and its Sumo Thong twin,
-   whose ADD is 5 without the X-Dex and 6 with it.
-2. **The pogo-clipper terminal (Q12).** Is the pogo-clipper terminal a kick or a
-   stall? Row-specific to Pogo Clipper and its same-side form. Pogo's `+1` operator
-   contract is already registry-settled; only the terminal contact is open.
-3. **The jani-walker structure (Q13).** What is the jani-walker structure? The same
-   answer also decides Sidewinder, which reads as a fairy gyro jani-walker.
-4. **Twisting and the spyro prefix (Q14).** Twisting is a degenerate structure with
-   no exemplar — Toe Spinning Toe and the "What!?" name hang on it. And what does a
-   spyro prefix mean, given that spyro is ruled a trick rather than a general
-   modifier?
-5. **The bubba prefix (Q15).** Bubba is a settled standalone trick (bubba is 2 ADD,
+1. **Twisting (Q14).** Twisting is a degenerate structure with no exemplar — Toe
+   Spinning Toe and the "What!?" name hang on it. The spyro half of this question is
+   answered (see the Spyro ruling); twisting is not.
+2. **The bubba prefix (Q15).** Bubba is a settled standalone trick (bubba is 2 ADD,
    symposium bubba 3), so this is not a define-the-movement question: what does bubba
    contribute when it prefixes another base? The answer authors the bubba-prefixed
    band, Chainsaw Massacre's breakdown among it.
@@ -116,8 +106,8 @@ double-tracked as dictionary gates.
 
 ## Who should review it
 
-The rules expert owns the movement rulings: the sumo X-Dex, the pogo terminal, the
-jani-walker and twisting structures, the spyro prefix, and the osis-suffix rule. The 9-ADD landing needs
+The rules expert owns the movement rulings: the twisting structure, the bubba prefix,
+and the osis-suffix rule. The 9-ADD landing needs
 witnesses and footage before it can be read at all, so it is a memory-and-evidence
 ask first and a ruling second. The Motorfly memory check belongs to reachable
 old-schoolers, not to any single authority. The records-only riders block only
