@@ -105,8 +105,8 @@ barraging_symposium_legover,retype,historical,0,former canonical name; Barraging
 barraging_whirl,retype,historical,0,modifier-stack decomposition rather than a nickname
 barroque,retype,typo,0,misspelling of baroque
 blurr_iest,retype,typo,0,misspelling of the canonical name
-blurry_barfly,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
-blurry_blender,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+blurry_barfly,retype,structural,0,Pending ruling: whether the blurry names whose notation carries no paradox (Blurriest among them) include one.
+blurry_blender,retype,structural,1,genuine decomposition name of the same movement
 blurry_dim_walk,retype,technical,0,modifier-stack decomposition rather than a nickname
 blurry_w,retype,technical,0,abbreviation of the canonical name
 bw,retype,technical,0,abbreviation of the canonical name
@@ -329,10 +329,10 @@ stepping_opposite_osis,retype,structural,0,Pending ruling: whether a side word w
 stepping_opposite_reaper,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
 stepping_opposite_side_butterfly,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
 stepping_opposite_side_reverse_whirl,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
-stepping_paradox_double_leg_over,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+stepping_paradox_double_leg_over,retype,structural,1,genuine decomposition name of the same movement
 stepping_paradox_eggbeater,retype,structural,1,genuine decomposition name of the same movement
-stepping_paradox_mirage,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
-stepping_paradox_whirl,retype,structural,0,Pending ruling: blurry scoring and the paradox bracket.
+stepping_paradox_mirage,retype,structural,1,genuine decomposition name of the same movement
+stepping_paradox_whirl,retype,structural,1,genuine decomposition name of the same movement
 stepping_reverse_whirl,retype,technical,0,modifier-stack decomposition rather than a nickname
 stepping_same_side_torque,retype,positional,0,modifier-stack decomposition rather than a nickname
 stepping_superfly,retype,structural,1,"footbag.org's technical name for Torch-r Rack (move 281), kept as an alias and shown beside the community name, as Gyro Torque is beside Mobius"

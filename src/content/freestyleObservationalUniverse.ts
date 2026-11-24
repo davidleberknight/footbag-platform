@@ -1277,13 +1277,13 @@ export const EMERGING_QUESTIONS: readonly EmergingQuestion[] =
     {
       "id": "Q01",
       "title": "Blurry expansion predicate",
-      "question": "When does a blurry-named trick carry the paradox term? Footbag.org JOBs carry [PDX] where PassBack's stepping-only technical names omit it; is the paradox term physical content one source records and the other elides, or a notation convention? Either answer also settles whether each blurry-form spelling of a live canonical is an alias or a distinct paradox-bearing variant.",
+      "question": "Blurry is ruled to imply paradox. Blurriest, and Blurrage, Ripwalk and Blizzard (which outside sources call Blurry Barrage, Blurry Butterfly and Blurry Illusion), carry no paradox in their notation: does each carry one its notation omits, or is its blurry name looser usage? And is a paradox bracket physical content in general, or a writer's convention? Either answer also settles whether each blurry-form spelling of a live canonical is an alias or a distinct paradox-bearing variant.",
       "publicTitle": "What a Blurry Set Adds",
       "publicSummary": "Whether a trick named blurry includes a paradox movement or only the stepping set.",
       "publicOpen": "Whether a paradox is part of the movement or only a way of writing it.",
-      "status": "sent",
+      "status": "drafted",
       "owner": "james+red",
-      "vehicle": "Scoring paper",
+      "vehicle": "Scoring paper; partly answered by email recorded 2026-11-23",
       "unlockCount": 52
     },
     {

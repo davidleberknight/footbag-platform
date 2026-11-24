@@ -198,6 +198,15 @@ ruling batches.
   earlier reading, while the STANDALONE pogo set keeps its 0-ADD identity (both
   halves recorded in the registry and the pogo row's provenance; evidence dossier
   at `exploration/pogo-add-doctrine-packet/CURATOR_PACKET.md`).
+- **Blurry implies paradox** (rules-expert ruling by email, recorded 2026-11-23; part
+  of registry Q01): "Blurry implies paradox. 'Stepping paradox' may be a better
+  description." Blurry is the stepping set carrying a paradox, scored as its parts
+  (stepping +1, paradox +1), so the registry weighs it +2. Blurry Drifter, Blurry
+  Symposium Whirl and Blurry Whirling Swirl take that composition, which their
+  notation already records. Left open: the published names whose notation carries no
+  paradox (Blurriest; Blurrage, Ripwalk and Blizzard, which outside sources call
+  Blurry Barrage, Blurry Butterfly and Blurry Illusion), and whether a paradox bracket
+  records physical content in general.
 - **X-Dex on the atomic whirl** (rules-expert ruling by email, recorded 2026-11-23):
   "The whirl is eligible for X-Dex. Atomic Whirl and Atomic Symposium Whirl score the
   X-Dex; fold their derived rows into Reactor and Gary Coleman, following the Atom
