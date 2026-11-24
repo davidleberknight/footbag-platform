@@ -15,21 +15,28 @@
  *     and milestones. A records section with no rows renders nothing.
  *   - Freestyle passback records are freestyle records, not official IFPA records, and are not
  *     shown or linked here.
+ *   - Record holders link per the standard person-link rule (personHref). The records name
+ *     holders as text, so a name links only when exactly one historical person carries that
+ *     exact name and that person's page is public; otherwise it renders as plain text.
  *
  * Visibility:
  *   - Public official historical records only. Derived aggregates carry a scope caveat or are
  *     suppressed when source coverage is partial; official results and record listings outrank
  *     inferred aggregates.
  */
-import { consecutiveKicksRecords, ConsecutiveKicksRow } from '../db/db';
+import { consecutiveKicksRecords, ConsecutiveKicksRow, ConsecutiveHolderMatchRow } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { SiteVideo, loadSiteVideo } from './siteMediaService';
+import { personHref } from './personLink';
 import { PageViewModel } from '../types/page';
 
 export interface ConsecutiveRecordViewModel {
   discipline: string;
   player_1:   string | null;
   player_2:   string | null;
+  /** Where each holder's name links, or null to show it as plain text. */
+  player_1Href: string | null;
+  player_2Href: string | null;
   score:      number | null;
   scoreFormatted: string;
   eventDate:  string | null;
@@ -70,11 +77,40 @@ function joinList(items: string[]): string {
   return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-function shapeRow(r: ConsecutiveKicksRow): ConsecutiveRecordViewModel {
+type HolderLinks = (name: string | null) => string | null;
+
+/**
+ * The records name their holders as text, not as people. A holder's name links
+ * only when exactly one historical person carries that exact name and their
+ * page is public; no match, more than one, or a page only members may see
+ * leaves the name as plain text. Nothing is matched loosely: a spelling or
+ * nickname difference is corrected in the records themselves, never guessed
+ * here, so a link can stop appearing but can never point at the wrong person.
+ */
+function buildHolderLinks(matches: ConsecutiveHolderMatchRow[]): HolderLinks {
+  const byName = new Map<string, ConsecutiveHolderMatchRow[]>();
+  for (const m of matches) {
+    const list = byName.get(m.person_name) ?? [];
+    list.push(m);
+    byName.set(m.person_name, list);
+  }
+  return (name) => {
+    if (!name) return null;
+    const found = byName.get(name);
+    if (!found || found.length !== 1) return null;
+    const [only] = found;
+    if (only.source_scope !== 'CANONICAL') return null;
+    return personHref(only.member_slug, only.person_id);
+  };
+}
+
+function shapeRow(r: ConsecutiveKicksRow, links: HolderLinks): ConsecutiveRecordViewModel {
   return {
     discipline:     r.discipline,
     player_1:       r.player_1,
     player_2:       r.player_2,
+    player_1Href:   links(r.player_1),
+    player_2Href:   links(r.player_2),
     score:          r.score,
     scoreFormatted: formatScore(r.score),
     eventDate:      r.event_date,
@@ -91,7 +127,7 @@ function shapeRow(r: ConsecutiveKicksRow): ConsecutiveRecordViewModel {
  * record, so its note becomes a sentence and the row is dropped; runs ended on
  * purpose are named together in one sentence.
  */
-function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
+function groupBySubsection(rows: ConsecutiveKicksRow[], links: HolderLinks): ConsecutiveGroup[] {
   const groups: ConsecutiveGroup[] = [];
   const endedOnPurpose = new Map<ConsecutiveGroup, string[]>();
   let current: ConsecutiveGroup | null = null;
@@ -109,7 +145,7 @@ function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
       scores.push(formatScore(r.score));
       endedOnPurpose.set(current, scores);
     }
-    current.rows.push(shapeRow(r));
+    current.rows.push(shapeRow(r, links));
   }
   for (const [group, scores] of endedOnPurpose) {
     const runs = scores.length === 1 ? 'The run of' : 'The runs of';
@@ -133,10 +169,14 @@ export const consecutivesService = {
       consecutiveKicksRecords.listMilestones.all() as ConsecutiveKicksRow[],
     );
 
-    const worldRecords  = worldRows.map(shapeRow);
-    const highestScores = groupBySubsection(highScoreRows);
-    const progression   = groupBySubsection(progressionRows);
-    const milestones    = groupBySubsection(milestoneRows);
+    const links = buildHolderLinks(runSqliteRead('consecutiveKicksRecords.listHolderNameMatches', () =>
+      consecutiveKicksRecords.listHolderNameMatches.all() as ConsecutiveHolderMatchRow[],
+    ));
+
+    const worldRecords  = worldRows.map((r) => shapeRow(r, links));
+    const highestScores = groupBySubsection(highScoreRows, links);
+    const progression   = groupBySubsection(progressionRows, links);
+    const milestones    = groupBySubsection(milestoneRows, links);
 
     return {
       seo:  { title: 'Consecutives and World Records' },

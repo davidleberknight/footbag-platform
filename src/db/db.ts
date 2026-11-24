@@ -3991,6 +3991,13 @@ export interface ConsecutiveKicksRow {
   location: string | null;
 }
 
+export interface ConsecutiveHolderMatchRow {
+  person_name: string;
+  person_id: string;
+  source_scope: string;
+  member_slug: string | null;
+}
+
 export const consecutiveKicksRecords = {
   get listWorldRecords() { return db.prepare(`
     SELECT sort_order, section, subsection, discipline, year, rank,
@@ -4022,6 +4029,24 @@ export const consecutiveKicksRecords = {
     FROM consecutive_kicks_records
     WHERE section = 'Milestone Firsts'
     ORDER BY sort_order ASC
+  `); },
+
+  // Every historical person whose stored name is exactly a record holder's
+  // name, with the scope that decides whether their page is public and the
+  // slug of the member who claimed them. The service decides which names link.
+  get listHolderNameMatches() { return db.prepare(`
+    WITH holders AS (
+      SELECT player_1 AS holder_name FROM consecutive_kicks_records WHERE player_1 IS NOT NULL
+      UNION
+      SELECT player_2 FROM consecutive_kicks_records WHERE player_2 IS NOT NULL
+    )
+    SELECT hp.person_name, hp.person_id, hp.source_scope, m.slug AS member_slug
+    FROM holders AS h
+    JOIN historical_persons AS hp
+      ON hp.person_name = h.holder_name
+    LEFT JOIN members_onboarded AS m
+      ON m.historical_person_id = hp.person_id
+      AND m.deleted_at IS NULL
   `); },
 
   get countBySection() { return db.prepare(`

@@ -1,0 +1,3 @@
+{{! A consecutive record's holder or holders. A name links only where the service
+    shaped a link for it; otherwise it is plain text. }}
+{{#if player_1Href}}<a href="{{siteHref player_1Href}}">{{player_1}}</a>{{else}}{{player_1}}{{/if}}{{#if player_2}} &amp; {{#if player_2Href}}<a href="{{siteHref player_2Href}}">{{player_2}}</a>{{else}}{{player_2}}{{/if}}{{/if}}

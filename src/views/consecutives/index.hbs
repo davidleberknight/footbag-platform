@@ -41,7 +41,7 @@
       {{#each content.worldRecords}}
       <div class="card" role="listitem">
         <h3 class="card-title">{{discipline}}</h3>
-        <p>{{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}</p>
+        <p>{{> consecutive-holders}}</p>
         <p class="fw-600">{{scoreFormatted}} kicks</p>
         {{#if hasWhereWhen}}
         <div class="card-meta">
@@ -76,7 +76,7 @@
           <tr>
             <td class="col-rank">{{rank}}</td>
             <td class="col-holder">
-              {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
+              {{> consecutive-holders}}
             </td>
             <td>{{discipline}}</td>
             <td class="col-num">{{scoreFormatted}}</td>
@@ -109,7 +109,7 @@
           <tr>
             <td class="col-year">{{#if year}}{{year}}{{else}}&mdash;{{/if}}</td>
             <td class="col-holder">
-              {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
+              {{> consecutive-holders}}
             </td>
             <td class="col-num">{{scoreFormatted}}</td>
           </tr>
@@ -141,7 +141,7 @@
           {{#each rows}}
           <tr>
             <td class="col-holder">
-              {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
+              {{> consecutive-holders}}
             </td>
             <td>{{discipline}}</td>
             <td class="col-num">{{scoreFormatted}}</td>

@@ -13,6 +13,7 @@
  *   - milestone section renders
  *   - player names and scores appear correctly
  *   - notes are said once under a table, not in a mostly empty column
+ *   - a holder links only when exactly one public record carries that exact name
  *   - freestyle passback records are neither shown nor linked
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
@@ -29,10 +30,14 @@ import {
   insertConsecutiveKicksRecord,
   insertCuratorVideo,
   insertFreestyleRecord,
+  insertHistoricalPerson,
   insertMember,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3090');
+
+const TED_MARTIN_ID = 'person-consec-ted-martin';
+const TRICIA_GEORGE_ID = 'person-consec-tricia-george';
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -86,7 +91,7 @@ beforeAll(async () => {
   insertConsecutiveKicksRecord(db, {
     sort_order: 101,
     section:    'Highest Official Scores',
-    subsection: 'Singles Consecutive 20000+ Club',
+    subsection: 'Singles Consecutive 20,000+ Club',
     discipline: 'Open Singles',
     rank:       1,
     player_1:   'Ted Martin',
@@ -99,7 +104,7 @@ beforeAll(async () => {
   insertConsecutiveKicksRecord(db, {
     sort_order: 105,
     section:    'Highest Official Scores',
-    subsection: 'Singles Consecutive 20000+ Club',
+    subsection: 'Singles Consecutive 20,000+ Club',
     discipline: "Women's Singles",
     rank:       5,
     player_1:   'Constance Constable',
@@ -124,7 +129,7 @@ beforeAll(async () => {
   insertConsecutiveKicksRecord(db, {
     sort_order: 1307,
     section:    'Milestone Firsts',
-    subsection: 'Singles milestone first',
+    subsection: 'Singles Milestone Firsts',
     discipline: 'Open Singles',
     player_1:   'Ted Martin',
     player_2:   null,
@@ -152,10 +157,23 @@ beforeAll(async () => {
   // A milestone row with no count: the real data's one such row exists only to
   // carry its note.
   insertConsecutiveKicksRecord(db, {
-    sort_order: 1310, section: 'Milestone Firsts', subsection: 'Singles milestone first',
+    sort_order: 1310, section: 'Milestone Firsts', subsection: 'Singles Milestone Firsts',
     discipline: "Women's Singles", player_1: 'Tricia George', player_2: null, score: null,
     note: 'Tricia George was the first woman to reach each singles milestone through 20000',
   });
+
+  // The holders as the historical records know them. The records name holders
+  // as text, so each shape of match is seeded once: one public record by that
+  // exact name, two records sharing a name, a record only members may see, a
+  // record a member has claimed, and a name with no record at all (Constance
+  // Constable). A record whose name differs only in case is not a match.
+  insertHistoricalPerson(db, { person_id: TED_MARTIN_ID, person_name: 'Ted Martin' });
+  insertHistoricalPerson(db, { person_name: 'ted martin' });
+  insertHistoricalPerson(db, { person_name: 'Gary Lautt' });
+  insertHistoricalPerson(db, { person_name: 'Gary Lautt' });
+  insertHistoricalPerson(db, { person_name: 'Jim Caveney', source_scope: 'PROVISIONAL' });
+  insertHistoricalPerson(db, { person_id: TRICIA_GEORGE_ID, person_name: 'Tricia George' });
+  insertMember(db, { slug: 'tricia-george', historical_person_id: TRICIA_GEORGE_ID });
 
   // A public passback record: a freestyle record, not an official IFPA record.
   insertFreestyleRecord(db, { display_name: 'Passback Holder', trick_name: 'Passback Trick', achieved_date: '2009-04-12' });
@@ -293,7 +311,7 @@ describe('GET /consecutives', () => {
 
   it('shows Highest Official Scores section', async () => {
     const res = await page('/consecutives');
-    expect(res.text).toContain('Singles Consecutive 20000+ Club');
+    expect(res.text).toContain('Singles Consecutive 20,000+ Club');
   });
 
   it('shows Constance Constable in scores list', async () => {
@@ -316,7 +334,7 @@ describe('GET /consecutives', () => {
 
   it('shows Milestone Firsts section', async () => {
     const res = await page('/consecutives');
-    expect(res.text).toContain('Singles milestone first');
+    expect(res.text).toContain('Singles Milestone Firsts');
   });
 
   // Defect caught: a note column empty in most rows comes back, or the fact it
@@ -337,6 +355,49 @@ describe('GET /consecutives', () => {
       '<p class="mt-2">Tricia George was the first woman to reach each singles milestone through 20000.</p>',
     );
     expect(res.text).not.toContain('<td class="col-num">—</td>');
+  });
+
+  // Defect caught: a record holder who has a public history page shows as
+  // plain text, so a visitor cannot reach the player behind the record, in any
+  // of the four places a holder is named.
+  it('links a holder whose exact name belongs to exactly one public record', async () => {
+    const res = await page('/consecutives');
+    const tedLink = `<a href="/history/${TED_MARTIN_ID}">Ted Martin</a>`;
+    for (const id of ['world-records', 'highest-scores', 'progression', 'milestones']) {
+      const section = res.text.match(new RegExp(`<section class="content-section" id="${id}">[\\s\\S]*?</section>`))?.[0] ?? '';
+      expect(section, `the ${id} section`).toContain(tedLink);
+    }
+  });
+
+  // Defect caught: a holder whose record a member has claimed links to the old
+  // history page instead of the member's own profile, against the site-wide
+  // person-link rule.
+  it('links a claimed holder to the member profile', async () => {
+    const res = await page('/consecutives');
+    expect(res.text).toContain('<a href="/members/tricia-george">Tricia George</a>');
+  });
+
+  // Defect caught: a name two people share links to one of them, crediting a
+  // record to whichever person the database happened to return first.
+  it('leaves a name shared by two records as plain text', async () => {
+    const res = await page('/consecutives');
+    expect(res.text).toContain('Gary Lautt');
+    expect(res.text).not.toMatch(/<a [^>]*>Gary Lautt<\/a>/);
+  });
+
+  // Defect caught: a public page links a visitor to a record only members may
+  // see, so the link ends at a log-in page.
+  it('leaves a holder whose only record is members-only as plain text', async () => {
+    const res = await page('/consecutives');
+    expect(res.text).toContain('Jim Caveney');
+    expect(res.text).not.toMatch(/<a [^>]*>Jim Caveney<\/a>/);
+  });
+
+  // Defect caught: a holder with no record gets a link that leads nowhere.
+  it('leaves a holder with no record as plain text', async () => {
+    const res = await page('/consecutives');
+    expect(res.text).toContain('Constance Constable');
+    expect(res.text).not.toMatch(/<a [^>]*>Constance Constable<\/a>/);
   });
 
   // Defect caught: freestyle passback records, which are not official IFPA
