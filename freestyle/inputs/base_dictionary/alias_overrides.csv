@@ -199,7 +199,7 @@ nuclear_double_over_down,retype,structural,0,"Pending ruling: the three-outward-
 nuclear_far_butterfly,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
 nuclear_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 nuclear_far_mirage,retype,positional,0,modifier-stack decomposition rather than a nickname
-nuclear_mirage,retype,structural,0,Pending ruling: Sumo's X-Dex.
+nuclear_mirage,retype,structural,1,genuine decomposition name of the same movement
 nuclear_near_butterfly,retype,structural,0,Pending ruling: whether a side word written in full belongs in a shown name.
 nuclear_nova,retype,structural,1,genuine decomposition name of the same movement
 nuclear_osis,retype,structural,1,genuine decomposition name of the same movement
