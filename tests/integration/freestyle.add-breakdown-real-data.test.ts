@@ -88,7 +88,7 @@ const heldProseStructure: string[] = [];
 // One trick per review aspect the corrections ledger sets, plus a settled base,
 // each with the aspect its open question could change.
 const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
-  ['reactor', 'add'],              // the atomic-whirl X-Dex question
+  ['bubba', 'add'],                // what the bubba prefix adds
   ['voodoo', 'identity'],          // possibly Paradox Merlin
   ['tap', 'positional'],           // tapping side registration
   ['royale', 'notation'],          // the reverse-drifter dex direction
@@ -102,6 +102,8 @@ const REVIEW_ASPECT_SAMPLES: readonly (readonly [string, string | null])[] = [
   // Ruled distinct from the reverse whirl it shares a notation with, so the
   // shared formula is an accepted limit of the notation, not an open question.
   ['butterfly', null],
+  // The whirl takes the X-Dex, so the atomic whirl's score is settled at 5.
+  ['reactor', null],
   ['whirl', null],                 // settled
 ];
 const reviewAspectSeen = new Map<string, string | null>();

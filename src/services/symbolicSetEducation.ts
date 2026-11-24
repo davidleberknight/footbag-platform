@@ -443,21 +443,21 @@ const ATOMIC_SET_CONTENT: SetEducationInput = {
   definition:
     'Atomic is a launch set: essentially an uptime Illusion. From a toe set, the bag makes a single opposite-side outward dex before the next part of the trick begins. Because that dex happens during the set, Atomic changes how the bag is delivered into the following movement rather than replacing that movement.',
   jobNotation:
-    'Atomic lives in the set portion of the notation, at the front of the chain. So atomic whirl decomposes as atomic(+1) + whirl(3) = 4, the leading set carrying the +1 and the trailing base carrying the rest.',
+    'Atomic lives in the set portion of the notation, at the front of the chain. So atomic butterfly decomposes as atomic(+1) + butterfly(3) = 4, the leading set carrying the +1 and the trailing base carrying the rest.',
   progression: {
-    anchorBaseLabel: 'on whirl',
+    anchorBaseLabel: 'on butterfly',
     steps: [
       {
-        slug:       'whirl',
+        slug:       'butterfly',
         addedLabel: 'anchor (no atomic yet)',
         rationale:
-          'The whirl dexterity on its own, opened from a stationary set. Atomic will change how the bag is delivered into this same dexterity.',
+          'The butterfly dexterity on its own, opened from a stationary set. Atomic will change how the bag is delivered into this same dexterity.',
       },
       {
-        slug:       'atomic_whirl',
+        slug:       'atomic_butterfly',
         addedLabel: '+ atomic',
         rationale:
-          'The atomic launch applied to whirl: the toe set opens with an opposite-side outward dex while the whirl itself is unchanged, atomic(+1) + whirl(3) = 4.',
+          'The atomic launch applied to butterfly: the toe set opens with an opposite-side outward dex while the butterfly itself is unchanged, atomic(+1) + butterfly(3) = 4.',
       },
     ],
   },
@@ -470,10 +470,10 @@ const ATOMIC_SET_CONTENT: SetEducationInput = {
           'Atom smasher is the atomic mirage and a named trick in its own right: the atomic launch opening a mirage, reading 4 because it carries an X-Dex.',
       },
       {
-        slug:      'atomic_whirl',
+        slug:      'reactor',
         baseLabel: 'Rotational',
         prose:
-          'The atomic launch opening a whirl; the launch changes while the whirl dex is unchanged, atomic(+1) + whirl(3) = 4.',
+          'Reactor is the atomic whirl and a named trick: the atomic launch opening a whirl, reading 5 because the whirl carries an X-Dex.',
       },
       {
         slug:      'atomic_swirl',

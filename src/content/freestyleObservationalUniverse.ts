@@ -246,6 +246,10 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Toe Ripwalk", "slug": "toe-ripwalk", "source": "FB", "ecosystem": "(unclassified)", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "ripwalk(4) = 4", "semanticJob": "TOE RIPWALK", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:tripwalk", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "toeripwalk", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Far Reverse Swirl", "slug": "reverse-swirl", "source": "SG", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "swirl(3) = 3", "semanticJob": "REVERSE SWIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:rev_swirl", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "farreverseswirl", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Far Reverse Whirl", "slug": "reverse-whirl", "source": "FM", "ecosystem": "whirl/osis/other", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "3", "decomposition": "whirl(3) = 3", "semanticJob": "REVERSE WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:rev_whirl", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "farreversewhirl", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Atomic far Whirl", "slug": "atomic-whirl", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + whirl(3) = 4", "semanticJob": "ATOMIC WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Whirl"], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:reactor", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicfarwhirl", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Atomic Whirl", "slug": "atomic-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "4", "decomposition": "atomic(+1) + whirl(3) = 4", "semanticJob": "ATOMIC WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:reactor", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicwhirl", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Atomic far Symp. Whirl", "slug": "atomic-symposium-whirl", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+1) + symposium(+1) + whirl(3) = 5", "semanticJob": "ATOMIC SYMPOSIUM. WHIRL", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": ["Atomic Symposium Whirl"], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:gary_coleman", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicfarsymposiumwhirl", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Atomic Symposium Whirl", "slug": "atomic-symposium-whirl", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "5", "decomposition": "atomic(+1) + symposium(+1) + whirl(3) = 5", "semanticJob": "ATOMIC SYMPOSIUM WHIRL", "failureClass": "", "intakeBucket": "duplicate_variant", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "alias:gary_coleman", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicsymposiumwhirl", "groupPrimary": false, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Atomic Gyro Torque", "slug": "atomic-gyro-torque", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "frontier", "cluster": "", "parserConfidence": "high", "doctrineConfidence": "stable", "provisionalAdd": "6", "decomposition": "atomic(+1) + gyro(+1) + torque(4) = 6", "semanticJob": "ATOMIC GYRO TORQUE", "failureClass": "", "intakeBucket": "promotion_ready", "lexicalVariants": [], "layer": "frontier", "ledger": "absent", "resolvedTarget": "alias:irish_cream", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicgyrotorque", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "84 / Wiggle Walk", "slug": "84-wiggle-walk", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "84wigglewalk", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Aeon Flux / Nucleosis", "slug": "aeon-flux-nucleosis", "source": "FM", "ecosystem": "(unclassified)", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "aeonfluxnucleosis", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
@@ -355,6 +359,8 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
   {"name": "Atomic near Butterfly", "slug": "atomic-near-butterfly", "source": "PB", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicnearbutterfly", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Atomic Pickup (Scrambled Eggbeater)", "slug": "atomic-pickup-scrambled-eggbeater", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "canonical:scrambled_eggbeater", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicpickup", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Atomic ss Osis", "slug": "atomic-ss-osis", "source": "FM", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicssosis", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
+  {"name": "Atomic Symposium Whirl (Gary Coleman)", "slug": "atomic-symposium-whirl-gary-coleman", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "canonical:gary_coleman", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicsymposiumwhirl", "groupPrimary": true, "alsoRecordedAs": ["Atomic Symposium Whirl"], "readiness": ""},
+  {"name": "Atomic Whirl (Reactor)", "slug": "atomic-whirl-reactor", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "absent", "resolvedTarget": "canonical:reactor", "objectType": "complete-trick", "evidenceState": "folk-name-only", "blockerId": "", "owner": "none", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "atomicwhirl", "groupPrimary": true, "alsoRecordedAs": ["Atomic Whirl"], "readiness": ""},
   {"name": "Flailing Mirage (Frontside Atom Smasher)", "slug": "flailing-mirage-frontside-atom-smasher", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "flailingmirage", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
   {"name": "Flailing Symposium Mirage (Atom Bomb)", "slug": "flailing-symposium-mirage-atom-bomb", "source": "SG", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "unknown-modifier-token", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "canonical:atom_bomb", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "flailingsymposiummirage", "groupPrimary": true, "alsoRecordedAs": ["Flailing Symposium Mirage"], "readiness": ""},
   {"name": "Neutron (Atomic spin)", "slug": "neutron-atomic-spin", "source": "FB", "ecosystem": "atomic", "parentFamily": "", "section": "folk", "cluster": "", "parserConfidence": "", "doctrineConfidence": "stable", "provisionalAdd": "", "decomposition": "", "semanticJob": "", "failureClass": "folk-name-opacity", "intakeBucket": "alias", "lexicalVariants": [], "layer": "archive", "ledger": "alias/A", "resolvedTarget": "ledger:same-formula-row", "objectType": "complete-trick", "evidenceState": "compositional-name-only", "blockerId": "", "owner": "mechanical", "publicationState": "already-represented", "publicSection": "archive", "resolutionConflict": false, "identityKey": "neutron", "groupPrimary": true, "alsoRecordedAs": [], "readiness": ""},
@@ -1143,7 +1149,7 @@ export const OBSERVATIONAL_UNIVERSE: readonly ObservationalUniverseRow[] = [
 
 export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
   {
-    "total": 968,
+    "total": 974,
     "canonicalPublished": 510,
     "universeTotal": 2460,
     "publishedDistinctStructures": 507,
@@ -1151,12 +1157,12 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
     "observationalUniverseNames": 1945,
     "observationalUniverseDistinctStructures": 1944,
     "canonicalOntology": 507,
-    "promotionFrontier": 206,
-    "lexicalArchive": 744,
+    "promotionFrontier": 208,
+    "lexicalArchive": 746,
     "intakeBuckets": {
       "promotion_ready": {
-        "names": 58,
-        "distinctStructures": 58
+        "names": 60,
+        "distinctStructures": 60
       },
       "doctrine_pending": {
         "names": 39,
@@ -1167,16 +1173,16 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
         "distinctStructures": 109
       },
       "alias": {
-        "names": 338,
-        "distinctStructures": 338
+        "names": 340,
+        "distinctStructures": 340
       },
       "equivalence": {
         "names": 0,
         "distinctStructures": 0
       },
       "duplicate_variant": {
-        "names": 18,
-        "distinctStructures": 14
+        "names": 20,
+        "distinctStructures": 16
       },
       "low_confidence": {
         "names": 392,
@@ -1188,14 +1194,14 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       }
     },
     "publicSections": {
-      "archive": 600,
+      "archive": 604,
       "decide": 48,
       "evidence": 19,
       "ruling": 210
     },
     "publicationStates": {
       "adjudication-pending": 48,
-      "already-represented": 511,
+      "already-represented": 515,
       "doctrine-blocked": 210,
       "evidence-pending": 19,
       "not-a-trick": 17,
@@ -1227,27 +1233,27 @@ export const OBSERVATIONAL_UNIVERSE_STATS: ObservationalUniverseStats =
       "james": 47,
       "james+red": 214,
       "mechanical": 369,
-      "none": 228
+      "none": 232
     },
-    "identityCount": 877,
+    "identityCount": 881,
     "reconciliationWarnings": {
       "conflicting-parenthetical-resolutions": 2,
       "positional-paren-resolution-held": 4
     },
     "ready": 67,
-    "frontier": 110,
+    "frontier": 114,
     "doctrineBlocked": 53,
-    "folkUnresolved": 430,
+    "folkUnresolved": 432,
     "parserUnresolved": 308,
-    "promotionReadyPct": 18,
+    "promotionReadyPct": 19,
     "doctrineBlockedPct": 5,
     "folkUnresolvedPct": 44,
     "parserUnresolvedPct": 32,
     "canonicalCoveragePct": 21,
     "sources": {
-      "SG": 431,
-      "PB": 233,
-      "FM": 232,
+      "SG": 433,
+      "PB": 235,
+      "FM": 234,
       "FB": 56,
       "MULTI": 16
     },

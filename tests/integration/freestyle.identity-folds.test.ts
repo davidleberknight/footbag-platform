@@ -267,6 +267,24 @@ const FOLDS = [
     // Whirling is the body modifier, not the blazing set, so the name misleads.
     misleading: true,
   },
+  {
+    // The whirl takes the X-Dex, so the atomic whirl is Reactor, carried as
+    // Atomic Mirage is carried by Atom Smasher: a shown name and no link.
+    retired: 'atomic_whirl',
+    retiredName: 'atomic whirl',
+    survivor: 'reactor',
+    dependants: [],
+    movedFields: [],
+    shown: true,
+  },
+  {
+    retired: 'atomic_symposium_whirl',
+    retiredName: 'atomic symposium whirl',
+    survivor: 'gary_coleman',
+    dependants: [],
+    movedFields: [],
+    shown: true,
+  },
 ];
 
 // The override a fold's retired name takes: a genuine structural name the

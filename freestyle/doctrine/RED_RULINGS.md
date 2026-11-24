@@ -198,6 +198,13 @@ ruling batches.
   earlier reading, while the STANDALONE pogo set keeps its 0-ADD identity (both
   halves recorded in the registry and the pogo row's provenance; evidence dossier
   at `exploration/pogo-add-doctrine-packet/CURATOR_PACKET.md`).
+- **X-Dex on the atomic whirl** (rules-expert ruling by email, recorded 2026-11-23):
+  "The whirl is eligible for X-Dex. Atomic Whirl and Atomic Symposium Whirl score the
+  X-Dex; fold their derived rows into Reactor and Gary Coleman, following the Atom
+  Smasher / Atomic Mirage precedent." Reactor is the atomic whirl at 5 and Gary
+  Coleman the atomic symposium whirl at 6, each carrying the other name as a shown
+  structural name with no separate row. Ego (Atomic Ducking Whirl) carries the same
+  X-Dex on its whirl, so it stands at 6.
 - **Spyro** (rules-expert ruling by email, recorded 2026-11-23; the spyro half of
   registry Q14): "Spyro means Giro with a plant: the foot that normally would not
   touch the ground makes contact with it." A spyro is a gyro whose free foot plants.

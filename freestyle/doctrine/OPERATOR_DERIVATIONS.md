@@ -239,7 +239,7 @@ exactly two over its base, with no exceptions:
 | Compound | ADD | Base | Delta |
 |---|---|---|---|
 | Atomic Symposium Mirage | 4 | mirage 2 | +2 |
-| Atomic Symposium Whirl | 5 | whirl 3 | +2 |
+| Gary Coleman (Atomic Symposium Whirl) | 6 | whirl 3 | +2, plus an X-Dex on the whirl |
 | Atomic Symposium Butterfly | 5 | butterfly 3 | +2 |
 | Atomic Symposium Eggbeater | 5 | eggbeater 3 | +2 |
 | Atomic Symposium Paradon | 6 | paradon 4 | +2 |

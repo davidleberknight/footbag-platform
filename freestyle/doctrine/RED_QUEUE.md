@@ -506,35 +506,6 @@ Each is separable and answered on its own.
   contributes across the compounds that carry it? A general answer replaces the
   per-row curator path for the whole osis-suffix band; the general osis-suffix
   compositional default is already ruled, and this is the finer question that remains.
-- **X-Dex on the atomic whirl.** Two folk-named rows and two derived rows describe
-  what the outside sources treat as two tricks. FootbagMoves gives Reactor's
-  technical name as Atomic Whirl and Gary Coleman's as Atomic Symposium Whirl, and
-  notates both with an X-Dex on the whirl: Reactor
-  `TOE > OP OUT [DEX] >> OP FRONT WHIRL [DEX] [XDEX] > OP CLIP [XBD] [DEL]` at 5 ADD,
-  Gary Coleman the same with a no-plant whirl at 6. A Stanford list pairs the names
-  the same way, "Atomic Whirl (Reactor)" and "Atomic Symposium Whirl (Gary Coleman)".
-  The dictionary also carries `atomic_whirl` (4 ADD) and `atomic_symposium_whirl`
-  (5 ADD), derived by the platform from the atomic +1 chassis on the assumption that
-  the default whirl is not the far form, so their notation carries no `[XDEX]`. The
-  atomic doctrine forbids inferring the bonus from the operator name: it fires only
-  where the notation carries `[XDEX]` on an eligible far-form receiver dex. Atom
-  Smasher is the precedent the other way: ruled to include an X-Dex, with "atomic
-  mirage" kept only as its alias rather than a separate row.
-
-  Ask for the rules expert: In an atomic whirl and an atomic symposium whirl, is the
-  whirl the far-form receiver, so the X-Dex scores as FootbagMoves records?
-  Recommendation, by the Atom Smasher precedent and the agreement of both outside
-  sources: yes.
-
-  Until he rules, all four rows and their current openings stay unchanged. Ego
-  (`ego`, 6 ADD, technical name Atomic Ducking Whirl) carries the same X-Dex on its
-  whirl, so the same answer decides its score, and its opening stays held with them.
-  Close
-  condition: record the ruling in the ratified-rulings record. If yes, fold
-  `atomic_whirl` into Reactor and `atomic_symposium_whirl` into Gary Coleman as hidden
-  redirect aliases, as Atomic Mirage is to Atom Smasher, so the two names score 5 and
-  6; if no, record why the far form differs from the sources' reading and keep the
-  derived rows. Either way, remove this queue entry.
 
 ## Records-only and memory riders
 

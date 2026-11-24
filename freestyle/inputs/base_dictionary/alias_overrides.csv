@@ -71,12 +71,14 @@ atomic_double_leg_over,retype,structural,0,"Hidden by ruling: the name rests on 
 atomic_double_over_down,retype,structural,0,"Pending ruling: the three-outward-dexterities-into-a-clipper line (Fusion, Cold Fusion, Id)."
 atomic_down_over_down,retype,technical,0,modifier-stack decomposition rather than a nickname
 atomic_ducking_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
-atomic_ducking_whirl,retype,structural,0,Pending ruling: the atomic-whirl X-Dex.
+atomic_ducking_whirl,retype,structural,1,genuine decomposition name of the same movement
 atomic_far_double_down,retype,positional,0,modifier-stack decomposition rather than a nickname
 atomic_far_symp_double_down,retype,technical,0,abbreviation of the canonical name
 atomic_gyro_torque,retype,suppressed,0,modifier-stack decomposition rather than a nickname
 atomic_legover,retype,structural,1,genuine decomposition name of the same movement
 atomic_mirage,retype,structural,1,genuine decomposition name of the same movement
+atomic_symposium_whirl,retype,structural,1,"genuine decomposition name of the same movement: Gary Coleman, folded in by the rules expert's X-Dex ruling as Atomic Mirage is carried by Atom Smasher"
+atomic_whirl,retype,structural,1,"genuine decomposition name of the same movement: Reactor, folded in by the rules expert's X-Dex ruling as Atomic Mirage is carried by Atom Smasher"
 atomic_os_symposium_double_over_down,retype,suppressed,0,modifier-stack decomposition
 atomic_osis,retype,structural,1,genuine decomposition name of the same movement
 atomsmasher,retype,technical,0,spacing or spelling variant of the canonical name
