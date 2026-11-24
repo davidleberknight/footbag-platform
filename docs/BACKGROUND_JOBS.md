@@ -807,8 +807,8 @@ Story: The persistent production database is the single source of truth for free
 
 Success Criteria:
 
-- The audited in-app curation surfaces (A_Edit_Freestyle_Trick and the other freestyle admin stories) are the write path for curated freestyle content; a trick page's educational links are decided from the trick's own base trick and modifier links when the page renders, so a published or edited trick needs nothing regenerated; the code-managed registries (the modifier registry and the curated symbolic-grammar layers) change only through a reviewed database migration.
+- The audited in-app curation surfaces (A_Edit_Freestyle_Trick and the other freestyle admin stories) are the write path for curated freestyle content; a trick page's educational links are decided from the trick's own base trick and modifier links when the page renders, so a published or edited trick needs nothing regenerated; the curated symbolic-grammar layers change only through a reviewed database migration, and the modifier registry is edited in the app (A_Edit_Freestyle_Modifier).
 - The freestyle rebuild refuses to run against any non-development database, with no bypass flag, so it never rewrites a live database.
 - Freestyle table rows survive a data-preserving deploy that does not run the rebuild.
 - Recovery from a bad edit is a corrective in-app edit or a database restore; every in-app edit is recorded in the audit trail.
-- Tests pin the rule: freestyle rows survive a data-preserving deploy; the rebuild refuses a production database; and freestyle content is written only through the audited in-app curation surfaces, plus reviewed database migrations for the code-managed registries.
+- Tests pin the rule: freestyle rows survive a data-preserving deploy; the rebuild refuses a production database; and freestyle content is written only through the audited in-app curation surfaces, plus reviewed database migrations for the curated symbolic-grammar layers.
