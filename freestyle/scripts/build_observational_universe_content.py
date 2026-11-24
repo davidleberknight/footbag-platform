@@ -308,6 +308,21 @@ REPEATED_OPERATOR_MIN = 3
 _ALLOWED_NAME_CHARS = re.compile(r"^[A-Za-z0-9 ()/'.&\-]+$")
 
 
+def active_blocker(blocker: str, questions: dict[str, dict]) -> tuple[str, bool]:
+    """The blocker that still holds a row, and whether an answered question released it.
+
+    A ledger row's blocker records what held it and is never rewritten. Whether it
+    still holds the row is the question's own status: only a question explicitly
+    marked answered releases it, and a decision group, source recovery or an open
+    question keeps holding. A released row is not promoted or finalized: it waits on
+    the curator's authoring instead, and its own ruling fields stay as they are.
+    """
+    q = questions.get(blocker)
+    if q is not None and (q.get("status") or "").strip().lower().startswith("answered"):
+        return "", True
+    return blocker, False
+
+
 def name_tokens(name: str) -> list[str]:
     return re.findall(r"[a-z]+", name.split("(")[0].lower())
 
@@ -947,10 +962,9 @@ def main() -> None:
 
         if blocker not in VALID_BLOCKERS:
             raise SystemExit(f"unknown blocker '{blocker}' on '{r['name']}' — not a registered question or decision group")
+        blocker, released = active_blocker(blocker, questions)
         if blocker in questions:
             q = questions[blocker]
-            if (q.get("status") or "").strip().lower().startswith("answered"):
-                raise SystemExit(f"closed question {blocker} still blocks '{r['name']}' — retag the ledger row")
             q_owner = (q.get("owner") or "").strip()
             if owner and q_owner and owner != q_owner:
                 note_warn("row-owner-conflicts-with-question", f"{r['name']} ({owner} vs {blocker}={q_owner})")
@@ -1012,6 +1026,10 @@ def main() -> None:
             pub, section = "already-represented", "archive"
         elif blocker in questions:
             pub, section = "doctrine-blocked", "ruling"
+        elif released:
+            # its question is answered; the row now waits on the curator's authoring
+            pub, section = "adjudication-pending", "decide"
+            blocker = "A0"
         elif blocker == "source-recovery":
             pub, section = "evidence-pending", "evidence"
         elif blocker in DECISION_GROUP_IDS or (owner == "james" and blocker == ""):
