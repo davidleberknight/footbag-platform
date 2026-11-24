@@ -501,6 +501,11 @@ DIRECTORY_PAGE = _group_page('').replace(
     '<p>ROSTER-OF-MEMBERS</p>',
     '<p><li><a href="1/index.html">Board of Directors</a>\n'
     '<p><li><a href="14/index.html">Marketing Committee</a>\n')
+# The heading above the list on the captured groups directory. The button is
+# placed by the heading's form, not its words, so the fixture carries the
+# real page's heading: one the page never had would pass here while the real
+# directory got no button.
+DIRECTORY_HEADING = '<b><font size="+2">Official IFPA Committees:</font></b>'
 
 
 def test_a_group_the_old_site_never_listed_joins_the_directory_once_and_leaves_with_its_page(
@@ -566,14 +571,14 @@ def test_the_groups_directory_gets_the_button_once_above_the_list(groups):
     # directory shows it twice; below the list it lands among the entries
     # the directory's own additions are placed after.
     directory = _page('groups/list/index.html', DIRECTORY_PAGE.replace(
-        '<p><li><a href="1/', '<b><font size="+2">All IFPA Working Groups:</font></b>'
-        '<br/>\n<p><li><a href="1/', 1))
+        '<p><li><a href="1/', DIRECTORY_HEADING
+        + '<br/>\n<p><li><a href="1/', 1))
     mirror_script.generate_group_file_pages(groups)
     mirror_script.generate_group_files_index()
     mirror_script.generate_group_files_index()
     text = directory.read_text(encoding='utf-8')
     assert _hrefs(text).count('../files/index.html') == 1
-    assert text.index('../files/index.html') < text.index('All IFPA Working Groups')
+    assert text.index('../files/index.html') < text.index(DIRECTORY_HEADING)
     assert Path(os.path.normpath(directory.parent / '../files/index.html')) \
         == _www() / mirror_script.GROUP_FILES_INDEX_REL
 
@@ -586,8 +591,8 @@ def test_an_earlier_unclickable_looking_link_is_replaced_by_a_plain_link(groups)
     old = (f'<p id="{marker}"><a href="../files/index.html" style="background:#FF9900;'
            'text-decoration:none">Archived Group Files</a></p>\n')
     directory = _page('groups/list/index.html', DIRECTORY_PAGE.replace(
-        '<p><li><a href="1/', old + '<b><font size="+2">All IFPA Working Groups:</font></b>'
-        '<br/>\n<p><li><a href="1/', 1))
+        '<p><li><a href="1/', old + DIRECTORY_HEADING
+        + '<br/>\n<p><li><a href="1/', 1))
     mirror_script.generate_group_file_pages(groups)
     mirror_script.generate_group_files_index()
     text = directory.read_text(encoding='utf-8')
@@ -600,8 +605,8 @@ def test_with_no_group_file_page_the_files_page_and_button_go(groups, tmp_path):
     # A page and button left behind after every group lost its files would
     # offer members an empty list, or a list naming files since made private.
     directory = _page('groups/list/index.html', DIRECTORY_PAGE.replace(
-        '<p><li><a href="1/', '<b><font size="+2">All IFPA Working Groups:</font></b>'
-        '<br/>\n<p><li><a href="1/', 1))
+        '<p><li><a href="1/', DIRECTORY_HEADING
+        + '<br/>\n<p><li><a href="1/', 1))
     original = directory.read_text(encoding='utf-8')
     mirror_script.generate_group_file_pages(groups)
     mirror_script.generate_group_files_index()

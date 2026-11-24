@@ -8981,7 +8981,12 @@ GROUP_FILES_INDEX_LINK_MARKER = 'mirror-group-files-index-link'
 _GROUP_PAGE_TITLE_RE = re.compile(r'<h1>(.*?)</h1>', re.S)
 _GROUP_PAGE_LIST_RE = re.compile(
     r'<ul id="' + re.escape(GROUP_FILES_PAGE_MARKER) + r'">(.*?)</ul>', re.S)
-_DIRECTORY_HEADING_RE = re.compile(rb'<b><font size="\+2">All IFPA Working Groups:', re.I)
+# The bold, large heading that opens the directory's list of groups. Matched by
+# its form rather than its words: the captured directory heads its list
+# "Official IFPA Committees:", and a match on any one title misses the page
+# the moment its heading reads otherwise. The first such heading is the top of
+# the list, which is where the button belongs.
+_DIRECTORY_HEADING_RE = re.compile(rb'<b><font size="\+2">[^<]*:</font></b>', re.I)
 _GROUP_FILES_INDEX_LINK_RE = re.compile(
     rb'<p id="' + GROUP_FILES_INDEX_LINK_MARKER.encode() + rb'">.*?</p>\n?', re.S)
 
@@ -9057,7 +9062,7 @@ def generate_group_files_index():
                 _write_bytes_replacing(
                     directory, raw[:existing.start()] + link + raw[existing.end():])
         elif heading is None:
-            message = ("groups/list/index.html: no 'All IFPA Working Groups' heading, "
+            message = ("groups/list/index.html: no heading above the list of groups, "
                        "so nothing links the group files page")
             logging.warning(message)
             mirror_state.run_warnings.append(message)
