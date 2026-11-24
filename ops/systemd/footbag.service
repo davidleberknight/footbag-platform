@@ -106,7 +106,13 @@ ExecReload=/usr/bin/docker compose \
 # because ExecStart already succeeded, so the unit carries no Restart= or
 # RestartSec=. This unit only owns start/stop of the stack.
 TimeoutStartSec=120s
-TimeoutStopSec=60s
+# The stop limit bounds the whole stop phase, the post-stop take-down and the
+# final backup included. On a small host whose CPU burst allowance is spent, a
+# 60-second limit killed the take-down after a failed start with the containers
+# still up, so the restart loop it exists to end kept running. Five minutes
+# covers a throttled take-down and backup; a stop that hangs waits that long
+# before its kill.
+TimeoutStopSec=300s
 
 # Sandboxing, kept to what is meaningful for this unit's actual job. What runs
 # here is the compose command line, not the application: the containers are

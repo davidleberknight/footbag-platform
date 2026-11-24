@@ -31,6 +31,9 @@
 #   - Carry the tree's unapplied backlog, a record replacement or a record
 #     removal along with the re-sync. A plain production apply clears the first;
 #     the other two are decisions for a person reading their own plan.
+#   - Remove a mirrored legacy record unless asked to with --with-removals, and
+#     then only a record the named capture no longer holds at that name and
+#     type. scripts/write-zone-mirror-values.sh says when a re-sync needs it.
 #   - Pick a capture for you. Which capture a run compares against is exactly
 #     the thing that must not be inherited from ambient state.
 #   - Touch the registrar or the delegation. Nothing here changes what the
@@ -40,11 +43,15 @@
 #   bash scripts/resync-zone-mirror.sh --target production \
 #        --capture footbag_private_repo/evidence/zone-capture/<capture>.zone
 #   bash scripts/resync-zone-mirror.sh --target production --capture <file> --dry-run
+#   bash scripts/resync-zone-mirror.sh --target production --capture <file> --with-removals
 #
 #   --target    production. Required, with no default.
 #   --capture   the RFC-format capture of the legacy zone the values file was
 #               re-synced to. Required.
 #   --dry-run   states what the run would do and touches nothing.
+#   --with-removals  also removes each mirrored legacy record the capture no
+#               longer holds (the apply lists them by name before its typed
+#               APPLY). Without it, any removal in the plan stops the run.
 #
 # Exits 0 only when the check passes. Non-zero when an argument or precondition
 # is refused, when the apply is refused or declined, or when the check finds a
@@ -61,6 +68,7 @@ set -euo pipefail
 TARGET=""
 CAPTURE=""
 DRY_RUN=0
+WITH_REMOVALS=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -74,6 +82,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --dry-run)
       DRY_RUN=1
+      shift
+      ;;
+    --with-removals)
+      WITH_REMOVALS=1
       shift
       ;;
     --help|-h)
@@ -136,12 +148,20 @@ fi
 
 REPORT="$EVIDENCE_DIR/mirror-comparison.$(date -u +%Y-%m-%dT%H%M%SZ).txt"
 TF_DIR="terraform/$TARGET"
+REMOVALS_ARGS=()
+if (( WITH_REMOVALS )); then
+  REMOVALS_ARGS=(--removals-absent-from "$CAPTURE")
+fi
 
 if (( DRY_RUN )); then
   echo "Would run, in order:"
   echo "  1. Read route53_zone_id and route53_name_servers from $TF_DIR."
-  echo "  2. bash scripts/terraform-apply.sh --target $TARGET --dns-records-only"
+  echo "  2. bash scripts/terraform-apply.sh --target $TARGET --dns-records-only${REMOVALS_ARGS[*]:+ ${REMOVALS_ARGS[*]}}"
   echo "     (refuses anything but Route 53 records created or updated in place;"
+  if (( WITH_REMOVALS )); then
+    echo "     also lets through the removal of a mirrored legacy record the capture"
+    echo "     no longer holds, listed by name first;"
+  fi
   echo "     asks for APPLY twice; applies nothing when the records already match)."
   echo "  3. bash scripts/verify-zone-mirror.sh --capture $CAPTURE"
   echo "     --nameserver <first name server> --zone-id <zone id>"
@@ -181,7 +201,7 @@ echo "-- Step 1 of 2: apply the record changes --"
 apply_rc=0
 # Run directly, never through a pipe: the apply asks for its typed APPLY on this
 # terminal, and hands its own errors and warnings to this run's report.
-bash "$REPO_ROOT/scripts/terraform-apply.sh" --target "$TARGET" --dns-records-only || apply_rc=$?
+bash "$REPO_ROOT/scripts/terraform-apply.sh" --target "$TARGET" --dns-records-only "${REMOVALS_ARGS[@]}" || apply_rc=$?
 if (( apply_rc != 0 )); then
   echo "" >&2
   echo "       Nothing beyond what the apply reported above has changed. Re-run this" >&2

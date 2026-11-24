@@ -56,6 +56,7 @@
 #   scripts/terraform-apply.sh --target staging --firewall-only --firewall-add 203.0.113.7/32
 #   scripts/terraform-apply.sh --target staging --require-empty-plan
 #   scripts/terraform-apply.sh --target production --dns-records-only
+#   scripts/terraform-apply.sh --target production --dns-records-only --removals-absent-from <capture>
 #   scripts/terraform-apply.sh --target shared --init --skip-empty-plan
 #   scripts/terraform-apply.sh --target production --replace random_id.origin_verify_secret
 #   scripts/terraform-apply.sh --target production --allow-marker-create
@@ -96,6 +97,13 @@
 # a decision for a person, not something a re-sync carries along. Anything that is
 # not a record, the unapplied backlog of the tree included, is refused as drift; a
 # plain production apply clears that first. Both typed confirmations still follow.
+#
+# --removals-absent-from <capture> is that person's decision, made by naming the
+# fresh capture of the legacy zone. With it, a records-only plan may also delete
+# one of the mirrored legacy records (the legacy_mirror_* maps and the names riding
+# the apex or www), and only when the capture holds no record of that name and
+# type. The removals are listed by name before the typed confirmations; a
+# replacement, and a delete of anything else, is still refused.
 #
 # --skip-empty-plan, run by scripts/terraform-apply-all.sh on every tree it
 # sweeps, ends a plain run with exit 0 and no prompt when the plan changes
@@ -225,6 +233,9 @@ FW_INPLACE=0
 # The SSH addresses a firewall-only apply may add, and the ones it may remove.
 FIREWALL_ADD=()
 FIREWALL_REMOVE=()
+# Set by --removals-absent-from: the fresh capture of the legacy zone a records-only
+# apply may remove mirrored legacy records against. Empty means no removal passes.
+REMOVALS_CAPTURE=""
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # confirm_from_tty reads the answer from /dev/tty rather than stdin, refuses when
@@ -409,6 +420,10 @@ while [[ $# -gt 0 ]]; do
       PLAN_SHAPE="dns-records-only"
       shift
       ;;
+    --removals-absent-from)
+      REMOVALS_CAPTURE="${2:-}"
+      shift 2 || { echo "ERROR: --removals-absent-from requires the capture file" >&2; exit 2; }
+      ;;
     --skip-empty-plan)
       SKIP_EMPTY=1
       shift
@@ -523,6 +538,18 @@ fi
 if [[ "$PLAN_SHAPE" == "dns-records-only" && "$TARGET" != "production" ]]; then
   echo "ERROR: --dns-records-only applies to production only." >&2
   exit 2
+fi
+# A removal is judged against the capture the legacy zone was re-taken into, so it
+# belongs to the records-only shape and to nothing else.
+if [[ -n "$REMOVALS_CAPTURE" ]]; then
+  if [[ "$PLAN_SHAPE" != "dns-records-only" ]]; then
+    echo "ERROR: --removals-absent-from goes with --dns-records-only only." >&2
+    exit 2
+  fi
+  if [[ ! -f "$REMOVALS_CAPTURE" || ! -r "$REMOVALS_CAPTURE" ]]; then
+    echo "ERROR: --removals-absent-from: the capture is not a readable file: $REMOVALS_CAPTURE" >&2
+    exit 2
+  fi
 fi
 # Each plan shape already ends an empty plan its own way, and a replacement or a
 # lock break is never empty by intent, so the flag belongs to the plain run.
@@ -650,6 +677,10 @@ if (( DRY_RUN )); then
       echo "     Before any confirmation, refuse unless every change creates a Route 53"
       echo "     record or updates one in place; stop with nothing applied when the plan"
       echo "     is empty."
+      if [[ -n "$REMOVALS_CAPTURE" ]]; then
+        echo "     Also let through a delete of a mirrored legacy record that"
+        echo "     $REMOVALS_CAPTURE no longer holds, listed by name first."
+      fi
     fi
     if (( SKIP_EMPTY )); then
       echo "     An empty plan stops there with nothing applied and no prompt."
@@ -1370,12 +1401,51 @@ if [[ "$PLAN_SHAPE" == "dns-records-only" ]]; then
     echo "       Nothing has been applied." >&2
     exit 1
   fi
-  if ! NOT_RECORD_EDITS="$(printf '%s' "$PLAN_JSON" | jq -r '
+  # With --removals-absent-from, a plain delete also passes when it removes one of
+  # the mirrored legacy records and the capture holds nothing of that name and
+  # type: the legacy webmaster dropped it, and the mirror has to follow. Every
+  # other delete, and every replacement, is still refused. The capture is read as
+  # "name type" pairs, lower-cased with the trailing dot dropped, the same form
+  # the record's own name and type are compared in.
+  CAPTURE_PAIRS=""
+  if [[ -n "$REMOVALS_CAPTURE" ]]; then
+    CAPTURE_PAIRS="$(awk '!/^[[:space:]]*;/ && NF >= 4 {
+        name = tolower($1); sub(/\.$/, "", name)
+        type = ($3 == "IN") ? $4 : $3
+        print name " " toupper(type)
+      }' "$REMOVALS_CAPTURE")"
+    if [[ -z "$CAPTURE_PAIRS" ]]; then
+      cr_error "the capture holds no records, so no removal can be judged against it: $REMOVALS_CAPTURE"
+      echo "       Nothing has been applied." >&2
+      exit 1
+    fi
+  fi
+  # shellcheck disable=SC2016  # jq program, not shell expansion
+  REMOVAL_FILTER='
+      def mirrored_removal:
+        $removals
+        and .type == "aws_route53_record"
+        and .change.actions == ["delete"]
+        and (.address | test("^aws_route53_record\\.(legacy_mirror_(a|cname|mx|txt)|legacy_apex_cnames)\\["))
+        and ((((.change.before.name // "") | ascii_downcase | rtrimstr(".")) + " "
+              + ((.change.before.type // "") | ascii_upcase)) as $pair
+             | any($capture[]; . == $pair) | not);'
+  CAPTURE_JSON="$(printf '%s\n' "$CAPTURE_PAIRS" | jq -R . | jq -s 'map(select(. != ""))')"
+  REMOVALS_ON=false
+  [[ -n "$REMOVALS_CAPTURE" ]] && REMOVALS_ON=true
+  if ! NOT_RECORD_EDITS="$(printf '%s' "$PLAN_JSON" | jq -r \
+      --argjson capture "$CAPTURE_JSON" --argjson removals "$REMOVALS_ON" "$REMOVAL_FILTER"'
       .resource_changes[]?
       | select(.change.actions != ["no-op"] and .change.actions != ["read"])
       | select(.type != "aws_route53_record"
                or (.change.actions != ["create"] and .change.actions != ["update"]))
+      | select(mirrored_removal | not)
       | "  \(.change.actions | join("+"))  \(.address)"
+    ')" || ! RECORD_REMOVALS="$(printf '%s' "$PLAN_JSON" | jq -r \
+      --argjson capture "$CAPTURE_JSON" --argjson removals "$REMOVALS_ON" "$REMOVAL_FILTER"'
+      .resource_changes[]?
+      | select(mirrored_removal)
+      | "  \(.change.before.type)  \(.change.before.name)  (\(.address))"
     ')" || ! RECORD_EDITS="$(printf '%s' "$PLAN_JSON" | jq -r '
       .resource_changes[]?
       | select(.change.actions != ["no-op"] and .change.actions != ["read"])
@@ -1389,8 +1459,16 @@ if [[ "$PLAN_SHAPE" == "dns-records-only" ]]; then
     printf '%s\n' "$NOT_RECORD_EDITS" >&2
     echo "       Nothing has been applied. Clear anything else pending with a plain" >&2
     echo "       scripts/terraform-apply.sh --target production first, and decide a" >&2
-    echo "       record replacement or removal there, by reading its plan." >&2
+    echo "       record replacement there, by reading its plan. A mirrored legacy" >&2
+    echo "       record the legacy zone has dropped is removed only against the fresh" >&2
+    echo "       capture that shows it gone (scripts/resync-zone-mirror.sh --with-removals)." >&2
     exit 1
+  fi
+  if [[ -n "$RECORD_REMOVALS" ]]; then
+    echo "This apply REMOVES these mirrored legacy records, which the capture"
+    echo "$REMOVALS_CAPTURE no longer holds:"
+    printf '%s\n' "$RECORD_REMOVALS"
+    echo ""
   fi
   if [[ -z "$RECORD_EDITS" ]]; then
     echo "The zone records already match the values file. Nothing to apply."

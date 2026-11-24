@@ -7,8 +7,8 @@
 # apply. Every stage has the same shape: it proves its preconditions, shows the
 # values-file change, takes a typed APPLY, writes the values through the
 # file's symlink, applies through scripts/terraform-apply.sh, and verifies what
-# is served. Later stages (the custom domain, the window state, the freeze)
-# join this file when they are first used.
+# is served. The stages still to come (the custom domain, the SES domain, the
+# window state and the launch rehearsal) join this file as they are built.
 #
 # WHY IT EXISTS.
 #
@@ -77,10 +77,66 @@
 # launch and applies it. The base-address deploy, the launch checks and the
 # mail resume that follow are their own steps.
 #
+# STAGE record-switch: the switch at the write-freeze, production only.
+#
+# Points the apex and www at the platform, behind the migration notice, and
+# arms the sign-in watch for launch, in one apply:
+#   enable_apex_alias_records    true (the apex and www leave the legacy host)
+#   enable_cutover_login_alarm   true (created only once launch lifts the
+#                                notice, and on from here until the 48-hour
+#                                watch after launch closes)
+#   archive_platform_url         "" (the archive's gate pages point at www,
+#                                the platform's address from launch on)
+# The legacy names that are CNAMEs onto the apex or www ride the switched
+# names, so the same apply removes them: Terraform holds them only while the
+# alias is off. Nothing reaches the legacy site by name afterwards, so before
+# it writes anything the stage proves:
+#   - the window: the custom domain, the preview, the notice and the legacy
+#     mirror all on, and no launch rehearsal in progress;
+#   - the newest zone capture (--capture, from scripts/capture-legacy-zone.sh,
+#     which names it footbag.org.<date>.zone), taken just in time while the
+#     legacy nameservers answer: a complete transfer, no older than the
+#     capture the cutover log's zone-move section records the mirror verified
+#     against, its changes since that one listed by record for the typed APPLY
+#     to accept, and its names riding the apex and www exactly the values
+#     file's legacy_apex_cname_records;
+#   - nothing else is pending in the tree;
+#   - the plan with the new values is exactly the switch, read from
+#     Terraform's JSON plan: it switches the apex and www records, creates
+#     their IPv6 pair, destroys every apex-riding CNAME the state holds, each
+#     name the capture shows riding the apex among them, and destroys nothing
+#     else.
+# The freeze itself (the legacy site read-only, the last crawls, the saved
+# election results, the sealed group-message containers) cannot be read from
+# here, so the sentence before the typed APPLY states it and the operator's
+# APPLY attests it. A run that stops after the write is finished by running it
+# again. The record lookups and the notice check that follow are their own
+# steps.
+#
+# STAGE notice-raise: the migration notice raised again, production only.
+#
+# The rollback's first step, after launch: takes the public names out of
+# service while preview serves the platform to the operator, in one apply:
+#   enable_cutover_notice   true
+#   enable_preview_record   true (the notice needs it: preview is then the
+#                           only name reaching the platform)
+# It proves the apex is switched and the custom domain on (with the alias off
+# this is before the window, which is not a rollback), no launch rehearsal in
+# progress, nothing else pending, and that the plan is exactly the raise: it
+# changes the edge function, creates the preview pair, and destroys only the
+# cutover-window alarms the notice keeps absent, every one the state holds.
+# Lifting the notice again afterwards is the launch stage, run again. The
+# preview base-address deploy and the checks that follow are their own steps.
+#
 # WHAT IT REFUSES.
 #   - Any stage it does not know, and a target other than staging or production.
-#   - The launch stage anywhere but production; on production, any of its
-#     preconditions above unmet, or the launch settings half written.
+#   - The launch, record-switch and notice-raise stages anywhere but
+#     production; on production, any of their preconditions above unmet, or
+#     their settings half written.
+#   - A zone capture that is not a complete transfer, and for the record
+#     switch one not named for the day it was taken, one named for a day after
+#     today, one older than the verified capture the cutover log records, or
+#     one whose verified capture is not recorded, not verified or not beside it.
 #   - A values file that is missing, or a symlink pointing at nothing: the
 #     private operations checkout is absent, and nothing is improvised.
 #   - A tree with other changes pending before the write, or, on a re-run, any
@@ -100,12 +156,18 @@
 #     --capture <fresh zone capture> --dry-run
 #   scripts/production-cutover.sh --target production --stage launch \
 #     --capture <fresh zone capture>
+#   scripts/production-cutover.sh --target production --stage record-switch \
+#     --capture <newest zone capture>
+#   scripts/production-cutover.sh --target production --stage notice-raise
 #
 # Flags:
 #   --target staging|production   The environment (required).
-#   --stage archive-base|launch   The stage to run (required).
-#   --capture <file>              The launch stage's fresh zone capture
-#                                 (required for launch, refused otherwise).
+#   --stage <stage>               The stage to run (required): archive-base,
+#                                 launch, record-switch or notice-raise.
+#   --capture <file>              The fresh zone capture (required for launch
+#                                 and record-switch, refused otherwise); the
+#                                 record switch takes the newest, no older than
+#                                 the verified capture in the cutover log.
 #   --dry-run                     Show what the stage would change, and stop.
 #   --yes                         Take the values-file confirmation as given.
 #                                 The production apply still asks its own.
@@ -118,6 +180,8 @@
 #   PRODUCTION_CUTOVER_KEY_DIR         where the signing keys live (~/AWS)
 #   PRODUCTION_CUTOVER_DIG_BIN         dig
 #   PRODUCTION_CUTOVER_LOG             the cutover log
+#   PRODUCTION_CUTOVER_TODAY           today's date, YYYY-MM-DD, after which
+#                                      no record-switch capture can be named
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -161,20 +225,20 @@ done
 require_target "$TARGET" staging production || exit 2
 
 case "$STAGE" in
-  archive-base|launch) ;;
-  "") cr_error "--stage is required (one of: archive-base, launch)"; exit 2 ;;
-  *) cr_error "unknown stage '${STAGE}' (one of: archive-base, launch)"; exit 2 ;;
+  archive-base|launch|record-switch|notice-raise) ;;
+  "") cr_error "--stage is required (one of: archive-base, launch, record-switch, notice-raise)"; exit 2 ;;
+  *) cr_error "unknown stage '${STAGE}' (one of: archive-base, launch, record-switch, notice-raise)"; exit 2 ;;
 esac
-if [[ "$STAGE" == launch && "$TARGET" != production ]]; then
-  cr_error "the launch stage runs on production only: ${TARGET} has no cutover notice and no legacy mirror to remove"
+if [[ "$STAGE" != archive-base && "$TARGET" != production ]]; then
+  cr_error "the ${STAGE} stage runs on production only: ${TARGET} has no cutover notice and no legacy mirror"
   exit 2
 fi
-if [[ "$STAGE" == launch && -z "$CAPTURE" ]]; then
-  cr_error "the launch stage needs --capture <file>: the fresh zone capture taken for the launch with scripts/capture-legacy-zone.sh, which the removal set is checked against"
+if [[ ( "$STAGE" == launch || "$STAGE" == record-switch ) && -z "$CAPTURE" ]]; then
+  cr_error "the ${STAGE} stage needs --capture <file>: the fresh zone capture taken with scripts/capture-legacy-zone.sh, which the names it removes are checked against"
   exit 2
 fi
-if [[ "$STAGE" != launch && -n "$CAPTURE" ]]; then
-  cr_error "--capture is the launch stage's; stage ${STAGE} takes none"
+if [[ "$STAGE" != launch && "$STAGE" != record-switch && -n "$CAPTURE" ]]; then
+  cr_error "--capture is the launch and record-switch stages'; stage ${STAGE} takes none"
   exit 2
 fi
 
@@ -190,7 +254,7 @@ DIG_BIN="${PRODUCTION_CUTOVER_DIG_BIN:-dig}"
 LOG_PATH="${PRODUCTION_CUTOVER_LOG:-${REPO_ROOT}/footbag_private_repo/cutover/CUTOVER_LOG.md}"
 for seam in PRODUCTION_CUTOVER_TERRAFORM_BIN PRODUCTION_CUTOVER_APPLY_CMD \
             PRODUCTION_CUTOVER_KEY_CMD PRODUCTION_CUTOVER_VERIFY_CMD PRODUCTION_CUTOVER_KEY_DIR \
-            PRODUCTION_CUTOVER_DIG_BIN PRODUCTION_CUTOVER_LOG; do
+            PRODUCTION_CUTOVER_DIG_BIN PRODUCTION_CUTOVER_LOG PRODUCTION_CUTOVER_TODAY; do
   if [[ -n "${!seam:-}" ]]; then
     echo "SYNTHETIC: ${seam}='${!seam}' -- this run proves nothing about the estate." >&2
   fi
@@ -431,11 +495,12 @@ map_block() {
   ' "$2"
 }
 
-# The Value cell of the row in the cutover log's T-0 section (4b) whose first
-# cell starts with the given text; exit 1 when no such row exists.
+# The Value cell of the row whose first cell starts with the given text, in the
+# cutover log section given second (the T-0 section, 4b, by default); exit 1
+# when no such row exists.
 log_value() {
-  awk -v want="$1" '
-    /^### 4b\./ { inside = 1; next }
+  awk -v want="$1" -v head="### ${2:-4b}." '
+    index($0, head) == 1 { inside = 1; next }
     inside && /^#/ { inside = 0 }
     inside && /^[|]/ {
       split($0, cell, "|")
@@ -551,7 +616,6 @@ launch_capture_report() {
 # least one record below the apex.
 read_capture_labels() {
   [[ -r "$CAPTURE" ]] || cr_die "the zone capture ${CAPTURE} cannot be read. Nothing was changed."
-  local records first last labels
   records="$(grep -vE '^[[:space:]]*(;|$)' "$CAPTURE" || [[ $? == 1 ]])"
   first="$(head -n 1 <<<"$records" | awk '{print toupper($4)}')"
   last="$(tail -n 1 <<<"$records" | awk '{print toupper($4)}')"
@@ -561,7 +625,78 @@ read_capture_labels() {
   labels="$(awk '{print tolower($1)}' <<<"$records" | sed -n 's/\.footbag\.org\.$//p' | sort -u)"
   [[ -n "$labels" ]] || cr_die "the zone capture ${CAPTURE} names no record below the apex. Nothing was changed."
   CAPTURE_JSON="$(jq -R . <<<"$labels" | jq -cs .)"
+  # The names riding the apex or www: CNAMEs onto either, www itself aside,
+  # which has its own record.
+  CAPTURE_RIDING="$(awk 'toupper($4) == "CNAME" && (tolower($5) == "footbag.org." || tolower($5) == "www.footbag.org.") { print tolower($1) }' <<<"$records" \
+    | sed -n 's/\.footbag\.org\.$//p' | grep -vx 'www' | sort -u || [[ $? == 1 ]])"
   echo "  zone capture: ${CAPTURE} ($(wc -l <<<"$labels") names below the apex)"
+}
+
+# The record switch's capture is the newest one taken, and is checked against
+# the capture the Route 53 mirror was last written from and verified against,
+# which the cutover log's zone-move section records. The fresh one is taken just
+# in time while the legacy nameservers still answer; once they stop, the newest
+# capture on file is the reference, and it can be no older than the verified
+# one. The legacy operator may still edit his zone, so whatever changed since
+# the verified capture is listed by record and the typed APPLY accepts it; a
+# change to a name riding the apex or www is refused further on, because the
+# mirror has to be re-synced for it first. A transfer carries no time of its
+# own, so when it was taken is the date scripts/capture-legacy-zone.sh is told
+# to name it by, and that script never overwrites a capture. A date after today
+# is refused; today is read in local time and in UTC, since an evening run is
+# already tomorrow in UTC.
+capture_day() {
+  local base
+  base="$(basename "$1")"
+  [[ "$base" =~ ^footbag\.org\.([0-9]{4}-[0-9]{2}-[0-9]{2})\.zone$ ]] || return 1
+  printf '%s\n' "${BASH_REMATCH[1]}"
+}
+
+# A capture's records, one per line, without the transfer's comments, the SOA
+# (whose serial moves on every edit) or the cache lifetimes, as
+# scripts/capture-legacy-zone.sh compares them.
+capture_records() {
+  grep -vE '^[[:space:]]*(;|$)' "$1" \
+    | sed -E 's/[[:space:]]+/ /g; s/ $//' \
+    | awk 'toupper($4) != "SOA" { $2 = ""; print }' | sed 's/  / /' | sort -u \
+    || [[ $? == 1 ]]
+}
+
+CAPTURE_CHANGES=""
+require_capture_current() {
+  local taken today verified verified_day verified_path verification added removed
+  taken="$(capture_day "$CAPTURE")" \
+    || cr_die "the zone capture ${CAPTURE} is not named footbag.org.<YYYY-MM-DD>.zone, as scripts/capture-legacy-zone.sh is told to name it, so the day it was taken is unknown. Nothing was changed."
+  today="${PRODUCTION_CUTOVER_TODAY:-$(date -u +%F)}"
+  if [[ -z "${PRODUCTION_CUTOVER_TODAY:-}" && "$(date +%F)" > "$today" ]]; then today="$(date +%F)"; fi
+  [[ ! "$taken" > "$today" ]] \
+    || cr_die "the zone capture ${CAPTURE} is named for ${taken}, after today (${today}), so the day it was taken is not that. Nothing was changed."
+
+  [[ -f "$LOG_PATH" ]] || cr_die "no cutover log at ${LOG_PATH}: the record switch checks the capture against the verified one recorded there, and the private operations checkout is missing. Nothing was changed."
+  verified="$(log_value "Fresh capture and diff" 4a)" || verified=""
+  verified="$(grep -oE 'footbag\.org\.[0-9]{4}-[0-9]{2}-[0-9]{2}\.zone' <<<"$verified" | head -n 1 || [[ $? == 1 ]])"
+  [[ -n "$verified" ]] \
+    || cr_die "the cutover log's zone-move section names no verified capture (its 'Fresh capture and diff' row), so there is nothing to check this capture against. Nothing was changed."
+  verification="$(log_value "Name and apex CAA verification" 4a)" || verification=""
+  [[ "$verification" == pass* ]] \
+    || cr_die "the cutover log's zone-move section does not record the mirror verified against ${verified} (its 'Name and apex CAA verification' row reads '${verification}', not pass); re-sync with scripts/resync-zone-mirror.sh --with-removals first. Nothing was changed."
+  verified_day="$(capture_day "$verified")"
+  [[ ! "$taken" < "$verified_day" ]] \
+    || cr_die "the zone capture ${CAPTURE} was taken ${taken}, before the verified capture ${verified}: use the newest capture. Nothing was changed."
+  verified_path="$(dirname "$CAPTURE")/${verified}"
+  [[ -r "$verified_path" ]] \
+    || cr_die "the verified capture ${verified} the cutover log names is not beside ${CAPTURE}, so the change since it cannot be read. Nothing was changed."
+
+  added="$(comm -13 <(capture_records "$verified_path") <(capture_records "$CAPTURE"))"
+  removed="$(comm -23 <(capture_records "$verified_path") <(capture_records "$CAPTURE"))"
+  if [[ -z "$added" && -z "$removed" ]]; then
+    echo "  zone capture: unchanged since the verified capture ${verified}"
+    return 0
+  fi
+  echo "  zone capture: changed since the verified capture ${verified}:"
+  [[ -z "$added" ]] || sed 's/^/    added   /' <<<"$added"
+  [[ -z "$removed" ]] || sed 's/^/    removed /' <<<"$removed"
+  CAPTURE_CHANGES="$(( $(grep -c . <<<"$added" || [[ $? == 1 ]]) + $(grep -c . <<<"$removed" || [[ $? == 1 ]]) ))"
 }
 
 # Plans with the given extra arguments into a private saved plan and checks it.
@@ -647,11 +782,11 @@ if [[ "$STAGE" == launch ]]; then
     [[ -n "$(read_bool "$f" "$TFVARS_PATH")" ]] \
       || cr_die "${f} is not set in the production values file; the launch changes only settings the file already carries. Nothing was changed."
   done
-  # The apex and www have pointed at the platform since the freeze apply, and
+  # The apex and www have pointed at the platform since the record switch, and
   # the mail records must be on before the mirror goes: clearing the mirrored
   # names with them off deletes the apex mail records and sender policy.
   [[ "$CUR_ALIAS" == true ]] \
-    || cr_die "enable_apex_alias_records is not true: the freeze apply has not switched the apex and www to the platform, so this is not the launch window. Nothing was changed."
+    || cr_die "enable_apex_alias_records is not true: the record switch has not moved the apex and www to the platform, so this is not the launch window. Nothing was changed."
   [[ "$CUR_MAIL" == true ]] \
     || cr_die "ses_enable_mail_records is not true: the cutover-day mail apply has not landed, and removing the legacy mirror without it deletes the apex mail records. Nothing was changed."
   # The ifpa list domain's mail records move from the mirror maps to the
@@ -821,6 +956,372 @@ if [[ "$STAGE" == launch ]]; then
   cr_proved "the launch apply in production: applied through scripts/terraform-apply.sh, and the tree plans clean"
   cr_unproved "what is served: the base-address deploy, the launch checks (verify-cutover-notice.sh --front-door --expect-live and the survivor lookups) and the mail resume follow as their own steps"
   cr_finish
+fi
+
+# ── Shared by the record switch and the notice raise ─────────────────────────
+
+# The values file with each named setting assigned once, where its first
+# assignment stood, and any later assignment of it dropped; every other line,
+# comments included, kept as written. A setting the file does not carry is not
+# added. Arguments: the file, then name=value pairs, no value holding a space.
+rewrite_assignments() {
+  local file="$1"; shift
+  awk -v pairs="$*" '
+    BEGIN {
+      n = split(pairs, p, " ")
+      for (i = 1; i <= n; i++) { k = p[i]; sub(/=.*/, "", k); v = p[i]; sub(/^[^=]*=/, "", v); want[k] = v }
+    }
+    /^[ \t]*[a-z_]+[ \t]*=/ {
+      name = $0; sub(/^[ \t]*/, "", name); sub(/[ \t]*=.*/, "", name)
+      if (name in want) { if (!(name in seen)) { seen[name] = 1; print name " = " want[name] }; next }
+    }
+    { print }
+  ' "$file"
+}
+
+
+# A saved plan's changes and prior state as the plan checks below read them.
+# Each check prints one line per way the plan differs from its stage; nothing
+# printed means the plan is exactly the stage. Updates in place are allowed
+# and listed, as in the launch.
+PLAN_PRELUDE='
+  [.resource_changes[]? | select(.mode == "managed")
+    | {a: .address, x: (.change.actions | join(","))}] as $ch
+  | ($ch | map(select(.x == "delete") | .a)) as $del
+  | ($ch | map(select(.x == "create") | .a)) as $cre
+  | ($ch | map(select(.x == "update") | .a)) as $upd
+  | [.prior_state.values.root_module? // {} | .. | objects
+      | select(has("address") and (.mode? == "managed")) | .address] as $prior
+  | (if .prior_state == null then "the plan carries no prior state, so what the zone holds cannot be checked" else empty end),
+    ($ch[] | select(.x != "no-op" and .x != "read" and .x != "delete" and .x != "create" and .x != "update")
+      | "would \(.x) \(.a)"),'
+
+# The record switch: destroyed, only the CNAMEs riding the apex and www, every
+# one the state holds and each the capture shows riding them; created, only
+# the IPv6 pair the alias brings (already held counts, on a resume); and, on a
+# fresh write, the apex and www records switched in place.
+record_switch_plan_problems() {
+  jq -r --argjson fresh "$1" --argjson riding "$2" "
+    def may_go: test(\"^aws_route53_record\\\\.legacy_apex_cnames\\\\[\\\"[^\\\"]+\\\"\\\\]\$\");
+    ${PLAN_PRELUDE}"'
+      ($del[] | select(may_go | not) | "would destroy \(.)"),
+      ($prior[] | select(may_go) | select(IN($del[]) | not) | "leaves \(.) in place"),
+      ($riding[] as $l | "aws_route53_record.legacy_apex_cnames[\"" + $l + "\"]"
+        | select(IN($del[]) | not) | select($fresh or IN($prior[]))
+        | "does not remove \($l), which rides the apex or www in the capture"),
+      ($cre[] | select(IN("aws_route53_record.apex_aaaa[0]", "aws_route53_record.www_aaaa[0]") | not) | "would create \(.)"),
+      ("aws_route53_record.apex_aaaa[0]", "aws_route53_record.www_aaaa[0]"
+        | select(IN($cre[]) | not) | select(IN($prior[]) | not) | "does not create \(.)"),
+      (if $fresh then ("aws_route53_record.apex_a[0]", "aws_route53_record.www[0]"
+        | select(IN($upd[]) | not) | "does not switch \(.) to the platform") else empty end)
+  '
+}
+
+# The notice raise: destroyed, only the cutover-window alarms the notice keeps
+# absent, every one the state holds; created, only the preview pair (already
+# held counts, on a resume); and, on a fresh write, the edge function changed
+# to compile the notice in.
+notice_raise_plan_problems() {
+  jq -r --argjson fresh "$1" "
+    def window_alarm: IN(\"aws_route53_health_check.site_ready[0]\", \"aws_cloudwatch_metric_alarm.site_unavailable[0]\",
+      \"aws_cloudwatch_metric_alarm.cloudfront_5xx[0]\", \"aws_cloudwatch_metric_alarm.cutover_zero_logins[0]\");
+    ${PLAN_PRELUDE}"'
+      ($del[] | select(window_alarm | not) | "would destroy \(.)"),
+      ($prior[] | select(window_alarm) | select(IN($del[]) | not) | "leaves \(.) in place"),
+      ($cre[] | select(IN("aws_route53_record.preview_a[0]", "aws_route53_record.preview_aaaa[0]") | not) | "would create \(.)"),
+      ("aws_route53_record.preview_a[0]", "aws_route53_record.preview_aaaa[0]"
+        | select(IN($cre[]) | not) | select(IN($prior[]) | not) | "does not create \(.)"),
+      (if $fresh then ("aws_cloudfront_function.apex_redirect[0]"
+        | select(IN($upd[]) | not) | "does not change \(.), so the notice would not be compiled in") else empty end)
+  '
+}
+
+# Plans with the given extra arguments into a private saved plan and checks it
+# with the stage's check. The saved plan can hold secrets, so it lives in a
+# mode-700 directory removed on every exit, and only addresses and actions are
+# read out of it. Arguments: the stage's name for the report, the check
+# function and its arguments, "--", then the plan's extra arguments.
+check_stage_plan() {
+  local what="$1"; shift
+  local check=()
+  while [[ "$1" != -- ]]; do check+=("$1"); shift; done
+  shift
+  local plan_file="${STAGE_TMP}/stage.tfplan" json problems p
+  plan_tree -lock=false -out="$plan_file" "$@"
+  case "$PLAN_RC" in
+    2) ;;
+    0)
+      cr_error "the ${STAGE} plan shows no changes, so it is not the ${what}; nothing was applied"
+      cr_unproved "the ${what}: terraform planned nothing to change"
+      cr_finish
+      ;;
+    *)
+      cr_error "the read-only ${STAGE} plan of production failed (exit ${PLAN_RC}); the values file is unchanged and nothing was applied"
+      cr_unproved "the ${what}: terraform could not plan it"
+      cr_finish
+      ;;
+  esac
+  json="$("$TF_BIN" -chdir="$TF_DIR" show -json "$plan_file" 2>/dev/null)" \
+    || cr_die "terraform show -json of the ${STAGE} plan failed; the values file is unchanged and nothing was applied."
+  problems="$("${check[@]}" <<<"$json")" \
+    || cr_die "the ${STAGE} plan could not be read as Terraform's JSON plan; the values file is unchanged and nothing was applied."
+  if [[ -n "$problems" ]]; then
+    while IFS= read -r p; do cr_error "${STAGE} plan: ${p}"; done <<<"$problems"
+    cr_unproved "the ${what}: the plan is not exactly the ${what}, so nothing was written or applied"
+    cr_finish
+  fi
+  echo "The ${STAGE} plan is exactly the ${what}:"
+  jq -r '.resource_changes[]? | select(.mode == "managed")
+    | (.change.actions | join(",")) as $x
+    | if $x == "delete" then "  removed by this plan: \(.address)"
+      elif $x == "create" then "  created by this plan: \(.address)"
+      elif $x == "update" then "  updated in place: \(.address)"
+      else empty end' <<<"$json"
+}
+
+# The shared run of a two-or-three-setting stage once its preconditions hold:
+# resume or a fresh write, the typed APPLY, the read-back, the apply, and the
+# clean plan after it. Arguments: the stage's name for the report, the
+# sentence stating what the apply does, the next steps that follow it, the
+# fresh-write check (its function and arguments), "--", the resume check,
+# "--", then the name=value pairs to write.
+run_settings_stage() {
+  local what="$1" consequence="$2" next="$3"; shift 3
+  local fresh_check=() resume_check=()
+  while [[ "$1" != -- ]]; do fresh_check+=("$1"); shift; done
+  shift
+  while [[ "$1" != -- ]]; do resume_check+=("$1"); shift; done
+  shift
+  local pairs=("$@") pair names_pattern=""
+  for pair in "${pairs[@]}"; do names_pattern="${names_pattern:+${names_pattern}|}${pair%%=*}"; done
+
+  if (( RESUME )); then
+    echo "Planning production read-only to see whether the state holds the ${what}."
+    plan_tree -lock=false
+    case "$PLAN_RC" in
+      0)
+        cr_proved "the ${what} is already in production: the values file holds it and the tree plans clean"
+        cr_unproved "${next}"
+        cr_finish
+        ;;
+      2) echo "Changes are pending; checking that they are exactly the ${what}." ;;
+      *)
+        cr_error "the read-only plan of production failed (exit ${PLAN_RC}); nothing was applied"
+        cr_unproved "the ${what}: the state could not be read"
+        cr_finish
+        ;;
+    esac
+    check_stage_plan "$what" "${resume_check[@]}" --
+  else
+    echo "Planning production read-only at its current values, so the apply carries only the ${what}."
+    plan_tree -lock=false
+    case "$PLAN_RC" in
+      0) echo "Nothing else is pending." ;;
+      2)
+        grep -E '^Plan: ' <<<"$PLAN_OUT" || [[ $? == 1 ]]
+        cr_error "other changes are pending in the production tree besides the ${what}; apply them first with scripts/terraform-apply.sh --target production, then re-run. The values file is unchanged and nothing was applied"
+        cr_unproved "the ${what}: refused with other changes pending"
+        cr_finish
+        ;;
+      *)
+        cr_error "the read-only plan of production at its current values failed (exit ${PLAN_RC}); the values file is unchanged and nothing was applied"
+        cr_unproved "the ${what}: terraform could not plan the current values"
+        cr_finish
+        ;;
+    esac
+
+    NEW_CONTENT="$(rewrite_assignments "$TFVARS_PATH" "${pairs[@]}")"
+
+    # Planned with the new values before the file is touched. The override
+    # carries only this stage's settings, and none is an operator address.
+    local override="${STAGE_TMP}/stage-override.tfvars"
+    for pair in "${pairs[@]}"; do
+      grep -qE "^[[:space:]]*${pair%%=*}[[:space:]]*=" <<<"$NEW_CONTENT" && printf '%s\n' "${pair%%=*} = ${pair#*=}"
+    done > "$override"
+    echo "Planning production read-only with the ${what} settings before writing anything."
+    check_stage_plan "$what" "${fresh_check[@]}" -- -var-file="$override"
+    echo ""
+
+    # Only this stage's own lines, before and after: a full diff would print
+    # neighbouring lines, and those are operator addresses.
+    echo "Values-file change in ${TFVARS_PATH} (the ${what} settings only):"
+    {
+      grep -E "^[[:space:]]*(${names_pattern})[[:space:]]*=" "$TFVARS_PATH" | sed 's/^/-/' || [[ $? == 1 ]]
+      grep -E "^[[:space:]]*(${names_pattern})[[:space:]]*=" <<<"$NEW_CONTENT" | sed 's/^/+/' || [[ $? == 1 ]]
+    } | tfvars_mask /dev/stdin
+    echo ""
+    printf '%s\n' "$consequence"
+    echo "Type APPLY to write this to the values file and apply production."
+    if ! confirm_from_tty "Type APPLY to continue: " "APPLY"; then
+      cr_die "Aborted: the values file is unchanged and nothing was applied."
+    fi
+    # Through the link, never mv: the values file is a symlink into the private
+    # operations checkout, and moving over it would leave a real file here.
+    printf '%s\n' "$NEW_CONTENT" > "$TFVARS_PATH"
+    for pair in "${pairs[@]}"; do
+      grep -qE "^[[:space:]]*${pair%%=*}[[:space:]]*=" <<<"$NEW_CONTENT" || continue
+      [[ "$(grep -E "^[[:space:]]*${pair%%=*}[[:space:]]*=" "$TFVARS_PATH" | tail -n 1 | sed -E 's/^[^=]*=[[:space:]]*//')" == "${pair#*=}" ]] \
+        || cr_die "${pair%%=*} did not read back as ${pair#*=} from ${TFVARS_PATH}; nothing was applied."
+    done
+    echo "  The ${what} settings are written and read back."
+    echo ""
+  fi
+
+  echo "== applying production =="
+  # Run directly rather than through cr_run: on production it asks for a typed
+  # APPLY on the terminal.
+  if ! bash "$APPLY_CMD" --target "$TARGET"; then
+    cr_error "the values file holds the ${what} settings but the production apply did not land; re-run this command to finish it"
+    cr_unproved "the ${what}: the apply failed"
+    cr_finish
+  fi
+  plan_tree -lock=false
+  if [[ "$PLAN_RC" != 0 ]]; then
+    cr_error "after the apply, production still plans changes (exit ${PLAN_RC}); re-run this command to finish the ${what}"
+    cr_unproved "the ${what}: the state does not yet hold it"
+    cr_finish
+  fi
+  cr_proved "the ${what} in production: applied through scripts/terraform-apply.sh, and the tree plans clean"
+  cr_unproved "${next}"
+  cr_finish
+}
+
+# A true/false setting the stage reads; it must be set in the file, since the
+# stages change only settings the file already carries.
+require_set() {
+  [[ -n "$(read_bool "$1" "$TFVARS_PATH")" ]] \
+    || cr_die "$1 is not set in the production values file; the ${STAGE} stage changes and checks only settings the file already carries. Nothing was changed."
+}
+require_true() {
+  [[ "$(read_bool "$1" "$TFVARS_PATH")" == true ]] \
+    || cr_die "$1 is not true: $2. Nothing was changed."
+}
+refuse_rehearsal() {
+  [[ "$(read_bool rehearse_launch_base_address "$TFVARS_PATH")" != true ]] \
+    || cr_die "rehearse_launch_base_address is on: the launch rehearsal is in progress, and its return comes first. Nothing was changed."
+}
+
+# ── STAGE record-switch ──────────────────────────────────────────────────────
+
+if [[ "$STAGE" == record-switch ]]; then
+  command -v jq >/dev/null || cr_die "jq is not installed; the switch plan cannot be checked without it. Nothing was changed."
+  STAGE_TMP="$(mktemp -d)"
+  chmod 700 "$STAGE_TMP"
+  cr_cleanup rm -rf "$STAGE_TMP"
+  require_capture_current
+  read_capture_labels
+
+  for f in enable_platform_custom_domain enable_preview_record enable_cutover_notice \
+           enable_legacy_mirror_records enable_apex_alias_records enable_cutover_login_alarm; do
+    echo "  ${f}: $(read_bool "$f" "$TFVARS_PATH")"
+    require_set "$f"
+  done
+  CUR_URL="$(read_url "$TFVARS_PATH")"
+  echo "  archive_platform_url: ${CUR_URL:-<empty or absent: www>}"
+  echo ""
+  require_true enable_platform_custom_domain "the custom domain is not on, so the apex would have no certificate to answer on"
+  require_true enable_preview_record "preview is not published, so the operator would have no name reaching the platform behind the notice"
+  require_true enable_cutover_notice "the migration notice is not up, so the switch would open the platform on www before launch"
+  require_true enable_legacy_mirror_records "the legacy mirror is off, so this is not the zone the switch expects"
+  refuse_rehearsal
+
+  # The names riding the apex and www leave with the switch, and the mirror
+  # carries them from the capture: a difference means the mirror is stale.
+  MIRRORED="$(map_keys legacy_apex_cname_records "$TFVARS_PATH" | sort -u)"
+  if [[ "$MIRRORED" != "$CAPTURE_RIDING" ]]; then
+    cr_error "the capture's names riding the apex and www ($(tr '\n' ' ' <<<"$CAPTURE_RIDING")) differ from the mirrored legacy_apex_cname_records ($(tr '\n' ' ' <<<"$MIRRORED"))"
+    cr_die "the mirror is stale against this capture; re-sync it with scripts/resync-zone-mirror.sh --with-removals against this capture, then re-run. Nothing was changed."
+  fi
+  echo "  riding the apex and www, in the capture and the mirror: $(tr '\n' ' ' <<<"$CAPTURE_RIDING")"
+  RIDING_JSON="$(jq -R . <<<"$CAPTURE_RIDING" | jq -cs 'map(select(. != ""))')"
+
+  CUR_ALIAS="$(read_bool enable_apex_alias_records "$TFVARS_PATH")"
+  CUR_LOGIN="$(read_bool enable_cutover_login_alarm "$TFVARS_PATH")"
+  RESUME=0
+  if [[ "$CUR_ALIAS" == false ]]; then
+    :
+  elif [[ "$CUR_ALIAS" == true && "$CUR_LOGIN" == true && -z "$CUR_URL" ]]; then
+    RESUME=1
+    echo "The values file already holds the record-switch settings."
+  else
+    cr_die "the record-switch settings are half set (the alias is '${CUR_ALIAS}' but the login watch reads '${CUR_LOGIN}' or the archive address is still set); this is neither the window nor a finished switch write. Nothing was changed."
+  fi
+
+  if (( DRY_RUN )); then
+    if (( RESUME )); then
+      echo "The values file would not be changed; the switch would be planned, checked and applied if still pending."
+    else
+      echo "Would set enable_apex_alias_records and enable_cutover_login_alarm to true and"
+      echo "clear archive_platform_url, then plan, check, apply."
+    fi
+    cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
+    cr_finish
+  fi
+
+  URL_PAIR=()
+  grep -qE "$URL_PATTERN" "$TFVARS_PATH" && URL_PAIR=('archive_platform_url=""')
+  CHANGES_SENTENCE=""
+  [[ -z "$CAPTURE_CHANGES" ]] || CHANGES_SENTENCE="
+The zone capture differs from the verified capture by ${CAPTURE_CHANGES} record(s), listed
+above; APPLY also accepts them as the legacy zone the switch leaves behind."
+  run_settings_stage "record switch" \
+    "This is the record switch: the apex and www move to the platform behind the migration
+notice, and the legacy names riding them are removed. The legacy site must already be
+frozen, its last crawls finished, election 191's results saved and the two final
+group-message containers sealed and committed, because nothing reaches it by name after
+this. APPLY attests that it is.${CHANGES_SENTENCE}" \
+    "what is served: the record lookups against a Route 53 nameserver and verify-cutover-notice.sh --front-door --expect-notice follow as their own steps" \
+    record_switch_plan_problems true "$RIDING_JSON" -- record_switch_plan_problems false "$RIDING_JSON" -- \
+    enable_apex_alias_records=true enable_cutover_login_alarm=true "${URL_PAIR[@]}"
+fi
+
+# ── STAGE notice-raise ───────────────────────────────────────────────────────
+
+if [[ "$STAGE" == notice-raise ]]; then
+  command -v jq >/dev/null || cr_die "jq is not installed; the raise plan cannot be checked without it. Nothing was changed."
+  STAGE_TMP="$(mktemp -d)"
+  chmod 700 "$STAGE_TMP"
+  cr_cleanup rm -rf "$STAGE_TMP"
+
+  for f in enable_platform_custom_domain enable_apex_alias_records enable_cutover_notice enable_preview_record; do
+    echo "  ${f}: $(read_bool "$f" "$TFVARS_PATH")"
+    require_set "$f"
+  done
+  echo ""
+  require_true enable_platform_custom_domain "the custom domain is not on, and the notice needs preview on it"
+  [[ "$(read_bool enable_apex_alias_records "$TFVARS_PATH")" == true ]] \
+    || cr_die "enable_apex_alias_records is not true: the apex has not been switched, so this is before the window, not a rollback; the window stage raises the notice there. Nothing was changed."
+  refuse_rehearsal
+
+  CUR_NOTICE="$(read_bool enable_cutover_notice "$TFVARS_PATH")"
+  CUR_PREVIEW="$(read_bool enable_preview_record "$TFVARS_PATH")"
+  RESUME=0
+  if [[ "$CUR_NOTICE" == false && "$CUR_PREVIEW" == false ]]; then
+    :
+  elif [[ "$CUR_NOTICE" == true && "$CUR_PREVIEW" == true ]]; then
+    RESUME=1
+    echo "The values file already holds the notice-raise settings."
+  else
+    cr_die "the notice-raise settings are half set (the notice reads '${CUR_NOTICE}' and the preview '${CUR_PREVIEW}'); this is neither the launched site nor a finished raise. Nothing was changed."
+  fi
+
+  if (( DRY_RUN )); then
+    if (( RESUME )); then
+      echo "The values file would not be changed; the raise would be planned, checked and applied if still pending."
+    else
+      echo "Would set enable_cutover_notice and enable_preview_record to true, then plan, check, apply."
+    fi
+    cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
+    cr_finish
+  fi
+
+  run_settings_stage "notice raise" \
+    "This raises the migration notice again: www and the apex show the notice, preview serves
+the platform to the operator, and the cutover-window alarms are removed until the notice
+lifts." \
+    "the preview base-address deploy (./deploy_to_aws.sh --target production), verify-host-env.sh and verify-cutover-notice.sh --front-door --expect-notice follow as their own steps" \
+    notice_raise_plan_problems true -- notice_raise_plan_problems false -- \
+    enable_cutover_notice=true enable_preview_record=true
 fi
 
 # The platform's own address, from the tree: the distribution's cloudfront.net

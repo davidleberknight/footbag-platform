@@ -46,6 +46,8 @@ const INSTANCE_ARN = 'arn:aws:lightsail:us-east-1:041904915126:Instance/0f1e2d3c
 const REBUILT_ARN = 'arn:aws:lightsail:us-east-1:041904915126:Instance/99999999-8888-7777-6666-555555555555';
 const CREATED = '2026-09-01T10:00:00.123000+00:00';
 const INSTANCE_RECORD = `footbag-staging footbag-staging-web ${INSTANCE_ARN} ${CREATED}`;
+/** The record the onboarding builds and delivers: CREATED as one UTC instant, to the millisecond. */
+const INSTANCE_RECORD_UTC = `footbag-staging footbag-staging-web ${INSTANCE_ARN} 2026-09-01T10:00:00.123Z`;
 /** The operator's current staging pin: two keys on both ports, each tagged. */
 const OPERATOR_PIN = ['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureHostKeyEd25519', 'ssh-rsa AAAAB3NzaC1yc2EAAAADAQABFixtureHostKeyRsa']
   .flatMap((k) => [`203.0.113.10 ${k} footbag-staging`, `[203.0.113.10]:2222 ${k} footbag-staging`]);
@@ -581,7 +583,7 @@ describe('onboard-dev-tester.sh — a whole onboarding', () => {
     // nothing proves current.
     expect(body.match(/^PIN=/gm)).toHaveLength(4);
     for (const line of OPERATOR_PIN) expect(body).toContain(`PIN=${line}\n`);
-    expect(body).toContain(`INSTANCE_RECORD=${INSTANCE_RECORD}\n`);
+    expect(body).toContain(`INSTANCE_RECORD=${INSTANCE_RECORD_UTC}\n`);
     expect(mintCalls()).toBe('');
   });
 

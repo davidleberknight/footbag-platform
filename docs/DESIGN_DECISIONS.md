@@ -4724,7 +4724,7 @@ Impact:
 
 Health Checks and Restart Policies:
 
-All containers configured with health checks (30-60s intervals, 3 retries) and restart policies. All four containers use restart: unless-stopped with no retry cap, so a container comes back after any number of crashes or out-of-memory kills and stays down only when an operator stops it. CloudWatch monitors container health status, crashes and out-of-memory kills and alerts on each, so a restart loop is seen rather than capped.
+All containers configured with health checks (30-60s intervals, 3 retries) and restart policies. All four containers use restart: unless-stopped with no retry cap, so a container comes back after any number of crashes or out-of-memory kills and stays down only when an operator stops it, or a start of the service fails, or a deploy or restore never reports ready. A failed start takes the whole stack down, and a deploy or restore whose stack does not come up stops it, so a container that cannot start fails fast to the maintenance page and its alarm rather than restarting indefinitely. CloudWatch monitors container health status, crashes and out-of-memory kills and alerts on each, so a restart loop after a successful start is seen rather than capped.
 
 ## 7.4 GitHub
 
@@ -5508,6 +5508,6 @@ Operations Dashboard: a CloudWatch dashboard carrying distribution error rates, 
 
 Alert Configuration Principle:
 
-Alerts are tuned to minimize false positives while catching real issues. Warning alerts use 5-10 minute windows to avoid flapping on transient spikes. Critical alerts use shorter windows (1-5 minutes) for rapid response. Thresholds are adjusted when an alert proves too noisy or too quiet, as usage patterns evolve.
+Alerts are tuned to minimize false positives while catching real issues. Warning alerts use 5-10 minute windows to avoid flapping on transient spikes. Critical alerts use shorter windows (1-5 minutes) for rapid response. Thresholds are adjusted when an alert proves too noisy or too quiet, as usage patterns evolve. During a heavy step of the production-readiness sitting (a host rebuild, a restore, a fresh instance's bootstrap), the alarms the step is expected to trip are muted for its duration by a bounded one-time CloudWatch mute rule, which the alerting-disabled audit alarm counts, so the alarm that matters is not buried in expected mail; the sitting reads the alarms' state before and after each such step, with the host's CPU burst capacity before it, and stops on a critical alarm.
 
 **END OF Design Decisions DOCUMENT**

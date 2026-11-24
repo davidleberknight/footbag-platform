@@ -28,6 +28,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
+import { insertSystemConfig } from '../fixtures/factories';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/restore-db-remote.sh');
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/restore-db.sh');
@@ -64,14 +65,60 @@ let s3Dir: string;
 let envPath: string;
 let callLog: string;
 
-function seedDb(path: string, members: string[], schema = FIXTURE_SCHEMA, extraSql = ''): void {
+function seedDb(
+  path: string, members: string[], schema = FIXTURE_SCHEMA, extraSql = '',
+  seed?: (db: BetterSqlite3.Database) => void,
+): void {
   const db = new BetterSqlite3(path);
   db.exec(schema);
   const insert = db.prepare('INSERT INTO members (id) VALUES (?)');
   for (const id of members) insert.run(id);
   if (extraSql) db.exec(extraSql);
+  if (seed) seed(db);
   db.close();
 }
+
+/**
+ * The runtime levers' table, its append-only triggers and the view the
+ * application reads, cut from the real schema so the pause a restore writes is
+ * judged by the same definitions the platform runs on.
+ */
+const SCHEMA_SQL = readFileSync(join(process.cwd(), 'database/schema.sql'), 'utf8');
+const SYSTEM_CONFIG_DDL = (() => {
+  const start = SCHEMA_SQL.indexOf('CREATE TABLE system_config (');
+  const viewAt = SCHEMA_SQL.indexOf('CREATE VIEW system_config_current AS', start);
+  const end = SCHEMA_SQL.indexOf(');', viewAt) + 2;
+  if (start < 0 || viewAt < 0 || end < 2) throw new Error('system_config definitions not found in the schema');
+  return SCHEMA_SQL.slice(start, end);
+})();
+const LEVERS_SCHEMA = `${FIXTURE_SCHEMA}\n${SYSTEM_CONFIG_DDL}`;
+
+/** Both levers open, as the schema seeds them and as the pre-flip snapshot holds them. */
+function seedLeversOpen(db: BetterSqlite3.Database): void {
+  for (const key of ['payments_paused', 'email_outbox_paused']) {
+    insertSystemConfig(db, {
+      config_key: key, value_json: '0',
+      created_at: '2000-01-01T00:00:00.000Z', effective_start_at: '2000-01-01T00:00:00.000Z',
+    });
+  }
+}
+
+/** What the application would read for each lever in the database at `path`. */
+function leverStates(path: string): Record<string, string> {
+  const db = new BetterSqlite3(path, { readonly: true });
+  try {
+    const rows = db.prepare(
+      `SELECT config_key, value_json FROM system_config_current
+        WHERE config_key IN ('payments_paused', 'email_outbox_paused')`,
+    ).all() as { config_key: string; value_json: string }[];
+    return Object.fromEntries(rows.map((r) => [r.config_key, r.value_json]));
+  } finally {
+    db.close();
+  }
+}
+
+/** The root-side body that writes a lever, as the wrapper carries it on the stream. */
+const PAUSE_BODY_B64 = readFileSync(join(process.cwd(), 'scripts/internal/runtime-pause-remote.sh')).toString('base64');
 
 beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), 'footbag-test-restore-'));
@@ -123,6 +170,12 @@ beforeEach(() => {
     // release's first install leaves it. SYSTEMCTL_NO_UNIT: no unit installed.
     'if [[ "$1" == "is-active" && "$*" == *" footbag" && -n "${SYSTEMCTL_SERVICE_INACTIVE:-}" ]]; then exit 3; fi',
     'if [[ "$1" == "cat" && -n "${SYSTEMCTL_NO_UNIT:-}" ]]; then exit 1; fi',
+    // Each service start records what the levers read in the database in place
+    // at that moment, so a case can show the pauses were set before the start.
+    'if [[ "$1" == "start" && "$2" == "footbag" ]]; then',
+    `  levers="$(sqlite3 -readonly ${JSON.stringify(dbPath)} "SELECT group_concat(config_key || '=' || value_json, ' ') FROM (SELECT config_key, value_json FROM system_config_current WHERE config_key IN ('email_outbox_paused','payments_paused') ORDER BY config_key);" 2>/dev/null)"`,
+    `  echo "levers at start: \${levers:-none}" >> ${JSON.stringify(callLog)}`,
+    'fi',
     // SYSTEMCTL_START_FAILS: the service will not start; SYSTEMCTL_TIMER_START_FAILS:
     // the backup timer will not start. Each answers as systemd does.
     'if [[ "$1" == "start" && "$2" == "footbag" && -n "${SYSTEMCTL_START_FAILS:-}" ]]; then',
@@ -147,6 +200,9 @@ beforeEach(() => {
     '#!/usr/bin/env bash',
     `echo "docker $*" >> ${JSON.stringify(callLog)}`,
     'if [[ " $* " == *" exec "* ]]; then exit "${DOCKER_STUB_EXEC_EXIT:-0}"; fi',
+    // The container listing a failed start reads to name what failed.
+    `if [[ " $* " == *" ps --all --format "* ]]; then printf '%b' "\${DOCKER_STUB_PS-}"; exit 0; fi`,
+    'if [[ " $* " == *" stop --timeout "* ]]; then exit 0; fi',
     'if [[ -n "${DOCKER_STUB_SIGNAL:-}" ]]; then',
     '  kill -"$DOCKER_STUB_SIGNAL" "$(ps -o ppid= -p "$PPID" | tr -d " ")"',
     'fi',
@@ -173,12 +229,15 @@ function publishSnapshot(
   members: string[],
   key = 'routine/2026/08/21/snap.db.gz',
   {
-    bucket = HOST_BUCKET, compress = true, schema = FIXTURE_SCHEMA, extraSql = '',
-  }: { bucket?: string; compress?: boolean; schema?: string; extraSql?: string } = {},
+    bucket = HOST_BUCKET, compress = true, schema = FIXTURE_SCHEMA, extraSql = '', seed,
+  }: {
+    bucket?: string; compress?: boolean; schema?: string; extraSql?: string;
+    seed?: (db: BetterSqlite3.Database) => void;
+  } = {},
 ): string {
   const raw = join(workDir, 'to-publish.db');
   rmSync(raw, { force: true });
-  seedDb(raw, members, schema, extraSql);
+  seedDb(raw, members, schema, extraSql, seed);
   const target = join(s3Dir, bucket, key);
   mkdirSync(join(target, '..'), { recursive: true });
   const body = readFileSync(raw);
@@ -549,6 +608,78 @@ describe('restoring a snapshot onto a host', () => {
 
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('Newest audit row: 2026-08-21T09:30:00.000Z');
+  });
+});
+
+describe('a cutover rollback restore comes up with payments and outbound mail paused', () => {
+  // The pre-flip snapshot is taken before either lever is paused, and both
+  // levers are rows in the database a restore replaces, so a pause set before
+  // the restore is overwritten by it. The restore therefore sets both on the
+  // restored copy itself.
+  const PRE_FLIP_KEY = 'pre-flip/pre-cutover-20261215T000000Z/pre-cutover-20261215T000000Z.db.gz';
+  const preFlip = (extra?: NodeJS.ProcessEnv) => runRemote(PRE_FLIP_KEY, undefined, {
+    PRE_FLIP: '1', PAUSE_BODY_B64, ...(extra ?? {}),
+  });
+  const firstStart = () => calls().split('\n').find((l) => l.startsWith('levers at start:'));
+
+  // Defect caught: the restored service resending, from the snapshot's outbox,
+  // mail members were already sent, and offering a checkout against a database
+  // about to be reconciled, because it started with both levers open.
+  it('pauses both levers on the restored copy before the service first starts', () => {
+    publishSnapshot(['snapshot-1'], PRE_FLIP_KEY, { schema: LEVERS_SCHEMA, seed: seedLeversOpen });
+    const res = preFlip();
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(memberIds(dbPath)).toEqual(['snapshot-1']);
+    expect(leverStates(dbPath)).toEqual({ payments_paused: '1', email_outbox_paused: '1' });
+    expect(firstStart()).toBe('levers at start: email_outbox_paused=1 payments_paused=1');
+    // Defect caught: an operator unpausing a restored database that still lacks
+    // the first administrator and the other repairs the snapshot predates.
+    expect(res.stdout).toContain('PAUSED');
+    expect(res.stdout).toContain('post-load repairs');
+  });
+
+  // Defect caught: a replay left pending and finished later with the resume
+  // command, which starts the service on whatever the database then holds.
+  it('has both pauses in place even when the erasure replay fails and holds the site down', () => {
+    publishSnapshot(['snapshot-1'], PRE_FLIP_KEY, { schema: LEVERS_SCHEMA, seed: seedLeversOpen });
+    const res = preFlip({ DOCKER_STUB_EXIT: '1' });
+
+    expect(res.status).toBe(PENDING_EXIT);
+    expect(leverStates(dbPath)).toEqual({ payments_paused: '1', email_outbox_paused: '1' });
+  });
+
+  // Defect caught: a restored database coming up with its levers open because a
+  // pause that could not be written was reported and then walked past.
+  it.each([
+    ['the snapshot has no lever table to write to', { schema: FIXTURE_SCHEMA }, {}],
+    ['the pause body did not arrive with the restore', { schema: LEVERS_SCHEMA, seed: seedLeversOpen }, { PAUSE_BODY_B64: '' }],
+    ['the lever body exits cleanly without reading the pause back',
+      { schema: LEVERS_SCHEMA, seed: seedLeversOpen },
+      { PAUSE_BODY_B64: Buffer.from('#!/usr/bin/env bash\nexit 0\n').toString('base64') }],
+  ])('puts the previous database back and fails when %s', (_label, snap, extra) => {
+    publishSnapshot(['snapshot-1'], PRE_FLIP_KEY, snap);
+    const res = preFlip(extra as NodeJS.ProcessEnv);
+
+    expect(res.status).toBe(1);
+    expect(memberIds(dbPath)).toEqual(['live-1', 'live-2']);
+    expect(res.stderr.split('\n').some((l) => l.startsWith(MARKED_ERROR) && l.includes('restored database')))
+      .toBe(true);
+    expect(calls()).not.toContain('runErasureReplay.js');
+    expect(res.stdout).not.toContain('DATABASE RESTORED');
+  });
+
+  // Defect caught: an ordinary restore to the latest good backup pausing the
+  // levers nobody asked it to, taking payments and mail down after recovery.
+  it('leaves the levers as the snapshot holds them on an ordinary restore', () => {
+    const key = publishSnapshot(['snapshot-1'], 'routine/2026/12/20/footbag-20261220T120000Z.db.gz', {
+      schema: LEVERS_SCHEMA, seed: seedLeversOpen,
+    });
+    const res = runRemote(key, undefined, { PAUSE_BODY_B64 });
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(leverStates(dbPath)).toEqual({ payments_paused: '0', email_outbox_paused: '0' });
+    expect(res.stdout).not.toContain('post-load repairs');
   });
 });
 
@@ -1663,6 +1794,163 @@ describe('the operator-facing restore script', () => {
     expect(sessions[0]).toContain('footbag-host-identity');
   });
 
+  /**
+   * A production rollback run against stand-ins: the AWS seam answers the email
+   * switch read from EMAIL_VALUE (or fails it with EMAIL_ERROR), and the ssh
+   * client answers the host's identity as production and records every session
+   * it is sent, so a case can show whether the run reached the host at all.
+   */
+  function runPreFlip(emailEnv: NodeJS.ProcessEnv): { status: number; stdout: string; stderr: string; sessions: string[]; ssmCalls: string[] } {
+    const stubDir = join(workDir, 'pre-flip-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const sshCalls = join(workDir, 'pre-flip-ssh.log');
+    const awsCalls = join(workDir, 'pre-flip-aws.log');
+    writeFileSync(join(stubDir, 'ssh'), [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> "${sshCalls}"`,
+      hostIdentityAnswer('production'),
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then printf "hostname 203.0.113.40\\nuser footbag\\n"; exit 0; fi',
+      'done',
+      'cat > /dev/null',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(join(stubDir, 'ssh'), 0o755);
+    const awsStub = join(stubDir, 'restore-aws');
+    writeFileSync(awsStub, [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> "${awsCalls}"`,
+      'if [[ " $* " == *" ssm get-parameter "* ]]; then',
+      '  if [[ -n "${EMAIL_ERROR:-}" ]]; then echo "$EMAIL_ERROR" >&2; exit 254; fi',
+      '  printf "%s\\n" "${EMAIL_VALUE-}"; exit 0',
+      'fi',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(awsStub, 0o755);
+    writeFileSync(join(stubDir, 'aws'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(stubDir, 'aws'), 0o755);
+    const pin = join(workDir, 'pre-flip-pin');
+    writeFileSync(pin, '[203.0.113.40]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+
+    const res = spawnSync('setsid', [
+      'bash', OPERATOR_SCRIPT, '--target', 'production', '--pre-flip',
+      '--bucket', 'footbag-production-db-snapshots-dr',
+      '--snapshot', 'pre-flip/pre-cutover-20261215T000000Z/pre-cutover-20261215T000000Z.db.gz',
+    ], {
+      encoding: 'utf8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(workDir),
+        PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_KNOWN_HOSTS: pin,
+        RESTORE_DB_AWS_BIN: awsStub,
+        ...emailEnv,
+      },
+      ...SPAWN_GUARD,
+    });
+    const lines = (p: string) => (existsSync(p) ? readFileSync(p, 'utf8').split('\n').filter(Boolean) : []);
+    return {
+      status: res.status ?? -1,
+      stdout: res.stdout ?? '',
+      stderr: res.stderr ?? '',
+      sessions: lines(sshCalls).filter((l) => l.includes('sudo')),
+      ssmCalls: lines(awsCalls).filter((l) => l.includes('ssm get-parameter')),
+    };
+  }
+
+  // Defect caught: the cutover rollback restored onto production with email
+  // still armed, so the restored service resent, from the pre-flip snapshot's
+  // outbox, mail members had already been sent. The switch lives outside the
+  // database and is the one lever that survives the restore, so it must read
+  // dark before anything reaches the host.
+  it.each([
+    ['reads armed', { EMAIL_VALUE: 'armed' }, /email switch reads 'armed', not dark/],
+    ['reads a value it never holds', { EMAIL_VALUE: 'false' }, /email switch reads 'false', not dark/],
+    ['cannot be read', { EMAIL_ERROR: 'An error occurred (AccessDeniedException) when calling the GetParameter operation: denied' }, /could not read \/footbag\/production\/app\/email_send_armed.*AccessDeniedException/],
+  ])('refuses a production rollback, before reaching the host, when the email switch %s', (_label, extra, message) => {
+    const r = runPreFlip(extra as NodeJS.ProcessEnv);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(message);
+    expect(r.sessions, 'nothing was sent to the host').toEqual([]);
+  });
+
+  it('reads the production email switch in its own region, and goes on to the host when it reads dark', () => {
+    // Defect caught: a guard that refuses every rollback, or one that asks the
+    // DR bucket's region for a parameter that lives beside the application.
+    const r = runPreFlip({ EMAIL_VALUE: 'dark' });
+    expect(r.stdout).toContain('production email switch reads dark');
+    expect(r.ssmCalls).toHaveLength(1);
+    expect(r.ssmCalls[0]).toContain('--name /footbag/production/app/email_send_armed');
+    expect(r.ssmCalls[0]).toContain('--region us-east-1');
+    expect(r.ssmCalls[0]).not.toContain('us-west-2');
+    expect(r.sessions.length, 'the run reached the host').toBeGreaterThan(0);
+  });
+
+  // Defect caught: the workstation half confirming a rollback and then sending
+  // the host neither the rollback flag nor the body that writes the levers, so
+  // the host half restores and starts the service with both levers open.
+  it('sends the host the rollback flag and the lever body once a production rollback is confirmed', () => {
+    const stubDir = join(workDir, 'rollback-host-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const session = join(workDir, 'rollback-session.txt');
+    // Answers the identity question, the env-file read (one section, the
+    // adapters stubbed) and the restore session, which it records.
+    const envSection = Buffer.from('SES_ADAPTER=stub\nPAYMENT_ADAPTER=stub\nFOOTBAG_ENV=production\n').toString('base64');
+    writeFileSync(join(stubDir, 'ssh'), [
+      '#!/usr/bin/env bash',
+      hostIdentityAnswer('production'),
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then printf "hostname 203.0.113.41\\nuser footbag\\n"; exit 0; fi',
+      'done',
+      'stream="$(cat)"',
+      'if grep -q "Root-side body of scripts/restore-db.sh" <<<"$stream"; then',
+      `  printf "%s\\n" "$stream" > "${session}"; echo "DATABASE RESTORED on stand-in"; exit 0`,
+      'fi',
+      `printf -- "---FOOTBAG-ENV-B64---\\n%s\\n" "${envSection}"`,
+      'exit 0',
+    ].join('\n'));
+    chmodSync(join(stubDir, 'ssh'), 0o755);
+    const awsStub = join(stubDir, 'restore-aws');
+    writeFileSync(awsStub, [
+      '#!/usr/bin/env bash',
+      'if [[ " $* " == *" ssm get-parameter "* ]]; then echo dark; fi',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(awsStub, 0o755);
+    writeFileSync(join(stubDir, 'aws'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(stubDir, 'aws'), 0o755);
+    const pin = join(workDir, 'rollback-pin');
+    writeFileSync(pin, '[203.0.113.41]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+    const credFile = join(workDir, 'rollback-cred');
+    writeFileSync(credFile, 'fixture-sudo-password\n', { mode: 0o600 });
+
+    const inner = ['bash', OPERATOR_SCRIPT, '--target', 'production', '--pre-flip',
+      '--bucket', 'footbag-production-db-snapshots-dr',
+      '--snapshot', 'pre-flip/pre-cutover-20261215T000000Z/pre-cutover-20261215T000000Z.db.gz',
+    ].map((a) => JSON.stringify(a)).join(' ');
+    const res = spawnSync('script', ['-qec', `${inner} < ${JSON.stringify(credFile)}; echo "EXIT=$?"`, '/dev/null'], {
+      encoding: 'utf8',
+      input: 'APPLY\n',
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(workDir),
+        PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_KNOWN_HOSTS: pin,
+        RESTORE_DB_AWS_BIN: awsStub,
+      },
+      ...SPAWN_GUARD,
+    });
+    const out = res.stdout ?? '';
+    expect(out, out).toMatch(/EXIT=0/);
+    const sent = readFileSync(session, 'utf8');
+    expect(sent).toMatch(/^PRE_FLIP=1$/m);
+    expect(sent).toContain(`PAUSE_BODY_B64=${PAUSE_BODY_B64}`);
+    // Defect caught: an operator told the rollback is done, with no word that the
+    // restored database still lacks the repairs the snapshot predates.
+    expect(out).toContain('post-load repairs');
+  });
+
   it('refuses a snapshot stream that is not one of the two environments', () => {
     const res = runOperator(['--to-local', join(workDir, 'out.db'), '--source', 'prod']);
     expect(res.status).toBe(1);
@@ -1700,5 +1988,41 @@ describe('the operator-facing restore script', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('refusing to overwrite');
     expect(readFileSync(existing, 'utf8')).toBe('do not clobber me');
+  });
+});
+
+describe('a restored service that does not come up is stopped, not left restarting', () => {
+  // Defect caught: a restore whose service failed to start, or started and
+  // never reported ready, left Docker restarting the failing container without
+  // limit, starving a small host for hours, and its report said only that the
+  // host half exited 1. Each failure now names the container and stops the
+  // stack (stop, not down, so the container's log stays readable).
+  const LISTING = 'nginx exited \\nweb restarting \\nworker running healthy\\nimage running healthy\\n';
+
+  it('names the failing container and stops the stack when the service never reports ready', () => {
+    const res = runRemote(publishSnapshot(['snapshot-1']), undefined, {
+      DOCKER_STUB_EXEC_EXIT: '1', DOCKER_STUB_PS: LISTING,
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/container web is restarting/);
+    expect(res.stderr).toMatch(/container nginx is exited/);
+    expect(res.stderr).not.toMatch(/container worker is/);
+    expect(calls()).toMatch(/docker compose .* stop --timeout 30/);
+  });
+
+  it('names the failing container and stops the stack when the service fails to start', () => {
+    const res = runRemote(publishSnapshot(['snapshot-1']), undefined, {
+      SYSTEMCTL_START_FAILS: '1', DOCKER_STUB_PS: LISTING,
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/footbag\.service did not start/);
+    expect(res.stderr).toMatch(/container web is restarting/);
+    expect(calls()).toMatch(/docker compose .* stop --timeout 30/);
+  });
+
+  it('stops nothing when the restored service comes up', () => {
+    const res = runRemote(publishSnapshot(['snapshot-1']), undefined, { DOCKER_STUB_PS: LISTING });
+    expect(res.status, res.stderr).toBe(0);
+    expect(calls()).not.toMatch(/ stop --timeout/);
   });
 });

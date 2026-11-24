@@ -365,6 +365,15 @@ describe('production-only routing', () => {
       const alerting = tf.match(/^\s*alerting-disabled = \{([\s\S]*?)^\s*\}/m)?.[1] ?? '';
       expect(alerting).toMatch(/\(\$\.eventSource = \\"access-analyzer\.amazonaws\.com\\" && \$\.eventName = \\"DeleteAnalyzer\\"\)/);
     });
+
+    it('raises the alerting-disabled alarm when an alarm mute rule is created', () => {
+      // Defect caught: a mute rule silences alarms' notifications as surely as
+      // disabling their actions, so one created outside a readiness run would
+      // otherwise go unseen. The sitting's heavy-step mute relies on this: it
+      // mutes only once the applied filter counts mute rules.
+      const alerting = tf.match(/^\s*alerting-disabled = \{([\s\S]*?)^\s*\}/m)?.[1] ?? '';
+      expect(alerting).toMatch(/\$\.eventSource = \\"monitoring\.amazonaws\.com\\" && \([^)]*\$\.eventName = \\"PutAlarmMuteRule\\"/);
+    });
   });
 
   it('leaves the account alternate contacts to the shared tree alone', () => {

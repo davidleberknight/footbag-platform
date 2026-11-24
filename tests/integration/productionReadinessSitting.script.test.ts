@@ -52,7 +52,7 @@ const DEFAULT_RULES: Rule[] = [
   // The marker line production-live-marker.sh prints before go-live.
   { match: 'scripts/production-live-marker.sh --status*', stdout: 'Marker /footbag/production/app/production_live currently reads: false' },
   // The status read's switch line, as arming.sh prints it for a dark switch.
-  { match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): false' },
+  { match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): dark' },
 ];
 
 const STUB = `#!/usr/bin/env bash
@@ -366,6 +366,88 @@ describe('the host rebuild drills', () => {
     }
   });
 
+  // Defect caught: a host rebuild, restore or fresh-instance bootstrap started
+  // on a host whose CPU burst allowance is spent, so it ran at baseline CPU and
+  // failed six times in one night; or a critical alarm left firing after one,
+  // with the run carrying on regardless.
+  it('reads the host\'s health before and the alarms after each heavy step', () => {
+    const r = sit(['--target', 'staging', '--from-step', 's11a', '--to-step', 's13b'], YES(2));
+    expect(r.status, r.out).toBe(0);
+    // Each heavy step, then the next step's command: the alarm read comes
+    // after the step (and its proof read) and before the next step runs.
+    const pairs: [RegExp, RegExp][] = [
+      [/^scripts\/restore-host\.sh --target staging$/, /^deploy_to_aws\.sh --target staging$/],
+      [/^scripts\/bootstrap-host\.sh --target staging --restore-database$/, /^scripts\/verify-account-baseline\.sh/],
+    ];
+    const all = stepCalls().map((c) => c.call);
+    for (const [heavy, next] of pairs) {
+      const step = at(heavy);
+      expect(step, String(heavy)).toBeGreaterThan(1);
+      const following = all.findIndex((c, k) => k > step && next.test(c));
+      // Health read, then the mute of the step's expected alarms, then the step.
+      expect(all.slice(step - 2, step)).toEqual([
+        'scripts/check-env-health.sh --target staging --allow-site-down',
+        'scripts/mute-expected-alarms.sh --target staging --minutes 120',
+      ]);
+      // After it: the alarm read, then the mute lifted, before the next step.
+      const after = all.indexOf('scripts/check-env-health.sh --target staging --alarms-only --wait-minutes 10', step);
+      const unmute = all.indexOf('scripts/mute-expected-alarms.sh --target staging --clear', step);
+      expect(after, `alarm read after ${heavy}`).toBeGreaterThan(step);
+      expect(unmute).toBeGreaterThan(after);
+      expect(following, `next step after ${heavy}`).toBeGreaterThan(unmute);
+    }
+    // A light step gets no health read of its own.
+    const replace = at(/^scripts\/bootstrap-host\.sh --target staging --replace-instance$/);
+    expect(stepCalls()[replace - 1].call).not.toMatch(/check-env-health/);
+  });
+
+  it('does not start a heavy step on an unfit host, and resumes at that step within the same stretch', () => {
+    writeRules([{ match: 'scripts/check-env-health.sh --target staging --allow-site-down', codes: [1] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's13b']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT s11k/);
+    expect(at(/^scripts\/bootstrap-host\.sh --target staging --restore-database$/)).toBe(-1);
+    // Nothing was muted for a step that never started.
+    expect(at(/^scripts\/mute-expected-alarms\.sh/)).toBe(-1);
+    expect(rows().at(-1)!.slice(3, 6)).toEqual(['s11k', 'scripts/check-env-health.sh --target staging --allow-site-down', 'failed (health)']);
+    // The resume a stop prints keeps the stretch's end, so it does not run on
+    // past the drills into the second operator's step.
+    expect(r.out).toMatch(/--from-step s11k --to-step s13b/);
+  });
+
+  it('records a heavy step done but stops before the next one while a critical alarm stays in ALARM', () => {
+    writeRules([{ match: 'scripts/check-env-health.sh --target staging --alarms-only*', codes: [1] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's13b']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT s11l/);
+    expect(rows().some((row) => row[3] === 's11k' && row[5] === 'ok')).toBe(true);
+    expect(at(/^scripts\/verify-account-baseline\.sh/)).toBe(-1);
+    // The mute is lifted even though the run stops.
+    expect(at(/^scripts\/mute-expected-alarms\.sh --target staging --clear$/)).toBeGreaterThan(-1);
+  });
+
+  it('lifts the mute when the heavy step itself fails', () => {
+    // Defect caught: a failed rebuild leaving its alarms muted, so the
+    // operator investigating it is not told when they fire.
+    writeRules([{ match: 'scripts/bootstrap-host.sh --target staging --restore-database', codes: [1] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's13b']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT s11k/);
+    const muted = at(/^scripts\/mute-expected-alarms\.sh --target staging --minutes 120$/);
+    const lifted = at(/^scripts\/mute-expected-alarms\.sh --target staging --clear$/);
+    expect(muted).toBeGreaterThan(-1);
+    expect(lifted).toBeGreaterThan(muted);
+  });
+
+  it('carries on unmuted, with a warning, when the mute script fails', () => {
+    // Defect caught: a heavy step blocked by its own mute.
+    writeRules([{ match: 'scripts/mute-expected-alarms.sh *', codes: [2] }]);
+    const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's11k']);
+    expect(r.status, r.out).toBe(0);
+    expect(at(/^scripts\/bootstrap-host\.sh --target staging --restore-database$/)).toBeGreaterThan(-1);
+    expect(r.out).toMatch(/mute-expected-alarms\.sh --target staging --minutes 120 exited 2/);
+  });
+
   // Defect caught: the production drills replacing a live production's
   // serving host, or starting on a tree with changes still to apply.
   it('stops before any production drill when production is live', () => {
@@ -380,7 +462,7 @@ describe('the host rebuild drills', () => {
   // restored host's worker resends, from the snapshot's day-old database, mail
   // the old host had already sent to real members.
   it('stops before the production restore unless the email switch reads dark', () => {
-    writeRules([{ match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): true' }]);
+    writeRules([{ match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): armed' }]);
     const armed = sit(['--target', 'production', '--from-step', 'p90a', '--to-step', 'p90s'], YES(2));
     expect(armed.status).toBe(1);
     expect(armed.out).toMatch(/VERDICT: STOPPED AT p90c/);

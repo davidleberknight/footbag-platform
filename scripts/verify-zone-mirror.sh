@@ -49,15 +49,15 @@
 #   receivers ignore it, and each one has a text-record twin carrying the
 #   identical string, which IS carried and IS compared.
 #
-#   www changes shape, and three further names change with it. The legacy zone
-#   answers www as a canonical name pointing at the apex, so a query of ANY type
-#   against www chases to the apex and is answered there -- and v, worlds and
-#   worldchampionships are canonical names pointing at www, so they chase the
-#   same chain and reach the apex too. The mirror answers www as an address-type
-#   alias, which answers only its own type, so mail and text queries against all
-#   four return empty afterwards. Two more names, fi and ftp, point straight at
-#   the apex and are unaffected, which is why the blast radius is four and not
-#   the five that ride the apex and www between them.
+#   www changes shape, and every name riding www changes with it. The legacy
+#   zone answers www as a canonical name pointing at the apex, so a query of ANY
+#   type against www chases to the apex and is answered there -- and the
+#   canonical names pointing at www (worlds and worldchampionships in the
+#   capture) chase the same chain and reach the apex too. The mirror answers www
+#   as an address-type alias, which answers only its own type, so mail and text
+#   queries against www and those names return empty afterwards. The names
+#   pointing straight at the apex (fi and ftp) are unaffected, so the blast
+#   radius is www and the names riding it, not every name riding the apex or www.
 #
 #   Only www is REPORTED as a departure, and that is correct rather than an
 #   omission. The other three carry the same canonical-name record in both zones,

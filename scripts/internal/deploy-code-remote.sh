@@ -1338,13 +1338,13 @@ systemctl daemon-reload
 if [[ "$FIRST_INSTALL" != "1" ]]; then
   systemctl is-enabled --quiet footbag || systemctl enable footbag
 fi
-# The container monitor has no prerequisite of its own beyond the running
-# stack, so every deploy that enables the stack enables it too: a monitor that
-# waits on a separate install step is a host that is not watched. It follows
-# the stack's exception above, and for the same reason.
-if [[ "$FIRST_INSTALL" != "1" ]]; then
-  systemctl enable --now footbag-container-monitor.timer
-fi
+# The container monitor has no prerequisite of its own, so every install
+# enables it, a first install included: a monitor that waits on a separate
+# install step is a host that is not watched, and a fresh host whose first
+# start fails is the one that most needs watching. It needs no database: while
+# the stack is not started it sends only its heartbeat, so it raises nothing
+# before the restore starts the site.
+systemctl enable --now footbag-container-monitor.timer
 # The backup timer is restarted when it is enabled, and enabled by the deploy
 # itself once its one prerequisite holds, the snapshots bucket in the host env
 # file, so no host is left without backups waiting on a separate install step.
@@ -1895,6 +1895,33 @@ if (( _stack_healthy == 0 )); then
     -f docker/docker-compose.yml -f docker/docker-compose.prod.yml \
     ps --all >&2 </dev/null || true
   systemctl status footbag --no-pager -l >&2 || true
+  # Name each container that failed, so the report says which one to look at
+  # rather than only that this half exited 1.
+  _listing="$(docker compose --env-file /srv/footbag/env \
+    -f docker/docker-compose.yml -f docker/docker-compose.prod.yml \
+    ps --all --format '{{.Service}} {{.State}} {{.Health}}' 2>&1 </dev/null)" || _listing=""
+  if [[ -z "$_listing" ]]; then
+    crr_error "the stack did not reach healthy state: compose lists no containers at all"
+  else
+    while read -r _svc _state _health; do
+      [[ -n "$_svc" ]] || continue
+      if [[ "$_state" != "running" || ( -n "$_health" && "$_health" != "healthy" ) ]]; then
+        crr_error "the stack did not reach healthy state: container ${_svc} is ${_state}${_health:+ (${_health})}; its log is in docker logs on the host"
+      fi
+    done <<<"$_listing"
+  fi
+  # A container that cannot come up would otherwise be restarted by Docker
+  # without limit (every service carries restart: unless-stopped), holding a
+  # small host's CPU and memory while the site is down anyway. Stopping the
+  # stack ends the loop and leaves the site on the maintenance page; stop, not
+  # down, keeps each container and its log for the operator to read. The
+  # container monitor keeps reporting the stack unhealthy until it is fixed.
+  echo "==> Stopping the stack so a failing container is not restarted without limit" >&2
+  if ! _stop_out="$(docker compose --env-file /srv/footbag/env \
+        -f docker/docker-compose.yml -f docker/docker-compose.prod.yml \
+        stop --timeout 30 2>&1 </dev/null)"; then
+    crr_error "stopping the stack after the failed start failed, so Docker may still be restarting a container: ${_stop_out##*$'\n'}"
+  fi
   exit 1
 fi
 

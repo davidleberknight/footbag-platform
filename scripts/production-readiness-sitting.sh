@@ -35,6 +35,11 @@
 # mailwalk step comes before its first such step; until the environment's
 # subscription status reads clean, such a step is recorded as deferred and the
 # run carries on, and the closing report lists it as not proven.
+# A kind carrying "+heavy" (a host rebuild, a restore, a fresh instance's
+# bootstrap) runs only after scripts/check-env-health.sh finds the host's CPU
+# burst capacity in hand and no critical alarm firing, and is followed by the
+# same read of the alarms alone, which waits for the step's own expected alarms
+# to clear; either failing stops the run.
 #
 # THE CREDENTIAL. The host sudo password arrives once, on stdin, from the file
 # the environment's alias selects. It goes on stdin to exactly the steps that
@@ -163,7 +168,7 @@ STAGING_STEPS=(
   # objective: a restore from the automatic snapshot, then a fresh instance.
   's11a|read|tty|-|scripts/verify-host-snapshots.sh --target staging'
   's11b|read|cred|-|scripts/bootstrap-host.sh --target staging --status'
-  's11c|once|cred|log|scripts/restore-host.sh --target staging'
+  's11c|once+heavy|cred|log|scripts/restore-host.sh --target staging'
   's11d|once|tty|log|deploy_to_aws.sh --target staging'
   's11e|read|cred|-|scripts/bootstrap-host.sh --target staging --status'
   's11f|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
@@ -174,7 +179,7 @@ STAGING_STEPS=(
   # The fresh instance comes back the way a live production's does: the
   # release installed unstarted, the newest backup restored with its erasure
   # replay, then the code deploy, all inside the bootstrap.
-  's11k|idem|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging --restore-database'
+  's11k|idem+heavy|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging --restore-database'
   's11l|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   's11m|read|cred|-|scripts/restore-db.sh --target staging --drill'
   's11n|ask+mail|-|log|Alarm check, fresh instance. Since s11j began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
@@ -322,10 +327,10 @@ PRODUCTION_STEPS=(
   # the host.
   'p90a|read|tty|stdout=currently reads: false$|scripts/production-live-marker.sh --status --profile footbag-operator'
   'p90b|read|tty|-|scripts/terraform-apply-all.sh --target production --check'
-  'p90c|read|tty|stdout=^SSM .*email_send_armed\): false$|scripts/arming.sh --target production --switch email --status --profile footbag-operator'
+  'p90c|read|tty|stdout=^SSM .*email_send_armed\): dark$|scripts/arming.sh --target production --switch email --status --profile footbag-operator'
   'p90d|read|tty|-|scripts/verify-host-snapshots.sh --target production'
   'p90e|read|cred|-|scripts/bootstrap-host.sh --target production --status'
-  'p90f|once|cred|log|scripts/restore-host.sh --target production'
+  'p90f|once+heavy|cred|log|scripts/restore-host.sh --target production'
   'p90g|once|tty|log|deploy_to_aws.sh --target production'
   'p90h|read|cred|-|scripts/bootstrap-host.sh --target production --status'
   'p90i|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
@@ -335,7 +340,7 @@ PRODUCTION_STEPS=(
   'p90m|blocked|-|-|The fresh-instance rebuild on production: bootstrap-host.sh --replace-instance does not yet carry the outgoing host'"'"'s keys onto the new instance, so the rebuild would mint new keys and ask for the vault to be updated'
   # As on staging, the fresh instance comes back the way it will after go-live,
   # which also keeps the first-admin claim and the rest of pass 1's database.
-  'p90n|idem|cred|cred:0=scripts/bootstrap-host.sh --target production --status|scripts/bootstrap-host.sh --target production --restore-database'
+  'p90n|idem+heavy|cred|cred:0=scripts/bootstrap-host.sh --target production --status|scripts/bootstrap-host.sh --target production --restore-database'
   'p90o|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p90p|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
   'p90q|ask+mail|-|log|Alarm check, fresh instance. Since p90m began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
@@ -360,8 +365,44 @@ fi
 S_ID=""; S_KIND=""; S_STDIN=""; S_PROOF=""; S_CMD=""; S_FALLBACK=""; S_MAIL=0
 parse_step() {
   IFS='|' read -r S_ID S_KIND S_STDIN S_PROOF S_CMD S_FALLBACK <<<"$1"
-  S_MAIL=0
+  S_MAIL=0; S_HEAVY=0
+  if [[ "$S_KIND" == *+heavy* ]]; then S_KIND="${S_KIND/+heavy/}"; S_HEAVY=1; fi
   if [[ "$S_KIND" == *+mail ]]; then S_KIND="${S_KIND%+mail}"; S_MAIL=1; fi
+}
+
+# A heavy step (a host rebuild, a restore, a fresh instance's bootstrap) starts
+# only on a host with CPU burst capacity in hand and no critical alarm firing,
+# and is followed by a read that its own expected alarms have cleared. A
+# Lightsail host with its burst spent runs at baseline CPU, where a heavy step
+# crawls, times out and fails; and an alarm fired during a long run is only
+# email unless the run stops on it.
+health_before() { printf 'scripts/check-env-health.sh --target %s --allow-site-down' "$TARGET"; }
+health_after()  { printf 'scripts/check-env-health.sh --target %s --alarms-only --wait-minutes 10' "$TARGET"; }
+# The alarms a heavy step is expected to trip are muted for it, so the one that
+# matters is not buried in their mail; the mute ends on its own after two hours
+# if a run stops without lifting it. A mute that cannot be made is a warning.
+mute_cmd()   { printf 'scripts/mute-expected-alarms.sh --target %s --minutes 120' "$TARGET"; }
+unmute_cmd() { printf 'scripts/mute-expected-alarms.sh --target %s --clear' "$TARGET"; }
+HEAVY_MUTED=0
+# run_aside <command>: a child whose failure is this run's warning, not its stop.
+run_aside() {
+  local report rc=0
+  resolve_command "$1"
+  report="$(new_report)"
+  run_child tty "$report" "" "${CMD_WORDS[@]}" || rc=$?
+  if (( rc == 0 )); then hand_on "$report"; else hand_on "$report" warn; cr_warn "${1} exited ${rc}"; fi
+  rm -f -- "$report"
+}
+unmute_if_muted() {
+  (( HEAVY_MUTED )) || return 0
+  HEAVY_MUTED=0
+  run_aside "$(unmute_cmd)"
+}
+
+# The resume command a stop prints, carrying the run's own --to-step so a
+# resumed stretch ends where it was meant to.
+resume_line() {
+  echo "  < <credential file> bash scripts/production-readiness-sitting.sh --target ${TARGET} --from-step $1${TO_STEP:+ --to-step ${TO_STEP}}"
 }
 
 index_of() {
@@ -391,11 +432,13 @@ if [[ "$MODE" == dry ]]; then
   echo "The ${TARGET} pass, in order (nothing is run, read or written):"
   for (( i = FIRST; i <= LAST; i++ )); do
     parse_step "${STEPS[$i]}"
-    kind="$S_KIND"; (( S_MAIL )) && kind+="+mail"
+    kind="$S_KIND"; (( S_HEAVY )) && kind+="+heavy"; (( S_MAIL )) && kind+="+mail"
+    (( S_HEAVY )) && printf '  %-5s %-9s %s\n' "" "before" "$(health_before)" "" "mute" "$(mute_cmd)"
     case "$S_KIND" in
       ask|blocked) printf '  %-5s %-9s %s\n' "$S_ID" "$kind" "$S_CMD" ;;
       *) printf '  %-5s %-9s %s%s\n' "$S_ID" "$kind" "$([[ "$S_STDIN" == cred ]] && echo '[password on stdin] ' || true)" "$S_CMD" ;;
     esac
+    (( S_HEAVY )) && printf '  %-5s %-9s %s\n' "" "after" "$(health_after)" "" "unmute" "$(unmute_cmd)"
   done
   cr_unproved "every step (a dry run runs nothing)"
   cr_finish
@@ -739,12 +782,14 @@ stop_at() {
   rest="$(not_run_after $(( i + 1 )))"
   cr_error "step ${S_ID} ${why}"
   [[ -n "$rest" ]] && cr_unproved "not run: ${rest}"
+  unmute_if_muted
+  parse_step "${STEPS[$i]}"
   # The offer reads other steps, so this step is parsed again after it.
   offer_gate_off
   parse_step "${STEPS[$i]}"
   echo "" >&2
   echo "Stopped at ${S_ID}. Resume with:" >&2
-  echo "  < <credential file> bash scripts/production-readiness-sitting.sh --target ${TARGET} --from-step ${S_ID}" >&2
+  resume_line "$S_ID" >&2
   SITTING_VERDICT="${word} AT ${S_ID}"
   CURRENT=""
   cr_finish_with 1 "${word} AT ${S_ID}"
@@ -848,6 +893,23 @@ for (( i = FIRST; i <= LAST; i++ )); do
     fi
   fi
 
+  if (( S_HEAVY )); then
+    resolve_command "$(health_before)"
+    hreport="$(new_report)"
+    hrc=0; run_child tty "$hreport" "" "${CMD_WORDS[@]}" || hrc=$?
+    if (( hrc != 0 )); then
+      said="$(first_error "$hreport")"
+      hand_on "$hreport"
+      rm -f -- "$hreport"
+      log_row "$S_ID" "$started" "$(health_before)" "failed (health)" "${said:-exit ${hrc}}"
+      stop_at "$i" STOPPED "was not started: the ${TARGET} host is not fit for a heavy step (${said:-its health read exited ${hrc}})"
+    fi
+    hand_on "$hreport"
+    rm -f -- "$hreport"
+    run_aside "$(mute_cmd)"
+    HEAVY_MUTED=1
+  fi
+
   if ! resolve_command "$S_CMD" 2>"${SCRATCH}/resolve.err"; then
     msg="$(tail -n 1 "${SCRATCH}/resolve.err")"
     log_row "$S_ID" "$started" "$S_CMD" failed "$msg"
@@ -937,6 +999,25 @@ for (( i = FIRST; i <= LAST; i++ )); do
   log_row "$S_ID" "$started" "$CURRENT_CMD" ok "$notes"
   cr_proved "${S_ID}: ${CURRENT_CMD}"
   CURRENT=""
+
+  # The step is done and recorded; a critical alarm still firing after it, once
+  # its own expected alarms have had time to clear, stops the run before the
+  # next step.
+  if (( S_HEAVY )); then
+    done_id="$S_ID"
+    resolve_command "$(health_after)"
+    hreport="$(new_report)"
+    hrc=0; run_child tty "$hreport" "" "${CMD_WORDS[@]}" || hrc=$?
+    hand_on "$hreport"
+    rm -f -- "$hreport"
+    unmute_if_muted
+    if (( hrc != 0 )); then
+      if (( i < LAST )); then
+        stop_at $(( i + 1 )) STOPPED "was not started: a critical ${TARGET} alarm is still in ALARM after ${done_id}"
+      fi
+      cr_error "a critical ${TARGET} alarm is still in ALARM after ${done_id}"
+    fi
+  fi
 done
 
 # ── Close ────────────────────────────────────────────────────────────────────

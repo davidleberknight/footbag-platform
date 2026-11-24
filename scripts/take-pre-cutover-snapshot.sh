@@ -32,41 +32,44 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# The closing report goes to stderr, so stdout stays the manifest alone, which
+# the host half and the cutover checklist read.
+# shellcheck source=lib/closing-report.sh
+source scripts/lib/closing-report.sh
+
 DB_FILE="${FOOTBAG_DB_PATH:-./database/footbag.db}"
 OUT_DIR="${FOOTBAG_SNAPSHOT_DIR:-./database/snapshots}"
 LOCAL_ONLY="${FOOTBAG_SNAPSHOT_LOCAL_ONLY:-0}"
 
 if [[ "${LOCAL_ONLY}" != "1" && -z "${FOOTBAG_DR_BUCKET:-}" ]]; then
-  echo "FOOTBAG_DR_BUCKET is not set. The pre-cutover snapshot must land in the" >&2
-  echo "cross-region DR bucket. Set FOOTBAG_DR_BUCKET, or set" >&2
-  echo "FOOTBAG_SNAPSHOT_LOCAL_ONLY=1 for an explicitly local rehearsal run." >&2
-  exit 1
+  cr_die "FOOTBAG_DR_BUCKET is not set. The pre-cutover snapshot must land in the cross-region DR bucket. Set FOOTBAG_DR_BUCKET, or set FOOTBAG_SNAPSHOT_LOCAL_ONLY=1 for an explicitly local rehearsal run."
 fi
 if [[ "${LOCAL_ONLY}" != "1" ]]; then
-  command -v aws >/dev/null || { echo "aws CLI not installed (required for the DR upload)" >&2; exit 1; }
+  command -v aws >/dev/null || cr_die "aws CLI not installed (required for the DR upload)"
   if [[ ! "${FOOTBAG_DR_BUCKET}" =~ ^footbag-(staging|production)-db-snapshots-dr$ ]]; then
-    echo "REFUSING: FOOTBAG_DR_BUCKET='${FOOTBAG_DR_BUCKET}' is not footbag-<staging|production>-db-snapshots-dr. Nothing was changed." >&2
-    exit 1
+    cr_die "REFUSING: FOOTBAG_DR_BUCKET='${FOOTBAG_DR_BUCKET}' is not footbag-<staging|production>-db-snapshots-dr. Nothing was changed."
   fi
   BUCKET_ENV="${BASH_REMATCH[1]}"
   HOST_ENV_FILE="${FOOTBAG_ENV_FILE:-/srv/footbag/env}"
   if [[ -n "${FOOTBAG_ENV_FILE:-}" ]]; then
     echo "NOTE: using a stand-in host environment file (FOOTBAG_ENV_FILE); this run proves nothing about any host." >&2
   fi
-  RECORDED_ENV="$(grep -E '^FOOTBAG_ENV=' "${HOST_ENV_FILE}" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+  # A file that is missing or unreadable records nothing; grep keeping no line
+  # exits 1, which is a file recording no value.
+  RECORDED_ENV=""
+  if [[ -r "${HOST_ENV_FILE}" ]]; then
+    RECORDED_ENV="$( { grep -E '^FOOTBAG_ENV=' "${HOST_ENV_FILE}" || [[ $? == 1 ]]; } | tail -1 | cut -d= -f2-)"
+  fi
   if [[ -z "${RECORDED_ENV}" ]]; then
-    echo "REFUSING: ${HOST_ENV_FILE} records no FOOTBAG_ENV (missing or unreadable), so this host cannot confirm its environment. Nothing was changed." >&2
-    exit 1
+    cr_die "REFUSING: ${HOST_ENV_FILE} records no FOOTBAG_ENV (missing or unreadable), so this host cannot confirm its environment. Nothing was changed."
   fi
   if [[ "${RECORDED_ENV}" != "${BUCKET_ENV}" ]]; then
-    echo "REFUSING: this host records FOOTBAG_ENV='${RECORDED_ENV}', but ${FOOTBAG_DR_BUCKET} is ${BUCKET_ENV}'s DR bucket. Nothing was changed." >&2
-    exit 1
+    cr_die "REFUSING: this host records FOOTBAG_ENV='${RECORDED_ENV}', but ${FOOTBAG_DR_BUCKET} is ${BUCKET_ENV}'s DR bucket. Nothing was changed."
   fi
 fi
 
 if [[ ! -f "${DB_FILE}" ]]; then
-  echo "DB file not found: ${DB_FILE}" >&2
-  exit 1
+  cr_die "DB file not found: ${DB_FILE}"
 fi
 
 mkdir -p "${OUT_DIR}"
@@ -84,9 +87,8 @@ sqlite3 "${DB_FILE}" ".backup '${SNAPSHOT_PATH}'"
 # itself is the audit subject.
 integrity=$(sqlite3 "${SNAPSHOT_PATH}" "PRAGMA integrity_check;")
 if [[ "${integrity}" != "ok" ]]; then
-  echo "snapshot integrity check FAILED: ${integrity}" >&2
   rm -f "${SNAPSHOT_PATH}"
-  exit 1
+  cr_die "snapshot integrity check FAILED: ${integrity}"
 fi
 
 byte_size=$(stat -c%s "${SNAPSHOT_PATH}" 2>/dev/null || stat -f%z "${SNAPSHOT_PATH}")
@@ -94,8 +96,8 @@ sha256=$(sha256sum "${SNAPSHOT_PATH}" | awk '{print $1}')
 
 q() { sqlite3 "${SNAPSHOT_PATH}" "$1"; }
 
-# Eleven counts, which is the set the cutover preflight checklist requires of
-# this manifest. The first six are also the set scripts/restore-db.sh prints back
+# Ten counts, which is the set the cutover preflight checklist requires of this
+# manifest. The first five are also the set scripts/restore-db.sh prints back
 # after a restore, and they match deliberately: a manifest recording counts a
 # restore never reports cannot be reconciled against it, and that reconciliation
 # is the whole reason the manifest travels with the artifact. The remaining five
@@ -111,6 +113,18 @@ count_cbl=$(q     "SELECT COUNT(*) FROM club_bootstrap_leaders;")
 count_ft=$(q      "SELECT COUNT(*) FROM freestyle_tricks;")
 count_fr=$(q      "SELECT COUNT(*) FROM freestyle_records;")
 count_ckr=$(q     "SELECT COUNT(*) FROM consecutive_kicks_records;")
+
+# No legacy account may be claimed yet. This snapshot is taken after the final
+# member load and before any member can sign in, so no member account exists to
+# have claimed one; a claim here means something reached the platform during
+# the freeze, and restoring this snapshot later would silently discard it. The
+# sequence stops until that is explained, and it stops before the archive is
+# made or uploaded, because the DR bucket's lock would keep a refused artifact.
+claimed_legacy=$(q "SELECT COUNT(*) FROM legacy_members WHERE claimed_by_member_id IS NOT NULL;")
+if [[ "${claimed_legacy}" != "0" ]]; then
+  rm -f "${SNAPSHOT_PATH}"
+  cr_die "REFUSING: ${claimed_legacy} legacy_members row(s) carry claimed_by_member_id, but no member account should exist at this snapshot. Find out how the claim reached the platform during the freeze before taking the rollback artifact. Nothing was uploaded."
+fi
 
 # Provenance. Without it the restore side can identify the artifact but not what
 # it was taken from, and the pre-flip prefix holds exactly one object, so a
@@ -175,4 +189,10 @@ if [[ "${LOCAL_ONLY}" != "1" ]]; then
 fi
 
 cat "${MANIFEST_PATH}"
-exit 0
+cr_proved "${SNAPSHOT_ID} passed its integrity check, no legacy account in it is claimed, and its manifest records ten row counts"
+if [[ "${LOCAL_ONLY}" != "1" ]]; then
+  cr_proved "the archive and its manifest were uploaded under pre-flip/${SNAPSHOT_ID}/ in ${FOOTBAG_DR_BUCKET}"
+else
+  cr_unproved "the DR upload: this was a local-only run, so nothing left this machine"
+fi
+cr_finish

@@ -521,8 +521,8 @@ locals {
     }
     alerting-disabled = {
       metric      = "AlertingDisabled"
-      pattern     = "{ ($.eventSource = \"monitoring.amazonaws.com\" && ($.eventName = \"DeleteAlarms\" || $.eventName = \"DisableAlarmActions\")) || ($.eventSource = \"sns.amazonaws.com\" && ($.eventName = \"DeleteTopic\" || $.eventName = \"Unsubscribe\")) || ($.eventSource = \"guardduty.amazonaws.com\" && ($.eventName = \"DeleteDetector\" || $.eventName = \"UpdateDetector\")) || ($.eventSource = \"access-analyzer.amazonaws.com\" && $.eventName = \"DeleteAnalyzer\") }"
-      description = "The alarm path was changed or a change was attempted: alarms deleted or their actions disabled, a topic deleted or unsubscribed, the GuardDuty detector deleted or updated, or an Access Analyzer deleted in either region. Expected only during a deliberate Terraform apply that replaces an alarm or topic."
+      pattern     = "{ ($.eventSource = \"monitoring.amazonaws.com\" && ($.eventName = \"DeleteAlarms\" || $.eventName = \"DisableAlarmActions\" || $.eventName = \"PutAlarmMuteRule\")) || ($.eventSource = \"sns.amazonaws.com\" && ($.eventName = \"DeleteTopic\" || $.eventName = \"Unsubscribe\")) || ($.eventSource = \"guardduty.amazonaws.com\" && ($.eventName = \"DeleteDetector\" || $.eventName = \"UpdateDetector\")) || ($.eventSource = \"access-analyzer.amazonaws.com\" && $.eventName = \"DeleteAnalyzer\") }"
+      description = "The alarm path was changed or a change was attempted: alarms deleted, their actions disabled or muted by a mute rule, a topic deleted or unsubscribed, the GuardDuty detector deleted or updated, or an Access Analyzer deleted in either region. Expected during a deliberate Terraform apply that replaces an alarm or topic, and once for each heavy step of a readiness sitting, whose mute of the alarms that step is expected to trip is matched to it."
     }
     backup-protection-changed = {
       metric      = "BackupProtectionChanged"

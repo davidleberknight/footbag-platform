@@ -2864,6 +2864,25 @@ describe('both deploy halves leave a host able to survive on its own', () => {
     expect(postStops[down].startsWith('ExecStopPost=-')).toBe(true);
   });
 
+  it('gives the stop phase time to take the stack down on a CPU-throttled host', () => {
+    // Defect caught: systemd bounds the whole stop phase, post-stop lines
+    // included, by TimeoutStopSec. On a small host whose CPU burst allowance is
+    // spent, the post-stop take-down was killed at a 60-second limit with the
+    // containers still up, so a failed start left its restart loop running and
+    // the site down. Five minutes covers a throttled take-down and the final
+    // backup; the limit must also exceed every down grace the stop path asks
+    // for, or systemd kills a take-down that is still inside its own grace.
+    const unit = read('ops/systemd/footbag.service').replace(/\\\n/g, ' ');
+    const limit = /^TimeoutStopSec=(\d+)s$/m.exec(unit);
+    expect(limit, 'TimeoutStopSec must be set in whole seconds').not.toBeNull();
+    const limitSeconds = Number(limit![1]);
+    const graces = [...unit.matchAll(/^ExecStop(?:Post)?=.*\bdown --timeout (\d+)/gm)].map((m) => Number(m[1]));
+    expect(graces.length, 'no stop-path take-down found').toBeGreaterThan(0);
+    const totalGrace = graces.reduce((a, b) => a + b, 0);
+    expect(limitSeconds).toBeGreaterThanOrEqual(300);
+    expect(limitSeconds).toBeGreaterThan(totalGrace);
+  });
+
   it.each(HALVES)('%s provisions the disk swapfile', (file) => {
     const source = read(file);
     expect(source).toContain('mkswap /swapfile');
@@ -3608,6 +3627,34 @@ describe('deploy-code --first-install: the release installed without starting it
     const ordinary = runParts('0');
     expect(ordinary.calls).toMatch(/systemctl enable footbag/);
     expect(ordinary.out).toMatch(/REACHED-RESTART/);
+  });
+
+  it('enables the container monitor on a first install too', () => {
+    // Defect caught: a first install left the monitor timer off, and a
+    // bootstrap that died before the next deploy left a fresh host whose
+    // failed start and restart loop no container alarm could see. The monitor
+    // needs no database: with the stack not yet started it sends only its
+    // heartbeat, so enabling it early raises nothing.
+    const from = '# The container monitor has no prerequisite of its own';
+    const to = '# The backup timer is restarted when it is enabled';
+    const block = content.slice(content.indexOf(from), content.indexOf(to));
+    expect(block.length, 'monitor enable block not found').toBeGreaterThan(from.length);
+    for (const first of ['1', '0']) {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-first-install-monitor-'));
+      try {
+        const log = path.join(dir, 'calls.log');
+        fs.writeFileSync(path.join(dir, 'systemctl'), `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\nexit 0\n`);
+        fs.chmodSync(path.join(dir, 'systemctl'), 0o755);
+        const r = spawnSync('bash', ['-c', `set -euo pipefail\nFIRST_INSTALL=${first}\n${block}`], {
+          encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` }, ...SPAWN_GUARD,
+        });
+        expect(r.status, r.stderr).toBe(0);
+        const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '';
+        expect(calls, `FIRST_INSTALL=${first}`).toMatch(/systemctl enable --now footbag-container-monitor\.timer/);
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    }
   });
 
   it('refuses a first install carrying a migration, before anything is read', () => {

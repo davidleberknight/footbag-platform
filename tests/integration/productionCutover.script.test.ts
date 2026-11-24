@@ -885,6 +885,7 @@ interface PlanShape {
   deletes?: string[];
   creates?: string[];
   updates?: string[];
+  noop?: string[];
   other?: Array<[string, string[]]>;
 }
 
@@ -904,7 +905,7 @@ function planJson(shape: PlanShape = {}): string {
       ...deletes.map((a) => change(a, ['delete'])),
       ...creates.map((a) => change(a, ['create'])),
       ...updates.map((a) => change(a, ['update'])),
-      ...STAYS.map((a) => change(a, ['no-op'])),
+      ...(shape.noop ?? STAYS).map((a) => change(a, ['no-op'])),
       ...(shape.other ?? []).map(([a, x]) => change(a, x)),
       { address: 'data.aws_caller_identity.current', mode: 'data', change: { actions: ['read'] } },
     ],
@@ -924,22 +925,31 @@ function planJson(shape: PlanShape = {}): string {
   });
 }
 
+/** The day the stand-in runs are pinned to, through the script's date seam,
+ *  and the capture named for it the way scripts/capture-legacy-zone.sh is told
+ *  to name one. */
+const TODAY = '2026-12-17';
+function capturePath(day = TODAY): string {
+  return join(dir, `footbag.org.${day}.zone`);
+}
+
 function launchSetup(
   opts: { values?: string; log?: string | null; plan?: PlanShape; capture?: string } = {},
 ): void {
   setValues(opts.values ?? WINDOW_VALUES);
   if (opts.log !== null) writeFileSync(join(dir, 'CUTOVER_LOG.md'), opts.log ?? cutoverLog(), 'utf-8');
   writeFileSync(join(dir, 'plan.json'), planJson(opts.plan), 'utf-8');
-  writeFileSync(join(dir, 'capture.zone'), opts.capture ?? CAPTURE, 'utf-8');
+  writeFileSync(capturePath(), opts.capture ?? CAPTURE, 'utf-8');
 }
 
 /** Runs the script with the launch seams, passing the fresh capture unless the
  *  case is about its absence. */
 function runLaunch(args: string[], env: Record<string, string> = {}, opts: { noCapture?: boolean } = {}) {
-  const withCapture = opts.noCapture ? args : [...args, '--capture', join(dir, 'capture.zone')];
+  const withCapture = opts.noCapture ? args : [...args, '--capture', capturePath()];
   return run(withCapture, {
     PRODUCTION_CUTOVER_DIG_BIN: join(dir, 'dig'),
     PRODUCTION_CUTOVER_LOG: join(dir, 'CUTOVER_LOG.md'),
+    PRODUCTION_CUTOVER_TODAY: TODAY,
     STUB_PLAN_JSON: join(dir, 'plan.json'),
     ...env,
   });
@@ -972,7 +982,10 @@ describe('production-cutover.sh launch: where and when it may run, each beside a
     expect(none.stderr).toMatch(/needs --capture/);
     const other = runLaunch([...PROD, '--yes']);
     expect(other.status).toBe(2);
-    expect(other.stderr).toMatch(/--capture is the launch stage's/);
+    expect(other.stderr).toMatch(/--capture is the launch and record-switch stages'/);
+    const raise = runLaunch(['--target', 'production', '--stage', 'notice-raise', '--yes']);
+    expect(raise.status).toBe(2);
+    expect(raise.stderr).toMatch(/--capture is the launch and record-switch stages'/);
     expect(callLog()).toBe('');
     expect(values()).toBe(WINDOW_VALUES);
   });
@@ -993,6 +1006,17 @@ describe('production-cutover.sh launch: where and when it may run, each beside a
       expect(values(), name).toBe(WINDOW_VALUES);
       expect(callLog(), name).not.toMatch(/^terraform plan/m);
     }
+  });
+
+  // Defect caught: the launch run again to lift the notice after a rollback
+  // refused for want of a same-day capture, when by then the legacy
+  // nameservers that a capture is taken from may no longer answer.
+  it('takes a complete capture from an earlier day', () => {
+    launchSetup();
+    writeFileSync(join(dir, 'capture.zone'), CAPTURE, 'utf-8');
+    const r = runLaunch([...LAUNCH, '--yes', '--capture', join(dir, 'capture.zone')], {}, { noCapture: true });
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(LAUNCHED_VALUES);
   });
 
   // Defect caught: a launch outside the window would lift the notice before the
@@ -1312,5 +1336,639 @@ describe('production-cutover.sh launch: the write and the apply', () => {
     expect(r.stdout).toMatch(/cutover log: `admin@` receive-and-reply test: pass/);
     expect(values()).toBe(WINDOW_VALUES);
     expect(callLog()).not.toMatch(/^terraform plan/m);
+  });
+});
+
+// ── STAGE record-switch ──────────────────────────────────────────────────────
+
+const SWITCH = ['--target', 'production', '--stage', 'record-switch'];
+
+/** The production values file in the window, before the switch: the custom
+ *  domain, the preview, the notice and the mirror on, the apex still on the
+ *  legacy host, the archive pointing at preview, and the four legacy names
+ *  that ride the apex and www mirrored. */
+const PRE_SWITCH_VALUES = [
+  'environment                  = "production"',
+  SENSITIVE_LINE,
+  'enable_legacy_mirror_records = true',
+  'legacy_apex_cname_records = {',
+  '  "fi"                 = "footbag.org."',
+  '  "ftp"                = "footbag.org."',
+  '  "worldchampionships" = "www.footbag.org."',
+  '  "worlds"             = "www.footbag.org."',
+  '}',
+  '',
+  'enable_platform_custom_domain = true',
+  'enable_preview_record         = true',
+  'enable_apex_alias_records     = false',
+  'enable_cutover_notice         = true',
+  'enable_cutover_login_alarm  = false',
+  'enable_archive = true',
+  'archive_platform_url = "https://preview.footbag.org"',
+  '',
+].join('\n');
+
+/** The same file after the switch's write, written out by hand: the alias and
+ *  the login watch on and the archive address cleared where each stood, every
+ *  other line as it was. */
+const SWITCHED_VALUES = [
+  'environment                  = "production"',
+  SENSITIVE_LINE,
+  'enable_legacy_mirror_records = true',
+  'legacy_apex_cname_records = {',
+  '  "fi"                 = "footbag.org."',
+  '  "ftp"                = "footbag.org."',
+  '  "worldchampionships" = "www.footbag.org."',
+  '  "worlds"             = "www.footbag.org."',
+  '}',
+  '',
+  'enable_platform_custom_domain = true',
+  'enable_preview_record         = true',
+  'enable_apex_alias_records = true',
+  'enable_cutover_notice         = true',
+  'enable_cutover_login_alarm = true',
+  'enable_archive = true',
+  'archive_platform_url = ""',
+  '',
+].join('\n');
+
+/** A capture taken the day of the switch, in the layout of the newest
+ *  committed capture: the four names riding the apex or www, www itself, and
+ *  a CNAME elsewhere that does not ride them. One line keeps the space-
+ *  separated layout the real transfer printed for its longest name. */
+const SWITCH_CAPTURE_LINES = [
+  '; <<>> DiG 9.18.28 <<>> axfr footbag.org @ns1.example.',
+  'footbag.org.\t\t86400\tIN\tSOA\tns1.example. hostmaster.example. 2026121701 86400 7200 2419200 3600',
+  'footbag.org.\t\t86400\tIN\tA\t192.0.2.1',
+  'fi.footbag.org.\t\t86400\tIN\tCNAME\tfootbag.org.',
+  'ftp.footbag.org.\t86400\tIN\tCNAME\tfootbag.org.',
+  'list.footbag.org.\t86400\tIN\tCNAME\trimu3.footbag.org.',
+  'worldchampionships.footbag.org.\t86400 IN CNAME\twww.footbag.org.',
+  'worlds.footbag.org.\t86400\tIN\tCNAME\twww.footbag.org.',
+  'www.footbag.org.\t86400\tIN\tCNAME\tfootbag.org.',
+  'footbag.org.\t\t86400\tIN\tSOA\tns1.example. hostmaster.example. 2026121701 86400 7200 2419200 3600',
+];
+const SWITCH_CAPTURE = `${SWITCH_CAPTURE_LINES.join('\n')}\n`;
+
+const RIDING = ['fi', 'ftp', 'worldchampionships', 'worlds'].map(
+  (n) => `aws_route53_record.legacy_apex_cnames["${n}"]`,
+);
+const ALIAS_PAIR = ['aws_route53_record.apex_aaaa[0]', 'aws_route53_record.www_aaaa[0]'];
+const FLIPPED = ['aws_route53_record.apex_a[0]', 'aws_route53_record.www[0]'];
+const SWITCH_STAYS = ['aws_route53_record.legacy_mirror_cname["list"]'];
+
+/** By default, exactly the switch: the four riding names destroyed, the apex
+ *  and www switched in place with the archive's gate page following the
+ *  address, and the IPv6 pair created. */
+function switchPlan(shape: PlanShape = {}): PlanShape {
+  return {
+    prior: [...RIDING, ...FLIPPED, ...SWITCH_STAYS],
+    deletes: RIDING,
+    creates: ALIAS_PAIR,
+    updates: [...FLIPPED, 'aws_s3_object.archive_denied[0]'],
+    noop: SWITCH_STAYS,
+    ...shape,
+  };
+}
+
+/** The day of the capture the mirror was last written from and verified
+ *  against, a week before the switch: the re-capture taken just before the
+ *  nameserver move. */
+const VERIFIED_DAY = '2026-12-10';
+
+/** The cutover log's zone-move section as the zone move leaves it: the
+ *  verified capture named in its capture row, in the form the real log
+ *  records it (which also names the older capture it was diffed against),
+ *  and the mirror verification against it passed. */
+function zoneMoveLog(
+  captureValue = `\`footbag.org.${VERIFIED_DAY}.zone\`, serial 2026121001, 6 names (1 removed since \`footbag.org.2026-11-23.zone\`, nothing added or changed)`,
+  verification = 'pass: 6 names, 0 differing, none served here only, apex CAA served',
+): string {
+  return [
+    '# Cutover log',
+    '',
+    '## 4. Step timings',
+    '',
+    '### 4a. The zone move and the mail preparation',
+    '',
+    '| Reading | Value | When measured | Notes |',
+    '|---|---|---|---|',
+    `| Fresh capture and diff (\`scripts/capture-legacy-zone.sh\`) | ${captureValue} | ${VERIFIED_DAY} | |`,
+    `| Name and apex CAA verification (\`scripts/verify-zone-mirror.sh\`) | ${verification} | ${VERIFIED_DAY} | |`,
+    '| Delegation converged | | | |',
+    '',
+    '### 4b. T-0: the alias flip, then the mail apply',
+    '',
+    '| Reading | Value | When measured | Notes |',
+    '|---|---|---|---|',
+    '| Alias flip applied (T-0) | | | |',
+    '',
+  ].join('\n');
+}
+
+/** The verified capture: the same records as the switch-day capture, under an
+ *  older serial, with the transfer's own comment lines and one cache lifetime
+ *  different, as two real transfers of an unchanged zone differ; none of
+ *  those is a change to the zone. */
+const VERIFIED_CAPTURE = `${SWITCH_CAPTURE.replaceAll('2026121701', '2026121001')
+  .replace('; <<>> DiG 9.18.28 <<>>', '; <<>> DiG 9.18.30 <<>>')
+  .replace('list.footbag.org.\t86400', 'list.footbag.org.\t3600')};; Query time: 41 msec\n`;
+
+function switchSetup(
+  opts: { values?: string; plan?: PlanShape; capture?: string; log?: string | null; verified?: string | null } = {},
+): void {
+  setValues(opts.values ?? PRE_SWITCH_VALUES);
+  writeFileSync(join(dir, 'plan.json'), planJson(switchPlan(opts.plan)), 'utf-8');
+  writeFileSync(capturePath(), opts.capture ?? SWITCH_CAPTURE, 'utf-8');
+  const log = join(dir, 'CUTOVER_LOG.md');
+  if (opts.log === null) rmSync(log, { force: true });
+  else writeFileSync(log, opts.log ?? zoneMoveLog(), 'utf-8');
+  const verified = capturePath(VERIFIED_DAY);
+  if (opts.verified === null) rmSync(verified, { force: true });
+  else writeFileSync(verified, opts.verified ?? VERIFIED_CAPTURE, 'utf-8');
+}
+
+/** Asserts a refused run changed and applied nothing. */
+function expectRefusedUntouched(r: ReturnType<typeof run>, label: string, before: string, why: RegExp, plannedOk = false): void {
+  expect(r.status, label).not.toBe(0);
+  expect(`${r.stderr}`, label).toMatch(why);
+  expect(values(), label).toBe(before);
+  if (!plannedOk) expect(callLog(), label).not.toMatch(/^terraform plan/m);
+  expect(callLog(), label).not.toMatch(/^apply /m);
+}
+
+describe('production-cutover.sh record-switch: where and when it may run, each beside a run it lets through', () => {
+  // Defect caught: the switch run against staging would edit a values file
+  // that has no notice and no legacy names to remove.
+  it('refuses any target but production before reading anything', () => {
+    switchSetup();
+    const r = runLaunch(['--target', 'staging', '--stage', 'record-switch', '--yes']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/production only/);
+    expect(callLog()).toBe('');
+    const ok = runLaunch([...SWITCH, '--yes']);
+    expect(ok.status, ok.stderr).toBe(0);
+  });
+
+  // Defect caught: the switch removing the apex-riding names with no capture
+  // to check them against, a truncated one, or one whose day is unknown or
+  // still to come.
+  it('requires a complete capture named for a day that has come', () => {
+    switchSetup();
+    const none = runLaunch([...SWITCH, '--yes'], {}, { noCapture: true });
+    expect(none.status).toBe(2);
+    expect(none.stderr).toMatch(/record-switch stage needs --capture/);
+    expect(callLog()).toBe('');
+
+    for (const [name, file, why] of [
+      ['taken the day after', capturePath('2026-12-18'), /named for 2026-12-18, after today/],
+      ['named with no date', join(dir, 'capture.zone'), /not named footbag\.org\.<YYYY-MM-DD>\.zone/],
+    ] as Array<[string, string, RegExp]>) {
+      switchSetup();
+      writeFileSync(file, SWITCH_CAPTURE, 'utf-8');
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(
+        runLaunch([...SWITCH, '--yes', '--capture', file], {}, { noCapture: true }),
+        name, PRE_SWITCH_VALUES, why,
+      );
+    }
+
+    switchSetup({ capture: `${SWITCH_CAPTURE_LINES.slice(0, -1).join('\n')}\n` });
+    expectRefusedUntouched(runLaunch([...SWITCH, '--yes']), 'truncated', PRE_SWITCH_VALUES, /not a complete transfer/);
+  });
+
+  // Defect caught: once the legacy nameservers stop answering, a same-day
+  // capture cannot be taken, so the switch must run on the newest capture on
+  // file; the verified capture itself, a week old, lets the switch through.
+  it('takes the newest capture on file, the verified one included, with no change since it', () => {
+    switchSetup();
+    const today = runLaunch([...SWITCH, '--yes']);
+    expect(today.status, today.stderr).toBe(0);
+    expect(today.stdout).toMatch(new RegExp(`unchanged since the verified capture footbag\\.org\\.${VERIFIED_DAY}\\.zone`));
+
+    switchSetup();
+    writeFileSync(calls, '', 'utf-8');
+    const verified = runLaunch([...SWITCH, '--yes', '--capture', capturePath(VERIFIED_DAY)], {}, { noCapture: true });
+    expect(verified.status, verified.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply /m);
+  });
+
+  // Defect caught: a capture older than the one the mirror was verified
+  // against would check the removals against a zone already superseded, and a
+  // missing or failed verification record would let the switch run on a
+  // mirror nobody compared with the zone.
+  it('refuses a capture older than the verified one, or no verified capture to check it against', () => {
+    switchSetup();
+    writeFileSync(capturePath('2026-12-09'), SWITCH_CAPTURE, 'utf-8');
+    writeFileSync(calls, '', 'utf-8');
+    expectRefusedUntouched(
+      runLaunch([...SWITCH, '--yes', '--capture', capturePath('2026-12-09')], {}, { noCapture: true }),
+      'older than verified', PRE_SWITCH_VALUES, /taken 2026-12-09, before the verified capture/,
+    );
+
+    const cases: Array<[string, Parameters<typeof switchSetup>[0], RegExp]> = [
+      ['no cutover log', { log: null }, /no cutover log/],
+      ['no verified capture recorded', { log: zoneMoveLog('') }, /names no verified capture/],
+      ['verification not passed', { log: zoneMoveLog(undefined, 'fail: 1 differing') }, /does not record the mirror verified/],
+      ['verified capture missing', { verified: null }, /is not beside/],
+    ];
+    for (const [name, opts, why] of cases) {
+      switchSetup(opts);
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runLaunch([...SWITCH, '--yes']), name, PRE_SWITCH_VALUES, why);
+    }
+  });
+
+  // Defect caught: a last-minute edit by the legacy operator, away from the
+  // names riding the apex, would pass unseen, or would block the switch
+  // outright although it needs no re-sync.
+  it('lists each record changed since the verified capture and lets the switch through', () => {
+    const tweaked = SWITCH_CAPTURE
+      .replace('footbag.org.\t\t86400\tIN\tA\t192.0.2.1\n', 'footbag.org.\t\t86400\tIN\tA\t192.0.2.1\nnew.footbag.org.\t86400\tIN\tA\t192.0.2.9\n')
+      .replace('list.footbag.org.\t86400\tIN\tCNAME\trimu3.footbag.org.\n', '');
+    switchSetup({ capture: tweaked });
+    const r = runLaunch([...SWITCH, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/changed since the verified capture/);
+    expect(r.stdout).toMatch(/added +new\.footbag\.org\. IN A 192\.0\.2\.9/);
+    expect(r.stdout).toMatch(/removed +list\.footbag\.org\. IN CNAME rimu3\.footbag\.org\./);
+    expect(r.stdout).toMatch(/differs from the verified capture by 2 record/);
+    expect(r.stdout).not.toMatch(/added +footbag\.org\. IN SOA/);
+
+    // An edit that only adds, or only removes, is a change all the same.
+    for (const [name, capture, line] of [
+      ['added only', SWITCH_CAPTURE.replace('footbag.org.\t\t86400\tIN\tA\t192.0.2.1\n', 'footbag.org.\t\t86400\tIN\tA\t192.0.2.1\nnew.footbag.org.\t86400\tIN\tA\t192.0.2.9\n'), /added +new\.footbag\.org\./],
+      ['removed only', SWITCH_CAPTURE.replace('list.footbag.org.\t86400\tIN\tCNAME\trimu3.footbag.org.\n', ''), /removed +list\.footbag\.org\./],
+    ] as Array<[string, string, RegExp]>) {
+      switchSetup({ capture });
+      const one = runLaunch([...SWITCH, '--yes']);
+      expect(one.status, `${name}: ${one.stderr}`).toBe(0);
+      expect(one.stdout, name).toMatch(line);
+      expect(one.stdout, name).toMatch(/differs from the verified capture by 1 record/);
+    }
+  });
+
+  // Defect caught: the switch outside the window would put the apex on the
+  // platform with no notice, no preview for the operator, or no custom domain
+  // for it to answer on; or under a launch rehearsal, which Terraform refuses
+  // mid-freeze; or finish a write that is neither the window nor the switch.
+  it('refuses outside the window or half set, with the file unchanged and nothing planned', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['custom domain off', PRE_SWITCH_VALUES.replace('enable_platform_custom_domain = true', 'enable_platform_custom_domain = false'), /enable_platform_custom_domain is not true/],
+      ['preview off', PRE_SWITCH_VALUES.replace('enable_preview_record         = true', 'enable_preview_record         = false'), /enable_preview_record is not true/],
+      ['notice off', PRE_SWITCH_VALUES.replace('enable_cutover_notice         = true', 'enable_cutover_notice         = false'), /enable_cutover_notice is not true/],
+      ['mirror off', PRE_SWITCH_VALUES.replace('enable_legacy_mirror_records = true', 'enable_legacy_mirror_records = false'), /enable_legacy_mirror_records is not true/],
+      ['rehearsal on', `${PRE_SWITCH_VALUES}rehearse_launch_base_address = true\n`, /rehearse_launch_base_address is on/],
+      ['alias flag absent', PRE_SWITCH_VALUES.replace('enable_apex_alias_records     = false\n', ''), /enable_apex_alias_records is not set/],
+      ['login flag absent', PRE_SWITCH_VALUES.replace('enable_cutover_login_alarm  = false\n', ''), /enable_cutover_login_alarm is not set/],
+      ['half set, login watch off', SWITCHED_VALUES.replace('enable_cutover_login_alarm = true', 'enable_cutover_login_alarm = false'), /half set/],
+      ['half set, archive still on preview', SWITCHED_VALUES.replace('archive_platform_url = ""', 'archive_platform_url = "https://preview.footbag.org"'), /half set/],
+    ];
+    for (const [name, content, why] of cases) {
+      switchSetup({ values: content });
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runLaunch([...SWITCH, '--yes']), name, content, why);
+    }
+  });
+
+  // Defect caught: a legacy name added onto the apex since the mirror was
+  // written would be left resolving to a distribution that refuses it, or a
+  // name the legacy operator removed would still be mirrored as if live.
+  it('refuses when the names riding the apex in the capture differ from the mirrored ones', () => {
+    const added = SWITCH_CAPTURE.replace('www.footbag.org.\t86400', 'new.footbag.org.\t86400\tIN\tCNAME\twww.footbag.org.\nwww.footbag.org.\t86400');
+    switchSetup({ capture: added });
+    expectRefusedUntouched(runLaunch([...SWITCH, '--yes']), 'added', PRE_SWITCH_VALUES, /resync-zone-mirror\.sh --with-removals/);
+
+    const dropped = PRE_SWITCH_VALUES.replace('  "ftp"                = "footbag.org."\n', '');
+    switchSetup({ values: dropped });
+    writeFileSync(calls, '', 'utf-8');
+    expectRefusedUntouched(runLaunch([...SWITCH, '--yes']), 'dropped', dropped, /resync-zone-mirror\.sh --with-removals/);
+  });
+});
+
+describe('production-cutover.sh record-switch: the plan must be exactly the switch', () => {
+  // Defect caught: other pending changes would ride along under the switch.
+  it('refuses a tree with other changes pending before planning the switch', () => {
+    switchSetup();
+    const r = runLaunch([...SWITCH, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expectRefusedUntouched(r, 'pending', PRE_SWITCH_VALUES, /other changes are pending/, true);
+    expect(callLog()).not.toMatch(/^terraform plan-saved/m);
+  });
+
+  // Defect caught: a switch plan that destroys something else, leaves an
+  // apex-riding name served, never actually moves the apex, or comes up
+  // without the IPv6 pair would be applied as though it were the switch.
+  it('refuses any plan that is not exactly the switch, with the file unchanged', () => {
+    const cases: Array<[string, PlanShape, RegExp]> = [
+      ['destroys the apex', { deletes: [...RIDING, 'aws_route53_record.apex_a[0]'] }, /would destroy aws_route53_record\.apex_a\[0\]/],
+      ['destroys a mirrored name', { deletes: [...RIDING, ...SWITCH_STAYS] }, /would destroy aws_route53_record\.legacy_mirror_cname\["list"\]/],
+      ['leaves a riding name the state holds', { deletes: RIDING.filter((a) => !a.includes('"ftp"')) }, /leaves aws_route53_record\.legacy_apex_cnames\["ftp"\] in place/],
+      [
+        'a riding name in the capture the plan does not remove',
+        { prior: [...RIDING.filter((a) => !a.includes('"worlds"')), ...FLIPPED, ...SWITCH_STAYS], deletes: RIDING.filter((a) => !a.includes('"worlds"')) },
+        /does not remove worlds/,
+      ],
+      ['creates something else', { creates: [...ALIAS_PAIR, 'aws_s3_bucket.extra[0]'] }, /would create aws_s3_bucket\.extra\[0\]/],
+      ['no IPv6 pair', { creates: ['aws_route53_record.apex_aaaa[0]'] }, /does not create aws_route53_record\.www_aaaa\[0\]/],
+      ['the apex not switched', { updates: ['aws_route53_record.www[0]'] }, /does not switch aws_route53_record\.apex_a\[0\]/],
+      ['a replacement', { other: [['aws_route53_record.www[0]', ['delete', 'create']]], updates: ['aws_route53_record.apex_a[0]'] }, /would delete,create aws_route53_record\.www\[0\]/],
+      ['no prior state', { prior: null }, /no prior state/],
+    ];
+    for (const [name, shape, why] of cases) {
+      switchSetup({ plan: shape });
+      writeFileSync(calls, '', 'utf-8');
+      const r = runLaunch([...SWITCH, '--yes']);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(PRE_SWITCH_VALUES);
+      expect(callLog(), name).not.toMatch(/^apply /m);
+      expect(readdirSync(join(dir, 'tmp')), name).toEqual([]);
+    }
+  });
+
+  // Defect caught: a plan terraform could not make taken as the switch.
+  it('stops with the file unchanged when the switch plan fails', () => {
+    switchSetup();
+    const r = runLaunch([...SWITCH, '--yes'], { STUB_SAVED_PLAN_RC: '1' });
+    expectRefusedUntouched(r, 'plan failed', PRE_SWITCH_VALUES, /record-switch plan of production failed/, true);
+  });
+});
+
+describe('production-cutover.sh record-switch: the write and the apply', () => {
+  // Defect caught: the irreversible switch applied with no one to confirm it.
+  it('writes nothing and applies nothing without a terminal to confirm on', () => {
+    switchSetup();
+    expectRefusedUntouched(runLaunch(SWITCH), 'no terminal', PRE_SWITCH_VALUES, /no terminal to confirm on/, true);
+  });
+
+  // Defect caught: the write must change exactly the switch's settings, keep
+  // every other line including the operator address, plan from an override
+  // carrying only those settings, and prove the tree plans clean afterwards.
+  it('writes exactly the switch settings, applies production and proves the tree plans clean', () => {
+    switchSetup();
+    const r = runLaunch([...SWITCH, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(SWITCHED_VALUES);
+    const log = callLog();
+    expect(log.indexOf('terraform plan-saved')).toBeGreaterThan(-1);
+    expect(log.indexOf('terraform plan-saved')).toBeLessThan(log.indexOf('apply --target production'));
+    expect(log.indexOf('apply --target production')).toBeLessThan(log.indexOf('terraform plan-after-apply'));
+    expect(log).not.toMatch(/^leak /m);
+    expect(varFile()).toBe('enable_apex_alias_records = true\nenable_cutover_login_alarm = true\narchive_platform_url = ""\n');
+    expect(r.stdout).not.toContain(SENSITIVE);
+    for (const a of RIDING) expect(r.stdout, a).toContain(`  removed by this plan: ${a}`);
+    expect(r.report).toMatch(/record switch in production: applied/);
+    expect(log).toMatch(/^plan-dir-mode 700$/m);
+    expect(readdirSync(join(dir, 'tmp'))).toEqual([]);
+  });
+
+  // Defect caught: a file that never set the archive address would gain one,
+  // or be refused, when the derived default is already what the switch wants.
+  it('leaves an archive address that was never set unset', () => {
+    const noUrl = PRE_SWITCH_VALUES.replace('archive_platform_url = "https://preview.footbag.org"\n', '');
+    switchSetup({ values: noUrl });
+    const r = runLaunch([...SWITCH, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(SWITCHED_VALUES.replace('archive_platform_url = ""\n', ''));
+  });
+
+  // Defect caught: a failed apply, or one that left changes behind, reported
+  // as the switch.
+  it('fails the run when the apply fails or the tree still plans changes after it', () => {
+    switchSetup();
+    const failed = runLaunch([...SWITCH, '--yes'], { STUB_APPLY_RC: '1' });
+    expect(failed.status).not.toBe(0);
+    expect(failed.report).toMatch(/apply did not land/);
+    expect(values()).toBe(SWITCHED_VALUES);
+
+    switchSetup();
+    writeFileSync(calls, '', 'utf-8');
+    const dirty = runLaunch([...SWITCH, '--yes'], { STUB_AFTER_APPLY_PLAN_RC: '2' });
+    expect(dirty.status).not.toBe(0);
+    expect(dirty.report).toMatch(/still plans changes/);
+  });
+
+  // Defect caught: a run that stopped between the write and the apply could
+  // never be finished, a finished switch would be applied again, or a re-run
+  // would apply something that is not the switch under its name.
+  it('finishes a switch whose write landed, leaves a finished one alone, and refuses a pending change that is not the switch', () => {
+    switchSetup({ values: SWITCHED_VALUES, plan: { prior: [...RIDING, ...FLIPPED, ...SWITCH_STAYS, ...ALIAS_PAIR], creates: [] } });
+    const r = runLaunch([...SWITCH, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^terraform plan-saved$/m);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(values()).toBe(SWITCHED_VALUES);
+
+    switchSetup({ values: SWITCHED_VALUES });
+    writeFileSync(calls, '', 'utf-8');
+    const done = runLaunch([...SWITCH, '--yes']);
+    expect(done.status, done.stderr).toBe(0);
+    expect(done.report).toMatch(/already in production/);
+    expect(callLog()).not.toMatch(/^apply /m);
+
+    switchSetup({ values: SWITCHED_VALUES, plan: { deletes: [...RIDING, 'aws_route53_record.apex_a[0]'] } });
+    writeFileSync(calls, '', 'utf-8');
+    const other = runLaunch([...SWITCH, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(other.status).not.toBe(0);
+    expect(other.report).toMatch(/would destroy aws_route53_record\.apex_a\[0\]/);
+    expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  // Defect caught: a dry run that planned, wrote or applied.
+  it('changes nothing on a dry run, after checking the window and the capture', () => {
+    switchSetup();
+    const r = runLaunch([...SWITCH, '--dry-run']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(PRE_SWITCH_VALUES);
+    expect(callLog()).not.toMatch(/^terraform plan/m);
+  });
+});
+
+// ── STAGE notice-raise ───────────────────────────────────────────────────────
+
+const RAISE = ['--target', 'production', '--stage', 'notice-raise'];
+
+/** The production values file after launch: the notice and the preview off,
+ *  the apex on the platform, the mirror gone. */
+const LIVE_VALUES = [
+  'environment                  = "production"',
+  SENSITIVE_LINE,
+  'enable_legacy_mirror_records = false',
+  'enable_platform_custom_domain = true',
+  'enable_preview_record = false',
+  'enable_apex_alias_records     = true',
+  'enable_cutover_notice = false',
+  'ses_enable_mail_records     = true',
+  'enable_cutover_login_alarm  = true',
+  '',
+].join('\n');
+
+/** The same file after the raise's write, written out by hand. */
+const RAISED_VALUES = LIVE_VALUES.replace('enable_preview_record = false', 'enable_preview_record = true').replace(
+  'enable_cutover_notice = false',
+  'enable_cutover_notice = true',
+);
+
+const PREVIEW_PAIR = ['aws_route53_record.preview_a[0]', 'aws_route53_record.preview_aaaa[0]'];
+const NOTICE_FUNCTION = 'aws_cloudfront_function.apex_redirect[0]';
+const RAISE_STAYS = ['aws_route53_record.apex_a[0]'];
+
+/** By default, exactly the raise: the notice compiled into the edge function,
+ *  the preview pair created, and the window alarms the notice keeps absent
+ *  destroyed, the zero-logins watch among them. */
+function raisePlan(shape: PlanShape = {}): PlanShape {
+  return {
+    prior: [...ALARMS, ZERO_LOGINS, ...RAISE_STAYS, NOTICE_FUNCTION],
+    deletes: [...ALARMS, ZERO_LOGINS],
+    creates: PREVIEW_PAIR,
+    updates: [NOTICE_FUNCTION],
+    noop: RAISE_STAYS,
+    ...shape,
+  };
+}
+
+function raiseSetup(opts: { values?: string; plan?: PlanShape } = {}): void {
+  setValues(opts.values ?? LIVE_VALUES);
+  writeFileSync(join(dir, 'plan.json'), planJson(raisePlan(opts.plan)), 'utf-8');
+}
+
+function runRaise(args: string[], env: Record<string, string> = {}) {
+  return runLaunch(args, env, { noCapture: true });
+}
+
+describe('production-cutover.sh notice-raise: where and when it may run, each beside a run it lets through', () => {
+  // Defect caught: the raise run against staging would edit a values file
+  // with no notice to raise.
+  it('refuses any target but production before reading anything', () => {
+    raiseSetup();
+    const r = runRaise(['--target', 'staging', '--stage', 'notice-raise', '--yes']);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/production only/);
+    expect(callLog()).toBe('');
+    const ok = runRaise([...RAISE, '--yes']);
+    expect(ok.status, ok.stderr).toBe(0);
+  });
+
+  // Defect caught: a raise before the apex is switched is the window state,
+  // not a rollback; without the custom domain or under a rehearsal Terraform
+  // refuses the notice mid-incident; a half-set pair is neither state.
+  it('refuses outside a launched site or half set, with the file unchanged and nothing planned', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['custom domain off', LIVE_VALUES.replace('enable_platform_custom_domain = true', 'enable_platform_custom_domain = false'), /enable_platform_custom_domain is not true/],
+      ['apex not switched', LIVE_VALUES.replace('enable_apex_alias_records     = true', 'enable_apex_alias_records     = false'), /before the window/],
+      ['rehearsal on', `${LIVE_VALUES}rehearse_launch_base_address = true\n`, /rehearse_launch_base_address is on/],
+      ['notice flag absent', LIVE_VALUES.replace('enable_cutover_notice = false\n', ''), /enable_cutover_notice is not set/],
+      ['preview flag absent', LIVE_VALUES.replace('enable_preview_record = false\n', ''), /enable_preview_record is not set/],
+      ['half set', LIVE_VALUES.replace('enable_cutover_notice = false', 'enable_cutover_notice = true'), /half set/],
+    ];
+    for (const [name, content, why] of cases) {
+      raiseSetup({ values: content });
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runRaise([...RAISE, '--yes']), name, content, why);
+    }
+  });
+});
+
+describe('production-cutover.sh notice-raise: the plan must be exactly the raise', () => {
+  // Defect caught: other pending changes would ride along on the rollback.
+  it('refuses a tree with other changes pending before planning the raise', () => {
+    raiseSetup();
+    const r = runRaise([...RAISE, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expectRefusedUntouched(r, 'pending', LIVE_VALUES, /other changes are pending/, true);
+    expect(callLog()).not.toMatch(/^terraform plan-saved/m);
+  });
+
+  // Defect caught: a raise plan that destroys something else, keeps an alarm
+  // that would page all through the restore, never compiles the notice in, or
+  // leaves the operator with no preview name would be applied as the raise.
+  it('refuses any plan that is not exactly the raise, with the file unchanged', () => {
+    const cases: Array<[string, PlanShape, RegExp]> = [
+      ['destroys the apex', { deletes: [...ALARMS, ZERO_LOGINS, 'aws_route53_record.apex_a[0]'] }, /would destroy aws_route53_record\.apex_a\[0\]/],
+      ['leaves an alarm the state holds', { deletes: [...ALARMS.filter((a) => !a.includes('5xx')), ZERO_LOGINS] }, /leaves aws_cloudwatch_metric_alarm\.cloudfront_5xx\[0\] in place/],
+      ['creates something else', { creates: [...PREVIEW_PAIR, 'aws_s3_bucket.extra[0]'] }, /would create aws_s3_bucket\.extra\[0\]/],
+      ['no preview IPv6', { creates: ['aws_route53_record.preview_a[0]'] }, /does not create aws_route53_record\.preview_aaaa\[0\]/],
+      ['the notice not compiled in', { updates: [] }, /does not change aws_cloudfront_function\.apex_redirect\[0\]/],
+      ['a replacement', { other: [['aws_cloudfront_distribution.main[0]', ['delete', 'create']]] }, /would delete,create aws_cloudfront_distribution\.main\[0\]/],
+      ['no prior state', { prior: null }, /no prior state/],
+    ];
+    for (const [name, shape, why] of cases) {
+      raiseSetup({ plan: shape });
+      writeFileSync(calls, '', 'utf-8');
+      const r = runRaise([...RAISE, '--yes']);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(LIVE_VALUES);
+      expect(callLog(), name).not.toMatch(/^apply /m);
+      expect(readdirSync(join(dir, 'tmp')), name).toEqual([]);
+    }
+  });
+
+  // Defect caught: with the watch never armed, a raise refused for not
+  // destroying an alarm the state does not hold.
+  it('destroys only the alarms the state holds', () => {
+    raiseSetup({ plan: { prior: [...ALARMS, ...RAISE_STAYS, NOTICE_FUNCTION], deletes: ALARMS } });
+    const r = runRaise([...RAISE, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(RAISED_VALUES);
+  });
+});
+
+describe('production-cutover.sh notice-raise: the write and the apply', () => {
+  // Defect caught: the public site taken private with no one to confirm it.
+  it('writes nothing and applies nothing without a terminal to confirm on', () => {
+    raiseSetup();
+    expectRefusedUntouched(runRaise(RAISE), 'no terminal', LIVE_VALUES, /no terminal to confirm on/, true);
+  });
+
+  // Defect caught: the write must change exactly the notice and the preview,
+  // keep every other line, plan from an override carrying only those two, and
+  // prove the tree plans clean afterwards.
+  it('writes exactly the notice and the preview, applies production and proves the tree plans clean', () => {
+    raiseSetup();
+    const r = runRaise([...RAISE, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(RAISED_VALUES);
+    const log = callLog();
+    expect(log.indexOf('terraform plan-saved')).toBeGreaterThan(-1);
+    expect(log.indexOf('terraform plan-saved')).toBeLessThan(log.indexOf('apply --target production'));
+    expect(log.indexOf('apply --target production')).toBeLessThan(log.indexOf('terraform plan-after-apply'));
+    expect(log).not.toMatch(/^leak /m);
+    expect(varFile()).toBe('enable_cutover_notice = true\nenable_preview_record = true\n');
+    expect(r.stdout).not.toContain(SENSITIVE);
+    expect(r.report).toMatch(/notice raise in production: applied/);
+    expect(readdirSync(join(dir, 'tmp'))).toEqual([]);
+  });
+
+  // Defect caught: a failed apply, or one that left changes behind, reported
+  // as the raise.
+  it('fails the run when the apply fails or the tree still plans changes after it', () => {
+    raiseSetup();
+    const failed = runRaise([...RAISE, '--yes'], { STUB_APPLY_RC: '1' });
+    expect(failed.status).not.toBe(0);
+    expect(failed.report).toMatch(/apply did not land/);
+    expect(values()).toBe(RAISED_VALUES);
+
+    raiseSetup();
+    writeFileSync(calls, '', 'utf-8');
+    const dirty = runRaise([...RAISE, '--yes'], { STUB_AFTER_APPLY_PLAN_RC: '2' });
+    expect(dirty.status).not.toBe(0);
+    expect(dirty.report).toMatch(/still plans changes/);
+  });
+
+  // Defect caught: a raise whose write landed could never be finished, or a
+  // finished one would be applied again.
+  it('finishes a raise whose write landed, and leaves a finished one alone', () => {
+    raiseSetup({ values: RAISED_VALUES, plan: { prior: [...ALARMS, ...RAISE_STAYS, NOTICE_FUNCTION, ...PREVIEW_PAIR], creates: [], deletes: ALARMS, updates: [] } });
+    const r = runRaise([...RAISE, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(values()).toBe(RAISED_VALUES);
+
+    raiseSetup({ values: RAISED_VALUES });
+    writeFileSync(calls, '', 'utf-8');
+    const done = runRaise([...RAISE, '--yes']);
+    expect(done.status, done.stderr).toBe(0);
+    expect(done.report).toMatch(/already in production/);
+    expect(callLog()).not.toMatch(/^apply /m);
   });
 });

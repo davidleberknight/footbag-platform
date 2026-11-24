@@ -848,6 +848,80 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
     expect(res.stderr).toMatch(/no terminal to confirm on/);
     expect(calls()).not.toMatch(/ apply \//);
   });
+
+  // The removal of a name the legacy webmaster dropped: allowed only against the
+  // fresh capture that shows it gone, and only for the mirrored legacy records.
+  const removalCapture = () => {
+    const path = join(tmpDir, 'fresh.zone');
+    writeFileSync(path, [
+      'footbag.org.\t86400\tIN\tSOA\tdns1.example.net. hostmaster.example.net. 7 1 2 3 4',
+      'footbag.org.\t86400\tIN\tA\t198.51.100.10',
+      'rimu3.footbag.org.\t86400\tIN\tA\t198.51.100.10',
+      'fi.footbag.org.\t86400\tIN\tCNAME\tfootbag.org.',
+      'footbag.org.\t86400\tIN\tSOA\tdns1.example.net. hostmaster.example.net. 7 1 2 3 4',
+      '',
+    ].join('\n'), 'utf-8');
+    return path;
+  };
+  const mirrorDelete = (resource: string, key: string, name: string, type: string) => ({
+    type: 'aws_route53_record',
+    address: `aws_route53_record.${resource}["${key}"]`,
+    actions: ['delete'],
+    before: { name, type },
+  });
+  const BRAT = mirrorDelete('legacy_mirror_a', 'brat', 'brat.footbag.org', 'A');
+  const V = mirrorDelete('legacy_apex_cnames', 'v', 'v.footbag.org', 'CNAME');
+
+  it('lets a removal the fresh capture no longer holds through to the confirmation, naming it first', () => {
+    // Defect caught: a name the legacy zone dropped can never leave the mirror,
+    // so it keeps answering from Route 53 after the nameserver change.
+    writeTerraformStub({ planResourceChanges: [SPF, BRAT, V] });
+    const res = run(['--target', 'production', '--dns-records-only', '--removals-absent-from', removalCapture()]);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).not.toMatch(/records-only apply would also/);
+    expect(res.stdout).toMatch(/REMOVES these mirrored legacy records/);
+    expect(res.stdout).toContain('A  brat.footbag.org  (aws_route53_record.legacy_mirror_a["brat"])');
+    expect(res.stdout).toContain('CNAME  v.footbag.org  (aws_route53_record.legacy_apex_cnames["v"])');
+    // The typed word still stands between the plan and the apply.
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('still refuses, against the capture, a removal of a name it holds, of any other record, or a replacement', () => {
+    // Defect caught: the removal path becomes a general licence to delete, so a
+    // re-sync takes a live name, the apex or www out of the zone.
+    const offenders = [
+      mirrorDelete('legacy_mirror_a', 'rimu3', 'rimu3.footbag.org', 'A'),
+      mirrorDelete('legacy_apex_cnames', 'fi', 'FI.footbag.org.', 'CNAME'),
+      { type: 'aws_route53_record', address: 'aws_route53_record.preview_a[0]', actions: ['delete'], before: { name: 'preview.footbag.org', type: 'A' } },
+      { ...BRAT, actions: ['delete', 'create'] },
+      { type: 'aws_s3_bucket', address: 'aws_s3_bucket.legacy_mirror_a["brat"]', actions: ['delete'], before: { name: 'brat.footbag.org', type: 'A' } },
+    ];
+    const capturePath = removalCapture();
+    for (const offender of offenders) {
+      writeTerraformStub({ planResourceChanges: [SPF, offender] });
+      const res = run(['--target', 'production', '--dns-records-only', '--removals-absent-from', capturePath]);
+      expect(res.exitCode, offender.address).toBe(1);
+      expect(res.stderr, offender.address).toContain(`${offender.actions.join('+')}  ${offender.address}`);
+      expect(calls(), offender.address).not.toMatch(/ apply \//);
+    }
+    // And without the capture, even the absent name is refused as before.
+    writeTerraformStub({ planResourceChanges: [SPF, BRAT] });
+    const bare = run(['--target', 'production', '--dns-records-only']);
+    expect(bare.exitCode).toBe(1);
+    expect(bare.stderr).toContain('delete  aws_route53_record.legacy_mirror_a["brat"]');
+  });
+
+  it('takes the capture only with the records-only shape, and only a readable one', () => {
+    writeTerraformStub();
+    const plain = run(['--target', 'production', '--removals-absent-from', removalCapture()]);
+    expect(plain.exitCode).toBe(2);
+    expect(plain.stderr).toMatch(/goes with --dns-records-only only/);
+    const missing = run(['--target', 'production', '--dns-records-only', '--removals-absent-from', join(tmpDir, 'absent.zone')]);
+    expect(missing.exitCode).toBe(2);
+    expect(missing.stderr).toMatch(/not a readable file/);
+    expect(calls()).toBe('');
+  });
 });
 
 describe('terraform-apply.sh: breaking a stale state lock', () => {

@@ -33,27 +33,29 @@
 #     enable_cutover_notice and enable_apex_alias_records both read exactly
 #     false, which is where runbook step P1-11 arms the zero-logins alarm, lets
 #     it fire on the idle production, and turns it off again before pass 2.
-#     From pass 2 on, the freeze stage of the cutover script turns it on with
-#     the alias records. Either flag true, a failed read, or a value that is not
-#     a bool is refused. There is no metric to look for before arming it: its
+#     From pass 2 on, the record switch (scripts/production-cutover.sh
+#     --stage record-switch) turns it on with the alias records. Either flag
+#     true, a failed read, or a value that is not a bool is refused. There is no metric to look for before arming it: its
 #     LoginSuccessCount comes from a log filter the same gate creates, and in
 #     pass 1 its firing on missing data is the point.
 #   - enable_feed_queues, by name: scripts/activate-notification-feeds.sh owns
 #     it, because turning the feeds on also needs a deploy and a host check.
 #   - enable_cutover_login_alarm turned off inside the freeze window, while
 #     enable_cutover_notice and enable_apex_alias_records are both on: the
-#     freeze apply arms it, and it stays on through launch until the close of
+#     record switch arms it, and it stays on through launch until the close of
 #     the 48-hour watch after launch. Either flag that cannot be read is
 #     refused as though it were on.
 #   - enable_cutover_notice and enable_apex_alias_records, by name, either
 #     direction: cutover flags that change only together with other values in
 #     one apply, and this script sets one gate per apply. The notice goes on in
 #     the window state (the second pass of the production-readiness sitting)
-#     and off in the launch apply; the alias records go on only in the
-#     write-freeze apply.
+#     and off in the launch apply, and goes back on after launch only for a
+#     rollback, in scripts/production-cutover.sh --stage notice-raise; the
+#     alias records go on only in the record switch, --stage record-switch.
 #   - enable_preview_record, by name, either direction: a DNS record on the
 #     cutover path. The production custom-domain apply turns it on and the
-#     launch apply turns it off with the notice.
+#     launch apply turns it off with the notice, and --stage notice-raise
+#     turns it back on with the notice for a rollback.
 #   - ses_enable_domain_identity and ses_enable_domain_auth, by name, either
 #     direction: SES domain verification publishes DNS records and starts SES's
 #     verification clock; it runs in the production-readiness sitting only once
@@ -222,15 +224,15 @@ case "$GATE" in
     exit 2
     ;;
   enable_cutover_notice)
-    cr_error "enable_cutover_notice is a cutover flag that changes only together with other values: it goes on in the window state, in the second pass of the production-readiness sitting, and off in the launch apply; this script sets one gate per apply and refuses it"
+    cr_error "enable_cutover_notice is a cutover flag that changes only together with other values: it goes on in the window state, in the second pass of the production-readiness sitting, and off in the launch apply, and back on for a rollback in scripts/production-cutover.sh --stage notice-raise; this script sets one gate per apply and refuses it"
     exit 2
     ;;
   enable_apex_alias_records)
-    cr_error "enable_apex_alias_records is a cutover flag that goes on only in the write-freeze apply, together with the other values that apply changes; this script sets one gate per apply and refuses it"
+    cr_error "enable_apex_alias_records is a cutover flag that goes on only in the record switch, scripts/production-cutover.sh --target production --stage record-switch, together with the other values it changes; this script sets one gate per apply and refuses it"
     exit 2
     ;;
   enable_preview_record)
-    cr_error "enable_preview_record is a DNS record on the cutover path: the production custom-domain apply turns it on and the launch apply turns it off with the notice; this script refuses it"
+    cr_error "enable_preview_record is a DNS record on the cutover path: the production custom-domain apply turns it on and the launch apply turns it off with the notice, and scripts/production-cutover.sh --stage notice-raise turns it back on for a rollback; this script refuses it"
     exit 2
     ;;
   ses_enable_domain_identity|ses_enable_domain_auth)
@@ -527,11 +529,12 @@ read_tf_bool() {
 # This script turns the zero-logins alarm on only in pass 1 of the
 # production-readiness sitting, while the notice and the alias records both
 # read exactly false: runbook step P1-11 arms it there, lets it fire on the
-# idle production, and turns it off before pass 2. From pass 2 on, the freeze
-# stage of the cutover script arms it with the alias records. Fail closed:
+# idle production, and turns it off before pass 2. From pass 2 on,
+# scripts/production-cutover.sh --stage record-switch arms it with the alias
+# records. Fail closed:
 # anything but two clean false reads is refused.
 refuse_login_alarm_on() {
-  cr_error "refusing to turn enable_cutover_login_alarm on on ${TARGET}: $1. This script arms it only in pass 1 of the production-readiness sitting, for runbook step P1-11's fire test, while enable_cutover_notice and enable_apex_alias_records both read false; from pass 2 on, the freeze stage of the cutover script turns it on."
+  cr_error "refusing to turn enable_cutover_login_alarm on on ${TARGET}: $1. This script arms it only in pass 1 of the production-readiness sitting, for runbook step P1-11's fire test, while enable_cutover_notice and enable_apex_alias_records both read false; from pass 2 on, scripts/production-cutover.sh --stage record-switch turns it on."
   return 1
 }
 pass_one_check() {
@@ -547,7 +550,7 @@ pass_one_check() {
   echo "pass 1: enable_cutover_notice and enable_apex_alias_records both read false."
 }
 
-# The freeze apply arms the zero-logins alarm with the alias records while the
+# The record switch arms the zero-logins alarm with the alias records while the
 # notice is up, and the launch apply that lowers the notice is what creates it.
 # Turned off in between, the 48-hour watch after launch runs without its main
 # sign-in observable. Fail closed: a flag that cannot be read counts as on.
@@ -563,7 +566,7 @@ freeze_window_check() {
   read_tf_bool enable_apex_alias_records || return 1
   alias="$TF_BOOL"
   if [[ "$notice" != "false" && "$alias" != "false" ]]; then
-    cr_error "refusing to turn enable_cutover_login_alarm off on ${TARGET}: enable_cutover_notice and enable_apex_alias_records are both on, which is the freeze window. The freeze apply arms the alarm, and it stays on through launch until the 48-hour close after launch."
+    cr_error "refusing to turn enable_cutover_login_alarm off on ${TARGET}: enable_cutover_notice and enable_apex_alias_records are both on, which is the freeze window. The record switch (scripts/production-cutover.sh --stage record-switch) arms the alarm, and it stays on through launch until the 48-hour close after launch."
     return 1
   fi
 }

@@ -87,7 +87,6 @@ scripts/setup_private_repo.sh
 scripts/smoke-local.sh
 scripts/smoke-security.sh
 scripts/staging_diagnostics.sh
-scripts/take-pre-cutover-snapshot.sh
 scripts/test-deployed.sh
 scripts/test-smoke.sh
 scripts/test-targets.sh

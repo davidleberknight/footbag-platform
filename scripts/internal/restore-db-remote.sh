@@ -44,6 +44,12 @@
 #                  the backup timer and the service are never touched. A drill
 #                  that cannot read the members or payments it restored fails,
 #                  because a restore nobody can query is not a restore.
+#   PRE_FLIP       1 for a cutover rollback: after the snapshot is in place and
+#                  before the erasure replay, pause payments and outbound mail on
+#                  the restored copy, and refuse to serve it when either does not
+#                  read back paused. Needs PAUSE_BODY_B64.
+#   PAUSE_BODY_B64 scripts/internal/runtime-pause-remote.sh, base64 on one line,
+#                  the body that writes every pause lever.
 #   RESUME_ERASURE_REPLAY
 #                  1 to finish a restore whose erasure replay did not complete:
 #                  re-run the replay against the database in place and, only on
@@ -241,10 +247,42 @@ start_service() {
   local out=""
   if ! out="$(systemctl start footbag 2>&1)"; then
     crr_error "footbag.service did not start: ${out##*$'\n'}"
+    stop_failed_stack
     return 1
   fi
   [[ -n "$out" ]] && printf '%s\n' "$out"
   return 0
+}
+
+# After a start that failed or never reported ready: names each container that
+# is not running and healthy, so the report says which one to look at, then
+# stops the stack. Every service carries restart: unless-stopped, so a
+# container that cannot come up would otherwise be restarted without limit,
+# holding a small host's CPU and memory while the site is down anyway. Stop,
+# not down, keeps each container and its log for the operator to read; the
+# site serves the maintenance page and the container monitor keeps reporting
+# the stack unhealthy until it is fixed.
+stop_failed_stack() {
+  local listing="" svc state health out=""
+  listing="$(docker compose --env-file "${ENV_PATH}" \
+      -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
+      ps --all --format '{{.Service}} {{.State}} {{.Health}}' 2>&1 </dev/null)" || listing=""
+  if [[ -z "$listing" ]]; then
+    crr_error "compose lists no containers at all after the failed start"
+  else
+    while read -r svc state health; do
+      [[ -n "$svc" ]] || continue
+      if [[ "$state" != "running" || ( -n "$health" && "$health" != "healthy" ) ]]; then
+        crr_error "container ${svc} is ${state}${health:+ (${health})}; its log is in docker logs on the host"
+      fi
+    done <<<"$listing"
+  fi
+  echo "==> Stopping the stack so a failing container is not restarted without limit" >&2
+  if ! out="$(docker compose --env-file "${ENV_PATH}" \
+        -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
+        stop --timeout 30 2>&1 </dev/null)"; then
+    crr_error "stopping the stack after the failed start failed, so Docker may still be restarting a container: ${out##*$'\n'}"
+  fi
 }
 
 # ── Resume: finish a restore whose erasure replay did not complete ───────────
@@ -277,6 +315,7 @@ if [[ "${RESUME_ERASURE_REPLAY:-0}" == "1" ]]; then
   if ! wait_until_ready; then
     crr_error "the service did not report ready within ~20s. The erasures are re-applied and backups resume; inspect it with scripts/host-diagnostics.sh."
     systemctl status footbag --no-pager -l >&2 || true
+    stop_failed_stack
     exit 1
   fi
   echo ""
@@ -565,9 +604,9 @@ db_owner="$(stat -c '%u:%g' "$superseded")"
 chown "$db_owner" "$DB_FILE"
 chmod 600 "$DB_FILE"
 
-restored_integrity="$(sqlite3 "$DB_FILE" 'PRAGMA integrity_check;' 2>/dev/null || echo 'unreadable')"
-if [[ "$restored_integrity" != "ok" ]]; then
-  crr_error "the restored database failed its integrity check in place (${restored_integrity}). Putting the previous database back and restarting."
+# The snapshot is in place but cannot be served: the previous database goes back
+# and the run ends. The caller has already marked why.
+put_previous_back_and_exit() {
   rm -f "$DB_FILE" "${DB_FILE}-wal" "${DB_FILE}-shm"
   if ! cp -a "$superseded" "$DB_FILE"; then
     crr_error "putting the previous database back ALSO failed. It is intact at ${superseded} and must be restored by hand before the service is used."
@@ -576,6 +615,44 @@ if [[ "$restored_integrity" != "ok" ]]; then
   chown "$db_owner" "$DB_FILE"
   previous_database_back
   exit 1
+}
+
+restored_integrity="$(sqlite3 "$DB_FILE" 'PRAGMA integrity_check;' 2>/dev/null || echo 'unreadable')"
+if [[ "$restored_integrity" != "ok" ]]; then
+  crr_error "the restored database failed its integrity check in place (${restored_integrity}). Putting the previous database back and restarting."
+  put_previous_back_and_exit
+fi
+
+# A cutover rollback pauses payments and outbound mail on the restored copy
+# before anything can start a service on it. The pre-flip snapshot was taken
+# with both levers open, and both are rows in this database, so a pause set
+# before the restore did not survive it. Written ahead of the erasure replay,
+# so a replay left pending and finished later still starts paused. Each lever is
+# written by the same body the pause scripts send, which the caller carries
+# here, and must read back paused; a restored copy that cannot be paused is not
+# served.
+if [[ "${PRE_FLIP:-0}" == "1" ]]; then
+  echo "==> Pausing payments and outbound mail on the restored database"
+  pause_failed=""
+  if [[ -z "${PAUSE_BODY_B64:-}" ]]; then
+    pause_failed="the pause body did not arrive with this restore"
+  else
+    for lever in payments_paused email_outbox_paused; do
+      pause_status=0
+      pause_out="$(DB_FILE="$DB_FILE" CONFIG_KEY="$lever" ACTION=pause \
+          REASON="cutover rollback: set by restore-db.sh --pre-flip before the service starts" \
+          bash <(base64 -d <<<"$PAUSE_BODY_B64") </dev/null 2>&1)" || pause_status=$?
+      if (( pause_status != 0 )) || ! grep -qx 'SWITCH_PAUSED=1' <<<"$pause_out"; then
+        pause_failed="${lever} did not read back paused: ${pause_out##*$'\n'}"
+        break
+      fi
+      echo "    ${lever}=1 on the restored database"
+    done
+  fi
+  if [[ -n "$pause_failed" ]]; then
+    crr_error "could not pause the restored database (${pause_failed}). A rollback must not start with payments or outbound mail open. Putting the previous database back and restarting."
+    put_previous_back_and_exit
+  fi
 fi
 
 # Re-apply the erasures the restored snapshot records as due, while the stack
@@ -610,6 +687,7 @@ start_service || exit 1
 if ! wait_until_ready; then
   crr_error "the service did not report ready within ~20s. The restored database is in place with its erasures re-applied, and backups resume. The database it replaced is at ${superseded}. Inspect the service with scripts/host-diagnostics.sh; no old copies were pruned."
   systemctl status footbag --no-pager -l >&2 || true
+  stop_failed_stack
   exit 1
 fi
 
@@ -632,6 +710,14 @@ echo "  Newest audit row: $(sqlite3 "$DB_FILE" 'SELECT MAX(occurred_at) FROM aud
 echo "  The database this replaced is at ${superseded}"
 echo "  It is the way back for seven days, after which the first deploy or"
 echo "  restore deletes it."
+if [[ "${PRE_FLIP:-0}" == "1" ]]; then
+  echo ""
+  echo "  Payments and outbound mail are PAUSED on this database. It predates"
+  echo "  the post-load repairs: the first administrator, the co-administrator"
+  echo "  grants, the area digest routes and owners, and the deceased flags."
+  echo "  Redo them, and reconcile against Stripe and the sent log, before"
+  echo "  unpausing either lever or re-arming email."
+fi
 echo "======================================================================"
 echo ""
 crr_finish

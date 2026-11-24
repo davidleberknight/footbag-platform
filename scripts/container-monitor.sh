@@ -28,7 +28,8 @@
 # Zeros are published, so the counters and gauges are continuous and a missing
 # point means the monitor did not run. While footbag.service is deliberately
 # stopped (a maintenance window, a restore) only the heartbeat is published,
-# so a planned stop raises nothing.
+# so a planned stop raises nothing. A failed footbag.service is not a planned
+# stop: every container then reads unhealthy, so a failed start alarms.
 #
 # Events are read from `docker events` between the moment the last run read up
 # to and now, both fixed timestamps, so consecutive runs neither overlap nor
@@ -96,8 +97,15 @@ send_lines() {
   done
 }
 
+# A failed unit is not a planned stop. A start that fails or times out leaves
+# footbag.service failed while the containers it started may still be up and
+# restarting, and the site is down either way, so every container reads
+# unhealthy and the crash and OOM counts are still read.
+SERVICE_FAILED=0
+"$SYSTEMCTL_BIN" is-failed --quiet footbag.service && SERVICE_FAILED=1
+
 # A planned stop raises nothing: the heartbeat alone says the monitor ran.
-if ! "$SYSTEMCTL_BIN" is-active --quiet footbag.service; then
+if (( ! SERVICE_FAILED )) && ! "$SYSTEMCTL_BIN" is-active --quiet footbag.service; then
   echo "footbag.service is not active; publishing the heartbeat only"
   send_lines "container_monitor_heartbeat:1|g"
   printf '%s\n' "$NOW" > "$CURSOR_FILE"
@@ -170,6 +178,7 @@ for svc in "${SERVICES[@]}"; do
     cr_error "docker ps failed for ${svc}: ${info##*$'\n'}"
   fi
 
+  (( SERVICE_FAILED )) && unhealthy=1
   [[ -n "$pct" ]] && gauge container_memory_percent "$pct" "$svc"
   counter container_oom_kills "$oom" "$svc"
   counter container_crashes "$crashes" "$svc"

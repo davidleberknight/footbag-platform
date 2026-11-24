@@ -96,6 +96,15 @@
 #                       artifact: a search across both picks the newest routine
 #                       snapshot every time, which is a silent restore of the
 #                       wrong point in time at the moment nothing can be undone.
+#                       In place, a rollback does two things more, because the
+#                       artifact was taken with the outbox and payments open and
+#                       both pause levers are rows in the database it replaces.
+#                       On production it refuses, before the host is reached,
+#                       unless the email switch reads dark. And on the restored
+#                       copy, before the erasure replay and so before any service
+#                       start, it pauses payments and outbound mail; a copy that
+#                       does not read back paused is not served. The closing
+#                       report then names the repairs the snapshot predates.
 #
 #   --bucket <name>     The bucket to read from. Defaults to the environment's
 #                       own snapshot bucket. The pre-cutover rollback artifact is
@@ -443,11 +452,37 @@ if (( DRY_RUN )); then
     echo "     the snapshot host-side, verifies it, stops the service, copies the"
     echo "     database in place aside, restores, re-verifies, re-applies the"
     echo "     erasures the snapshot records and restarts"
+    if (( PRE_FLIP )); then
+      [[ "$TARGET" == "production" ]] \
+        && echo "  Before step 1: refuse unless the production email switch reads dark"
+      echo "  Before the replay: pause payments and outbound mail on the restored copy,"
+      echo "     so the service first starts with both levers held"
+    fi
   fi
   exit 0
 fi
 
 command -v "$AWS_BIN" >/dev/null 2>&1 || die "aws CLI not installed"
+
+# The cutover rollback onto production goes ahead only while the email switch
+# reads dark. The pre-flip snapshot holds the outbox unpaused, and both pause
+# levers are rows in the database this restore replaces, so the switch, which
+# lives in Parameter Store and survives the restore, is the one lever that holds
+# across it. Read before the host is reached, and anything but dark refuses,
+# a value that cannot be read included. The parameter lives beside the
+# application, so it is read there and not in the DR bucket's region. Below
+# production the mail adapter is a stub whatever the switch says.
+if [[ "$TARGET" == "production" && "$PRE_FLIP" -eq 1 && "$DRILL" -eq 0 ]]; then
+  email_param="/footbag/production/app/email_send_armed"
+  ssm_args=()
+  [[ -n "$AWS_PROFILE_ARG" ]] && ssm_args=(--profile "$AWS_PROFILE_ARG")
+  email_value="$("$AWS_BIN" "${ssm_args[@]+"${ssm_args[@]}"}" ssm get-parameter --name "$email_param" \
+      --region us-east-1 --query 'Parameter.Value' --output text </dev/null 2>&1)" \
+    || die "could not read ${email_param}, so whether the restored service could resend mail is unknown: ${email_value##*$'\n'}"
+  [[ "$email_value" == "dark" ]] \
+    || die "the production email switch reads '${email_value}', not dark: the restored service would send from the pre-flip snapshot's outbox. Disarm it first with scripts/arming.sh --target production --switch email --state dark, then run again."
+  echo "    production email switch reads dark"
+fi
 
 # Latest unless the operator named one. Named explicitly is the normal case for
 # a real recovery, where the whole question is which point in time to return to.
@@ -700,8 +735,19 @@ restore_status=0
 # silently restored the wrong database while displaying the right URI.
 run_label="restore on ${SSH_ALIAS}"
 (( DRILL )) && run_label="restore drill on ${SSH_ALIAS}"
+# A cutover rollback carries the body that writes the pause levers, so the host
+# writes them with the one body every lever is written by. A drill never pauses.
+PAUSE_ON_HOST=0
+PAUSE_BODY_B64=""
+if (( PRE_FLIP && ! DRILL )); then
+  PAUSE_ON_HOST=1
+  PAUSE_BODY="${SCRIPT_DIR}/internal/runtime-pause-remote.sh"
+  [[ -r "$PAUSE_BODY" ]] || die "missing pause body: $PAUSE_BODY"
+  PAUSE_BODY_B64="$(base64 -w0 "$PAUSE_BODY")"
+fi
 cr_run_marked "$run_label" -- \
   send_to_host "SNAPSHOT_KEY=${SNAPSHOT_KEY}" "BUCKET=${BUCKET}" "BUCKET_REGION=${BUCKET_REGION}" "DRILL=${DRILL}" "ONTO_EMPTY=${ONTO_EMPTY}" \
+    "PRE_FLIP=${PAUSE_ON_HOST}" "PAUSE_BODY_B64=${PAUSE_BODY_B64}" \
   || restore_status=$?
 # Judged by the errors the host marked as well as by its exit, so a half that
 # marked an error and still exited 0 is never followed by a success line.
@@ -736,4 +782,8 @@ echo "== restore complete on ${TARGET} =="
 echo "Record the date, the elapsed time and the outcome: that record is the drill"
 echo "evidence the go-live backup and recovery gate asks for."
 cr_proved "s3://${BUCKET}/${SNAPSHOT_KEY} is in place on ${SSH_ALIAS} with its erasures re-applied, and the service reported ready (the host half's checks)"
+if (( PAUSE_ON_HOST )); then
+  cr_proved "payments and outbound mail read back paused on the restored database before the service started (the host half's checks)"
+  cr_unproved "the post-load repairs the pre-flip snapshot predates: the first administrator, the co-administrator grants, the area digest routes and owners, and the deceased flags. Redo them, and reconcile payments against Stripe and mail against the sent log, before unpausing either lever or re-arming email"
+fi
 cr_finish

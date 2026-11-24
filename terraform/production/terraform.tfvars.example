@@ -87,14 +87,11 @@ legacy_mx_records            = []
 # from the fresh zone capture. They are mirrored with the rest of the zone and
 # removed in the same apply that flips the alias, because each one follows the
 # name it points at to the distribution, which refuses a hostname its certificate
-# does not cover. The transfer found five; confirm the set and the targets
-# against the capture rather than trusting this list.
+# does not cover. scripts/write-zone-mirror-values.sh writes the set and the
+# targets from the capture; these lines only show the shape.
 legacy_apex_cname_records = {
-  # fi                 = "footbag.org"
-  # ftp                = "footbag.org"
-  # v                  = "www.footbag.org"
-  # worlds             = "www.footbag.org"
-  # worldchampionships = "www.footbag.org"
+  # fi     = "footbag.org"
+  # worlds = "www.footbag.org"
 }
 
 # The rest of the legacy zone. The design requires the move to mirror every

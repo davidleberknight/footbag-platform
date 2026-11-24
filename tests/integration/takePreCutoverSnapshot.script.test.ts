@@ -26,6 +26,7 @@ import * as os from 'node:os';
 import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { insertMember, insertLegacyMember } from '../fixtures/factories';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA_SQL = fs.readFileSync(path.join(REPO_ROOT, 'database', 'schema.sql'), 'utf8');
@@ -159,6 +160,41 @@ describe('take-pre-cutover-snapshot.sh produces a restorable artifact', () => {
     });
     expect(res.status).not.toBe(0);
     expect(res.stderr).toContain('FOOTBAG_DR_BUCKET');
+  });
+
+  // Defect caught: the rollback artifact taken, and locked in the DR bucket,
+  // from a database in which a legacy account had already been claimed. No
+  // member account exists when this snapshot is taken, so a claim means
+  // something reached the platform during the freeze, and restoring the
+  // snapshot later would silently discard it.
+  it('refuses a database holding a claimed legacy account, leaving no artifact behind', () => {
+    const dbPath = path.join(workDir, 'footbag.db');
+    buildDb(dbPath);
+    const db = new BetterSqlite3(dbPath);
+    const member = insertMember(db, {});
+    insertLegacyMember(db, { claimed_by_member_id: member, claimed_at: '2026-12-15T00:00:00.000Z' });
+    insertLegacyMember(db, {});
+    db.close();
+
+    const res = run();
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('1 legacy_members row');
+    const snapDir = path.join(workDir, 'snapshots');
+    const left = fs.existsSync(snapDir) ? fs.readdirSync(snapDir) : [];
+    expect(left, 'no snapshot or manifest is left to be mistaken for the rollback artifact').toEqual([]);
+  });
+
+  it('takes the snapshot when legacy accounts are loaded and none is claimed', () => {
+    // The positive control: unclaimed legacy rows are the expected state.
+    const dbPath = path.join(workDir, 'footbag.db');
+    buildDb(dbPath);
+    const db = new BetterSqlite3(dbPath);
+    insertLegacyMember(db, {});
+    db.close();
+
+    const res = run();
+    expect(res.status, res.stderr).toBe(0);
+    expect((manifestFrom(res.stdout).row_counts as Record<string, number>).legacy_members).toBe(1);
   });
 
   it('refuses when the database it is told to snapshot is not there', () => {

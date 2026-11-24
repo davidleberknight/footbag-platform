@@ -339,11 +339,12 @@ describe('set-terraform-gate.sh argument guards, each beside a run it lets throu
     // Defect caught: a cutover flag applied alone, outside the apply that
     // changes it together with its other values, or an operator sent looking
     // for a "pair flip" that never happens: the notice goes on in the window
-    // state and off in the launch apply, and the alias records go on only in
-    // the write-freeze apply.
+    // state, off in the launch apply and back on for a rollback in the
+    // notice-raise stage, and the alias records go on only in the record-switch
+    // stage.
     const owners: Array<[string, string[], string[]]> = [
-      ['enable_cutover_notice', ['window state', 'launch apply'], ['write-freeze']],
-      ['enable_apex_alias_records', ['write-freeze'], ['window state', 'launch apply']],
+      ['enable_cutover_notice', ['window state', 'launch apply', '--stage notice-raise'], ['record-switch', 'freeze']],
+      ['enable_apex_alias_records', ['--stage record-switch'], ['window state', 'launch apply', 'notice-raise', 'freeze']],
     ];
     for (const [gate, named, notNamed] of owners) {
       for (const state of ['on', 'off']) {
@@ -364,6 +365,7 @@ describe('set-terraform-gate.sh argument guards, each beside a run it lets throu
     // operator refused without being told where the change belongs.
     const refused: Array<[string, string]> = [
       ['enable_preview_record', 'custom-domain apply'],
+      ['enable_preview_record', '--stage notice-raise'],
       ['ses_enable_domain_identity', 'zone delegation'],
       ['ses_enable_domain_auth', 'zone delegation'],
       ['enable_archive', 'prevent_destroy'],
@@ -785,7 +787,7 @@ describe('set-terraform-gate.sh keeps the login alarm on through the freeze wind
     `${VALUES}enable_cutover_login_alarm = true\nenable_cutover_notice = ${notice}\nenable_apex_alias_records = ${alias}\n`;
 
   it('refuses the alarm off while the notice and the alias records are both on, and allows it otherwise', () => {
-    // Defect caught: the zero-logins alarm the freeze apply armed turned off
+    // Defect caught: the zero-logins alarm the record switch armed turned off
     // before launch, so the 48-hour watch runs without its primary sign-in
     // observable; or the refusal so broad the alarm cannot be stood down in
     // the window state or at the 48-hour close.
@@ -804,6 +806,8 @@ describe('set-terraform-gate.sh keeps the login alarm on through the freeze wind
       if (status === 1) {
         expect(r.report, label).toContain('freeze window');
         expect(r.report, label).toContain('48-hour');
+        // Defect caught: the operator sent looking for a stage that does not exist.
+        expect(r.report, label).toContain('--stage record-switch');
         expect(values('production'), label).toBe(content);
         expect(callLog(), label).not.toMatch(/^terraform plan /m);
         expect(callLog(), label).not.toMatch(/^apply /m);
@@ -857,8 +861,8 @@ describe('set-terraform-gate.sh arms the login alarm only in pass 1, for its fir
 
   it('refuses to arm it when either flag reads true, having read them, and touches nothing', () => {
     // Defect caught: the zero-logins alarm armed in the window state or the
-    // freeze window by this script, where the freeze stage of the cutover owns
-    // it; or armed in the window state, where the launch apply then creates an
+    // freeze window by this script, where the record-switch stage of the
+    // cutover owns it; or armed in the window state, where the launch apply then creates an
     // alarm nobody fire-tested.
     const cases: Array<[boolean, boolean]> = [
       [true, false],
@@ -874,6 +878,7 @@ describe('set-terraform-gate.sh arms the login alarm only in pass 1, for its fir
       expect(r.status, `${label}: ${r.stderr}`).toBe(1);
       expect(callLog(), label).toMatch(/^console read var\.enable_cutover_notice$/m);
       expect(r.report, label).toContain('P1-11');
+      expect(r.report, label).toContain('--stage record-switch');
       expect(r.report, label).not.toContain('Proven:');
       expect(values('production'), label).toBe(content);
       expect(callLog(), label).not.toMatch(/^terraform plan /m);

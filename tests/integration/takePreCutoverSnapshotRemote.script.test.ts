@@ -40,9 +40,16 @@ let snapDir: string;
 let binDir: string;
 let callLog: string;
 
+/**
+ * The release as the deploy ships it: the snapshot script and the
+ * closing-report library files it sources, which travel in the same install.
+ */
 function installRealSnapshotScript(): void {
-  mkdirSync(join(liveDir, 'scripts'), { recursive: true });
+  mkdirSync(join(liveDir, 'scripts', 'lib'), { recursive: true });
   copyFileSync(SNAPSHOT_SCRIPT, join(liveDir, 'scripts', 'take-pre-cutover-snapshot.sh'));
+  for (const lib of ['closing-report.sh', 'closing-report-remote.sh', 'verdict-banner.sh']) {
+    copyFileSync(join(REPO_ROOT, 'scripts', 'lib', lib), join(liveDir, 'scripts', 'lib', lib));
+  }
 }
 
 /** A snapshot script that prints the given manifest and nothing else. */

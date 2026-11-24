@@ -1365,16 +1365,31 @@ describe('pruning set-aside database copies after a code deploy', () => {
   // Defect caught: a deploy reported live while the worker or the image
   // processor crash-loops, because only web's readiness was polled; outbound
   // mail or photo processing would then be dead behind a green deploy.
+  // A failed poll also names the container that failed and stops the stack,
+  // so a container that cannot come up is not left restarting indefinitely
+  // on the host (it starved a small host for hours) and the report says which
+  // one to look at rather than only that the host half exited 1. The stack is
+  // stopped, not removed, so each container's logs stay readable.
   it.each([
-    ['worker restarting', 'nginx running \\nweb running healthy\\nworker restarting \\nimage running healthy\\n'],
-    ['image unhealthy', 'nginx running \\nweb running healthy\\nworker running healthy\\nimage running unhealthy\\n'],
-    ['compose reaching nothing', ''],
-  ])('fails the deploy when a container is not healthy (%s)', (_label, listing) => {
+    ['worker restarting', 'nginx running \\nweb running healthy\\nworker restarting \\nimage running healthy\\n', /container worker is restarting/],
+    ['image unhealthy', 'nginx running \\nweb running healthy\\nworker running healthy\\nimage running unhealthy\\n', /container image is running \(unhealthy\)/],
+    ['compose reaching nothing', '', /compose lists no containers/],
+  ])('fails the deploy when a container is not healthy (%s)', (_label, listing, named) => {
     const res = runTail('prune_db_copies() { :; }', { CONTAINERS: listing });
 
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('did not reach healthy state');
+    expect(res.stderr).toMatch(named);
     expect(res.stdout).not.toContain('TAIL_DONE');
+    expect(res.log).toMatch(/docker compose .* stop --timeout 30/);
+    expect(res.log).not.toMatch(/docker compose .* down\b/);
+  });
+
+  it('names no container and stops nothing when the stack comes up healthy', () => {
+    // The sibling of the failure cases: a healthy deploy must not stop the stack.
+    const res = runTail('prune_db_copies() { :; }');
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.log).not.toMatch(/ stop --timeout/);
   });
 
   it('passes the readiness poll once every container is running and healthy', () => {

@@ -236,7 +236,7 @@ function writeAwsStub(): void {
     '      printf "%s\\n" "${ks:-None}"; fi ;;',
     // The production email switch: its value and when it last changed, as
     // --query 'Parameter.[Value,LastModifiedDate]' --output text renders them.
-    '  get-parameter) printf "%s\\t%s\\n" "${EMAIL_VALUE:-false}" "${EMAIL_CHANGED:-2026-10-01T00:00:00.000000+00:00}" ;;',
+    '  get-parameter) printf "%s\\t%s\\n" "${EMAIL_VALUE-dark}" "${EMAIL_CHANGED:-2026-10-01T00:00:00.000000+00:00}" ;;',
     '  head-object)',
     '    k="$(arg --key "$@")"; r="$(grep -F "$k"$\'\\t\' "$S/bucket")" || { echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2; exit 254; }',
     '    cut -f2,3 <<< "$r" ;;',
@@ -1217,7 +1217,10 @@ const isoAt = (epoch: number) => new Date(epoch * 1000).toISOString().replace('Z
 describe.skipIf(!HAS_SCRIPT)('restore-host.sh on production, the email switch', () => {
   // The newest automatic snapshot the fixture holds was taken ten hours before the run.
   it.each([
-    ['reads armed', { EMAIL_VALUE: 'true' }, /email switch reads 'true', not false/],
+    ['reads armed', { EMAIL_VALUE: 'armed' }, /email switch reads 'armed', not dark/],
+    // A value the parameter never holds is not dark: the guard refuses anything
+    // but the one safe value, so a stale or hand-written value cannot pass it.
+    ['reads a value it never holds', { EMAIL_VALUE: 'false' }, /email switch reads 'false', not dark/],
     ['was disarmed after the snapshot was taken', { EMAIL_CHANGED: isoAt(NOW - 3600) }, /last changed at .* after the automatic snapshot of 2026-10-26 was taken/],
   ])('refuses before changing anything when the switch %s', (_label, extra, message) => {
     // Defect caught: a restored production host booting with an armed mail

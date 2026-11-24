@@ -189,13 +189,14 @@ resource "aws_route53_record" "apex_a" {
 # lookup against www currently reaches the apex MX and afterwards gets an empty
 # answer.
 #
-# Four names change behaviour, not one. v, worlds and worldchampionships are
-# CNAMEs onto www, so today they chase www to the apex and reach the apex mail
-# pair the same way, and afterwards they reach nothing. fi and ftp point straight
-# at the apex and are unaffected, which is why the count is four rather than the
-# five that ride the apex and www between them. Their own records are identical
-# in both zones, so a record-by-record comparison of the mirror reports nothing
-# for them: what changes is what a chased query returns.
+# More names than www change behaviour. Every legacy name that is a CNAME onto
+# www (worlds and worldchampionships in the capture) chases www to the apex today
+# and reaches the apex mail pair the same way, and afterwards reaches nothing. The
+# names pointing straight at the apex (fi and ftp) are unaffected, so the names
+# affected are www and those riding it, not every name riding the apex or www.
+# Their own records are identical in both zones, so a record-by-record
+# comparison of the mirror reports nothing for them: what changes is what a
+# chased query returns.
 #
 # Every name that publishes its own mail routing in the zone snapshot is
 # elsewhere, and from the freeze both shapes behave identically because www
@@ -221,7 +222,7 @@ resource "aws_route53_record" "www" {
 }
 
 variable "legacy_apex_cname_records" {
-  description = "Legacy names that are CNAMEs onto the apex or www, as name => target, read from the fresh zone snapshot. Set in tfvars while enable_legacy_mirror_records is on. The zone transfer found five (fi, ftp, v, worlds, worldchampionships); take the set from the capture rather than from that list. Anything left out of this map is not carried through the zone move at all, and anything left in it after the flip resolves to a distribution that refuses it."
+  description = "Legacy names that are CNAMEs onto the apex or www, as name => target, read from the fresh zone snapshot. Set in tfvars while enable_legacy_mirror_records is on. Take the set from the capture (scripts/write-zone-mirror-values.sh writes it), never from a list in a comment. Anything left out of this map is not carried through the zone move at all, and anything left in it after the flip resolves to a distribution that refuses it."
   type        = map(string)
   default     = {}
 }
@@ -239,7 +240,7 @@ variable "legacy_apex_cname_records" {
 # runbook requires; that is why these names are Terraform resources at all,
 # since a name with none could not be removed by any apply.
 #
-# These five are separated from the rest of the mirrored zone because their
+# These names are separated from the rest of the mirrored zone because their
 # disposition is fixed by their shape rather than by the removal schedule: they
 # ride the apex and www, so they leave with them. Every other legacy name is
 # carried by the general mirror below and retires in the launch apply.
@@ -258,7 +259,7 @@ resource "aws_route53_record" "legacy_apex_cnames" {
 #
 # The design requires the zone move to mirror every existing record faithfully,
 # so that changing which servers answer changes nothing about what they answer.
-# The apex, www and the five names that ride them are declared above because each
+# The apex, www and the names that ride them are declared above because each
 # has its own switch behaviour. Everything else in the zone is carried here, as
 # values read from the zone snapshot and set in the private values file.
 #
@@ -290,7 +291,7 @@ variable "legacy_mirror_a_records" {
 }
 
 variable "legacy_mirror_cname_records" {
-  description = "Legacy names that are aliases onto some other host, as name => target, read from the zone snapshot. Excludes www and the five names pointing at the apex or www, which are declared separately because they switch with the alias flip. Set in tfvars while enable_legacy_mirror_records is on."
+  description = "Legacy names that are aliases onto some other host, as name => target, read from the zone snapshot. Excludes www and the names pointing at the apex or www, which are declared separately because they switch with the alias flip. Set in tfvars while enable_legacy_mirror_records is on."
   type        = map(string)
   default     = {}
 }

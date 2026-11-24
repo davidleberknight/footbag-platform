@@ -44,7 +44,11 @@ esac
 `;
 
 const SYSTEMCTL_STUB = `#!/usr/bin/env bash
-[[ "\${STACK_ACTIVE:-1}" == 1 ]]
+case "$1" in
+  is-active) [[ "\${STACK_ACTIVE:-1}" == 1 ]] ;;
+  is-failed) [[ "\${STACK_FAILED:-0}" == 1 ]] ;;
+  *) echo "unexpected systemctl $*" >&2; exit 2 ;;
+esac
 `;
 
 function cgroup(service: string, limit: number | 'max', current: number, inactiveFile: number) {
@@ -185,6 +189,21 @@ describe('container-monitor.sh', () => {
     const res = run({ STACK_ACTIVE: '0' });
     expect(res.status, res.stderr).toBe(0);
     expect(res.lines).toEqual(['container_monitor_heartbeat:1|g']);
+  });
+
+  it('reports every container unhealthy, and still counts crashes, while footbag.service has failed', () => {
+    // Defect caught: a start that failed or timed out leaves the unit failed
+    // (not active) while its containers keep restarting, and a monitor that
+    // treats failed like a planned stop sends only its heartbeat, so the site
+    // sits down for hours with no container alarm. The stopped case above
+    // shows a deliberate stop still raises nothing.
+    const res = run({ STACK_ACTIVE: '0', STACK_FAILED: '1', EVENTS: 'die web 1\\ndie web 1' });
+    expect(res.status, res.stderr).toBe(0);
+    for (const svc of ['nginx', 'web', 'worker', 'image']) {
+      expect(res.lines).toContain(`container_unhealthy:1|g|#container:${svc}`);
+    }
+    expect(res.lines).toContain('container_crashes:2|c|#container:web');
+    expect(res.lines.at(-1)).toBe('container_monitor_heartbeat:1|g');
   });
 
   it('omits the memory reading for a container with no limit rather than dividing by it', () => {

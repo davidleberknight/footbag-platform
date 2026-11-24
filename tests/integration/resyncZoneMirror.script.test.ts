@@ -58,6 +58,7 @@ interface Change {
   type: string;
   address: string;
   actions: string[];
+  before?: { name: string; type: string };
 }
 
 let dir: string;
@@ -97,7 +98,7 @@ function terraformStub(opts: { plan?: Change[]; zoneIdFails?: boolean } = {}): s
     resource_changes: (opts.plan ?? []).map((c) => ({
       address: c.address,
       type: c.type,
-      change: { actions: c.actions, before: null, after: null, after_unknown: {} },
+      change: { actions: c.actions, before: c.before ?? null, after: null, after_unknown: {} },
     })),
   });
   return stub(
@@ -235,6 +236,44 @@ describe('resync-zone-mirror.sh: the apply gates the check', () => {
     expect(r.stderr.match(/^==== Closing report: /gm)).toHaveLength(1);
     expect(r.stderr).toMatch(/^==== Closing report: resync-zone-mirror\.sh ====$/m);
     expect(reportList(r.stderr, 'Errors')).toMatch(/terraform-apply\.sh: /);
+  });
+});
+
+describe('resync-zone-mirror.sh: removals only when asked for', () => {
+  // A name the capture no longer holds, as the plan removes it from the mirror.
+  const DROPPED: Change = {
+    type: 'aws_route53_record',
+    address: 'aws_route53_record.legacy_mirror_a["brat"]',
+    actions: ['delete'],
+    before: { name: 'brat.footbag.org', type: 'A' },
+  };
+
+  it('stops on a removal unless asked for one, and with --with-removals hands it to the apply against the capture', () => {
+    // Defect caught: either a re-sync silently carries a removal the operator
+    // never asked for, or the flag fails to reach the apply, so a name the
+    // legacy zone dropped can never leave the mirror.
+    const refused = run(VALID(), { plan: [DROPPED] });
+    expect(refused.exitCode).not.toBe(0);
+    expect(refused.stderr).toContain('delete  aws_route53_record.legacy_mirror_a["brat"]');
+    expect(read(digLog)).toBe('');
+
+    const asked = run([...VALID(), '--with-removals'], { plan: [DROPPED] });
+    expect(asked.stderr).not.toMatch(/records-only apply would also/);
+    expect(asked.stdout).toContain('A  brat.footbag.org  (aws_route53_record.legacy_mirror_a["brat"])');
+    // It stops at the typed word, which no test has, so nothing is applied or checked.
+    expect(asked.exitCode).not.toBe(0);
+    expect(read(tfLog)).not.toMatch(/ apply \//);
+    expect(read(digLog)).toBe('');
+    expect(reports()).toEqual([]);
+  });
+
+  it('names the removal flag in the dry run only when asked for', () => {
+    const plain = run([...VALID(), '--dry-run']);
+    expect(plain.stdout).not.toMatch(/--removals-absent-from/);
+    const asked = run([...VALID(), '--dry-run', '--with-removals']);
+    expect(asked.exitCode, asked.stderr).toBe(0);
+    expect(asked.stdout).toContain(`--removals-absent-from ${capture}`);
+    expect(read(tfLog)).toBe('');
   });
 });
 

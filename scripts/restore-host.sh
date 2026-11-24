@@ -1118,8 +1118,8 @@ else
       --query 'Parameter.[Value,LastModifiedDate]' --output text </dev/null 2>&1)" \
       || die "could not read ${email_param}, so whether the restored host could resend mail is unknown: ${email_row##*$'\n'}"
     IFS=$'\t' read -r email_value email_changed <<< "$email_row"
-    [[ "$email_value" == "false" ]] \
-      || die "the production email switch reads '${email_value}', not false: the restored host would send from the snapshot's outbox before the restore holds it. Disarm it with scripts/arming.sh --target production --switch email --state dark, wait for the next automatic snapshot, and run again."
+    [[ "$email_value" == "dark" ]] \
+      || die "the production email switch reads '${email_value}', not dark: the restored host would send from the snapshot's outbox before the restore holds it. Disarm it with scripts/arming.sh --target production --switch email --state dark, wait for the next automatic snapshot, and run again."
     if [[ "$email_changed" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then email_epoch="${email_changed%%.*}"
     else email_epoch="$(date -u -d "$email_changed" +%s 2>/dev/null)" \
       || die "could not read when ${email_param} last changed ('${email_changed}')"; fi
