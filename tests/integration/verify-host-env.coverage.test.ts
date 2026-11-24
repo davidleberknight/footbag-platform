@@ -95,7 +95,7 @@ const ALLOWLIST: Map<string, string> = new Map([
   // staging gates archive access by its login-gated redirect instead and
   // sets no ARCHIVE_COOKIE_SIGNER, so its two companions are never required
   // on a staging host.
-  ['ARCHIVE_KEY_PAIR_ID', 'rationale: required only when ARCHIVE_COOKIE_SIGNER=ssm, which staging does not set'],
+  ['ARCHIVE_KEY_PAIR_ID', 'rationale: a Terraform-published value, held against its parameter by the published-values loop over the host-value catalogue rather than by name'],
   ['ARCHIVE_URL', 'rationale: required only when ARCHIVE_COOKIE_SIGNER is set, which staging does not set; on staging the deploy syncs ARCHIVE_URL from SSM and its absence just hides the card'],
 ]);
 

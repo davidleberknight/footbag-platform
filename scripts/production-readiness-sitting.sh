@@ -159,6 +159,30 @@ STAGING_STEPS=(
   's09e|idem|tty|rerun|scripts/admin-bootstrap-token.sh --target staging cleanup'
   's09f|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target staging status'
   's10a|once+mail|cred|log|scripts/incident-drill.sh --target staging'
+  # The host rebuild drills, timed by their log rows against the four-hour
+  # objective: a restore from the automatic snapshot, then a fresh instance.
+  's11a|read|tty|-|scripts/verify-host-snapshots.sh --target staging'
+  's11b|read|cred|-|scripts/bootstrap-host.sh --target staging --status'
+  's11c|once|cred|log|scripts/restore-host.sh --target staging'
+  's11d|once|tty|log|deploy_to_aws.sh --target staging'
+  's11e|read|cred|-|scripts/bootstrap-host.sh --target staging --status'
+  's11f|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
+  's11g|read|cred|-|scripts/restore-db.sh --target staging --drill'
+  's11h|ask+mail|-|log|Alarm check, snapshot restore. Since s11c began, the operations mailbox should hold an IAM-write or alerting-disabled alarm email only for an apply the restore or the deploy made, and a break-glass alarm email for each host-key read the restore made. Does every such email match one of those?'
+  's11i|once|cred|log|scripts/restore-host.sh --target staging --delete-old'
+  's11j|once|tty|log|scripts/bootstrap-host.sh --target staging --replace-instance'
+  # The fresh instance comes back the way a live production's does: the
+  # release installed unstarted, the newest backup restored with its erasure
+  # replay, then the code deploy, all inside the bootstrap.
+  's11k|idem|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging --restore-database'
+  's11l|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
+  's11m|read|cred|-|scripts/restore-db.sh --target staging --drill'
+  's11n|ask+mail|-|log|Alarm check, fresh instance. Since s11j began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
+  # The retention rules' outcome on the snapshots bucket, and a deleted
+  # object brought back into each served bucket by both of its recoveries.
+  's12|read|tty|-|scripts/apply-snapshot-retention.sh --target staging --verify --profile footbag-operator'
+  's13a|once|tty|log|scripts/restore-bucket.sh --target staging --bucket media --drill'
+  's13b|once|tty|log|scripts/restore-bucket.sh --target staging --bucket archive --drill'
   's98|ask+mail|-|log|Second-operator check. The next step, s99, runs the staging incident drill again and records whoever runs it as the second operator; the second operator runs it from their own workstation, with their own credential, in their remote session. Is the second operator the one at this keyboard now, on their own workstation? If not, answer no: this run stops here.'
   's99|once+mail|cred|log|scripts/incident-drill.sh --target staging'
 )
@@ -288,7 +312,35 @@ PRODUCTION_STEPS=(
   'p22f|read|cred|-|scripts/bringup-status.sh --target production --profile footbag-operator'
   'p20a|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p20b|read|tty|-|scripts/terraform-apply-all.sh --target production --check'
-  'p90|blocked|-|-|The host rebuild drills: the backup and restore change they follow is not yet built and deployed'
+  # The host rebuild drills, with every lesson the staging drill taught. They
+  # refuse a live production, where each replaces the serving host. The trees
+  # must hold nothing unapplied, since a status read fails on any. Email must
+  # read dark: a restored host's worker sends with the switch its snapshot
+  # carries until the restore holds it, and restore-host.sh also refuses a
+  # switch changed since that snapshot. Every run reaching here has deployed
+  # this tree at p12d and p21c, so the backup guards the drills prove are on
+  # the host.
+  'p90a|read|tty|stdout=currently reads: false$|scripts/production-live-marker.sh --status --profile footbag-operator'
+  'p90b|read|tty|-|scripts/terraform-apply-all.sh --target production --check'
+  'p90c|read|tty|stdout=^SSM .*email_send_armed\): false$|scripts/arming.sh --target production --switch email --status --profile footbag-operator'
+  'p90d|read|tty|-|scripts/verify-host-snapshots.sh --target production'
+  'p90e|read|cred|-|scripts/bootstrap-host.sh --target production --status'
+  'p90f|once|cred|log|scripts/restore-host.sh --target production'
+  'p90g|once|tty|log|deploy_to_aws.sh --target production'
+  'p90h|read|cred|-|scripts/bootstrap-host.sh --target production --status'
+  'p90i|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
+  'p90j|read|cred|-|scripts/restore-db.sh --target production --drill'
+  'p90k|ask+mail|-|log|Alarm check, snapshot restore. Since p90f began, the operations mailbox should hold an IAM-write or alerting-disabled alarm email only for an apply the restore or the deploy made, and a break-glass alarm email for each host-key read the restore made. Does every such email match one of those?'
+  'p90l|once|cred|log|scripts/restore-host.sh --target production --delete-old'
+  'p90m|blocked|-|-|The fresh-instance rebuild on production: bootstrap-host.sh --replace-instance does not yet carry the outgoing host'"'"'s keys onto the new instance, so the rebuild would mint new keys and ask for the vault to be updated'
+  # As on staging, the fresh instance comes back the way it will after go-live,
+  # which also keeps the first-admin claim and the rest of pass 1's database.
+  'p90n|idem|cred|cred:0=scripts/bootstrap-host.sh --target production --status|scripts/bootstrap-host.sh --target production --restore-database'
+  'p90o|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
+  'p90p|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
+  'p90q|ask+mail|-|log|Alarm check, fresh instance. Since p90m began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
+  'p90r|once|tty|log|scripts/restore-bucket.sh --target production --bucket media --drill'
+  'p90s|once|tty|log|scripts/restore-bucket.sh --target production --bucket archive --drill'
   'p91|blocked|-|-|The migration case matrix on production: deploy-migrate.sh has no one-off production mode yet'
   'p92|blocked|-|-|The video-curation walk on production: it follows the curation walk on staging'
   'p93|blocked|-|-|The Stripe test-mode exercise of paid event registration: the event organizer and registration flow is not built'

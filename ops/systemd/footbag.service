@@ -71,6 +71,19 @@ ExecStop=/usr/bin/docker compose \
     -f docker/docker-compose.prod.yml \
     down --timeout 30
 
+# A start that fails or times out runs only the post-stop lines, never ExecStop,
+# and the containers it already started carry restart: unless-stopped, so a
+# container that cannot start (a missing credential, a bad setting) would be
+# restarted by Docker indefinitely, holding the host's CPU and memory while the
+# service reads failed. Bringing the stack down here fails fast instead: the
+# site serves the maintenance page and the container monitor raises its alarm.
+# On an ordinary stop the stack is already down and this does nothing.
+ExecStopPost=-/usr/bin/docker compose \
+    --env-file /srv/footbag/env \
+    -f docker/docker-compose.yml \
+    -f docker/docker-compose.prod.yml \
+    down --timeout 30
+
 # Final backup after the stack is down: snapshots the quiescent DB so the most
 # recent state is captured at shutdown, not just on the 5-minute timer. The '-'
 # prefix makes it best-effort so a backup hiccup never wedges the stop.

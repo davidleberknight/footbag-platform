@@ -54,6 +54,23 @@ const RECORD = `${OLD}-pre-restore-${STAMP}`;
 const IP = '203.0.113.10';
 /** The newest routine backup the old host wrote, five minutes before the run. */
 const LAST_BACKUP = 'routine/2026/10/26/footbag-20261026T072800Z.db.gz';
+/** The audit row the restored backup recorded: the real database's newest. */
+const RESTORED_AT = '2026-10-26T07:27:58.412Z';
+/**
+ * The bucket a healthy restore leaves: an earlier backup of the old host, whose
+ * older audit row would read as the snapshot's database if the listing did not
+ * start after the restored backup; the restored backup; and the restored host's
+ * first upload after the restore, carrying a later audit row.
+ */
+const bucketRow = (key: string, id: string, at: string) => `${key}\t${id}\t${at}`;
+const AFTER_RESTORE = 'routine/2026/10/26/footbag-20261026T074000Z.db.gz';
+const HEALTHY_BUCKET = [
+  bucketRow('routine/2026/10/26/footbag-20261026T072300Z.db.gz', 'audit_earlier', '2026-10-26T07:22:41.007Z'),
+  bucketRow(LAST_BACKUP, 'audit_restored', RESTORED_AT),
+  bucketRow(AFTER_RESTORE, 'audit_after', '2026-10-26T07:39:30.250Z'),
+];
+/** The newest audit row in the snapshot's day-old database. */
+const SNAPSHOT_AT = '2026-10-25T14:02:11.930Z';
 /** Two automatic snapshots, the newer one used unless another date is asked for. */
 const AUTO_SNAPSHOTS = [
   `2026-10-25\t${new Date((NOW - 34 * 3600) * 1000).toISOString()}\tSuccess`,
@@ -150,6 +167,9 @@ function writeAwsStub(): void {
     '  get-instance)',
     '    n="$(arg --instance-name "$@")"; r="$(row "$n")" || { echo "NotFoundException" >&2; exit 254; }',
     '    IFS=$\'\\t\' read -r _ _ az b k _ _ <<< "$r"',
+    // The creation time, in the form the CLI renders it: the moment the stand-in
+    // made the instance, or long before the run for one it found already there.
+    '    if [[ "$(arg --query "$@")" == *createdAt* ]]; then cat "$S/created-$n" 2>/dev/null || echo "2026-03-13T00:29:59.387000-07:00"; exit 0; fi',
     '    printf "%s\\t%s\\t%s\\t%s\\n" "$(cat "$S/blueprint-$n")" "$b" "$k" "$az" ;;',
     '  get-static-ip) cat "$S/staticip"; echo ;;',
     '  get-auto-snapshots) cat "$S/autosnaps"; echo ;;',
@@ -179,6 +199,7 @@ function writeAwsStub(): void {
     '    [[ -n "$src" ]] || src="$(grep "^$(arg --instance-snapshot-name "$@")"$\'\\t\' "$S/instance-snapshots" | cut -f3)"',
     '    printf "%s\\tpending\\t%s\\t%s\\t%s\\t%s\\t%s\\n" "$name" "$(arg --availability-zone "$@")" "${CREATED_BUNDLE:-$(arg --bundle-id "$@")}" "$(arg --key-pair-name "$@")" "$(arg --ip-address-type "$@")" "14:00" >> "$S/instances"',
     '    cp "$S/blueprint-$src" "$S/blueprint-$name"',
+    '    date -u -d "@${RESTORE_HOST_NOW}" +%Y-%m-%dT%H:%M:%S.000000+00:00 > "$S/created-$name"',
     '    printf "ssh-ed25519\\tAAAAC3-%s\\necdsa-sha2-nistp256\\tAAAAE2-%s\\n" "$name" "$name" > "$S/hostkeys-$name"',
     '    printf "%s" "${PORTS_REFUSALS:-1}" > "$S/ports-refusals-$name"',
     '    cp "$S/default-ports.json" "$S/ports-$name.json" ;;',
@@ -195,8 +216,30 @@ function writeAwsStub(): void {
     '  get-instance-access-details)',
     '    n="$(arg --instance-name "$@")"; echo "${AWS_SDK_UA_APP_ID:-none} $n" >> "$S/mints.log"',
     '    jq -Rn --arg sentinel "$MINT_SENTINEL" \'[inputs | select(length > 0) | split("\\t") | {algorithm: .[0], publicKey: .[1]}] | {accessDetails: {privateKey: $sentinel, certKey: "ssh-rsa-cert-v01@openssh.com fixture", username: "ec2-user", hostKeys: .}}\' < "$S/hostkeys-$n" ;;',
-    '  delete-instance) n="$(arg --instance-name "$@")"; grep -v "^$n"$\'\\t\' "$S/instances" > "$S/instances.tmp" || true; mv "$S/instances.tmp" "$S/instances" ;;',
-    '  list-objects-v2) printf "%s\\n" "${LAST_BACKUP_KEY:-None}" ;;',
+    // Lightsail refuses to delete an instance carrying an add-on (here the
+    // automatic snapshot, the row's seventh field) without --force-delete-add-ons,
+    // with the words a real staging run returned.
+    '  delete-instance)',
+    '    n="$(arg --instance-name "$@")"; r="$(row "$n")" || { echo "NotFoundException" >&2; exit 254; }',
+    '    IFS=$\'\\t\' read -r _ _ _ _ _ _ addon <<< "$r"',
+    '    if [[ -n "$addon" && "$addon" != None ]] && ! has --force-delete-add-ons "$@"; then',
+    '      echo "An error occurred (InvalidInputException) when calling the DeleteInstance operation: You cannot delete the Instance $n with addons. Specify the forceDeleteAddons parameter to delete the Instance and its associated addons." >&2; exit 254',
+    '    fi',
+    '    grep -v "^$n"$\'\\t\' "$S/instances" > "$S/instances.tmp" || true; mv "$S/instances.tmp" "$S/instances" ;;',
+    // Without --start-after, the newest-backup lookup the stop records. With it,
+    // the backups listed after a key, from the stand-in bucket: one row per
+    // object, its key, then the audit id and time its upload recorded.
+    '  list-objects-v2)',
+    '    sa="$(arg --start-after "$@")"',
+    '    if [[ -z "$sa" ]]; then printf "%s\\n" "${LAST_BACKUP_KEY:-None}"; else',
+    '      ks="$(cut -f1 "$S/bucket" 2>/dev/null | sort | awk -v p="$(arg --prefix "$@")" -v a="$sa" \'index($0, p) == 1 && $0 > a\' | paste -sd "\\t" -)"',
+    '      printf "%s\\n" "${ks:-None}"; fi ;;',
+    // The production email switch: its value and when it last changed, as
+    // --query 'Parameter.[Value,LastModifiedDate]' --output text renders them.
+    '  get-parameter) printf "%s\\t%s\\n" "${EMAIL_VALUE:-false}" "${EMAIL_CHANGED:-2026-10-01T00:00:00.000000+00:00}" ;;',
+    '  head-object)',
+    '    k="$(arg --key "$@")"; r="$(grep -F "$k"$\'\\t\' "$S/bucket")" || { echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2; exit 254; }',
+    '    cut -f2,3 <<< "$r" ;;',
     '  *) echo "stand-in aws: unhandled $svc $sub" >&2; exit 2 ;;',
     'esac',
     '[[ -n "${BREAK_OUTPUT_AFTER:-}" && "$sub" == "$BREAK_OUTPUT_AFTER" ]] && : > "$S/output-broken"',
@@ -318,7 +361,8 @@ function writeTerraformStub(): void {
  * static IP is on an instance listed as lost, then which environment it is, and
  * the hold (service and backup timer stopped) and the release (backup timer
  * started) the restore asks for. HOLD_REFUSED makes the hold report the service
- * still running.
+ * still running. The journal read answers JOURNAL_REFUSALS refused backup runs
+ * (two unless set), or that the journal is unreadable with JOURNAL_UNREADABLE.
  */
 function writeSshStub(recorded?: string): void {
   exe(join(bin, 'ssh'), [
@@ -337,6 +381,10 @@ function writeSshStub(recorded?: string): void {
     '    echo "---FOOTBAG-HELD---"; exit 0 ;;',
     '  *footbag-restore-release*)',
     '    cat >/dev/null; echo "ssh release" >> "$S/calls.log"; echo "---FOOTBAG-RELEASED---"; exit 0 ;;',
+    '  *footbag-restore-lineage*)',
+    '    cat >/dev/null; echo "ssh lineage" >> "$S/calls.log"',
+    '    [[ -n "${JOURNAL_UNREADABLE:-}" ]] && { printf "%s\\n" "---FOOTBAG-JOURNAL-UNREADABLE---" "No journal files were found."; exit 1; }',
+    '    echo "---FOOTBAG-REFUSALS-${JOURNAL_REFUSALS:-2}---"; exit 0 ;;',
     'esac',
     'exit 0',
   ]);
@@ -369,6 +417,7 @@ beforeEach(() => {
   writeFileSync(p('default-ports.json'), JSON.stringify(DEFAULT_PORTS));
   writeFileSync(p(`hostkeys-${OLD}`), `ssh-ed25519\t${keyOf(OLD)}\n`);
   writeFileSync(p('tfname'), OLD);
+  writeFileSync(p('bucket'), HEALTHY_BUCKET.join('\n') + '\n');
   writeFileSync(p('tfstate'), 'aws_lightsail_instance.web\naws_lightsail_instance_public_ports.web\naws_lightsail_static_ip_attachment.web\naws_lightsail_static_ip.web\n');
   writeAwsStub();
   writeTerraformStub();
@@ -652,6 +701,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     // Defect caught: a host opened to the public on the snapshot's database
     // because no backup was found to restore, or a named backup ignored.
     const chosen = 'hourly/2026/10/26/footbag-20261026T070000Z.db.gz';
+    setBucket([bucketRow(chosen, 'audit_hourly', '2026-10-26T06:59:31.118Z'), ...HEALTHY_BUCKET]);
     const first = runAtTerminal(['--target', 'staging'], 'APPLY\n', { LAST_BACKUP_KEY: 'None' });
     expect(first.status).toBe(1);
     expect(first.out).toContain('--db-snapshot');
@@ -707,6 +757,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     // Defect caught: an operator restoring a backup hours older than the stop
     // without being told the rest of the data is only in the manual snapshot;
     // or a threshold that drifts from the alarm Terraform actually deploys.
+    if (key !== LAST_BACKUP) setBucket([bucketRow(key, 'audit_older', '2026-10-26T04:59:40.502Z'), ...HEALTHY_BUCKET]);
     const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { LAST_BACKUP_KEY: key, ALARM_THRESHOLD: threshold });
     expect(r.status, r.out).toBe(0);
     const warning = new RegExp(`older than the ${threshold}-minute backup alarm threshold[\\s\\S]*${RECORD}`);
@@ -720,6 +771,9 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     // staler than it was when the old host stopped, and warning on a good one.
     const first = runAtTerminal(['--target', 'staging'], 'APPLY\n', { FAIL_ON: 'create-instances-from-snapshot' });
     expect(first.out).toContain('written 0h 05m before the stop');
+    // The new instance is made by the later run, so the restored host's first
+    // upload comes after that run's clock.
+    setBucket([...HEALTHY_BUCKET, bucketRow('routine/2026/10/26/footbag-20261026T084000Z.db.gz', 'audit_later', '2026-10-26T08:39:30.250Z')]);
     const later = runAtTerminal(['--target', 'staging'], 'APPLY\n', { RESTORE_HOST_NOW: String(NOW + 3600) });
     expect(later.status, later.out).toBe(0);
     expect(later.out).toContain('written 0h 05m before the stop');
@@ -921,6 +975,8 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a restored host that is lost in i
     const later = NOW + 86400;
     const newer = `${OLD}-r${stampAt(later)}`;
     const record2 = `${NEW}-pre-restore-${stampAt(later)}`;
+    // The second restored host's first upload, a day on.
+    setBucket([...HEALTHY_BUCKET, bucketRow('routine/2026/10/27/footbag-20261027T074000Z.db.gz', 'audit_next_day', '2026-10-27T07:39:30.250Z')]);
     const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { RESTORE_HOST_NOW: String(later) });
     expect(r.status, r.out).toBe(0);
     expect(recordRow()?.[3]).toBe('superseded');
@@ -1007,6 +1063,180 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, nothing leaves Terraform state un
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/pull the private operations checkout/i);
     expect(r.out).toContain(NEW);
+    expect(mutatingCalls()).toEqual([]);
+  });
+});
+
+/** One list of the closing report, up to the next list or the verdict. */
+function reportList(out: string, heading: RegExp): string {
+  const all = [...out.matchAll(new RegExp(heading.source, 'g'))];
+  if (all.length === 0) return '';
+  const start = all[all.length - 1].index! + all[all.length - 1][0].length;
+  const rest = out.slice(start);
+  const next = rest.search(/\n(Errors \(\d+\):|Warnings \(\d+\):|Proven:|Not proven:|DONE|FAILED)/);
+  return next < 0 ? rest : rest.slice(0, next);
+}
+const errorsOf = (out: string) => reportList(out, /Errors \(\d+\):/);
+const provenOf = (out: string) => reportList(out, /Proven:/);
+const unprovenOf = (out: string) => reportList(out, /Not proven:/);
+const setBucket = (rows: string[]) => writeFileSync(p('bucket'), rows.join('\n') + '\n');
+const STALE_KEY = (prefix: string) => `${prefix}/2026/10/26/footbag-20261026T073500Z.db.gz`;
+
+describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the snapshot\'s database never reaches the bucket', () => {
+  it('proves every backup after the restored one continues it, and that the host refused the stale database', () => {
+    // Defect caught: a restore reported done while nothing checked that the
+    // restored host's day-old database stayed out of the bucket, so the next
+    // database restore could bring back data erased since the snapshot. The
+    // earlier backup in the bucket carries an older audit row than the restored
+    // one: judged, it would fail the run, so a pass also shows the listing
+    // starts at the new instance's creation, not at the start of the history.
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(errorsOf(r.out)).toBe('');
+    expect(provenOf(r.out)).toContain(`every backup written since ${NEW} was created continues ${LAST_BACKUP}`);
+    expect(provenOf(r.out)).toContain('refused the snapshot\'s database 2 time(s)');
+  });
+
+  it.each([
+    ['in routine/', [...HEALTHY_BUCKET, bucketRow(STALE_KEY('routine'), 'audit_snapshot', SNAPSHOT_AT)], STALE_KEY('routine')],
+    // The routine copy has expired under staging's one-day retention; the
+    // hourly promotion of it is still held.
+    ['only in hourly/, its routine copy expired', [...HEALTHY_BUCKET, bucketRow(STALE_KEY('hourly'), 'audit_snapshot', SNAPSHOT_AT)], STALE_KEY('hourly')],
+  ])('fails, naming it, when an upload of the snapshot\'s database is %s', (_label, rows, stale) => {
+    // Defect caught: a stale upload the restored host made before the hold
+    // left in the bucket as a newer backup than the real one, with the drill
+    // reported passed.
+    setBucket(rows as string[]);
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).not.toBe(0);
+    expect(errorsOf(r.out)).toContain(stale as string);
+    expect(provenOf(r.out)).not.toContain('continues it');
+  });
+
+  it('fails when no backup reaches the bucket after the restore', () => {
+    // Defect caught: backups left stopped on the restored host, or refusing
+    // the restored database too, so the recovery point silently grows from
+    // the moment of the restore.
+    setBucket(HEALTHY_BUCKET.filter((row) => !row.startsWith(AFTER_RESTORE)));
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).not.toBe(0);
+    expect(errorsOf(r.out)).toContain('not resuming');
+  });
+
+  it('fails when an upload after the restore carries no lineage record', () => {
+    // Defect caught: an upload nothing can judge counted as continuing the
+    // restored database.
+    setBucket([...HEALTHY_BUCKET.filter((row) => !row.startsWith(AFTER_RESTORE)), bucketRow(AFTER_RESTORE, 'None', 'None')]);
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).not.toBe(0);
+    expect(errorsOf(r.out)).toContain(`${AFTER_RESTORE} was written since ${NEW} was created and carries no lineage record`);
+  });
+
+  it('passes an upload whose newest audit row is the restored backup\'s own', () => {
+    // Defect caught: a quiet site, where nothing was audited between the
+    // restore and the next backup, failing the drill as if that upload were
+    // stale.
+    setBucket([...HEALTHY_BUCKET.filter((row) => !row.startsWith(AFTER_RESTORE)), bucketRow(AFTER_RESTORE, 'audit_restored', RESTORED_AT)]);
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(provenOf(r.out)).toContain(`every backup written since ${NEW} was created continues ${LAST_BACKUP}`);
+  });
+
+  it('does not count the old host\'s backups as resumed when an older backup was restored', () => {
+    // Defect caught: with --db-snapshot naming a backup older than the old
+    // host's last one, the old host's later uploads read as the restored host's
+    // backups resuming, so a restored host whose backups never started passes.
+    const chosen = 'hourly/2026/10/26/footbag-20261026T070000Z.db.gz';
+    setBucket([bucketRow(chosen, 'audit_hourly', '2026-10-26T06:59:31.118Z'),
+      ...HEALTHY_BUCKET.filter((row) => !row.startsWith(AFTER_RESTORE))]);
+    expect(runAtTerminal(['--target', 'staging'], 'APPLY\n', { LAST_BACKUP_KEY: 'None' }).status).toBe(1);
+    const r = runAtTerminal(['--target', 'staging', '--db-snapshot', chosen], 'APPLY\n', { LAST_BACKUP_KEY: 'None' });
+    expect(r.status, r.out).not.toBe(0);
+    expect(errorsOf(r.out)).toContain('not resuming');
+    expect(provenOf(r.out)).not.toContain('continues');
+  });
+
+  it('judges against the restored backup\'s hourly copy once its routine copy has aged out', () => {
+    // Defect caught: a run resumed after staging's one-day routine/ window
+    // failing a healthy host because the restored backup's record is gone
+    // from routine/ while its promoted copy still holds it.
+    const hourlyCopy = LAST_BACKUP.replace(/^routine\//, 'hourly/');
+    setBucket([bucketRow(hourlyCopy, 'audit_restored', RESTORED_AT), ...HEALTHY_BUCKET.filter((row) => !row.startsWith(LAST_BACKUP))]);
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain(`read from ${hourlyCopy}`);
+    expect(provenOf(r.out)).toContain(`continues ${LAST_BACKUP}`);
+  });
+
+  it('reports as not proven, not as an error, a restored backup aged out of every generation', () => {
+    // Defect caught: a healthy restore failed on a missing reference it can
+    // never get back, or the same gap read as a pass.
+    setBucket(HEALTHY_BUCKET.filter((row) => !row.startsWith(LAST_BACKUP)));
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(unprovenOf(r.out)).toContain('has aged out of every generation');
+    expect(provenOf(r.out)).not.toContain('continues');
+  });
+
+  it('reports as not proven, not as passed, a restored backup that carries no lineage record', () => {
+    // Defect caught: later uploads judged against an empty reference, so
+    // every one reads as continuing it whatever it holds.
+    setBucket([bucketRow(LAST_BACKUP, 'None', 'None'), bucketRow(STALE_KEY('routine'), 'audit_snapshot', SNAPSHOT_AT)]);
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(provenOf(r.out)).not.toContain('continues it');
+    expect(unprovenOf(r.out)).toContain(`${LAST_BACKUP} carries no lineage record`);
+  });
+
+  it.each([
+    ['shows no refused run', { JOURNAL_REFUSALS: '0' }, 'shows no refused run'],
+    ['cannot be read', { JOURNAL_UNREADABLE: '1' }, 'No journal files were found.'],
+  ])('reports the refusal as not proven when the host journal %s', (_label, extra, why) => {
+    // Defect caught: the drill claiming the backup guard refused the stale
+    // database when nothing on the host shows it ran.
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', extra as NodeJS.ProcessEnv);
+    expect(r.status, r.out).toBe(0);
+    expect(provenOf(r.out)).not.toContain('refused the snapshot\'s database');
+    expect(unprovenOf(r.out)).toContain(why as string);
+  });
+});
+
+/** The same estate under production's names, for the checks that only production makes. */
+function useProduction(): void {
+  const prodOld = 'footbag-production-web';
+  writeFileSync(p('instances'), `${prodOld}\trunning\tus-east-1a\tsmall_3_0\tfootbag-production-operator\tdualstack\t14:00\n`);
+  writeFileSync(p(`blueprint-${prodOld}`), 'ubuntu_24_04');
+  writeFileSync(p('staticip'), `True\t${prodOld}\t${IP}`);
+  writeFileSync(p(`ports-${prodOld}.json`), JSON.stringify(OLD_PORTS));
+  writeFileSync(p(`hostkeys-${prodOld}`), `ssh-ed25519\t${keyOf(prodOld)}\n`);
+  writeFileSync(p('tfname'), prodOld);
+  writeSshStub('production');
+}
+const isoAt = (epoch: number) => new Date(epoch * 1000).toISOString().replace('Z', '+00:00');
+
+describe.skipIf(!HAS_SCRIPT)('restore-host.sh on production, the email switch', () => {
+  // The newest automatic snapshot the fixture holds was taken ten hours before the run.
+  it.each([
+    ['reads armed', { EMAIL_VALUE: 'true' }, /email switch reads 'true', not false/],
+    ['was disarmed after the snapshot was taken', { EMAIL_CHANGED: isoAt(NOW - 3600) }, /last changed at .* after the automatic snapshot of 2026-10-26 was taken/],
+  ])('refuses before changing anything when the switch %s', (_label, extra, message) => {
+    // Defect caught: a restored production host booting with an armed mail
+    // adapter from its snapshot and resending, from the snapshot's day-old
+    // outbox, mail members were already sent.
+    useProduction();
+    const r = runAtTerminal(['--target', 'production'], 'APPLY\n', extra as NodeJS.ProcessEnv);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(message);
+    expect(mutatingCalls()).toEqual([]);
+  });
+
+  it('goes on to the confirmation when the switch has read dark since before the snapshot', () => {
+    // Defect caught: a guard that refuses every production restore, leaving
+    // the host-loss path unusable on the one environment it exists for.
+    useProduction();
+    const r = runAtTerminal(['--target', 'production'], 'no\n', { EMAIL_CHANGED: isoAt(NOW - 20 * 3600) });
+    expect(r.out).toContain('production email reads dark, and has since before the automatic snapshot of 2026-10-26');
+    expect(r.out).toContain("Type 'APPLY' to restore production");
     expect(mutatingCalls()).toEqual([]);
   });
 });

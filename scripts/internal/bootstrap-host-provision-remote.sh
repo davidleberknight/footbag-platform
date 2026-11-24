@@ -111,6 +111,33 @@ release_now() {
   sed -n 's/^Amazon Linux release \([0-9][0-9.]*\).*/\1/p' "$release_file"
 }
 
+# The disk swap file, before any package work. A fresh instance ships with
+# compressed in-RAM swap only, and on a small one the package manager loading the
+# release's metadata runs it out of memory and is killed. The deploy keeps the
+# same file in step, sized the same way, and leaves an active one alone.
+swapfile="${SWAPFILE_PATH:-/swapfile}"
+fstab="${FSTAB_FILE:-/etc/fstab}"
+ensure_swapfile() {
+  local size size_mb
+  case "${FOOTBAG_ENV:-}" in
+    production) size="2G"; size_mb=2048 ;;
+    staging)    size="1G"; size_mb=1024 ;;
+    *) refuse "remote half requires FOOTBAG_ENV to size the swap file" ;;
+  esac
+  if grep -qx "$swapfile" <<< "$(swapon --show=NAME --noheadings)"; then
+    echo "    disk swap file already active"
+    return 0
+  fi
+  echo "==> Provisioning a ${size} disk swap file before the package work"
+  CHANGED+=("provisioned the ${size} ${swapfile}")
+  crr_run "swap file" -- bash -c "fallocate -l ${size} ${swapfile} || dd if=/dev/zero of=${swapfile} bs=1M count=${size_mb}" \
+    || refuse "the swap file could not be allocated"
+  crr_run "chmod swap file" -- chmod 600 "$swapfile" || refuse "the swap file could not be made private"
+  crr_run "mkswap" -- mkswap "$swapfile" || refuse "mkswap failed on ${swapfile}"
+  crr_run "swapon" -- swapon "$swapfile" || refuse "swapon failed on ${swapfile}"
+  grep -q "^${swapfile} " "$fstab" || echo "${swapfile} none swap sw 0 0" >> "$fstab"
+}
+
 case "$MODE" in
   preview)
     [[ -n "${AMAZON_LINUX_RELEASE:-}" ]] || refuse "remote half requires AMAZON_LINUX_RELEASE"
@@ -138,12 +165,20 @@ case "$MODE" in
     arch="$(uname -m)"
     [[ "$arch" == "x86_64" ]] || refuse "this host is ${arch}; the pinned Compose plugin is built for x86_64"
 
+    ensure_swapfile
     # The package repositories are locked to the pinned Amazon Linux release, so
     # every package below, docker included, comes from that one release. Stepping
     # forward is the same command step-amazon-linux.sh runs later.
     rel="$(release_now)"
+    # A release newer than the pin cannot be stepped back: dnf only moves
+    # forward. Staging carries on with a warning, since a fresh instance boots
+    # whatever release its image has reached; production refuses a host off its
+    # pin.
+    newest="$(printf '%s\n%s\n' "$AMAZON_LINUX_RELEASE" "${rel:-0}" | sort -V | tail -n 1)"
     if [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]]; then
       echo "    Amazon Linux already at the pinned release ${AMAZON_LINUX_RELEASE}"
+    elif [[ "${FOOTBAG_ENV:-}" == "staging" && -n "$rel" && "$newest" == "$rel" ]]; then
+      crr_warn "staging runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; the release step was skipped, since dnf cannot step back. Production refuses a host off its pin."
     else
       echo "==> Stepping Amazon Linux from ${rel:-an unknown release} to the pinned release ${AMAZON_LINUX_RELEASE}"
       # Recorded before the transaction: a failure part way has still changed

@@ -14,9 +14,12 @@
 # carries. Bootstrap installs each at its pin, but a host can drift afterwards
 # (a hand-run package update, a release step half done), and a deploy onto a
 # drifted host runs code that was tested against other versions. So a deploy
-# refuses a host whose sqlite3, docker package, Compose plugin or Amazon Linux
-# release differs from the pins it was sent, naming every difference at once,
-# and changes nothing.
+# to production refuses a host whose sqlite3, docker package, Compose plugin or
+# Amazon Linux release differs from the pins it was sent, naming every
+# difference at once, and changes nothing. On staging (FOOTBAG_ENV=staging) each
+# difference is a warning in the deploy's report and the deploy carries on: a
+# fresh instance boots whatever release its image has reached, which dnf cannot
+# step back.
 #
 # What it refuses to do: decide the pins itself. The workstation reads them
 # from a version list (on production the one at the tip of main, on staging the
@@ -66,22 +69,29 @@ host_tool_versions_match() {
   [[ -n "$have_compose" ]] && have_compose="v${have_compose#v}"
   have_release="$(sed -n 's/^Amazon Linux release \([0-9][0-9.]*\).*/\1/p' "$release_file" 2>/dev/null || true)"
 
-  if [[ "$have_sqlite" != "$EXPECTED_SQLITE_VERSION" ]]; then
-    echo "ERROR: the host's sqlite3 is ${have_sqlite:-missing}; the version list pins ${EXPECTED_SQLITE_VERSION}." >&2
-    bad=1
-  fi
-  if [[ "$have_docker" != "$EXPECTED_DOCKER_ENGINE" ]]; then
-    echo "ERROR: the host's docker package is ${have_docker:-missing}; the version list pins ${EXPECTED_DOCKER_ENGINE}." >&2
-    bad=1
-  fi
-  if [[ "$have_compose" != "v${EXPECTED_COMPOSE_VERSION#v}" ]]; then
-    echo "ERROR: the host's Compose plugin is ${have_compose:-missing}; the version list pins ${EXPECTED_COMPOSE_VERSION}." >&2
-    bad=1
-  fi
-  if [[ "$have_release" != "$EXPECTED_AMAZON_LINUX_RELEASE" ]]; then
-    echo "ERROR: the host runs Amazon Linux ${have_release:-of an unknown release}; the version list pins ${EXPECTED_AMAZON_LINUX_RELEASE}." >&2
-    bad=1
-  fi
+  local -a diffs=()
+  [[ "$have_sqlite" == "$EXPECTED_SQLITE_VERSION" ]] \
+    || diffs+=("the host's sqlite3 is ${have_sqlite:-missing}; the version list pins ${EXPECTED_SQLITE_VERSION}.")
+  [[ "$have_docker" == "$EXPECTED_DOCKER_ENGINE" ]] \
+    || diffs+=("the host's docker package is ${have_docker:-missing}; the version list pins ${EXPECTED_DOCKER_ENGINE}.")
+  [[ "$have_compose" == "v${EXPECTED_COMPOSE_VERSION#v}" ]] \
+    || diffs+=("the host's Compose plugin is ${have_compose:-missing}; the version list pins ${EXPECTED_COMPOSE_VERSION}.")
+  [[ "$have_release" == "$EXPECTED_AMAZON_LINUX_RELEASE" ]] \
+    || diffs+=("the host runs Amazon Linux ${have_release:-of an unknown release}; the version list pins ${EXPECTED_AMAZON_LINUX_RELEASE}.")
+
+  # Staging warns on a host off its pins and carries on: a fresh instance boots
+  # whatever its image has reached, and dnf cannot step a release back. Every
+  # other environment refuses, naming every difference.
+  local d
+  for d in "${diffs[@]}"; do
+    if [[ "${FOOTBAG_ENV:-}" == "staging" ]]; then
+      if declare -F crr_warn >/dev/null; then crr_warn "staging is off its pins: ${d} Production refuses this."
+      else echo "WARNING: staging is off its pins: ${d} Production refuses this." >&2; fi
+    else
+      echo "ERROR: ${d}" >&2
+      bad=1
+    fi
+  done
   (( bad )) && return 1
   return 0
 }

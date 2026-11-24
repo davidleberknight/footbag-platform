@@ -178,8 +178,8 @@ seed_committed_host_config() {
   # eleven, so a host stood up by a rebuild never received VIDEO_MAX_HEIGHT and
   # encoded at full source height on an instance sized for 720p, while the
   # verifier checked only the same eight and could not see it.
-  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$|^MEDIA_STORAGE_ADAPTER$|^SECRETS_ADAPTER$|^JWT_SIGNER$|^CAPTCHA_ADAPTER$|^TURNSTILE_SITE_KEY$|^TRUST_PROXY$|^FOOTBAG_DB_DIR$|^FOOTBAG_DB_PATH$|^AWS_REGION$|^AWS_PROFILE$'
-  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB=|^MEDIA_STORAGE_ADAPTER=|^SECRETS_ADAPTER=|^JWT_SIGNER=|^CAPTCHA_ADAPTER=|^TURNSTILE_SITE_KEY=|^TRUST_PROXY=|^FOOTBAG_DB_DIR=|^FOOTBAG_DB_PATH=|^AWS_REGION=|^AWS_PROFILE='
+  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$|^MEDIA_STORAGE_ADAPTER$|^SECRETS_ADAPTER$|^JWT_SIGNER$|^ARCHIVE_COOKIE_SIGNER$|^CAPTCHA_ADAPTER$|^TURNSTILE_SITE_KEY$|^TRUST_PROXY$|^FOOTBAG_DB_DIR$|^FOOTBAG_DB_PATH$|^AWS_REGION$|^AWS_PROFILE$'
+  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB=|^MEDIA_STORAGE_ADAPTER=|^SECRETS_ADAPTER=|^JWT_SIGNER=|^ARCHIVE_COOKIE_SIGNER=|^CAPTCHA_ADAPTER=|^TURNSTILE_SITE_KEY=|^TRUST_PROXY=|^FOOTBAG_DB_DIR=|^FOOTBAG_DB_PATH=|^AWS_REGION=|^AWS_PROFILE='
   if [[ ! -f "$cfg" ]]; then
     echo "ERROR: host config $cfg is missing; refusing to deploy with unmanaged container sizing and adapter selectors." >&2
     exit 1
@@ -213,6 +213,9 @@ seed_committed_host_config() {
         [[ "$val" == "live" ]] || { echo "ERROR: $cfg: $key='$val'; a deployed host reads secrets from Parameter Store ('live')." >&2; rm -f "$adds"; exit 1; } ;;
       JWT_SIGNER)
         [[ "$val" == "kms" ]] || { echo "ERROR: $cfg: $key='$val'; a deployed host signs sessions with KMS ('kms')." >&2; rm -f "$adds"; exit 1; } ;;
+      # The local signer reads a development key file no host holds.
+      ARCHIVE_COOKIE_SIGNER)
+        [[ "$val" == "ssm" ]] || { echo "ERROR: $cfg: $key='$val'; a deployed host signs archive cookies with the key in Parameter Store ('ssm')." >&2; rm -f "$adds"; exit 1; } ;;
       CAPTCHA_ADAPTER)
         [[ "$val" =~ ^(live|stub)$ ]] || { echo "ERROR: $cfg: $key='$val' is not 'live' or 'stub'." >&2; rm -f "$adds"; exit 1; } ;;
       # Shape, not value: the site key is issued by Cloudflare and differs per
@@ -1479,7 +1482,10 @@ if ! grep -qs "^\[profile ${LOGS_PROFILE}\]" /root/.aws/config; then
     echo "           the host AWS bootstrap is incomplete (it installs that profile)." >&2
     exit 1
   }
-  install -d -m 0700 -o root -g root /root/.aws
+  # The directory keeps the containers' credentials group: install -d resets
+  # the mode and owner of a directory that already exists, and a root-only
+  # directory leaves the containers unable to read their credentials.
+  install -d -m 0750 -o root -g "$AWSCREDS_GROUP" /root/.aws
   {
     printf '\n[profile %s]\n' "$LOGS_PROFILE"
     printf 'role_arn = arn:aws:iam::%s:role/footbag-%s-logs-publisher\n' "$LOGS_ACCOUNT_ID" "$FOOTBAG_ENV_VAL"

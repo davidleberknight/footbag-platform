@@ -520,6 +520,31 @@ resource "aws_ssm_parameter" "app_archive_login_redirect" {
   value = "1"
 }
 
+# The key-pair identifier every archive cookie names, so the edge knows which
+# public key to verify the signature with. It names a CloudFront resource this
+# tree creates, so Terraform publishes it and the deploy syncs it, the same
+# route the session-signing key alias takes. Published exactly when the edge
+# gate is on, the opposite of the login redirect above: only then does the
+# platform sign archive cookies at all.
+resource "aws_ssm_parameter" "app_archive_key_pair_id" {
+  count = var.enable_archive && var.archive_require_signed_cookies ? 1 : 0
+  name  = "${local.ssm_prefix}/app/archive_key_pair_id"
+  type  = "String"
+  value = aws_cloudfront_public_key.archive[0].id
+}
+
+# The parent domain the archive cookies are scoped to, so one sign-in on the
+# platform reaches the archive host. A browser accepts a parent-domain cookie
+# only from a host under that domain, so it is published only once the archive
+# answers on its custom domain; until then the cookies stay host-only, and
+# nothing is set that every browser would discard.
+resource "aws_ssm_parameter" "app_archive_cookie_domain" {
+  count = var.enable_archive_custom_domain && var.archive_require_signed_cookies ? 1 : 0
+  name  = "${local.ssm_prefix}/app/archive_cookie_domain"
+  type  = "String"
+  value = ".${var.domain_name}"
+}
+
 # ── Certificate ──────────────────────────────────────────────────────────────
 # The custom-domain half starts here: everything from this certificate through
 # the DNS records at the bottom of the file is gated on

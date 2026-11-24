@@ -123,12 +123,13 @@ effect. Then:
   with `--body-file`, never inline after `--body`: auto mode's safety check can refuse a long
   inline body even though the repo-flag rule allows the command, and a file keeps the posted
   text exactly the text the human approved.
-- **Every new card names its owner, and the human confirms it.** A `gh issue create` without
-  `--assignee` is not run: an unowned card is invisible to every per-person read and accrues
-  silently against the milestone. The owner is never inferred and filed silently, not even
-  when the lane makes it obvious. Put the proposed owner beside each card in the one batch
-  ask that already covers the set, so a run of cards costs one question rather than one per
-  card.
+- **Every new card names its owner: the maintainer, unless he names someone else for that
+  card.** A `gh issue create` without `--assignee` is not run: an unowned card is invisible to
+  every per-person read and accrues silently against the milestone. A card whose next action
+  is someone else's still goes to the maintainer, naming that person on its `Blocked on:` line.
+- **Someone else's work is taken over one slice at a time.** Each slice is offered on its own
+  and moved onto the maintainer only on his approval of that slice; nothing on a card, in a
+  priorities file or in a plan records a slice as his before then.
 - **The floor that does not move.** No mutation without the human's decision behind it;
   no bulk mutation; no issue deletion (denied outright); no invented label or assignee;
   and a new card only on the human's explicit ask, which still prompts by design.

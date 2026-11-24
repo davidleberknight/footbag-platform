@@ -1076,6 +1076,39 @@ resource "aws_cloudwatch_metric_alarm" "acm_cert_expiry" {
   }
 }
 
+# The archive's own certificate renews the same way and can fail the same way,
+# and members reach the archive only while it is valid, so it is watched like
+# the platform's.
+resource "aws_cloudwatch_metric_alarm" "acm_archive_cert_expiry" {
+  # Follows the archive certificate, which exists only with the archive's
+  # custom domain, for the same reason the platform's alarm follows its own.
+  count               = var.enable_archive_custom_domain ? 1 : 0
+  provider            = aws.us_east_1
+  alarm_name          = "${local.prefix}-acm-archive-cert-expiry"
+  comparison_operator = "LessThanThreshold"
+  evaluation_periods  = 1
+  metric_name         = "DaysToExpiry"
+  namespace           = "AWS/CertificateManager"
+  period              = 86400
+  statistic           = "Minimum"
+  threshold           = 30
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "archive.footbag.org certificate expires in under 30 days (ACM auto-renewal is failing)"
+  alarm_actions       = local.critical_alarm_actions
+  ok_actions          = local.critical_alarm_actions
+
+  dimensions = {
+    CertificateArn = aws_acm_certificate.archive[0].arn
+  }
+
+  lifecycle {
+    precondition {
+      condition     = var.aws_region == "us-east-1"
+      error_message = "The archive certificate-expiry alarm publishes to the primary region's alarm topic, which must be in us-east-1 with it."
+    }
+  }
+}
+
 # A notification that reached its dead-letter queue is one the platform never
 # recorded: a bounce that leaves a dead mailbox looking deliverable, or an alarm
 # nobody sees. The queue holds it for two weeks, which is only useful if someone

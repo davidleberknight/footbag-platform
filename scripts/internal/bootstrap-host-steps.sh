@@ -568,15 +568,31 @@ bh_verdict() {
       host_gate || return 0
       [[ "${P[DOCKER_ACTIVE]:-}" == "active" && "${P[DOCKER_ENABLED]:-}" == "enabled" ]] || missing+="docker running and enabled; "
       local want="${P[PIN_COMPOSE_VERSION]:-}" have="${P[COMPOSE_VERSION]:-none}"
-      [[ -n "$want" && "v${have#v}" == "$want" ]] || missing+="Compose plugin ${want:-<unpinned>} (host has ${have}); "
       local pin_sqlite="${P[PIN_SQLITE_VERSION]:-}" pin_docker="${P[PIN_DOCKER_ENGINE_HOST]:-}" pin_al="${P[PIN_AMAZON_LINUX_RELEASE]:-}"
-      [[ -n "$pin_sqlite" && "${P[SQLITE_VERSION]:-}" == "$pin_sqlite" ]] || missing+="sqlite3 ${pin_sqlite:-<unpinned>} (host has ${P[SQLITE_VERSION]:-none}); "
-      [[ -n "$pin_docker" && "${P[DOCKER_RPM]:-}" == "$pin_docker" ]] || missing+="docker ${pin_docker:-<unpinned>} (host has ${P[DOCKER_RPM]:-none}); "
-      [[ -n "$pin_al" && "${P[AL_RELEASE]:-}" == "$pin_al" ]] || missing+="Amazon Linux ${pin_al:-<unpinned>} (host is ${P[AL_RELEASE]:-unknown}); "
+      # Every required package is pinned, and a tool at any other version than
+      # its pin holds the row pending, so the bootstrap brings it to its pin.
+      # The one difference nothing can fix is a release newer than the pin,
+      # which a fresh instance's image can have reached and dnf cannot step
+      # back: staging notes it on a done row, production holds the row pending.
+      local offpin="" al_have="${P[AL_RELEASE]:-}"
+      pin_check() { # <label> <pin> <have, empty when absent>
+        [[ -n "$2" && -n "$3" && "$3" == "$2" ]] || missing+="$1 ${2:-<unpinned>} (host has ${3:-none}); "
+      }
+      local have_compose=""; [[ "$have" != none ]] && have_compose="v${have#v}"
+      pin_check "Compose plugin" "$want" "$have_compose"
+      pin_check "sqlite3" "$pin_sqlite" "${P[SQLITE_VERSION]:-}"
+      pin_check "docker" "$pin_docker" "${P[DOCKER_RPM]:-}"
+      if [[ "$t" == "staging" && -n "$pin_al" && -n "$al_have" && "$al_have" != "$pin_al" \
+            && "$(printf '%s\n%s\n' "$pin_al" "$al_have" | sort -V | tail -n 1)" == "$al_have" ]]; then
+        offpin="Amazon Linux ${al_have} (pinned ${pin_al}); "
+      else
+        pin_check "Amazon Linux" "$pin_al" "$al_have"
+      fi
       [[ "${P[RSYNC]:-}" == "yes" ]] || missing+="rsync; "
       [[ "${P[AWSCLI]:-}" == "yes" ]] || missing+="the aws CLI; "
       if [[ -z "$missing" ]]; then
-        BH_STATE=DONE; BH_DETAIL="docker ${pin_docker} running, Compose ${want}, sqlite3 ${pin_sqlite}, Amazon Linux ${pin_al}, rsync, aws"
+        BH_STATE=DONE; BH_DETAIL="docker ${P[DOCKER_RPM]:-$pin_docker} running, Compose ${have_compose:-$want}, sqlite3 ${P[SQLITE_VERSION]:-$pin_sqlite}, Amazon Linux ${al_have:-$pin_al}, rsync, aws"
+        [[ -n "$offpin" ]] && BH_DETAIL+="; off its pins, allowed on staging: ${offpin%; }"
       else
         BH_STATE=PENDING; BH_DETAIL="missing: ${missing%; }"
       fi
@@ -834,7 +850,7 @@ bh_verdict() {
 
     swap)
       BH_TITLE="Swap"
-      BH_NEXT="$self   (the deploy provisions the swap file; the bootstrap's closing reboot retires compressed swap on staging)"
+      BH_NEXT="$self   (the host-tools step and every deploy provision the swap file; the bootstrap's closing reboot retires compressed swap on staging)"
       host_gate || return 0
       [[ "${P[SWAPFILE]:-}" == "yes" ]] || missing+="the disk swap file; "
       if [[ "$t" == "staging" ]]; then

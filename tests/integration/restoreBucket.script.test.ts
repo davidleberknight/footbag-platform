@@ -59,14 +59,15 @@ const FAKE_AWS = String.raw`#!/usr/bin/env bash
 printf '%s\n' "$*" >> "$FAKE_AWS_LOG"
 W="$FAKE_WORLD"
 bucket=""; key=""; region=""; vid=""; srcregion=""; sclass=""; query=""; excl=""; dryrun=0; del=0; prev=""
-csrc=""; ifmatch=""; ifnone=""; has_ifmatch=0
+csrc=""; ifmatch=""; ifnone=""; has_ifmatch=0; pfx=""; body=""; last=""
 for a in "$@"; do
   case "$prev" in
     --bucket) bucket="$a" ;; --key) key="$a" ;; --region) region="$a" ;; --version-id) vid="$a" ;;
     --source-region) srcregion="$a" ;; --storage-class) sclass="$a" ;; --query) query="$a" ;;
     --exclude) excl="$a" ;; --copy-source) csrc="$a" ;; --if-match) ifmatch="$a"; has_ifmatch=1 ;;
-    --if-none-match) ifnone="$a" ;;
+    --if-none-match) ifnone="$a" ;; --prefix) pfx="$a" ;; --body) body="$a" ;;
   esac
+  last="$a"
   [[ "$a" == --dryrun ]] && dryrun=1
   [[ "$a" == --delete ]] && del=1
   prev="$a"
@@ -110,7 +111,26 @@ case "$1 $2" in
     in_region "$bucket" HeadBucket; exit 0 ;;
   "s3api list-objects-v2")
     in_region "$bucket" ListObjectsV2
-    k="$(cut -f1 "$W/$bucket/objects.tsv" | head -n 1)"; echo "\${k:-None}"; exit 0 ;;
+    k="$(cut -f1 "$W/$bucket/objects.tsv" | grep -F -- "$pfx" | head -n 1)"; echo "\${k:-None}"; exit 0 ;;
+  # The drill's writes and reads against a versioned bucket: a put stores the
+  # body and, as replication does, a copy in FAKE_REPLICA unless replication
+  # is off; a plain delete places a marker; a get writes the body to the file
+  # named last.
+  "s3api put-object")
+    in_region "$bucket" PutObject
+    [[ -n "$FAKE_PUT_FAIL" ]] && fail AccessDenied PutObject "Access Denied"
+    mkdir -p "$W/$bucket/bodies"; cp "$body" "$W/$bucket/bodies/$(printf %s "$key" | tr / _)"
+    write_version "$key" "$key-put" '"put-etag"' "$(wc -c < "$body")"
+    if [[ -n "$FAKE_REPLICA" && -z "$FAKE_NO_REPLICATION" ]]; then
+      mkdir -p "$W/$FAKE_REPLICA/bodies"; cp "$body" "$W/$FAKE_REPLICA/bodies/$(printf %s "$key" | tr / _)"
+      V="$W/$FAKE_REPLICA/versions.json" write_version "$key" "$key-replica" '"put-etag"' "$(wc -c < "$body")"
+    fi
+    exit 0 ;;
+  "s3api get-object")
+    in_region "$bucket" GetObject
+    IFS=$'\t' read -r kind _ _ _ <<<"$(current "$key")"
+    [[ "$kind" == version ]] || fail NoSuchKey GetObject "The specified key does not exist."
+    cp "$W/$bucket/bodies/$(printf %s "$key" | tr / _)" "$last"; exit 0 ;;
   "s3api head-object")
     in_region "$bucket" HeadObject
     [[ ",$FAKE_HEAD_ABSENT," == *",$key,"* ]] && fail 404 HeadObject "Not Found"
@@ -121,6 +141,8 @@ case "$1 $2" in
       case "$query" in
         VersionId) echo "$id" ;;
         '[VersionId,ContentLength]') printf '%s\t%s\n' "$id" "$size" ;;
+        LastModified) jq -r --arg id "$id" '.Versions[] | select(.VersionId == $id) | .LastModified' "$V" ;;
+        ReplicationStatus) echo "\${FAKE_REPLICATION_STATUS:-COMPLETED}" ;;
         *) echo "{}" ;;
       esac
       exit 0
@@ -132,10 +154,22 @@ case "$1 $2" in
     exit 0 ;;
   "s3api list-object-versions")
     in_region "$bucket" ListObjectVersions
-    cat "$W/$bucket/versions.json"; exit 0 ;;
+    out="$(jq --arg p "$pfx" '.Versions |= map(select(.Key | startswith($p))) | .DeleteMarkers |= map(select(.Key | startswith($p)))' "$W/$bucket/versions.json")"
+    # FAKE_EMPTY_SILENT: a listing that matches nothing prints no output at
+    # all, which the CLI can do instead of printing empty lists.
+    if [[ -n "$FAKE_EMPTY_SILENT" ]] && jq -e '(.Versions | length) + (.DeleteMarkers | length) == 0' <<<"$out" >/dev/null; then exit 0; fi
+    printf '%s\n' "$out"; exit 0 ;;
   "s3api delete-object")
     in_region "$bucket" DeleteObject
     [[ -n "$FAKE_DELETE_FAIL" && "$key" == "$FAKE_DELETE_FAIL" ]] && fail AccessDenied DeleteObject "Access Denied"
+    if [[ -z "$vid" ]]; then
+      tmp="$(mktemp)"
+      jq --arg k "$key" --arg t "$FAKE_NOW" '
+        .Versions |= map(if .Key == $k then .IsLatest = false else . end)
+        | .DeleteMarkers += [{Key: $k, VersionId: ($k + "-marker"), IsLatest: true, LastModified: $t}]' "$V" > "$tmp"
+      cat "$tmp" > "$V"; rm -f "$tmp"
+      exit 0
+    fi
     tmp="$(mktemp)"
     jq --arg v "$vid" '.Versions |= map(select(.VersionId != $v)) | .DeleteMarkers |= map(select(.VersionId != $v))' "$W/$bucket/versions.json" > "$tmp"
     cat "$tmp" > "$W/$bucket/versions.json"; rm -f "$tmp"
@@ -166,12 +200,15 @@ case "$1 $2" in
     [[ "$query" == VersionId ]] && echo "$newid"
     exit 0 ;;
   "s3 sync")
-    src="\${3#s3://}"; dst="\${4#s3://}"
+    # A path after the bucket scopes the copy to the keys under it, as the CLI does.
+    src="\${3#s3://}"; dst="\${4#s3://}"; spfx=""
+    [[ "$src" == */* ]] && { spfx="\${src#*/}"; src="\${src%%/*}"; dst="\${dst%%/*}"; }
     [[ "$srcregion" == "$(cat "$W/$src/region")" ]] || { echo "fatal error: source region mismatch" >&2; exit 1; }
     [[ "$region" == "$(cat "$W/$dst/region")" ]] || { echo "fatal error: destination region mismatch" >&2; exit 1; }
     n=0
     while IFS=$'\t' read -r k size _; do
       [[ -z "$k" ]] && continue
+      [[ "$k" == "$spfx"* ]] || continue
       [[ -n "$excl" && "$k" == $excl ]] && continue
       have="$(grep -P "^\Q$k\E\t" "$W/$dst/objects.tsv" | cut -f2)"
       [[ "$have" == "$size" ]] && continue
@@ -876,6 +913,164 @@ describe('restore-bucket: from earlier versions', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('photos/deleted.jpg is still absent');
     expect(res.stderr).not.toContain('restored key(s) read back as present');
+  });
+});
+
+describe('restore-bucket: --prefix scopes a restore to one folder', () => {
+  it('copies back from the backup only what is missing under the prefix', () => {
+    // Defect caught: a restore meant for one folder copying back every object
+    // the served bucket lacks, reviving photos removed on purpose elsewhere.
+    bucket(MEDIA_DR, 'us-west-2', [['drill/x/probe.txt', 33, 'ONEZONE_IA'], ['photos/b.jpg', 20, 'ONEZONE_IA']]);
+    bucket(MEDIA, 'us-east-1', []);
+    const res = run(['--target', 'staging', '--bucket', 'media', '--prefix', 'drill/x/', '--yes']);
+    expect(res.status, res.stderr).toBe(0);
+    expect(objects(MEDIA)).toEqual([['drill/x/probe.txt', 33, 'STANDARD']]);
+    for (const s of syncs()) expect(s).toContain(`s3 sync s3://${MEDIA_DR}/drill/x/ s3://${MEDIA}/drill/x/`);
+  });
+
+  it('undoes deletes from earlier versions only under the prefix', () => {
+    // Defect caught: a versions restore scoped to one folder removing delete
+    // markers bucket-wide, reviving what an erasure deleted elsewhere.
+    versioned(MEDIA, {
+      'drill/x/probe.txt': [['v', '2026-11-01T10:00:00'], ['d', '2026-11-02T10:00:00']],
+      'photos/erased.jpg': [['v', '2026-11-01T10:00:00'], ['d', '2026-11-02T10:00:00']],
+    });
+    const res = run(['--target', 'staging', '--bucket', 'media', '--from-versions', '--as-of', '2026-11-01T12:00:00Z', '--prefix', 'drill/x/', '--yes']);
+    expect(res.status, res.stderr).toBe(0);
+    expect(currentOf(listing(MEDIA), 'drill/x/probe.txt').marker).toBe(false);
+    expect(currentOf(listing(MEDIA), 'photos/erased.jpg').marker).toBe(true);
+  });
+
+  it('refuses a prefix that is not a folder path ending in a slash', () => {
+    for (const bad of ['drill/x', '/drill/x/', 'drill/../x/']) {
+      const res = run(['--target', 'staging', '--bucket', 'media', '--prefix', bad, '--dry-run']);
+      expect(res.status, bad).toBe(2);
+      expect(res.stderr, bad).toContain('--prefix must be a folder path ending in /');
+    }
+  });
+});
+
+/**
+ * The restore the drill runs, as a stand-in: it records how it was asked and
+ * does what a successful restore of the drill's folder does, in the stand-in
+ * buckets. From the backup it copies the replica's body and makes it current in
+ * the served bucket; from versions it removes the folder's delete markers.
+ * FAKE_CHILD_FAIL makes it fail instead.
+ */
+const FAKE_CHILD = String.raw`#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FAKE_CHILD_LOG"
+[[ -n "$FAKE_CHILD_FAIL" ]] && { echo "restore stand-in: refused" >&2; exit 1; }
+pfx=""; prev=""; versions=0
+for a in "$@"; do [[ "$prev" == --prefix ]] && pfx="$a"; [[ "$a" == --from-versions ]] && versions=1; prev="$a"; done
+M="$FAKE_WORLD/$FAKE_MAIN"; R="$FAKE_WORLD/$FAKE_REPLICA"
+key="$(jq -r --arg p "$pfx" '[.Versions[] | select(.Key | startswith($p)) | .Key][0] // empty' "$R/versions.json")"
+tmp="$(mktemp)"
+if (( versions )); then
+  jq --arg p "$pfx" '.DeleteMarkers |= map(select(.Key | startswith($p) | not))
+    | .Versions |= (map(.IsLatest = false) | (if length > 0 then .[-1].IsLatest = true else . end))' "$M/versions.json" > "$tmp"
+else
+  mkdir -p "$M/bodies"; cp "$R/bodies/$(printf %s "$key" | tr / _)" "$M/bodies/$(printf %s "$key" | tr / _)"
+  jq --arg k "$key" --arg t "$FAKE_NOW" '.Versions |= map(if .Key == $k then .IsLatest = false else . end)
+    | .Versions += [{Key: $k, VersionId: ($k + "-copied-back"), IsLatest: true, LastModified: $t, Size: 33, ETag: "\"put-etag\""}]' "$M/versions.json" > "$tmp"
+fi
+cat "$tmp" > "$M/versions.json"; rm -f "$tmp"
+`;
+
+describe('restore-bucket --drill', () => {
+  let child: string;
+  let childLog: string;
+  const childCalls = () => (fs.existsSync(childLog) ? fs.readFileSync(childLog, 'utf8').split('\n').filter(Boolean) : []);
+  const drill = (env: Record<string, string> = {}) => run(['--target', 'staging', '--bucket', 'media', '--drill', '--yes'], {
+    RESTORE_BUCKET_DRILL_CHILD: child, FAKE_CHILD_LOG: childLog, FAKE_CHILD_FAIL: '',
+    FAKE_MAIN: MEDIA, FAKE_REPLICA: MEDIA_DR, FAKE_NO_REPLICATION: '', FAKE_PUT_FAIL: '',
+    RESTORE_BUCKET_POLL_TRIES: '3', RESTORE_BUCKET_POLL_SECS: '0', RESTORE_BUCKET_PAUSE_SECS: '0',
+    FAKE_EMPTY_SILENT: '', FAKE_REPLICATION_STATUS: '',
+    ...env,
+  });
+  const keysIn = (name: string) => [...listing(name).Versions, ...listing(name).DeleteMarkers].map((e) => e.Key);
+
+  beforeEach(() => {
+    child = path.join(dir, 'child');
+    childLog = path.join(dir, 'child.log');
+    fs.writeFileSync(child, FAKE_CHILD, { mode: 0o755 });
+    versioned(MEDIA, { 'photos/keep.jpg': [['v', '2026-11-01T10:00:00']] });
+    versioned(MEDIA_DR, { 'photos/keep.jpg': [['v', '2026-11-01T10:00:00']] });
+    fs.writeFileSync(path.join(world, MEDIA_DR, 'region'), 'us-west-2\n');
+  });
+
+  it('brings the throwaway object back by both recoveries, backup copy first, and leaves nothing of it behind', () => {
+    // Defects caught: a bucket restore first run in a real loss; the versions
+    // recovery run first, whose replicated delete leaves the backup copy with
+    // nothing to bring back; either restore run unscoped over the whole bucket;
+    // or the probe left in the served bucket or its replica.
+    const res = drill();
+    expect(res.status, res.stdout + res.stderr).toBe(0);
+    const calls = childCalls();
+    expect(calls).toHaveLength(2);
+    expect(calls[0]).not.toContain('--from-versions');
+    expect(calls[1]).toContain('--from-versions');
+    for (const c of calls) expect(c).toMatch(/--prefix drill\/restore-drill-[0-9TZ]+-\d+\/ --yes/);
+    expect(res.stderr).toContain('the restore from the backup copy brought');
+    expect(res.stderr).toContain('the restore from earlier versions brought');
+    expect(keysIn(MEDIA)).toEqual(['photos/keep.jpg']);
+    expect(keysIn(MEDIA_DR)).toEqual(['photos/keep.jpg']);
+  });
+
+  it('reads a version listing with no output as a folder with nothing left in it', () => {
+    // Defect caught: the drill failing at its first removal, and every cleanup
+    // reporting a leftover, when the CLI prints nothing for a folder whose
+    // last version was just removed.
+    const res = drill({ FAKE_EMPTY_SILENT: '1' });
+    expect(res.status, res.stdout + res.stderr).toBe(0);
+    expect(res.stderr).not.toMatch(/could not be (fully )?removed/);
+    expect(res.stderr).toContain('the restore from earlier versions brought');
+    expect(keysIn(MEDIA)).toEqual(['photos/keep.jpg']);
+    expect(keysIn(MEDIA_DR)).toEqual(['photos/keep.jpg']);
+  });
+
+  it('restores from versions as of a second after S3 wrote the copy back, whatever the workstation clock reads', () => {
+    // Defect caught: a restore point taken from a workstation clock that runs
+    // seconds off S3's, which lands after the delete or before the copy-back
+    // and so restores nothing.
+    const res = drill({ FAKE_NOW: '2026-11-20T00:00:00+00:00' });
+    expect(res.status, res.stdout + res.stderr).toBe(0);
+    expect(childCalls()[1]).toContain('--from-versions --as-of 2026-11-20T00:00:01Z');
+  });
+
+  it('removes the drill folder from the backup copy only once replication has caught up, and says so when it has not', () => {
+    // Defect caught: a copy of the drill's last writes landing in the backup
+    // copy after its folder was removed there, left behind with the run
+    // reporting a clean finish.
+    const caught = drill();
+    expect(caught.stderr).not.toContain('may still receive late copies');
+    const late = drill({ FAKE_REPLICATION_STATUS: 'PENDING' });
+    expect(late.stderr, late.stdout + late.stderr).toContain(`s3://${MEDIA_DR} may still receive late copies of drill/restore-drill-`);
+  });
+
+  it('stops before any restore when the object never reaches the backup copy, and still removes it', () => {
+    // Defect caught: replication not carrying new objects read as a drill
+    // that passed, or the probe left behind when the drill stops.
+    const res = drill({ FAKE_NO_REPLICATION: '1' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('did not reach s3://');
+    expect(childCalls()).toEqual([]);
+    expect(keysIn(MEDIA)).toEqual(['photos/keep.jpg']);
+  });
+
+  it('fails, and still cleans up, when a restore does not complete', () => {
+    const res = drill({ FAKE_CHILD_FAIL: '1' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('the restore from the backup copy did not complete');
+    expect(keysIn(MEDIA)).toEqual(['photos/keep.jpg']);
+    expect(keysIn(MEDIA_DR)).toEqual(['photos/keep.jpg']);
+  });
+
+  it('refuses a drill on the snapshot or trail bucket, and beside the flags of a real restore', () => {
+    for (const args of [['--bucket', 'snapshots', '--drill'], ['--bucket', 'media', '--drill', '--dry-run'], ['--bucket', 'media', '--drill', '--prefix', 'a/']]) {
+      const res = run(['--target', 'staging', ...args]);
+      expect(res.status, args.join(' ')).toBe(2);
+    }
+    expect(childCalls()).toEqual([]);
   });
 });
 

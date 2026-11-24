@@ -117,6 +117,8 @@ describe('the committed host config pins each adapter selector to one legal valu
     ['MEDIA_STORAGE_ADAPTER', '"s3"'],
     ['SECRETS_ADAPTER', '"live"'],
     ['JWT_SIGNER', '"kms"'],
+    // The local archive signer reads a development key file no host holds.
+    ['ARCHIVE_COOKIE_SIGNER', '"ssm"'],
     // The host constants with one correct value: a different directory would
     // widen the recursive ownership fix past the database, and a different
     // profile names a credential chain the host was never given.

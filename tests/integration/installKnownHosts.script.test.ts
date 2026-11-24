@@ -162,7 +162,9 @@ const mints = () => {
   return existsSync(f) ? readFileSync(f, 'utf-8').split('\n').filter(Boolean) : [];
 };
 const record = () => (existsSync(recordPath) ? readFileSync(recordPath, 'utf-8') : '');
-const STAGING_RECORD = `footbag-staging footbag-staging-web ${ARN} ${CREATED}`;
+/** CREATED as the record stores it: one UTC instant to the millisecond, whatever zone the CLI rendered. */
+const CREATED_UTC = '2026-09-01T10:00:00.123Z';
+const STAGING_RECORD = `footbag-staging footbag-staging-web ${ARN} ${CREATED_UTC}`;
 
 beforeEach(() => {
   workDir = mkdtempSync(join(tmpdir(), 'footbag-test-pin-'));
@@ -398,7 +400,7 @@ describe('install-known-hosts.sh — what it writes', () => {
     const pin = readFileSync(pinPath, 'utf-8');
     expect(pin).toContain(`${STAGING_IP} ssh-ed25519 AAAAREBUILTKEY footbag-staging`);
     expect(pin).not.toContain('AAAARSAKEY');
-    expect(record()).toBe(`footbag-staging footbag-staging-web ${REBUILT_ARN} ${CREATED}\n`);
+    expect(record()).toBe(`footbag-staging footbag-staging-web ${REBUILT_ARN} ${CREATED_UTC}\n`);
   });
 });
 

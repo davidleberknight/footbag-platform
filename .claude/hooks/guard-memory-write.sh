@@ -7,9 +7,10 @@
 # A write to the memory store is denied until it carries the pre-save audit: in the
 # memory file's own frontmatter (an "audit: lesson = ..." line), or, for an index
 # edit, in every memory file the edit links to; an index edit that only deletes
-# lines passes. The human reviews it at the
-# user-scope approval prompt. The transcript is only a fallback: text sent with the
-# tool call is not in it yet when this hook runs.
+# lines needs none. Once it does, the write still asks the human, with its reason,
+# because the audit is Claude's own claim and only the human can approve a memory.
+# The transcript is only a fallback: text sent with the tool call is not in it yet
+# when this hook runs.
 trap 'exit 2' ERR
 set -euo pipefail
 
@@ -57,8 +58,10 @@ audit_in_write() {
   done <<< "$links"
 }
 
-audit_in_write && exit 0
-audit_seen && exit 0
+if audit_in_write || audit_seen; then
+  jq -n --arg reason "HUMAN APPROVAL OF MEMORY WRITE: Claude wants to save or change $FILE_PATH. Memory is only for a fact true of this one machine or your own working preference. Claude's audit line is its own claim, not a check. Approve only if you asked for this to be remembered." '{hookSpecificOutput:{hookEventName:"PreToolUse",permissionDecision:"ask",permissionDecisionReason:$reason}}'
+  exit 0
+fi
 
 jq -n --arg reason "Memory write blocked until the pre-save audit is in your reply. Memory holds only a machine-local fact (a path, symlink target or tool quirk true of this one machine) or the user's own preference about how they work. A project fact (a rule, convention, design fact, or lesson about the code or process) goes to its canonical home instead (a rule, skill, hook, CLAUDE.md, committed doc, the private operations checkout or the private tracker), proposed as literal before/after. Before saving, read MEMORY.md end to end and grep the CLAUDE.md files, .claude/rules, .claude/hooks and docs/ for the lesson; update an existing home or skip. Never save a one-incident observation, anything re-derivable from the code, ephemeral task state, implementation status, anything a CLAUDE.md, rule, hook or committed doc already states, a docs/ filename cited as live truth, or a generic engineering principle. Then put this line in the memory file's frontmatter, under metadata, and retry; an index entry in MEMORY.md passes once the file it links to carries it: audit: lesson = <one sentence>; class = <machine-local|user preference>; checked entries <MEMORY.md entries reviewed>; no overlap; not in exclusion list." '{
   hookSpecificOutput: {

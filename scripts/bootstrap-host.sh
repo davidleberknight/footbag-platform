@@ -40,7 +40,9 @@
 #       account that logs in and whose sudo refuses the password is reported and
 #       never repaired, and an existing account's usable password is never
 #       changed.
-#    4  host tools from the tool-version list, ops/tool-versions.env: docker from the
+#    4  the disk swap file first (1 GB staging, 2 GB production), so the package
+#       manager survives on a small fresh instance; then host tools from the
+#       tool-version list, ops/tool-versions.env: docker from the
 #       distribution unless an engine is already installed, the Compose plugin
 #       checked against its SHA-256, sqlite, rsync, the AWS CLI where the image
 #       has none. On a host whose containers are running, stepping the Amazon
@@ -70,7 +72,9 @@
 #       --first-install promotes the release, loads the images and installs the
 #       unit without starting it; restore-db.sh --onto-empty restores, replays
 #       the erasures and starts the service; then the code deploy runs its
-#       ordinary path, which verifies.
+#       ordinary path, which verifies. --restore-database takes that same path
+#       on staging or a production not yet live, so the host-rebuild drill
+#       proves before go-live the only recovery go-live leaves.
 #   11  install-backup-timer.sh, done once a backup object has landed.
 #   12  activate-notification-feeds.sh, only when the values file turns them on,
 #       done once the host holds both queue addresses.
@@ -138,6 +142,7 @@
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/bootstrap-host.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bootstrap-host.sh --target production
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/bootstrap-host.sh --target staging --status
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/bootstrap-host.sh --target staging --restore-database
 #   bash scripts/bootstrap-host.sh --target staging --replace-instance
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bootstrap-host.sh --target production --replace-instance
 #
@@ -178,6 +183,12 @@ source "${SCRIPT_DIR}/internal/bootstrap-host-steps.sh"
 
 TARGET=""
 MODE="apply"
+# --restore-database: on a host with no database, staging or a production not
+# yet live, take the path a live production always takes instead of the
+# rebuild: install the release without starting it, then restore the newest
+# backup with its erasure replay. It is how the host-rebuild drill rehearses,
+# before go-live, the recovery go-live makes the only one.
+RESTORE_DATABASE=0
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "${BASH_SOURCE[0]}"
@@ -194,12 +205,17 @@ while [[ $# -gt 0 ]]; do
               MODE="status"; shift ;;
     --replace-instance) [[ "$MODE" == "apply" ]] || { cr_error "--status and --replace-instance are separate runs."; exit 2; }
               MODE="replace"; shift ;;
+    --restore-database) RESTORE_DATABASE=1; shift ;;
     -h|--help) usage ;;
     *) cr_error "unknown argument '$1'"; exit 2 ;;
   esac
 done
 
 require_target "$TARGET" staging production || { cr_error "no environment to run against"; exit 2; }
+if (( RESTORE_DATABASE )) && [[ "$MODE" != "apply" ]]; then
+  cr_error "--restore-database chooses how a bootstrap run brings back a host's database; it does not go with --status or --replace-instance."
+  exit 2
+fi
 
 BH_TARGET="$TARGET"
 ALIAS="footbag-${TARGET}"
@@ -590,7 +606,7 @@ provision_send() {
     printf 'MODE=%q\n' "$mode"
     printf 'APP_UID=%q\n' "$BH_APP_UID"
     if [[ "$mode" == "packages" || "$mode" == "preview" ]]; then printf '%s\n' "$PIN_ASSIGNMENTS"; fi
-    if [[ "$mode" == "packages" ]]; then printf '%s\n' "$SQLITE_LINE"; fi
+    if [[ "$mode" == "packages" ]]; then printf '%s\n' "$SQLITE_LINE"; printf 'FOOTBAG_ENV=%q\n' "$TARGET"; fi
     cat "$REMOTE_REPORT_LIB"
     cat "$DNF_PARSER"
     cat "$PROVISION_HALF"
@@ -990,47 +1006,61 @@ elif [[ "$BH_STATE" == "UNKNOWN" && "${P[DB_FILE]:-}" == "present" ]]; then
 else
   require_boot_secrets
   confirm_identity
+  # The database back from its newest backup, then the code deploy: the only
+  # path once production is live, and the one --restore-database takes before.
+  # In this order and no other. The restore's erasure replay runs in a
+  # container of the release, so the release, its images and the unit must be
+  # on the host first; and the site must not serve before the replay has run,
+  # so nothing before the restore may start it. A code deploy run first would
+  # start the stack on an empty database, which fails its readiness check and
+  # leaves a database the restore then refuses to treat as empty.
+  restore_then_deploy() {
+    if [[ "${P[DB_FILE]:-}" == "absent" ]]; then
+      echo "    ${ALIAS} has no database: install the release without starting it, then restore"
+      echo ""
+      echo "This promotes the working tree onto ${ALIAS}, loads its images and installs"
+      echo "footbag.service without starting or enabling it. The site stays down until the"
+      echo "restore that follows has re-applied the erasures its snapshot records."
+      confirm_from_tty "Type 'APPLY' to install the release on ${ALIAS} without starting it: " "APPLY" \
+        || cr_die "not confirmed. Nothing was deployed."
+      with_pass "$BH_DEPLOY_CODE" --first-install --target "$TARGET" \
+        || cr_die "the release was not installed on ${ALIAS}."
+      with_pass "${BH_SCRIPTS}/restore-db.sh" --target "$TARGET" --onto-empty \
+        || cr_die "the database was not restored onto ${ALIAS}."
+      refresh_host
+      [[ "${P[DB_FILE]:-}" == "present" && "${P[REPLAY_PENDING]:-}" == "no" ]] \
+        || cr_die "after the restore ${ALIAS} reports database ${P[DB_FILE]:-unknown}, erasure replay pending ${P[REPLAY_PENDING]:-unknown}."
+      proved "the database is restored and its erasures re-applied"
+    elif [[ "${P[REPLAY_PENDING]:-}" == "yes" ]]; then
+      cr_error "a restore's erasure replay is pending on ${ALIAS}, which holds the site down until it completes."
+      echo "       Finish it, then re-run this script:" >&2
+      echo "         < ${BH_CRED} bash scripts/restore-db.sh --target ${TARGET} --resume-erasure-replay" >&2
+      exit 1
+    fi
+    bash "$BH_DEPLOY" --target "$TARGET" </dev/tty || cr_die "the ${TARGET} code deploy did not complete."
+  }
   if [[ "$TARGET" == "staging" ]]; then
-    say "First deploy: a rebuild from the committed data"
-    bash "$BH_DEPLOY" --target staging --from-csv </dev/tty || cr_die "the first deploy did not complete."
+    if (( RESTORE_DATABASE )); then
+      say "First deploy: the database from its newest backup, as a live production restores it"
+      restore_then_deploy
+    else
+      say "First deploy: a rebuild from the committed data"
+      bash "$BH_DEPLOY" --target staging --from-csv </dev/tty || cr_die "the first deploy did not complete."
+    fi
   else
     case "${P[MARKER]:-unknown}" in
       false)
-        say "First deploy: the full rebuild production takes before go-live"
-        bash "$BH_DEPLOY" --target production --all-data -W </dev/tty || cr_die "the first deploy did not complete."
+        if (( RESTORE_DATABASE )); then
+          say "First deploy: the database from its newest backup, as a live production restores it"
+          restore_then_deploy
+        else
+          say "First deploy: the full rebuild production takes before go-live"
+          bash "$BH_DEPLOY" --target production --all-data -W </dev/tty || cr_die "the first deploy did not complete."
+        fi
         ;;
       true)
         say "Production is live: the database comes back from its backup, never a rebuild"
-        # In this order and no other. The restore's erasure replay runs in a
-        # container of the release, so the release, its images and the unit must
-        # be on the host first; and the site must not serve before the replay has
-        # run, so nothing before the restore may start it. A code deploy run
-        # first would start the stack on an empty database, which fails its
-        # readiness check and leaves a database the restore then refuses to
-        # treat as empty.
-        if [[ "${P[DB_FILE]:-}" == "absent" ]]; then
-          echo "    ${ALIAS} has no database: install the release without starting it, then restore"
-          echo ""
-          echo "This promotes the working tree onto ${ALIAS}, loads its images and installs"
-          echo "footbag.service without starting or enabling it. The site stays down until the"
-          echo "restore that follows has re-applied the erasures its snapshot records."
-          confirm_from_tty "Type 'APPLY' to install the release on ${ALIAS} without starting it: " "APPLY" \
-            || cr_die "not confirmed. Nothing was deployed."
-          with_pass "$BH_DEPLOY_CODE" --first-install --target production \
-            || cr_die "the release was not installed on ${ALIAS}."
-          with_pass "${BH_SCRIPTS}/restore-db.sh" --target production --onto-empty \
-            || cr_die "the database was not restored onto ${ALIAS}."
-          refresh_host
-          [[ "${P[DB_FILE]:-}" == "present" && "${P[REPLAY_PENDING]:-}" == "no" ]] \
-            || cr_die "after the restore ${ALIAS} reports database ${P[DB_FILE]:-unknown}, erasure replay pending ${P[REPLAY_PENDING]:-unknown}."
-          proved "the database is restored and its erasures re-applied"
-        elif [[ "${P[REPLAY_PENDING]:-}" == "yes" ]]; then
-          cr_error "a restore's erasure replay is pending on ${ALIAS}, which holds the site down until it completes."
-          echo "       Finish it, then re-run this script:" >&2
-          echo "         < ${BH_CRED} bash scripts/restore-db.sh --target production --resume-erasure-replay" >&2
-          exit 1
-        fi
-        bash "$BH_DEPLOY" --target production </dev/tty || cr_die "the production code deploy did not complete."
+        restore_then_deploy
         ;;
       *)
         cr_die "could not read the production-live marker, which decides between the rebuild deploy and a restore. Nothing was deployed."

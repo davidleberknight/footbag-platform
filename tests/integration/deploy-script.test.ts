@@ -2847,6 +2847,23 @@ describe('both deploy halves leave a host able to survive on its own', () => {
   ];
   const read = (p: string) => fs.readFileSync(path.join(REPO_ROOT, p), 'utf-8');
 
+  it('takes the stack down when the service fails to start, before the final backup', () => {
+    // Defect caught: a start that fails or times out leaves the containers it
+    // started running under their restart policy, so one that cannot start is
+    // restarted indefinitely, holding a small host's CPU and memory while the
+    // service reads failed. systemd runs only the post-stop lines after a
+    // failed start, so the stack must come down there.
+    // systemd joins a line ending in a backslash with the next.
+    const unit = read('ops/systemd/footbag.service').replace(/\\\n/g, ' ');
+    const postStops = unit.match(/^ExecStopPost=.*$/gm) ?? [];
+    const down = postStops.findIndex((l) => /docker compose .*\bdown\b/.test(l));
+    const backup = postStops.findIndex((l) => l.includes('scripts/backup-db.sh'));
+    expect(down, 'no post-stop line takes the stack down').toBeGreaterThan(-1);
+    expect(backup).toBeGreaterThan(down);
+    // Best-effort, so a failed down never wedges the stop and the backup runs.
+    expect(postStops[down].startsWith('ExecStopPost=-')).toBe(true);
+  });
+
   it.each(HALVES)('%s provisions the disk swapfile', (file) => {
     const source = read(file);
     expect(source).toContain('mkswap /swapfile');
@@ -2884,6 +2901,20 @@ describe('both deploy halves leave a host able to survive on its own', () => {
     expect(source).toContain('/etc/systemd/system/docker.service.d/awslogs.conf');
     expect(source).toContain('-logs-publisher');
     expect(source).toContain('AWS_SDK_LOAD_CONFIG=1');
+  });
+
+  it.each(HALVES)('%s never leaves the credentials directory unreadable to the containers', (file) => {
+    // Defect caught: a host's first deploy, adding the log-shipping profile,
+    // resets /root/.aws to root-only; the containers then cannot read their
+    // credentials, fall back to the instance's own AWS identity, and the web
+    // container refuses to start because its signing key is not found there.
+    const source = read(file);
+    const creates = source.match(/^\s*install -d [^\n]*\/root\/\.aws\s*$/gm) ?? [];
+    expect(creates.length, `${file} creates /root/.aws nowhere`).toBeGreaterThan(0);
+    for (const line of creates) {
+      expect(line, file).toMatch(/-m 0750 -o root -g "\$AWSCREDS_GROUP"/);
+    }
+    expect(source).not.toMatch(/chmod 07[0-4]0 \/root\/\.aws\b/);
   });
 
   it.each(HALVES)('%s does all of it before restarting the service', (file) => {

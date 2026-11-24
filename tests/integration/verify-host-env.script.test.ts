@@ -371,6 +371,34 @@ describe('verify-host-env.sh — critical invariant FAIL boundaries', () => {
   });
 });
 
+describe('verify-host-env.sh — the archive cookie signer per target', () => {
+  const production = (signer: string | null) => {
+    const base = mutate(/FOOTBAG_ENV=staging/, 'FOOTBAG_ENV=production');
+    return signer === null ? base : `${base}\nARCHIVE_COOKIE_SIGNER=${signer}`;
+  };
+
+  // Defect caught: production's archive edge accepts only signed cookies, so a
+  // host without the signer lets every member sign in and then refuses them at
+  // the archive.
+  it('passes production holding the committed signer, and fails it unset', () => {
+    const held = runScript({ envFilePath: writeEnvFile(production('ssm')), target: 'production' });
+    expect(held.stdout).toContain('PASS  archive cookie signer matches committed host config: ARCHIVE_COOKIE_SIGNER=ssm');
+    const unset = runScript({ envFilePath: writeEnvFile(production(null)), target: 'production' });
+    expect(unset.exitCode).not.toBe(0);
+    expect(unset.stdout).toContain("FAIL  archive cookie signer matches committed host config: ARCHIVE_COOKIE_SIGNER is unset (expected 'ssm')");
+  });
+
+  // Defect caught: staging's archive is gated by the login redirect and has no
+  // key-pair identifier, so a signer there would refuse to boot the platform.
+  it('fails staging holding a signer, and passes it unset', () => {
+    const held = runScript({ envFilePath: writeEnvFile(`${CLEAN_STAGING_ENV}\nARCHIVE_COOKIE_SIGNER=ssm`) });
+    expect(held.exitCode).not.toBe(0);
+    expect(held.stdout).toContain("FAIL  archive cookie signer (staging's archive is gated by the login redirect): ARCHIVE_COOKIE_SIGNER='ssm' must be unset on staging");
+    const unset = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(unset.stdout).toContain("PASS  archive cookie signer (staging's archive is gated by the login redirect): ARCHIVE_COOKIE_SIGNER is unset");
+  });
+});
+
 describe('verify-host-env.sh — dev-shortcut posture per target', () => {
   it('FOOTBAG_DEV_INITIAL_ADMIN_EMAILS set on staging → PASS (staging-allowed)', () => {
     const env = CLEAN_STAGING_ENV + '\nFOOTBAG_DEV_INITIAL_ADMIN_EMAILS=admin@example.com';
@@ -861,8 +889,12 @@ describe('verify-host-env.sh — every Terraform-published value held against Pa
     CLEAN_STAGING_ENV,
     'SES_CONFIGURATION_SET_TRANSACTIONAL=footbag-staging-transactional',
     'SES_CONFIGURATION_SET_BULK=footbag-staging-bulk',
+    // Published only on a tree whose archive edge gate is on; held here so the
+    // loop below proves the comparison covers them like every other value.
+    'ARCHIVE_KEY_PAIR_ID=KEXAMPLE123',
+    'ARCHIVE_COOKIE_DOMAIN=.example.test',
   ].join('\n');
-  const hostValue = (env: string, key: string): string | undefined =>
+  const hostValue =(env: string, key: string): string | undefined =>
     env.split('\n').find((l) => l.startsWith(`${key}=`))?.slice(key.length + 1);
 
   // The listing in the shape the by-path read prints: name, a tab, the value.
@@ -938,6 +970,31 @@ describe('verify-host-env.sh — every Terraform-published value held against Pa
     expect(result.stdout).toContain(
       `FAIL  /footbag/staging/${required.source} does not exist; apply the staging Terraform tree`,
     );
+  });
+
+  // Defect caught: the cookie domain left on a host after the custom domain is
+  // switched off, so the platform keeps setting cookies every browser discards.
+  it('holds the archive cookie domain to its parameter: present when published, cleared when not', () => {
+    const stale = runWith(HOST_ENV, listing({ ARCHIVE_COOKIE_DOMAIN: null }));
+    expect(stale.exitCode).not.toBe(0);
+    expect(stale.stdout).toContain(
+      'FAIL  ARCHIVE_COOKIE_DOMAIN is on the host but /footbag/staging/app/archive_cookie_domain does not exist',
+    );
+    const cleared = HOST_ENV.split('\n').filter((l) => !l.startsWith('ARCHIVE_COOKIE_DOMAIN=')).join('\n');
+    const absent = runWith(cleared, listing({ ARCHIVE_COOKIE_DOMAIN: null }));
+    expect(absent.exitCode, absent.stdout).toBe(0);
+    expect(absent.stdout).toContain('PASS  ARCHIVE_COOKIE_DOMAIN absent, as /footbag/staging/app/archive_cookie_domain is unpublished');
+  });
+
+  // Defect caught: a staging host, whose edge gate is off and which publishes
+  // neither archive cookie value, failed for not holding them.
+  it('passes a host that holds neither archive cookie value while neither is published', () => {
+    const cleared = HOST_ENV.split('\n')
+      .filter((l) => !l.startsWith('ARCHIVE_COOKIE_DOMAIN=') && !l.startsWith('ARCHIVE_KEY_PAIR_ID='))
+      .join('\n');
+    const r = runWith(cleared, listing({ ARCHIVE_COOKIE_DOMAIN: null, ARCHIVE_KEY_PAIR_ID: null }));
+    expect(r.exitCode, r.stdout).toBe(0);
+    expect(r.stdout).toContain('PASS  ARCHIVE_KEY_PAIR_ID absent, as /footbag/staging/app/archive_key_pair_id is unpublished');
   });
 
   it('a synthetic run given no listing says the comparison was skipped rather than passed', () => {

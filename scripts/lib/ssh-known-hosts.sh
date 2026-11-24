@@ -59,6 +59,14 @@ known_hosts_record_path() {
 # instance name, a Lightsail ARN and a creation time, single-spaced, nothing
 # else. A record that arrives from outside this machine (a sealed delivery) is
 # held to this before it is written beside a pin.
+# known_hosts_utc <ISO 8601 time>: prints that instant in UTC to the
+# millisecond. The CLI renders Lightsail's creation time in the workstation's
+# own time zone, so the same instance reads differently from two zones; the
+# record and its comparison use this one form. Returns 1 on a time it cannot read.
+known_hosts_utc() {
+  date -u -d "$1" +%Y-%m-%dT%H:%M:%S.%3NZ 2>/dev/null
+}
+
 known_hosts_record_line_valid() {
   local target="$1" line="$2"
   [[ "$line" =~ ^footbag-${target}\ footbag-${target}-[A-Za-z0-9-]+\ arn:aws:lightsail:[a-z0-9-]+:[0-9]{12}:Instance/[A-Za-z0-9-]+\ [0-9T:.+Z-]+$ ]]
@@ -320,6 +328,10 @@ known_hosts_pin_current() {
   fi
   rm -f -- "$errf"
   IFS=$'\t' read -r arn created <<< "$row"
+  if ! created="$(known_hosts_utc "$created")"; then
+    echo "ERROR: Lightsail described ${KNOWN_HOSTS_PIN_INSTANCE} as '${row}', whose creation time is not a time." >&2
+    return 2
+  fi
   KNOWN_HOSTS_INSTANCE_RECORD="${tag} ${KNOWN_HOSTS_PIN_INSTANCE} ${arn} ${created}"
   if ! known_hosts_record_line_valid "$target" "$KNOWN_HOSTS_INSTANCE_RECORD"; then
     echo "ERROR: Lightsail described ${KNOWN_HOSTS_PIN_INSTANCE} as '${row}', which is not an ARN and a creation time." >&2
@@ -365,7 +377,11 @@ known_hosts_pin_current() {
     KNOWN_HOSTS_STALE_REASON="the instance record holds more than one line for ${tag}"
     return 1
   fi
-  if [[ "$rec_lines" != "$KNOWN_HOSTS_INSTANCE_RECORD" ]]; then
+  # A record written from another time zone names the same instant in another
+  # form, so its time is compared as an instant.
+  local rec_utc
+  rec_utc="$(known_hosts_utc "${rec_lines##* }")" || rec_utc="${rec_lines##* }"
+  if [[ "${rec_lines% *} ${rec_utc}" != "$KNOWN_HOSTS_INSTANCE_RECORD" ]]; then
     KNOWN_HOSTS_STALE_REASON="the pin was taken from '${rec_lines#"${tag} "}', but Lightsail now reports '${KNOWN_HOSTS_INSTANCE_RECORD#"${tag} "}': the host was rebuilt or replaced"
     return 1
   fi

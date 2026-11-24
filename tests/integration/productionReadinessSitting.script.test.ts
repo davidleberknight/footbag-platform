@@ -49,6 +49,10 @@ const DEFAULT_RULES: Rule[] = [
   { match: 'scripts/admin-bootstrap-token.sh * status*', stdout: 'ABSENT: /footbag/x/admin_bootstrap_token does not exist.' },
   { match: 'scripts/host-diagnostics.sh * table-digests', stdout: 'DIGEST members rows=3 sha256=' + 'a'.repeat(64) },
   { match: 'scripts/deploy-migrate.sh *', fact: 'migration-applied' },
+  // The marker line production-live-marker.sh prints before go-live.
+  { match: 'scripts/production-live-marker.sh --status*', stdout: 'Marker /footbag/production/app/production_live currently reads: false' },
+  // The status read's switch line, as arming.sh prints it for a dark switch.
+  { match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): false' },
 ];
 
 const STUB = `#!/usr/bin/env bash
@@ -276,7 +280,7 @@ describe('a full staging run', () => {
   // Defect caught: steps run out of the order their dependencies need, run
   // twice, or a step skipped silently.
   it('runs every step once, in order, to the end', () => {
-    const r = sit(['--target', 'staging'], YES(8));
+    const r = sit(['--target', 'staging'], YES(10));
     expect(r.status, r.out).toBe(0);
     const ids = rows().map((c) => c[3]);
     const dryIds = [...spawnSync('bash', [SCRIPT, '--target', 'staging', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD })
@@ -304,8 +308,11 @@ describe('a full staging run', () => {
   // Defect caught: the password reaching a step that reads its stdin as an
   // answer or a link, or missing from one that needs it, or put in argv.
   it('gives the password on stdin to exactly the steps that take it', () => {
-    sit(['--target', 'staging'], YES(7));
-    const takesIt = /^scripts\/(bootstrap-host|deploy-migrate|restore-db|rotate-jwt-signing-key|incident-drill)\.sh /;
+    sit(['--target', 'staging'], YES(9));
+    // The staging replacement reaches no host and reads no credential, so it
+    // alone of bootstrap-host's forms takes the terminal.
+    const takesIt = /^scripts\/(bootstrap-host\.sh --target staging( --status| --restore-database)?$|(deploy-migrate|restore-db|restore-host|rotate-jwt-signing-key|incident-drill)\.sh )/;
+    expect(calls().some((c) => /^scripts\/restore-host\.sh --target staging --delete-old$/.test(c.call))).toBe(true);
     expect(calls().length).toBeGreaterThan(10);
     // The drill stops and restarts the host, so it needs the password; a table
     // that dropped it, or ran it as an ask, would leave the drill unwalked.
@@ -318,6 +325,91 @@ describe('a full staging run', () => {
         expect(c.tty, c.call).toBe(true);
       }
     }
+  });
+});
+
+describe('the host rebuild drills', () => {
+  const at = (re: RegExp) => stepCalls().findIndex((c) => re.test(c.call));
+
+  // Defect caught: the drills handed to the operator as a list of commands, or
+  // run in an order that deletes the old host before the restored one has
+  // proved itself, deploys before the restore, or bootstraps before the
+  // replacement exists; or the restore run without the host password it needs.
+  it('runs the staging snapshot restore, then the fresh instance, in order, each script given the stdin it takes', () => {
+    const r = sit(['--target', 'staging', '--from-step', 's11a', '--to-step', 's13b'], YES(2));
+    expect(r.status, r.out).toBe(0);
+    const restore = at(/^scripts\/restore-host\.sh --target staging$/);
+    const drills = stepCalls().map((c, i) => [c, i] as const).filter(([c]) => /^scripts\/restore-db\.sh --target staging --drill$/.test(c.call)).map(([, i]) => i);
+    const deleteOld = at(/^scripts\/restore-host\.sh --target staging --delete-old$/);
+    const replace = at(/^scripts\/bootstrap-host\.sh --target staging --replace-instance$/);
+    const bootstrap = at(/^scripts\/bootstrap-host\.sh --target staging --restore-database$/);
+    const deploys = stepCalls().map((c, i) => [c, i] as const).filter(([c]) => /^deploy_to_aws\.sh --target staging$/.test(c.call)).map(([, i]) => i);
+    expect(restore).toBeGreaterThan(-1);
+    // One deploy, after the restore; the fresh instance's deploy is the
+    // bootstrap's own, so a second would only redeploy what it just shipped.
+    expect(deploys).toHaveLength(1);
+    expect(restore).toBeLessThan(deploys[0]);
+    expect(deploys[0]).toBeLessThan(drills[0]);
+    expect(drills[0]).toBeLessThan(deleteOld);
+    expect(deleteOld).toBeLessThan(replace);
+    expect(replace).toBeLessThan(bootstrap);
+    // The fresh instance's restored database is drilled too.
+    expect(drills).toHaveLength(2);
+    expect(bootstrap).toBeLessThan(drills[1]);
+    expect(stepCalls()[restore].line).toBe(PASSWORD);
+    expect(stepCalls()[deleteOld].line).toBe(PASSWORD);
+    expect(stepCalls()[bootstrap].line).toBe(PASSWORD);
+    expect(stepCalls()[replace].tty).toBe(true);
+    // Then the retention read and both buckets' restore drills.
+    for (const re of [/^scripts\/apply-snapshot-retention\.sh --target staging --verify/, /^scripts\/restore-bucket\.sh --target staging --bucket media --drill$/, /^scripts\/restore-bucket\.sh --target staging --bucket archive --drill$/]) {
+      expect(at(re), String(re)).toBeGreaterThan(drills[1]);
+    }
+  });
+
+  // Defect caught: the production drills replacing a live production's
+  // serving host, or starting on a tree with changes still to apply.
+  it('stops before any production drill when production is live', () => {
+    writeRules([{ match: 'scripts/production-live-marker.sh --status*', stdout: 'Marker /footbag/production/app/production_live currently reads: true' }]);
+    const r = sit(['--target', 'production', '--from-step', 'p90a', '--to-step', 'p90s'], YES(2));
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT p90a/);
+    expect(at(/restore-host\.sh|bootstrap-host\.sh --target production --replace-instance/)).toBe(-1);
+  });
+
+  // Defect caught: a production restore started while email is armed, so the
+  // restored host's worker resends, from the snapshot's day-old database, mail
+  // the old host had already sent to real members.
+  it('stops before the production restore unless the email switch reads dark', () => {
+    writeRules([{ match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): true' }]);
+    const armed = sit(['--target', 'production', '--from-step', 'p90a', '--to-step', 'p90s'], YES(2));
+    expect(armed.status).toBe(1);
+    expect(armed.out).toMatch(/VERDICT: STOPPED AT p90c/);
+    expect(at(/restore-host\.sh/)).toBe(-1);
+
+    writeRules([]);
+    writeFileSync(stubLog, '');
+    const dark = sit(['--target', 'production', '--from-step', 'p90a', '--to-step', 'p90s'], YES(2));
+    const restore = at(/^scripts\/restore-host\.sh --target production$/);
+    expect(restore).toBeGreaterThan(at(/arming\.sh --target production --switch email --status/));
+    expect(restore).toBeGreaterThan(at(/terraform-apply-all\.sh --target production --check/));
+    expect(stepCalls()[restore].line).toBe(PASSWORD);
+    // Defect caught: the fresh-instance rebuild reached on production while it
+    // still mints new host keys, so the drill makes the operator rewrite the
+    // vault. The run stops there, having replaced nothing.
+    expect(dark.status, dark.out).toBe(3);
+    expect(dark.out).toMatch(/VERDICT: BLOCKED AT p90m/);
+    expect(at(/bootstrap-host\.sh --target production --replace-instance/)).toBe(-1);
+
+    // The steps after it, resumed past the block: the fresh instance restores
+    // its database rather than rebuilding it, and the recovery-region copy is
+    // drilled after it.
+    writeFileSync(stubLog, '');
+    const after = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90s'], YES(2));
+    expect(after.status, after.out).toBe(0);
+    const bootstrap = at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/);
+    expect(bootstrap).toBeGreaterThan(-1);
+    expect(at(/restore-db\.sh --target production --drill --bucket footbag-production-db-snapshots-dr/)).toBeGreaterThan(bootstrap);
+    expect(at(/^deploy_to_aws\.sh --target production --all-data/)).toBe(-1);
   });
 });
 
@@ -346,9 +438,9 @@ describe('stopping', () => {
 
   // Defect caught: resuming at a blocked step reads as done.
   it('stays blocked when resumed at a blocked step', () => {
-    const r = sit(['--target', 'production', '--from-step', 'p90', '--to-step', 'p90']);
+    const r = sit(['--target', 'production', '--from-step', 'p91', '--to-step', 'p91']);
     expect(r.status).toBe(3);
-    expect(r.out).toMatch(/VERDICT: BLOCKED AT p90/);
+    expect(r.out).toMatch(/VERDICT: BLOCKED AT p91/);
   });
 
   // Defect caught: the second operator's drill recorded under whoever happens to

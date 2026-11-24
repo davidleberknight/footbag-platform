@@ -56,7 +56,7 @@ const CRITICAL: Record<Tree, string[]> = {
     'cf_function_validation_errors_apex', 'cf_function_execution_errors_apex',
     'cf_function_validation_errors_media', 'cf_function_execution_errors_media',
     'cf_function_validation_errors_archive', 'cf_function_execution_errors_archive',
-    'site_unavailable', 'acm_cert_expiry', 'host_key_off_host',
+    'site_unavailable', 'acm_cert_expiry', 'acm_archive_cert_expiry', 'host_key_off_host',
     // A wake-up alarm for the 48 hours after launch, so the whole watch must
     // hear it, not only the account mailbox.
     'cutover_zero_logins',
@@ -235,6 +235,26 @@ describe('production-only routing', () => {
     const cert = alarm('production', 'acm_cert_expiry')!;
     expect(attr(cert, 'alarm_actions')).toBe('local.critical_alarm_actions');
     expect(blocks.production.some((b) => b.name === 'alarms_us_east_1')).toBe(false);
+  });
+
+  it('watches the archive certificate, created only with the archive custom domain', () => {
+    // Defect caught: a failing renewal of the archive certificate that nobody
+    // hears until members are refused at archive.footbag.org, or an alarm that
+    // exists before the certificate and sits in INSUFFICIENT_DATA.
+    const cert = alarm('production', 'acm_archive_cert_expiry');
+    expect(cert).toBeDefined();
+    expect(attr(cert!, 'count')).toBe('var.enable_archive_custom_domain ? 1 : 0');
+    expect(cert!.body).toMatch(/CertificateArn\s*=\s*aws_acm_certificate\.archive\[0\]\.arn/);
+    expect(attr(cert!, 'metric_name')).toBe('"DaysToExpiry"');
+    expect(attr(cert!, 'namespace')).toBe('"AWS/CertificateManager"');
+    expect(onProvider(cert!, 'aws.us_east_1')).toBe(true);
+    // The same trigger as the platform's certificate alarm, read from that
+    // declaration: an inverted comparison or a lower threshold either pages
+    // constantly or warns too late to renew by hand.
+    const main = alarm('production', 'acm_cert_expiry')!;
+    for (const key of ['comparison_operator', 'evaluation_periods', 'period', 'statistic', 'threshold', 'treat_missing_data']) {
+      expect(attr(cert!, key), key).toBe(attr(main, key));
+    }
   });
 
   it('watches each host key against its own host\'s address, excluding calls services make for it', () => {

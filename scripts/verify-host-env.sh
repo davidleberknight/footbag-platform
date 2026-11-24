@@ -558,6 +558,18 @@ check_equals "AWS_PROFILE" "$(committed_value AWS_PROFILE)" "runtime profile mat
 check_equals "FOOTBAG_DB_DIR" "$(committed_value FOOTBAG_DB_DIR)" "database directory matches committed host config"
 check_equals "FOOTBAG_DB_PATH" "$(committed_value FOOTBAG_DB_PATH)" "database path matches committed host config"
 
+# The archive cookie signer. Production's archive edge accepts only signed
+# cookies, so its committed host config sets the signer and every deploy
+# reconciles it; staging gates its archive by the login redirect and must sign
+# nothing. The key-pair identifier and cookie domain it signs with are
+# Terraform-published and held against Parameter Store with the other
+# published values below.
+if [[ "$TARGET" == "staging" ]]; then
+  check_unset "ARCHIVE_COOKIE_SIGNER" "archive cookie signer (staging's archive is gated by the login redirect)"
+else
+  check_equals "ARCHIVE_COOKIE_SIGNER" "$(committed_value ARCHIVE_COOKIE_SIGNER)" "archive cookie signer matches committed host config"
+fi
+
 # Every Terraform-published value, held against what Parameter Store holds now.
 # The deploy copies each one unchanged, so any difference means an apply landed
 # after the last deploy, or the file was edited by hand; either way the host is

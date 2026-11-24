@@ -341,7 +341,9 @@ beforeEach(() => {
     'touch "$STATE/release-installed"',
   ]);
   hook('deploy_to_aws.sh', [
-    'if [[ "$*" == *"--target production"* && "$*" != *--all-data* ]]; then',
+    // A code deploy, on either environment: it fails readiness on a host with
+    // no database, and otherwise enables the unit and leaves the stack healthy.
+    'if [[ "$*" != *--all-data* && "$*" != *--from-csv* ]]; then',
     '  grep -qx "DB_FILE=present" "$STATE/host.status" || { echo "deploy stand-in: the stack did not report ready" >&2; exit 1; }',
     `  printf '%s\\n' SERVICE_ENABLED=enabled ${JSON.stringify(`CONTAINERS=${HEALTHY_CONTAINERS}`)} > "$STATE/fix/$ev"`,
     'fi',
@@ -902,19 +904,32 @@ describe('bootstrap-host.sh: the bootstrap', () => {
 
   it('reads the tools step pending while the host\'s sqlite3, docker or release differs from the list', () => {
     // Defect caught: a host on the distribution's older sqlite3, or an engine or
-    // release other than the pinned one, reads as done because the tool exists.
+    // release other than the pinned one, reads as done because the tool exists,
+    // so the bootstrap never brings it to its pin.
     const offPins: Array<Record<string, string>> = [
       { SQLITE_VERSION: '3.40.0' }, { DOCKER_RPM: '25.0.14-1.amzn2023.0.1' }, { AL_RELEASE: '2023.11.20260901' },
     ];
     for (const off of offPins) {
       writeHost({ ...finishedHost('staging'), ...off });
       const r = run(['--target', 'staging', '--status']);
-      const row = rowFor(r.stdout, 'Host tools');
-      expect(row.line, JSON.stringify(off)).toMatch(/\sPENDING\s/);
+      expect(rowFor(r.stdout, 'Host tools').line, JSON.stringify(off)).toMatch(/\sPENDING\s/);
     }
     writeHost(finishedHost('staging'));
     const ok = run(['--target', 'staging', '--status']);
-    expect(rowFor(ok.stdout, 'Host tools').line).not.toMatch(/\sPENDING\s/);
+    expect(rowFor(ok.stdout, 'Host tools').line).not.toMatch(/\sPENDING\s|off its pins/);
+  });
+
+  it('reads a release newer than the pin done with a note on staging, and pending on production', () => {
+    // Defect caught: a fresh staging instance whose image has reached a release
+    // past the pin, which dnf cannot step back, holding the rebuild drill at a
+    // step it can never finish; or a production host let through off its pin.
+    const newer = { AL_RELEASE: '2023.12.20261120' };
+    writeHost({ ...finishedHost('staging'), ...newer });
+    const stg = rowFor(run(['--target', 'staging', '--status']).stdout, 'Host tools').line;
+    expect(stg).not.toMatch(/\sPENDING\s/);
+    expect(stg).toContain('off its pins, allowed on staging: Amazon Linux 2023.12.20261120');
+    writeHost({ ...finishedHost('production'), ...newer });
+    expect(rowFor(run(['--target', 'production', '--status']).stdout, 'Host tools').line).toMatch(/\sPENDING\s/);
   });
 
   it('refuses when the tools still read missing after their install', () => {
@@ -1046,6 +1061,45 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     const again = runTty(['--target', 'production']);
     expect(again.status, again.out).toBe(0);
     expect(siblingCalls().filter((c) => /^(restore-db|deploy_to_aws|deploy-code)/.test(c))).toEqual([]);
+  });
+
+  it.each([
+    ['staging', undefined],
+    ['production not yet live', 'false'],
+  ])('with --restore-database on a fresh %s host, restores the newest backup the way a live production does', (_label, marker) => {
+    // Defect caught: the host-rebuild drill proving only the pre-go-live
+    // rebuild, so the one recovery go-live leaves (release installed unstarted,
+    // the backup restored with its erasure replay, then the code deploy) is
+    // first run in a real outage.
+    const target = marker === undefined ? 'staging' : 'production';
+    writeHost({ ...finishedHost(target), DB_FILE: 'absent', CONTAINERS: '', SERVICE_ENABLED: 'disabled' });
+    if (marker !== undefined) writeFileSync(join(state, 'marker'), `${marker}\n`);
+    const r = runTty(['--target', target, '--restore-database'], 'APPLY\\n');
+    expect(r.status, r.out).toBe(0);
+    expect(siblingCalls().filter((c) => /^(restore-db|deploy_to_aws|deploy-code)/.test(c))).toEqual([
+      `deploy-code.sh --first-install --target ${target} | stdin=stub-sudo-pass`,
+      `restore-db.sh --target ${target} --onto-empty | stdin=stub-sudo-pass`,
+      `deploy_to_aws.sh --target ${target} | stdin=`,
+    ]);
+    expect(hostFacts().DB_FILE).toBe('present');
+  });
+
+  it('without --restore-database a fresh staging host still takes the rebuild, never the restore', () => {
+    // Defect caught: the flag's path leaking into an ordinary bootstrap, so a
+    // fresh staging host waits on a backup it may not have.
+    writeHost({ ...finishedHost('staging'), DB_FILE: 'absent', CONTAINERS: '', SERVICE_ENABLED: 'disabled' });
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(siblingCalls().some((c) => c.startsWith('deploy_to_aws.sh --target staging --from-csv'))).toBe(true);
+    expect(siblingCalls().some((c) => /^(restore-db|deploy-code)/.test(c))).toBe(false);
+  });
+
+  it('refuses --restore-database beside --status or --replace-instance', () => {
+    for (const mode of ['--status', '--replace-instance']) {
+      const r = runTty(['--target', 'staging', mode, '--restore-database']);
+      expect(r.status, mode).toBe(2);
+      expect(r.out, mode).toContain('--restore-database chooses how a bootstrap run brings back');
+    }
   });
 
   it('on a live production installs nothing without the typed APPLY', () => {
@@ -1713,10 +1767,14 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       dnfSays?: string;
       /** How `dnf check-update` answers: its exit status and its listing. */
       checkUpdate?: { rc: number; out: string };
+      /** The host already has its disk swap file active. */
+      swapActive?: boolean;
     }
     let releaseFile: string;
     let sqliteTarget: string;
     let dnfConf: string;
+    let swapFile: string;
+    let fstabFile: string;
 
     /** A host in the given state; the stand-ins answer the way the real tools do. */
     function provisionTools(h: HostTools): void {
@@ -1728,6 +1786,22 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       rmSync(sqliteTarget, { force: true });
       if (h.installedSqlite) sh(sqliteTarget, [`echo "${h.installedSqlite} 2026-01-09 stub"`]);
       tool('uname', ['echo x86_64']);
+      // The swap stand-ins: swapon lists the file once a swapon of it has run
+      // (or from the start when the host already has one), and the rest only
+      // record that they ran.
+      swapFile = join(work, 'swapfile');
+      fstabFile = join(work, 'fstab');
+      writeFileSync(fstabFile, h.swapActive ? `${swapFile} none swap sw 0 0\n` : '');
+      rmSync(`${log}.swap-on`, { force: true });
+      if (h.swapActive) writeFileSync(`${log}.swap-on`, '');
+      tool('swapon', [
+        `[[ "$1" == --show* ]] && { [[ -e "$LOG.swap-on" ]] && echo ${JSON.stringify(swapFile)}; exit 0; }`,
+        'touch "$LOG.swap-on"',
+      ]);
+      // fallocate creates the file, as the real one does, so the chmod after it
+      // finds it; mkswap only records that it ran.
+      tool('fallocate', ['touch "${*: -1}"']);
+      tool('mkswap', ['exit 0']);
       const dockerVer = h.engine === 'pinned' ? DOCKER_PIN : '25.0.14-1.amzn2023.0.1';
       const dockerRpm = h.engine === 'pinned' || h.engine === 'other';
       tool('rpm', [
@@ -1744,8 +1818,15 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       ]);
       // Stepping the release rewrites the release file, as the system-release
       // package does when the upgrade lands.
+      // A release step on a small host with no disk swap is killed for want of
+      // memory while it loads the release's metadata, as it was on staging's
+      // 512 MB instance (exit 137, the kernel's SIGKILL).
       tool('dnf', [
-        `[[ "$1" == upgrade ]] && echo "Amazon Linux release ${AL_PIN} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`,
+        '[[ "$1" == upgrade && ! -e "$LOG.swap-on" ]] && { echo "Amazon Linux 2023 repository  76 MB/s |  90 MB  00:01"; exit 137; }',
+        // dnf upgrade only moves forward: a host already past the pin is left
+        // where it is ("Nothing to do"), as on staging.
+        `cur="$(sed -n 's/^Amazon Linux release \\([0-9.]*\\).*/\\1/p' ${JSON.stringify(releaseFile)})"`,
+        `[[ "$1" == upgrade && "$(printf '%s\\n%s\\n' "$cur" ${AL_PIN} | sort -V | tail -n 1)" == ${AL_PIN} ]] && echo "Amazon Linux release ${AL_PIN} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`,
         h.dnfSays ? `[[ "$1" == install ]] && echo ${JSON.stringify(h.dnfSays)}` : ':',
         h.checkUpdate
           ? `[[ "$1" == check-update ]] && { printf '%b' ${JSON.stringify(h.checkUpdate.out)}; exit ${h.checkUpdate.rc}; }`
@@ -1765,8 +1846,51 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
         `SQLITE_VERSION=${SQLITE_PIN}`, `SQLITE3_B64=${shipped}`, 'RSYNC_PACKAGE=rsync', 'AWSCLI_PACKAGE=awscli-2',
         `COMPOSE_VERSION=${COMPOSE}`, 'COMPOSE_URL=https://example.test/compose', `COMPOSE_SHA256=${DIGEST}`,
         `AL_RELEASE_FILE=${releaseFile}`, `SQLITE_INSTALL_PATH=${sqliteTarget}`,
+        'FOOTBAG_ENV=staging', `SWAPFILE_PATH=${swapFile}`, `FSTAB_FILE=${fstabFile}`,
       ].join('\n') + '\n';
     }
+
+    it('turns on a disk swap file before the release step, so a small fresh host survives it', () => {
+      // Defect caught: on a fresh 512 MB instance, which has only compressed
+      // in-RAM swap until the deploy adds the disk file several steps later, the
+      // release step's dnf was killed for want of memory and the bootstrap could
+      // never get past its package step.
+      provisionTools({ engine: 'none', release: '2023.6.20241010', distroSqlite: true });
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status, r.out).toBe(0);
+      const log = logged();
+      expect(log).toMatch(new RegExp(`^fallocate -l 1G ${swapFile}$`, 'm'));
+      expect(log.indexOf(`swapon ${swapFile}`)).toBeGreaterThan(-1);
+      expect(log.indexOf(`swapon ${swapFile}`)).toBeLessThan(log.indexOf('dnf upgrade'));
+      expect(readFileSync(fstabFile, 'utf-8')).toBe(`${swapFile} none swap sw 0 0\n`);
+    });
+
+    it('on staging warns and carries on past a release newer than the pin, where production refuses it', () => {
+      // Defect caught: a fresh staging instance whose image has reached a
+      // release past the pin, which dnf cannot step back, stopping the rebuild
+      // drill for good; or a production host let through off its pin.
+      const newer = '2099.1.20990101';
+      provisionTools({ engine: 'none', release: newer, distroSqlite: true });
+      const stg = runHalf(PROVISION_HALF, pins());
+      expect(stg.status, stg.out).toBe(0);
+      expect(stg.out).toMatch(new RegExp(`---FOOTBAG-PROBLEM--- WARN staging runs Amazon Linux ${newer.replace(/[.]/g, '\\.')}, newer than the pinned`));
+      expect(logged()).not.toMatch(/^dnf upgrade /m);
+
+      rmSync(log, { force: true });
+      provisionTools({ engine: 'none', release: newer, distroSqlite: true });
+      const prod = runHalf(PROVISION_HALF, pins().replace('FOOTBAG_ENV=staging', 'FOOTBAG_ENV=production'));
+      expect(prod.status).toBe(1);
+      expect(prod.out).toContain(`after the upgrade the host reports Amazon Linux ${newer}`);
+    });
+
+    it('leaves an active swap file alone', () => {
+      // Defect caught: a re-run reallocating the swap file under a host using it.
+      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN, swapActive: true });
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status, r.out).toBe(0);
+      expect(logged()).not.toMatch(/^(fallocate|mkswap) /m);
+      expect(readFileSync(fstabFile, 'utf-8')).toBe(`${swapFile} none swap sw 0 0\n`);
+    });
 
     it('brings a fresh host to every pin: the release, docker, and the shipped sqlite3', () => {
       // Defect caught: a host installs whatever its distribution serves today, so

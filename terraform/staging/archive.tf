@@ -467,6 +467,25 @@ resource "aws_ssm_parameter" "app_archive_login_redirect" {
   value = "1"
 }
 
+# The key-pair identifier and the parent cookie domain the platform signs
+# archive cookies with, at parity with production. Both are published only
+# while the edge gate is on, and the domain only with the custom domain as
+# well; staging's gate is off (its login redirect above is the gate), so
+# staging publishes neither and its platform signs no archive cookies.
+resource "aws_ssm_parameter" "app_archive_key_pair_id" {
+  count = var.enable_archive && var.archive_require_signed_cookies ? 1 : 0
+  name  = "${local.ssm_prefix}/app/archive_key_pair_id"
+  type  = "String"
+  value = aws_cloudfront_public_key.archive[0].id
+}
+
+resource "aws_ssm_parameter" "app_archive_cookie_domain" {
+  count = var.enable_archive_custom_domain && var.archive_require_signed_cookies ? 1 : 0
+  name  = "${local.ssm_prefix}/app/archive_cookie_domain"
+  type  = "String"
+  value = ".${var.domain_name}"
+}
+
 # Which source the archive bucket is published from, at parity with production
 # so the switch is rehearsed here first. "crawl" until the switch: the bucket is
 # a copy of the crawl, and scripts/publish-archive.sh refuses unless it reads

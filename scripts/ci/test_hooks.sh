@@ -1917,23 +1917,25 @@ expect_memory() {
   fi
 }
 
-# A memory write passes only when the assistant announced the audit after the human's
-# last message; an audit from an earlier turn, or none, is denied.
+# A memory write reaches the human's approval only when the assistant announced the
+# audit after the human's last message; an audit from an earlier turn, or none, is
+# denied. An audited write is never let through on its own audit: it asks the human,
+# because the audit is the assistant's own claim.
 MEM="$HOME/.claude/projects/-x/memory/note.md"
 USER_TURN='{"type":"user","message":{"content":"remember this"}}'
 AUDITED='{"type":"assistant","message":{"content":[{"type":"text","text":"Memory audit: lesson = x; class = machine-local; checked entries a; no overlap; not in exclusion list."}]}}'
 PLAIN='{"type":"assistant","message":{"content":[{"type":"text","text":"Saving it now."}]}}'
-expect_memory "$MEM" "$USER_TURN"$'\n'"$AUDITED" defer
+expect_memory "$MEM" "$USER_TURN"$'\n'"$AUDITED" ask
 expect_memory "$MEM" "$USER_TURN"$'\n'"$PLAIN" deny
 expect_memory "$MEM" "$USER_TURN"$'\n'"$AUDITED"$'\n'"$USER_TURN"$'\n'"$PLAIN" deny
 expect_memory "$MEM" "" deny
 expect_memory "$CLAUDE_PROJECT_DIR/src/app.ts" "" defer
 
-# The audit carried in the write itself passes with no transcript at all, because
-# text sent with the tool call is not in the transcript yet when the hook runs; an
-# index edit passes only when every memory file it links to carries the audit, or
-# when it only deletes lines.
-# expect_memory_write <tool-input-json> <deny|defer>
+# The audit carried in the write itself reaches the human's approval with no
+# transcript at all, because text sent with the tool call is not in the transcript
+# yet when the hook runs; an index edit does only when every memory file it links to
+# carries the audit, or when it only deletes lines. Every such write asks.
+# expect_memory_write <tool-input-json> <deny|ask|defer>
 expect_memory_write() {
   local input="$1" want="$2" out decision
   out="$(jq -n --argjson i "$input" '{tool_input: $i}' | .claude/hooks/guard-memory-write.sh)"
@@ -1950,16 +1952,16 @@ printf -- '---\nname: a\nmetadata:\n  audit: lesson = x; class = user preference
 printf -- '---\nname: b\n---\nbody\n' > "$memdir/plain.md"
 # Claude Code saves the value quoted, so the file on disk reads audit: "lesson = ...".
 printf -- '---\nname: q\nmetadata:\n  audit: "lesson = x; class = user preference"\n---\nbody\n' > "$memdir/quoted.md"
-expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [Q](quoted.md) -- hook"}')" defer
-expect_memory_write "$(jq -n --arg p "$memdir/new.md" '{file_path: $p, content: "---\nmetadata:\n  audit: lesson = x; class = machine-local\n---\n"}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [Q](quoted.md) -- hook"}')" ask
+expect_memory_write "$(jq -n --arg p "$memdir/new.md" '{file_path: $p, content: "---\nmetadata:\n  audit: lesson = x; class = machine-local\n---\n"}')" ask
 expect_memory_write "$(jq -n --arg p "$memdir/new.md" '{file_path: $p, content: "---\nname: n\n---\nno audit\n"}')" deny
-expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [A](audited.md) -- hook"}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [A](audited.md) -- hook"}')" ask
 expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [A](audited.md) -- hook\n- [B](plain.md) -- hook"}')" deny
 expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [M](missing.md) -- hook"}')" deny
 # A link the edit keeps from its old text is context, not an addition.
-expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook", new_string: "- [B](plain.md) -- hook\n- [A](audited.md) -- hook"}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook", new_string: "- [B](plain.md) -- hook\n- [A](audited.md) -- hook"}')" ask
 expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook", new_string: "- [B](plain.md) -- edited"}')" deny
-expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook\n", new_string: ""}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook\n", new_string: ""}')" ask
 expect_memory_write "$(jq -n --arg p "$memdir/plain.md" '{file_path: $p, old_string: "x", new_string: ""}')" deny
 rm -rf "${memdir%/.claude/projects/-x/memory}"
 

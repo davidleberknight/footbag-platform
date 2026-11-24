@@ -61,6 +61,8 @@ HOST_VALUES=(
   "SES_FEEDBACK_QUEUE_URL|param|app/ses_feedback_queue_url|optional|^https://sqs\.[a-z0-9-]+\.amazonaws\.com/[0-9]{12}/[A-Za-z0-9_-]+$|the queue the worker polls for bounces and complaints; absent until the feed queues are enabled"
   "SES_FROM_IDENTITY|param|app/ses_sender_identity|required|^[^@[:space:]]+@[^@[:space:]]+\.[^@[:space:]]+$|the verified identity every message is sent as; a wrong one fails at the drain, not at boot"
   "PUBLIC_BASE_URL|param|app/public_base_url|required|^https://[A-Za-z0-9.-]+$|the origin every absolute link, redirect and mail link is built against; moves with the custom-domain and notice flags"
+  "ARCHIVE_KEY_PAIR_ID|param|app/archive_key_pair_id|optional|^K[A-Z0-9]{8,20}$|the CloudFront public key every archive cookie names; published only while the archive's edge gate is on, so absent on staging"
+  "ARCHIVE_COOKIE_DOMAIN|param|app/archive_cookie_domain|optional|^\.[a-z0-9.-]+$|the parent domain archive cookies are set on; published only once the archive answers on its custom domain, since a browser discards it from any other host"
 
   # Values the deploy derives, fetches or generates in blocks of their own.
   "LOG_LEVEL|derived|app/log_level|required||synced from its parameter and checked against the levels the logger accepts"
@@ -90,6 +92,7 @@ HOST_VALUES=(
   "MEDIA_STORAGE_ADAPTER|committed|docker/env|required||object storage on every deployed host"
   "SECRETS_ADAPTER|committed|docker/env|required||Parameter Store on every deployed host"
   "JWT_SIGNER|committed|docker/env|required||KMS on every deployed host"
+  "ARCHIVE_COOKIE_SIGNER|committed|docker/env|optional||Parameter Store on production, whose archive edge requires signed cookies; unset on staging, whose archive is gated by the login redirect"
   "CAPTCHA_ADAPTER|committed|docker/env|required||live on production, the stub on staging, which serves no widget"
   "TURNSTILE_SITE_KEY|committed|docker/env|optional||the captcha widget's public key, required wherever the live captcha runs"
   "NGINX_MEMORY_LIMIT|committed|docker/env|required||container sizing for this host"
@@ -120,12 +123,6 @@ HOST_VALUES=(
   "JWT_LOCAL_KEYPAIR_PATH|compose|compose|optional||the development signer's keypair, never used on a host"
   "INCLUDE_DEV_SHORTCUTS|compose|compose|optional||development shortcuts, refused on a host"
   "VIDEO_MAX_BYTES|compose|compose|optional||the accepted upload size, at its built-in default"
-
-  # Not yet owned. Their publisher is not built yet, and two of the three cannot
-  # have a value before the archive's custom domain exists.
-  "ARCHIVE_COOKIE_SIGNER|unowned|private tracker|optional||how archive cookies are signed; their publisher is not built yet"
-  "ARCHIVE_KEY_PAIR_ID|unowned|private tracker|optional||the CloudFront key pair archive cookies name; their publisher is not built yet"
-  "ARCHIVE_COOKIE_DOMAIN|unowned|private tracker|optional||the parent domain archive cookies are set on; needs the archive custom domain, and their publisher is not built yet"
 )
 
 # host_values_keys [class]

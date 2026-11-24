@@ -179,6 +179,8 @@ const INSTANCE = 'footbag-staging-web';
 const ARN = 'arn:aws:lightsail:us-east-1:041904915126:Instance/0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0';
 const CREATED = '2026-09-01T10:00:00.123000+00:00';
 const RECORD = `footbag-staging ${INSTANCE} ${ARN} ${CREATED}`;
+/** The record line the judgement builds: CREATED as one UTC instant, to the millisecond. */
+const RECORD_UTC = `footbag-staging ${INSTANCE} ${ARN} 2026-09-01T10:00:00.123Z`;
 const PROD_RECORD = 'footbag-production footbag-production-web arn:aws:lightsail:us-east-1:041904915126:Instance/11111111-2222-3333-4444-555555555555 2026-08-01T10:00:00+00:00';
 const KEYS = ['ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFixtureCurrencyKey', 'ssh-rsa AAAAB3NzaC1yc2EFixtureCurrencyRsa'];
 const tagged = (host: string, key: string, tag = 'footbag-staging') => `${host} ${key} ${tag}`;
@@ -272,15 +274,15 @@ describe('known_hosts_pin_current: a pin is current only for the instance it was
     writeCurrent();
     const v = judge();
     expect(v.rc, v.stderr + v.reason).toBe(0);
-    expect(v.record).toBe(RECORD);
+    expect(v.record).toBe(RECORD_UTC);
     expect(v.count).toBe(4);
     expect(mintCalls()).toBe('');
   });
 
   it.each([
-    ['ARN', 'arn', 'arn:aws:lightsail:us-east-1:041904915126:Instance/99999999-8888-7777-6666-555555555555'],
-    ['creation time', 'created', '2026-11-01T09:00:00+00:00'],
-  ])('fails a rebuilt host whose %s differs from the record', (_label, file, value) => {
+    ['ARN', 'arn', 'arn:aws:lightsail:us-east-1:041904915126:Instance/99999999-8888-7777-6666-555555555555', 'Instance/99999999-8888-7777-6666-555555555555'],
+    ['creation time', 'created', '2026-11-01T09:00:00+00:00', '2026-11-01T09:00:00.000Z'],
+  ])('fails a rebuilt host whose %s differs from the record', (_label, file, value, built) => {
     // Defect caught: a host rebuilt under the same name, with new host keys,
     // passing as current, so a dev-and-tester is sealed the old host's keys.
     writeCurrent();
@@ -288,7 +290,25 @@ describe('known_hosts_pin_current: a pin is current only for the instance it was
     const v = judge();
     expect(v.rc).toBe(1);
     expect(v.reason).toContain('rebuilt or replaced');
-    expect(v.record).toContain(value);
+    expect(v.record).toContain(built);
+    expect(mintCalls()).toBe('');
+  });
+
+  it('passes a pin recorded from another time zone, where the creation time is the same instant', () => {
+    // Defect caught: the CLI renders the creation time in the workstation's
+    // own zone, so a pin taken at +13:00 read as "rebuilt or replaced" from a
+    // workstation at -07:00, stopping every drill and deploy until a fresh mint
+    // fired the break-glass alarm for a host nobody had touched. Captured from
+    // a real staging run: the record held 2026-03-13T20:29:59.387000+13:00 and
+    // Lightsail answered 2026-03-13T00:29:59.387000-07:00.
+    writeCurrent(CURRENT_PIN, [`footbag-staging ${INSTANCE} ${ARN} 2026-03-13T20:29:59.387000+13:00`]);
+    writeFileSync(join(cur, 'created'), '2026-03-13T00:29:59.387000-07:00');
+    const v = judge();
+    expect(v.rc, v.stderr + v.reason).toBe(0);
+    expect(v.record).toBe(`footbag-staging ${INSTANCE} ${ARN} 2026-03-13T07:29:59.387Z`);
+    // One millisecond later is another instance.
+    writeFileSync(join(cur, 'created'), '2026-03-13T00:29:59.388000-07:00');
+    expect(judge().rc).toBe(1);
     expect(mintCalls()).toBe('');
   });
 

@@ -110,6 +110,9 @@ beforeAll(() => {
     join(dir, 'terraform-stub.sh'),
     [
       '#!/usr/bin/env bash',
+      // A read the case names fails the way Terraform reports an output it
+      // cannot print, so the script's handling of a failed read is exercised.
+      'if [[ "${@: -1}" == "${STUB_TF_FAIL:-}" ]]; then echo "Error: Output \\"${@: -1}\\" not found" >&2; exit 1; fi',
       'case "${@: -1}" in',
       `  archive_domain) printf '%s' ${DOMAIN} ;;`,
       `  archive_key_pair_id) printf '%s' ${KEY_PAIR_ID} ;;`,
@@ -193,6 +196,8 @@ function run(
     probe?: 'removed' | 'fails';
     /** A caller's report file, as a parent run on the closing-report library exports it. */
     reportTo?: string;
+    /** A Terraform output whose read fails. */
+    tfFail?: string;
   } = {},
 ): Run {
   const caseDir = createScratchDir('verify-archive-edge-case');
@@ -233,6 +238,7 @@ function run(
       STUB_TABLE: table,
       STUB_HEADERS: headers,
       STUB_KEY_PAIR_ID: KEY_PAIR_ID,
+      STUB_TF_FAIL: opts.tfFail ?? '',
     },
     ...SPAWN_GUARD,
   });
@@ -271,6 +277,18 @@ describe('verify-archive-edge.sh proves the archive edge or fails', () => {
     // The operator reads the end of the run, so the failure is in its closing
     // report, not only in a row that scrolled past.
     expect(listed(r.stderr, 'Errors')).toContain('EDGE PROOF FAILED: 1 check(s).');
+  });
+
+  it('stops on a Terraform output it cannot read, listing Terraform\'s own message, and requests nothing', () => {
+    // Defect caught: a failed read dropped and reported only as an empty
+    // output, so the operator never sees why Terraform could not answer.
+    for (const output of ['archive_domain', 'archive_requires_signed_cookies']) {
+      const r = run({ tfFail: output });
+      expect(r.status, output).not.toBe(0);
+      expect(listed(r.stderr, 'Errors'), output).toContain(`could not read the Terraform output ${output}`);
+      expect(listed(r.stderr, 'Errors'), output).toContain(`Error: Output "${output}" not found`);
+      expect(r.calls, output).toEqual([]);
+    }
   });
 
   it('fails when the gate page does not carry a noindex robots header', () => {

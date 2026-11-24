@@ -137,10 +137,22 @@ if [[ ! -r "$SIGNING_KEY" ]]; then
 fi
 
 TF_DIR="${REPO_ROOT}/terraform/${TARGET_ENV}"
-tf_out() { "$TF_BIN" -chdir="$TF_DIR" output -raw "$1" 2>/dev/null || true; }
-DOMAIN="$(tf_out archive_domain)"
-KEY_PAIR_ID="$(tf_out archive_key_pair_id)"
-BUCKET="$(tf_out archive_bucket_name)"
+TF_ERR="$(mktemp /tmp/footbag-archive-edge-tf.XXXXXX)"
+cr_cleanup rm -f "$TF_ERR"
+# tf_read <variable> <output>: reads one output into the named variable, in this
+# shell rather than a command substitution, so a failed read stops the run with
+# Terraform's own message in the closing report.
+tf_read() {
+  local -n _tf_into="$1"
+  if ! _tf_into="$("$TF_BIN" -chdir="$TF_DIR" output -raw "$2" 2> "$TF_ERR")"; then
+    cr_error "could not read the Terraform output $2 from ${TF_DIR}: $(grep -v '^[[:space:]]*$' "$TF_ERR" | tail -n 1 || [[ $? == 1 ]])"
+    echo "       The archive stack must be applied (enable_archive = true)." >&2
+    exit 1
+  fi
+}
+tf_read DOMAIN archive_domain
+tf_read KEY_PAIR_ID archive_key_pair_id
+tf_read BUCKET archive_bucket_name
 if [[ -z "$DOMAIN" || -z "$KEY_PAIR_ID" || -z "$BUCKET" ]]; then
   cr_error "archive terraform outputs are empty in ${TF_DIR}."
   echo "       The archive stack must be applied (enable_archive = true)." >&2
@@ -153,7 +165,7 @@ fi
 # Taken from the declared intent, never from the live distribution: an
 # environment that lost its key group would otherwise be read as deliberately
 # open and pass.
-REQUIRE_COOKIES="$(tf_out archive_requires_signed_cookies)"
+tf_read REQUIRE_COOKIES archive_requires_signed_cookies
 if [[ -z "$REQUIRE_COOKIES" ]]; then
   cr_error "archive_requires_signed_cookies is not published by ${TF_DIR}."
   echo "       Apply the archive stack so the output lands in state." >&2

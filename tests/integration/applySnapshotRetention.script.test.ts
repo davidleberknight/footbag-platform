@@ -73,7 +73,7 @@ interface AwsStubOptions {
   /** 'unfiltered' is the pre-change rule the apply was supposed to replace. */
   replication: 'scoped' | 'unfiltered' | 'none' | 'scoped-disabled';
   /** 'daily-disabled' is a rule that exists and expires nothing. */
-  generationRules: 'all' | 'missing-daily' | 'daily-disabled';
+  generationRules: 'all' | 'missing-daily' | 'daily-disabled' | 'daily-no-days';
   /**
    * 'unreadable' is a describe-alarms the credential cannot make, not an empty
    * one. 'east-only' is the failed alarm in the source region with nothing in
@@ -82,6 +82,14 @@ interface AwsStubOptions {
   alarms: 'present' | 'none' | 'unreadable' | 'east-only';
   /** 'unreadable' is a listing the credential cannot read, not an absent one. */
   drLifecycle: 'present' | 'unreadable';
+  /**
+   * How many days old the oldest object in each generation is, for the
+   * held-objects read; 'unreadable' fails that read. The defaults sit inside
+   * the stub's rule windows (routine/ 2 days, hourly/ 30, daily/ 400).
+   */
+  oldestDays: { routine: number; hourly: number; daily: number } | 'unreadable';
+  /** 2 answers the held-objects read as two pages, as a large generation does. */
+  pages: 1 | 2;
 }
 
 /**
@@ -106,8 +114,27 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
     generationRules: 'all',
     alarms: 'present',
     drLifecycle: 'present',
+    oldestDays: { routine: 1, hourly: 20, daily: 200 },
+    pages: 1,
     ...opts,
   };
+  // The held-objects read: count, total bytes and the oldest LastModified, as
+  // the query's text output gives them. It asks for min_by, which no other read
+  // does, so it is matched before the age reads that also name LastModified.
+  // With `pages`, the CLI's per-page answer to a paginated listing: one line per
+  // page of a thousand keys, the oldest object on the last page here, so a
+  // reader of the first line alone undercounts and misses it.
+  const heldCase = o.oldestDays === 'unreadable'
+    ? ['  *min_by*) echo "An error occurred (AccessDenied) when calling the ListObjectsV2 operation: Access Denied" >&2; exit 254 ;;']
+    : [
+        '  *min_by*)',
+        '    p=""; prev=""; for a in "$@"; do [[ "$prev" == --prefix ]] && p="$a"; prev="$a"; done',
+        `    case "$p" in routine/) d=${o.oldestDays.routine};; hourly/) d=${o.oldestDays.hourly};; *) d=${o.oldestDays.daily};; esac`,
+        ...(o.pages === 2
+          ? ['    printf "1000\\t3000000000\\t%s\\n" "$(date -u -d "-1 days" +%Y-%m-%dT%H:%M:%S+00:00)"',
+             '    printf "234\\t500\\t%s\\n" "$(date -u -d "-${d} days" +%Y-%m-%dT%H:%M:%S+00:00)" ;;']
+          : ['    printf "12\\t3456789\\t%s\\n" "$(date -u -d "-${d} days" +%Y-%m-%dT%H:%M:%S+00:00)" ;;']),
+      ];
   const stamp = (ageHours: number): string =>
     o.ageUnreadable ? 'echo ""' : `date -u -d "-${ageHours} hours" +%Y-%m-%dT%H:%M:%S+00:00`;
   const replicationCase =
@@ -130,6 +157,7 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
       '#!/usr/bin/env bash',
       `echo "aws $*" >> "${callLog}"`,
       'case "$*" in',
+      ...heldCase,
       // The age reads first: they carry the prefix too, so the count patterns
       // below would otherwise swallow them.
       `  *hourly/*LastModified*|*LastModified*hourly/*) ${stamp(o.hourlyAgeHours)} ;;`,
@@ -151,7 +179,10 @@ function writeAwsStub(hourly: number, daily: number, opts: Partial<AwsStubOption
         ? ['    printf "expire-daily-tier\\tEnabled\\tdaily/\\t400\\n" ;;']
         : o.generationRules === 'daily-disabled'
           ? ['    printf "expire-daily-tier\\tDisabled\\tdaily/\\t400\\n" ;;']
-          : ['    ;;']),
+          : o.generationRules === 'daily-no-days'
+            // Text output renders an absent Expiration.Days as the literal None.
+            ? ['    printf "expire-daily-tier\\tEnabled\\tdaily/\\tNone\\n" ;;']
+            : ['    ;;']),
       '  *get-bucket-replication*)',
       ...replicationCase,
       '  *describe-alarms*)',
@@ -408,7 +439,9 @@ describe('apply-snapshot-retention.sh: the generation-history gate', () => {
     run(['--target', 'production', '--yes']);
     const ageCalls = calls()
       .split('\n')
-      .filter((l) => l.includes('LastModified'));
+      // The gate's age reads; step 3's held-objects read also names LastModified
+      // and is told apart by its min_by.
+      .filter((l) => l.includes('LastModified') && !l.includes('min_by'));
     expect(ageCalls.length, 'one age read per generation').toBe(2);
     for (const line of ageCalls) {
       expect(line).not.toMatch(/--max-keys/);
@@ -485,6 +518,68 @@ describe('apply-snapshot-retention.sh: verification', () => {
     expect(res.stdout).toMatch(/same window as the lock/);
   });
 
+  it('reports what each generation holds, and passes generations inside their windows', () => {
+    // Defect caught: a verification that reads the rules and never the bucket,
+    // so the operator still checks by hand whether retention is thinning it.
+    writeAwsStub(2, 2);
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode, res.stdout + res.stderr).toBe(0);
+    for (const prefix of ['routine/', 'hourly/', 'daily/']) {
+      expect(res.stdout, prefix).toMatch(new RegExp(`${prefix} +12 objects, 3456789 bytes, oldest `));
+    }
+    expect(res.stdout).not.toMatch(/NOT EXPIRING/);
+  });
+
+  it.each([
+    ['routine/', { routine: 5, hourly: 20, daily: 200 }, /NOT EXPIRING: routine\/ holds an object 5 days old under its 2-day rule/],
+    ['daily/', { routine: 1, hourly: 20, daily: 403 }, /NOT EXPIRING: daily\/ holds an object 403 days old under its 400-day rule/],
+  ])('fails when %s holds an object older than its rule plus the expiry grace', (_label, oldestDays, message) => {
+    // Defect caught: a rule present and Enabled that expires nothing (a prefix
+    // typo, a filter on the wrong key), so backups and the personal data in them
+    // are kept past their window while every check reads clean.
+    writeAwsStub(2, 2, { oldestDays });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).toMatch(message);
+    expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
+    writeAwsStub(2, 2);
+  });
+
+  it('passes an object exactly at its rule plus the expiry grace, which S3 may not have removed yet', () => {
+    // Defect caught: a verification that fails on the day S3 is still entitled
+    // to be catching up, sending the operator after a rule that is working.
+    writeAwsStub(2, 2, { oldestDays: { routine: 4, hourly: 20, daily: 200 } });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode, res.stdout).toBe(0);
+    writeAwsStub(2, 2);
+  });
+
+  it('fails the run when a generation cannot be listed', () => {
+    // Defect caught: an unreadable listing taken for a bucket that is fine.
+    writeAwsStub(2, 2, { oldestDays: 'unreadable' });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.exitCode).toBe(1);
+    // The CLI's own reason rides along, so the operator can tell a denied
+    // credential from a network fault without re-running by hand.
+    expect(res.stdout).toMatch(/routine\/ <unreadable>, so whether its rule expires anything is not proven: .*AccessDenied/);
+    writeAwsStub(2, 2);
+  });
+
+  it('sums a paginated listing, and judges the oldest object on a later page', () => {
+    // Defect caught: the count, size and oldest object read from the first
+    // page only, so production's routine/ (thousands of keys) reports a
+    // thousand objects and a stale object on page two goes unseen.
+    writeAwsStub(2, 2, { pages: 2 });
+    const healthy = run(['--target', 'production', '--verify']);
+    expect(healthy.exitCode, healthy.stdout).toBe(0);
+    expect(healthy.stdout).toMatch(/routine\/ +1234 objects, 3000000500 bytes, oldest /);
+    writeAwsStub(2, 2, { pages: 2, oldestDays: { routine: 5, hourly: 20, daily: 200 } });
+    const stale = run(['--target', 'production', '--verify']);
+    expect(stale.exitCode).toBe(1);
+    expect(stale.stdout).toMatch(/NOT EXPIRING: routine\/ holds an object 5 days old/);
+    writeAwsStub(2, 2);
+  });
+
   it('fails the run when it cannot name the disaster-recovery bucket', () => {
     // Production is the only target that reaches this block and the only one
     // where the bucket exists, so an unreadable name is never "there is nothing
@@ -540,12 +635,24 @@ describe('apply-snapshot-retention.sh: verification', () => {
     // Present is not in effect. The id check read the listing's first column and
     // never the Status beside it, so a rule that expires nothing reported as
     // landed and the run exited 0.
-    writeAwsStub(2, 2, { generationRules: 'daily-disabled' });
+    writeAwsStub(2, 2, { generationRules: 'daily-disabled', oldestDays: { routine: 1, hourly: 20, daily: 900 } });
     const res = run(['--target', 'production', '--verify']);
     expect(res.exitCode).toBe(1);
     expect(res.stdout).toMatch(/NOT ENABLED generation rules:\s+expire-daily-tier/);
     expect(res.stdout).toMatch(/A Disabled rule expires nothing/);
     expect(res.stderr).toMatch(/VERIFICATION FAILED on production/);
+    // Its age is not judged a second time: the rule's state is the finding.
+    expect(res.stdout).not.toMatch(/NOT EXPIRING: daily\//);
+  });
+
+  it('says so, rather than skipping in silence, when a generation rule sets no expiry in days', () => {
+    // Defect caught: a rule whose expiry is a date or absent, read as checked
+    // because nothing was printed about its age.
+    writeAwsStub(2, 2, { generationRules: 'daily-no-days', oldestDays: { routine: 1, hourly: 20, daily: 900 } });
+    const res = run(['--target', 'production', '--verify']);
+    expect(res.stdout).toMatch(/daily\/: its rule sets no expiry in days, so its oldest object's age is not judged/);
+    expect(res.stdout).not.toMatch(/NOT EXPIRING: daily\//);
+    writeAwsStub(2, 2);
   });
 
   it('fails the run when the scoped replication rules are present but Disabled', () => {

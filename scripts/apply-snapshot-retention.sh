@@ -62,7 +62,9 @@
 #   1  the generation-history gate: refuse unless hourly/ and daily/ both hold
 #      history and are both still being added to
 #   2  terraform plan to a shredded file, confirm, apply that exact plan
-#   3  verify the lifecycle rules and the replication scope, and read out the alarms
+#   3  verify the lifecycle rules and the replication scope, report what each
+#      generation holds (and, under --verify, fail one whose oldest object is
+#      past its rule's window plus two days), and read out the alarms
 #
 # Usage:
 #   scripts/apply-snapshot-retention.sh --target staging --dry-run
@@ -498,6 +500,61 @@ if [[ -z "$MISSING" && -z "$DISABLED" ]]; then
   echo "  environment by design; read the days above against the tree rather than"
   echo "  against staging."
 fi
+echo ""
+
+# The rules' outcome, not only their presence. In each generation the oldest
+# current object must be younger than its rule's window plus the grace S3 takes
+# to act on an expiry: it evaluates rules once a day and removes expired objects
+# behind that. An older object is a rule that is not expiring what it should,
+# which the presence check above cannot see. The count and size are the record
+# of what the bucket holds.
+EXPIRY_GRACE_DAYS=2
+echo "What each generation holds (current versions):"
+while IFS=$'\t' read -r _rule_id _rule_status rule_prefix rule_days; do
+  case "$rule_prefix" in routine/|hourly/|daily/) ;; *) continue ;; esac
+  # The CLI applies the query to each page of a listing it paginates, a
+  # thousand keys at a time, so a large generation answers one line per page;
+  # the lines are summed here. Its warnings share the stream on success, so only
+  # the query's own lines (a count first) are read; on failure its last line is
+  # the reason.
+  if ! held="$(aws_read s3api list-objects-v2 --bucket "$BUCKET" --prefix "$rule_prefix" \
+      --query '[length(Contents || `[]`), sum((Contents || `[]`)[].Size), min_by(Contents || `[]`, &LastModified).LastModified]' \
+      --output text 2>&1)"; then
+    echo "  ${rule_prefix} <unreadable>, so whether its rule expires anything is not proven: ${held##*$'\n'}"
+    VERIFY_FAIL=1
+    continue
+  fi
+  IFS=$'\t' read -r held_n held_bytes held_oldest < <(awk -F'\t' '
+    $1 ~ /^[0-9]+$/ { n += $1; b += $2; if ($3 != "None" && (o == "" || $3 < o)) o = $3; seen = 1 }
+    END { if (seen) printf "%d\t%.0f\t%s\n", n, b, (o == "" ? "None" : o) }' <<< "$held")
+  if [[ -z "${held_n:-}" ]]; then
+    echo "  ${rule_prefix} answered no count, so whether its rule expires anything is not proven: ${held##*$'\n'}"
+    VERIFY_FAIL=1
+    continue
+  fi
+  printf '  %-9s %s objects, %s bytes, oldest %s\n' "$rule_prefix" "$held_n" "$held_bytes" "$held_oldest"
+  [[ -n "$held_oldest" && "$held_oldest" != "None" ]] || continue
+  # A Disabled rule is already a failure above; its age says nothing more.
+  [[ "$_rule_status" == "Enabled" ]] || continue
+  if [[ ! "$rule_days" =~ ^[0-9]+$ ]]; then
+    echo "  ${rule_prefix}: its rule sets no expiry in days, so its oldest object's age is not judged"
+    continue
+  fi
+  # Straight after an apply the objects are as old as the previous rules let
+  # them get, and S3 takes days to catch up; only a later --verify judges age.
+  (( VERIFY_ONLY )) || continue
+  if ! oldest_epoch="$(date -u -d "$held_oldest" +%s 2>&1)"; then
+    echo "  ${rule_prefix}: the oldest object's time '${held_oldest}' cannot be read, so its age is not proven: ${oldest_epoch}"
+    VERIFY_FAIL=1
+    continue
+  fi
+  age_days=$(( ($(date -u +%s) - oldest_epoch) / 86400 ))
+  if (( age_days > rule_days + EXPIRY_GRACE_DAYS )); then
+    echo "  NOT EXPIRING: ${rule_prefix} holds an object ${age_days} days old under its ${rule_days}-day rule"
+    VERIFY_FAIL=1
+  fi
+done <<< "$LIFECYCLE"
+(( VERIFY_ONLY )) || echo "  Ages are judged by --verify, once S3 has had ${EXPIRY_GRACE_DAYS} days to act on the new rules."
 echo ""
 
 if (( SNAPSHOT_REPLICATION )); then

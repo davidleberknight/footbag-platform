@@ -9,7 +9,9 @@
  * because the request itself is not yet authenticated.
  *
  * Where a deployment configures an archive cookie signer and archive address,
- * every issue for a member also mints the three CloudFront-* cookies the archive edge validates, scoped by
+ * an issue whose caller grants archive access (a member's session, never a
+ * prospective member's) also mints the three CloudFront-* cookies the archive
+ * edge validates, scoped by
  * a custom policy to the archive base URL with expiry equal to the session
  * cookie's, so archive access and main-site access share one staleness
  * boundary. That shared lifetime is administrator-configurable and is read here

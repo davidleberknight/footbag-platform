@@ -115,6 +115,25 @@ describe('comparing the host\'s tools with the pins the deploy sent', () => {
     expect(res.stderr).toContain('Amazon Linux 2023.11.20260901');
   });
 
+  // Defect caught: a staging deploy refused onto a fresh instance whose image
+  // has reached a release newer than the pin, which dnf cannot step back, so
+  // the host-rebuild drill can never finish; or production let through the same
+  // host. The versions are a real staging case: a fresh image booted
+  // 2023.12.20261120 against the pinned 2023.12.20261112.
+  it('on staging warns on every difference and carries on, where production refuses', () => {
+    const offPin = host({ release: '2023.12.20261120', sqlite: '3.40.0', docker: '25.0.14-1.amzn2023.0.1' });
+    const staging = check({ ...offPin, FOOTBAG_ENV: 'staging' });
+    expect(staging.status, staging.stderr).toBe(0);
+    for (const named of ['Amazon Linux 2023.12.20261120', 'sqlite3 is 3.40.0', 'docker package is 25.0.14-1.amzn2023.0.1']) {
+      expect(staging.stderr, named).toMatch(new RegExp(`WARNING: staging is off its pins: .*${named.replace(/[.]/g, '\\.')}`));
+    }
+    expect(staging.stderr).not.toContain('ERROR:');
+    const production = check({ ...offPin, FOOTBAG_ENV: 'production' });
+    expect(production.status).toBe(1);
+    expect(production.stderr).toContain('ERROR: the host runs Amazon Linux 2023.12.20261120');
+    expect(production.stderr).not.toContain('WARNING:');
+  });
+
   // Defect caught: an operator fixing differences one deploy at a time, because
   // the check stopped at the first one it found.
   it('names every difference in one run', () => {

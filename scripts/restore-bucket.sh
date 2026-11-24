@@ -99,6 +99,8 @@
 #   bash scripts/restore-bucket.sh --target <staging|production> \
 #     --bucket <media|archive|snapshots|cloudtrail> --from-versions \
 #     --as-of 2026-11-01T12:00:00Z [--dry-run] [--yes]
+#   bash scripts/restore-bucket.sh --target <staging|production> \
+#     --bucket <media|archive> --drill [--yes]
 #
 #   --target         the environment. Required, with no default.
 #   --bucket         which bucket to restore.
@@ -106,6 +108,13 @@
 #                    instead of copying from the backup. Requires --as-of.
 #   --as-of          an ISO 8601 time with its zone (Z or +hh:mm); deletes and
 #                    overwrites after it are undone.
+#   --prefix         scope either mode to the keys under this folder (ending in /).
+#   --drill          prove both recoveries of a media or archive bucket on one
+#                    throwaway object under drill/: written, removed outright
+#                    and copied back from the backup, deleted and restored from
+#                    its versions, read back each time, then every version of it
+#                    removed from both buckets. It asks APPLY once, and on
+#                    production each of its two restores asks again.
 #   --dry-run        show what would change and stop.
 #   --yes            proceed without the typed prompt; staging only.
 #
@@ -114,7 +123,9 @@
 #
 # Test seams (CI only; operators never set these), announced on stderr when
 # set: RESTORE_BUCKET_AWS_BIN and RESTORE_BUCKET_TERRAFORM_BIN replace the two
-# tools.
+# tools; for --drill, RESTORE_BUCKET_DRILL_CHILD replaces the restore it runs,
+# and RESTORE_BUCKET_POLL_TRIES, RESTORE_BUCKET_POLL_SECS and
+# RESTORE_BUCKET_PAUSE_SECS bound its waits.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -128,6 +139,8 @@ BUCKET=""
 AS_OF=""
 FROM_VERSIONS=0
 DRY_RUN=0
+PREFIX=""
+DRILL=0
 # How many copied keys are read back after a copy.
 SAMPLE_SIZE=5
 
@@ -142,6 +155,8 @@ while [[ $# -gt 0 ]]; do
     --bucket) BUCKET="${2:-}"; shift 2 || { echo "ERROR: --bucket requires an argument" >&2; exit 2; } ;;
     --as-of)  AS_OF="${2:-}"; shift 2 || { echo "ERROR: --as-of requires an argument" >&2; exit 2; } ;;
     --from-versions) FROM_VERSIONS=1; shift ;;
+    --prefix) PREFIX="${2:-}"; shift 2 || { echo "ERROR: --prefix requires an argument" >&2; exit 2; } ;;
+    --drill)  DRILL=1; shift ;;
     --dry-run) DRY_RUN=1; shift ;;
     --yes)    ASSUME_YES="yes"; shift ;;
     -h|--help) usage 0 ;;
@@ -150,6 +165,22 @@ while [[ $# -gt 0 ]]; do
 done
 
 require_target "$TARGET" staging production || exit 2
+
+# A prefix scopes either mode to the keys under it, and must end in a slash so
+# it names a folder rather than the start of every key that begins alike.
+if [[ -n "$PREFIX" ]] && { [[ ! "$PREFIX" =~ ^[A-Za-z0-9._-]+(/[A-Za-z0-9._-]+)*/$ ]] \
+     || [[ "/${PREFIX}" == */./* || "/${PREFIX}" == */../* ]]; }; then
+  echo "ERROR: --prefix must be a folder path ending in /, such as drill/restore-drill-1/ (got '${PREFIX}')." >&2
+  exit 2
+fi
+if (( DRILL )); then
+  [[ "$BUCKET" == media || "$BUCKET" == archive ]] \
+    || { echo "ERROR: --drill exercises a bucket with a backup copy: --bucket media or archive (got '${BUCKET}')." >&2; exit 2; }
+  if (( FROM_VERSIONS || DRY_RUN )) || [[ -n "$AS_OF" || -n "$PREFIX" ]]; then
+    echo "ERROR: --drill runs both recoveries on its own throwaway object; it takes no --from-versions, --as-of, --prefix or --dry-run." >&2
+    exit 2
+  fi
+fi
 
 if (( FROM_VERSIONS )); then
   case "$BUCKET" in
@@ -306,11 +337,167 @@ confirm_or_stop() {
 }
 
 # --------------------------------------------------------------------------
+# The drill: both recoveries proved on one throwaway object.
+# --------------------------------------------------------------------------
+# A real object lost and brought back, so a bucket restore is known to work
+# before one is needed, on a key nothing else uses and with every version of
+# it removed afterwards. The backup copy is drilled first: a delete replicates
+# a marker to the backup, after which the backup no longer holds the object,
+# while removing a version outright is not replicated, so the object is lost
+# that way for the copy and by an ordinary delete for the versions. Each
+# restore is this script run on the drill's folder alone, so nothing outside
+# it can be touched; on production each asks for its own APPLY.
+if (( DRILL )); then
+  DRILL_CHILD="${RESTORE_BUCKET_DRILL_CHILD:-${REPO_ROOT}/scripts/restore-bucket.sh}"
+  # Replication without its time control promises no delivery time, so the
+  # wait for a copy is generous.
+  POLL_TRIES="${RESTORE_BUCKET_POLL_TRIES:-180}"
+  POLL_SECS="${RESTORE_BUCKET_POLL_SECS:-10}"
+  PAUSE_SECS="${RESTORE_BUCKET_PAUSE_SECS:-3}"
+  for seam in RESTORE_BUCKET_DRILL_CHILD RESTORE_BUCKET_POLL_TRIES RESTORE_BUCKET_POLL_SECS RESTORE_BUCKET_PAUSE_SECS; do
+    [[ -n "${!seam:-}" ]] && echo "restore-bucket: TEST SEAM ${seam} is set; this run proves nothing about the estate." >&2
+  done
+  bucket_region "$DR"
+  DR_REGION="$REGION"
+  echo "==> backup copy s3://${DR} (${DR_REGION})"
+  DRILL_PREFIX="drill/restore-drill-$(date -u +%Y%m%dT%H%M%SZ)-${RANDOM}${RANDOM}/"
+  DRILL_KEY="${DRILL_PREFIX}probe.txt"
+  TOKEN="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
+  printf '%s\n' "$TOKEN" >"${WORK}/probe.txt"
+  echo ""
+  echo "The drill writes ${DRILL_KEY} into ${TARGET} s3://${MAIN}, waits for"
+  echo "its copy in s3://${DR}, removes it from s3://${MAIN} and copies it back"
+  echo "from the backup, deletes it and restores it from its versions, then removes"
+  echo "every version of it from both buckets. Nothing outside ${DRILL_PREFIX} is touched."
+  confirm_or_stop "run the restore drill on ${TARGET} s3://${MAIN}"
+
+  # purge <bucket> <region>: removes every version and delete marker under the
+  # drill's folder. Prints how many entries are left, which is 0 when it worked.
+  # A listing that matched nothing can come back as no output at all rather
+  # than as empty lists, and that is a folder with nothing left in it.
+  purge() {
+    local b="$1" r="$2" id left
+    "$AWS_BIN" s3api list-object-versions --bucket "$b" --region "$r" --prefix "$DRILL_PREFIX" --output json \
+      </dev/null >"${WORK}/purge.json" 2>"${WORK}/purge.err" || { echo "unlisted"; return 0; }
+    [[ -s "${WORK}/purge.json" ]] || { echo 0; return 0; }
+    # A delete that fails is not the verdict: the listing after the loop is,
+    # and the last refusal's words are kept in purge.err for its report.
+    for id in $(jq -r '[(.Versions // [])[], (.DeleteMarkers // [])[]] | .[] | .VersionId' "${WORK}/purge.json"); do
+      if ! "$AWS_BIN" s3api delete-object --bucket "$b" --region "$r" --key "$DRILL_KEY" --version-id "$id" \
+          </dev/null >/dev/null 2>>"${WORK}/purge.err"; then
+        echo "delete of version ${id} refused" >>"${WORK}/purge.err"
+      fi
+    done
+    "$AWS_BIN" s3api list-object-versions --bucket "$b" --region "$r" --prefix "$DRILL_PREFIX" --output json \
+      </dev/null >"${WORK}/purge.json" 2>>"${WORK}/purge.err" || { echo "unlisted"; return 0; }
+    [[ -s "${WORK}/purge.json" ]] || { echo 0; return 0; }
+    left="$(jq '[(.Versions // [])[], (.DeleteMarkers // [])[]] | length' "${WORK}/purge.json")"
+    echo "$left"
+  }
+  # Runs however the drill ends, so a stop part way leaves no throwaway object
+  # behind; one it cannot remove is reported, never hidden.
+  # The drill's last writes to the served bucket are still on their way to the
+  # backup copy when it ends; a copy that lands after the folder is removed
+  # there would stay behind, so the removal waits for the current version's
+  # replication first. SETTLED says whether that wait was reached.
+  SETTLED=0
+  settle() {
+    local i status=""
+    for (( i = 1; i <= POLL_TRIES; i++ )); do
+      status="$("$AWS_BIN" s3api head-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$DRILL_KEY" \
+        --query ReplicationStatus --output text </dev/null 2>/dev/null)" || status=""
+      [[ "$status" == COMPLETED || "$status" == FAILED ]] && break
+      (( i < POLL_TRIES )) && sleep "$POLL_SECS"
+    done
+    [[ "$status" == COMPLETED ]] && SETTLED=1
+  }
+  drill_cleanup() {
+    local b r left
+    if (( ${replicated:-0} && ! SETTLED )); then
+      cr_unproved "the backup copy s3://${DR} may still receive late copies of ${DRILL_PREFIX}, which this run could not wait for and did not remove"
+    fi
+    for b in "$MAIN" "$DR"; do
+      [[ "$b" == "$MAIN" ]] && r="$MAIN_REGION" || r="$DR_REGION"
+      left="$(purge "$b" "$r")"
+      if [[ "$left" != "0" ]]; then
+        cr_error "the drill's ${DRILL_PREFIX} in s3://${b} could not be fully removed (${left} left): $(tail -n 1 "${WORK}/purge.err" 2>/dev/null)"
+      fi
+    done
+  }
+  cr_cleanup drill_cleanup
+
+  # read_back <what>: the object is back in the main bucket with the token.
+  read_back() {
+    if ! "$AWS_BIN" s3api get-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$DRILL_KEY" "${WORK}/back.txt" \
+          </dev/null >/dev/null 2>"${WORK}/get.err"; then
+      cr_die "after ${1}, ${DRILL_KEY} is not in s3://${MAIN}: $(tail -n 1 "${WORK}/get.err")"
+    fi
+    cmp -s "${WORK}/probe.txt" "${WORK}/back.txt" || cr_die "after ${1}, ${DRILL_KEY} in s3://${MAIN} does not hold what the drill wrote"
+    cr_proved "${1} brought ${DRILL_KEY} back into s3://${MAIN} with what the drill wrote"
+  }
+  # absent <what>: the object is gone from the main bucket before a restore.
+  absent() {
+    if "$AWS_BIN" s3api head-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$DRILL_KEY" \
+         </dev/null >/dev/null 2>"${WORK}/head.err"; then
+      cr_die "after ${1}, ${DRILL_KEY} is still in s3://${MAIN}, so a restore would prove nothing"
+    fi
+    grep -qE '\((404|NoSuchKey|Not Found)\)|Not Found' "${WORK}/head.err" \
+      || cr_die "could not tell whether ${DRILL_KEY} is gone from s3://${MAIN}: $(tail -n 1 "${WORK}/head.err")"
+  }
+  CHILD=(--target "$TARGET" --bucket "$BUCKET" --prefix "$DRILL_PREFIX")
+  [[ "$TARGET" == "staging" ]] && CHILD+=(--yes)
+
+  echo "==> writing ${DRILL_KEY}"
+  "$AWS_BIN" s3api put-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$DRILL_KEY" --body "${WORK}/probe.txt" \
+    </dev/null >/dev/null 2>"${WORK}/put.err" || cr_die "the drill could not write ${DRILL_KEY} into s3://${MAIN}: $(tail -n 1 "${WORK}/put.err")"
+
+  echo "==> waiting for its copy in s3://${DR}"
+  replicated=0
+  for (( i = 1; i <= POLL_TRIES; i++ )); do
+    if "$AWS_BIN" s3api head-object --bucket "$DR" --region "$DR_REGION" --key "$DRILL_KEY" </dev/null >/dev/null 2>&1; then
+      replicated=1
+      break
+    fi
+    (( i < POLL_TRIES )) && sleep "$POLL_SECS"
+  done
+  (( replicated )) || cr_die "${DRILL_KEY} did not reach s3://${DR} within $(( POLL_TRIES * POLL_SECS )) seconds, so replication is not carrying new objects; the backup copy cannot be drilled"
+  cr_proved "${DRILL_KEY} replicated to s3://${DR}"
+
+  echo "==> from the backup copy: ${DRILL_KEY} removed outright from s3://${MAIN}"
+  [[ "$(purge "$MAIN" "$MAIN_REGION")" == "0" ]] || cr_die "${DRILL_KEY} could not be removed from s3://${MAIN}: $(tail -n 1 "${WORK}/purge.err")"
+  absent "its removal"
+  bash "$DRILL_CHILD" "${CHILD[@]}" || cr_die "the restore from the backup copy did not complete; its report above says why"
+  read_back "the restore from the backup copy"
+
+  echo "==> from earlier versions: ${DRILL_KEY} deleted in s3://${MAIN}"
+  # The point to restore to is read from S3's own clock: the copied-back
+  # version's time plus a second, with the delete made seconds after it. The
+  # workstation's clock can differ from S3's by more than the pause.
+  lm="$("$AWS_BIN" s3api head-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$DRILL_KEY" \
+    --query LastModified --output text </dev/null 2>"${WORK}/head.err")" \
+    || cr_die "could not read when ${DRILL_KEY} was written back: $(tail -n 1 "${WORK}/head.err")"
+  lm_epoch="$(date -u -d "$lm" +%s 2>/dev/null)" || cr_die "could not read S3's time for ${DRILL_KEY}: ${lm}"
+  as_of="$(date -u -d "@$(( lm_epoch + 1 ))" +%Y-%m-%dT%H:%M:%SZ)"
+  sleep "$PAUSE_SECS"
+  "$AWS_BIN" s3api delete-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$DRILL_KEY" \
+    </dev/null >/dev/null 2>"${WORK}/del.err" || cr_die "the drill could not delete ${DRILL_KEY}: $(tail -n 1 "${WORK}/del.err")"
+  absent "its delete"
+  bash "$DRILL_CHILD" "${CHILD[@]}" --from-versions --as-of "$as_of" \
+    || cr_die "the restore from earlier versions did not complete; its report above says why"
+  read_back "the restore from earlier versions"
+  echo "==> waiting for s3://${DR} to catch up before removing the drill's folder"
+  settle
+  cr_finish
+fi
+
+# --------------------------------------------------------------------------
 # From earlier versions.
 # --------------------------------------------------------------------------
 if (( FROM_VERSIONS )); then
   echo "==> changes in s3://${MAIN} after ${AS_OF_UTC} UTC"
-  if ! "$AWS_BIN" s3api list-object-versions --bucket "$MAIN" --region "$MAIN_REGION" --output json \
+  VPREFIX=()
+  [[ -n "$PREFIX" ]] && VPREFIX=(--prefix "$PREFIX")
+  if ! "$AWS_BIN" s3api list-object-versions --bucket "$MAIN" --region "$MAIN_REGION" "${VPREFIX[@]}" --output json \
         </dev/null >"${WORK}/versions.json" 2>"${WORK}/versions.err"; then
     cr_die "the versions in s3://${MAIN} could not be listed; AWS answered: $(tail -n 1 "${WORK}/versions.err"). Nothing was changed."
   fi
@@ -492,14 +679,20 @@ DR_REGION="$REGION"
 echo "==> backup copy s3://${DR} (${DR_REGION})"
 
 first_key=""
-if ! first_key="$("$AWS_BIN" s3api list-objects-v2 --bucket "$DR" --region "$DR_REGION" --max-items 1 \
+LPREFIX=()
+[[ -n "$PREFIX" ]] && LPREFIX=(--prefix "$PREFIX")
+if ! first_key="$("$AWS_BIN" s3api list-objects-v2 --bucket "$DR" --region "$DR_REGION" "${LPREFIX[@]}" --max-items 1 \
       --query 'Contents[0].Key' --output text </dev/null 2>"${WORK}/list.err")"; then
   cr_die "the backup copy s3://${DR} could not be listed; AWS answered: $(tail -n 1 "${WORK}/list.err"). Nothing was changed."
 fi
 [[ -n "$first_key" && "$first_key" != "None" ]] \
   || cr_die "the backup copy s3://${DR} holds no object, so there is nothing to restore from. Nothing was changed."
 
-SYNC=(s3 sync "s3://${DR}" "s3://${MAIN}" --source-region "$DR_REGION" --region "$MAIN_REGION" --storage-class STANDARD)
+# With a prefix the copy is the folder alone: both paths carry it, so a key
+# outside it is neither listed nor copied.
+SYNC_FROM="s3://${DR}" SYNC_TO="s3://${MAIN}"
+[[ -n "$PREFIX" ]] && SYNC_FROM+="/${PREFIX}" SYNC_TO+="/${PREFIX}"
+SYNC=(s3 sync "$SYNC_FROM" "$SYNC_TO" --source-region "$DR_REGION" --region "$MAIN_REGION" --storage-class STANDARD)
 # Upload staging is never copied back. The media bucket's lifecycle rule
 # expire-pending-uploads deletes what sits under this prefix after a day, and
 # S3 does not replicate a lifecycle expiration, so the backup keeps every

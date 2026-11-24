@@ -903,7 +903,7 @@ Impact:
 
 - Terraform-published identifiers: the media and snapshot bucket names, the JWT signing key alias, the two mail configuration-set names, both feed topics and queues, and the sender identity. The site's base address is published the same way, computed from the custom-domain, record and notice flags so it always names the public name that reaches the platform. Terraform also publishes values that are neither a switch nor an identifier and the deploy syncs them the same way: the log level, and the archive address and its login-redirect flag.
 
-- The archive signing values follow the same test as everything else once the legacy archive is built: the cookie signer selector and the cookie domain are constants of each environment and are file-owned; the key-pair identifier names a CloudFront resource and is a Terraform-published identifier.
+- The archive signing values follow the same test as everything else once the legacy archive is built: the cookie signer selector is a constant of each environment and is file-owned; the key-pair identifier names a CloudFront resource and is a Terraform-published identifier; the cookie domain is published by Terraform only while the archive's custom domain is on, because a browser accepts a parent-domain cookie only from a host under that domain.
 
 - The Configuration Model decision governs how the application reads a deploy-time value; this one governs how the value reaches the host it is read from.
 
@@ -5301,6 +5301,8 @@ Rationale: Five minute backup interval provides acceptable RPO (Recovery Point O
 The selected approach keeps snapshots in S3 Standard and thins them by age, which costs approximately $1/month while providing acceptable RPO (5-10 minutes) and recovery points reaching back just over a year, at a cost appropriate for a volunteer-maintained platform. Storage-class automation is not used: the fine-grained stream is deleted at two days, well inside the thirty days any automatic tiering waits before moving an object, so it would transition nothing while adding a per-object monitoring charge, and the off-region copy already sits in a cheaper class than tiering would select.
 
 Restoration drills, run when a change or an incident gives a reason, validate end-to-end recovery procedures and uncover gaps in runbooks before they matter. Work on a volunteer project is done as needed rather than on a calendar: the backup alarms catch a broken backup between drills, and a drill nobody has a reason to run proves nothing new.
+
+Acceptable data loss: recoverability is never traded away, but a small loss of recent writes is. No backup is deleted inside its retention window, and a restore stays possible at any time, with no deadline on the ability to restore. A restore returns the database to the most recent good backup and accepts losing the writes made since it, the five-to-ten-minute recovery point above: members resubmit what they entered and administrators correct the rest. Backup frequency is set from that recovery point rather than made as frequent as possible, because a shorter interval multiplies near-identical copies for no meaningful gain in what can be recovered. The one restore that discards more is the snapshot taken immediately before go-live, which throws away everything written since launch: it is the catastrophic option during the 48-hour watch after launch and is not used after it, when catastrophic recovery goes to the last good routine backup.
 
 Trade-offs:
 

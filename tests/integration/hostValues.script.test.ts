@@ -61,6 +61,8 @@ const PUBLISHED: Record<string, string> = {
   'app/ses_feedback_queue_url': 'https://sqs.us-east-1.amazonaws.com/000000000000/footbag-staging-ses-feedback-feed',
   'app/ses_sender_identity': 'noreply@example.invalid',
   'app/public_base_url': 'https://d1234abcdef8.cloudfront.net',
+  'app/archive_key_pair_id': 'KEXAMPLE123',
+  'app/archive_cookie_domain': '.example.test',
   // Parameters the by-path read also returns that are not host values of this
   // class; the sync must leave them alone.
   'app/log_level': 'info',
@@ -161,6 +163,9 @@ describe('host_values_sync_params writes the Terraform-published values', () => 
     ['app/jwt_kms_key_id', 'arn:aws:kms:us-east-1:000000000000:key/abc', 'JWT_KMS_KEY_ID'],
     ['app/public_base_url', 'http://insecure.example.invalid', 'PUBLIC_BASE_URL'],
     ['app/ses_sender_identity', 'not-an-address', 'SES_FROM_IDENTITY'],
+    // A cookie domain without its leading dot scopes the archive cookies to
+    // one host, so the archive never receives them.
+    ['app/archive_cookie_domain', 'example.test', 'ARCHIVE_COOKIE_DOMAIN'],
   ])('refuses %s shaped wrong, changing nothing', (source, bad, key) => {
     const before = readFileSync(envFile, 'utf-8');
     writeListing({ ...PUBLISHED, [source]: bad });
@@ -248,6 +253,13 @@ describe('the catalogue agrees with every list it must match', () => {
       const re = new RegExp(line!.slice(line!.indexOf("'") + 1, line!.lastIndexOf("'")));
       const committed = catalogue().filter((e) => e.klass === 'committed').map((e) => e.key);
       for (const k of committed) expect(re.test(k), `${half} admits ${k}`).toBe(true);
+      // The line pattern clears the host's old line for each committed key, so
+      // a key the committed file stops setting leaves the host, and a changed
+      // one is not left beside its replacement.
+      const strip = readFileSync(join(REPO, half), 'utf-8').split('\n').find((l) => l.includes("local line_re='"));
+      expect(strip).toBeDefined();
+      const lineRe = new RegExp(strip!.slice(strip!.indexOf("'") + 1, strip!.lastIndexOf("'")));
+      for (const k of committed) expect(lineRe.test(`${k}=x`), `${half} clears the host's old ${k} line`).toBe(true);
       for (const e of catalogue().filter((x) => x.klass !== 'committed')) {
         expect(re.test(e.key), `${half} admits ${e.key}, which is not a committed value`).toBe(false);
       }

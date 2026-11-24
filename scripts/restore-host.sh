@@ -29,7 +29,10 @@
 #   1. Preconditions: the caller is the footbag-operator IAM user; the
 #      environment's instance and static IP exist and agree with Terraform; an
 #      automatic snapshot exists, and which one will be used and its age is
-#      shown. Then the whole operation is stated and APPLY is asked for.
+#      shown. On production the email switch must read dark and have last
+#      changed before that snapshot was taken, since the restored host sends
+#      with the switch its snapshot carries until the run holds it. Then the
+#      whole operation is stated and APPLY is asked for.
 #   2. A manual snapshot of the current instance, waited on until available.
 #      It is the record of this restore: its tags name the new instance, the
 #      automatic snapshot used and when the restore started, which is how a
@@ -39,8 +42,8 @@
 #      "stopping" is forced only after its own typed APPLY. The newest database
 #      backup it wrote is recorded on the manual snapshot, with its age against
 #      the stop judged by the backup-staleness alarm's threshold as Terraform
-#      records it: the restored host uploads its own day-old database within
-#      minutes, and those uploads are newer than the real one.
+#      records it, because the database restore in step 7 needs it named: the
+#      restored host's own day-old database must never be taken for the newest.
 #   4. A new instance from the automatic snapshot, under a new name, because a
 #      Lightsail instance's name cannot be reused while the old one exists and
 #      cannot be changed. Same zone, bundle, key pair, address type and
@@ -77,7 +80,15 @@
 #      proved against the new instance's keys from the Lightsail API.
 #  10. The restored host asked which environment it is (require_host_is), and
 #      the site asked for readiness through the public base address it records.
-#  11. The elapsed time printed against the four-hour objective.
+#  11. The snapshot's database proved never to have reached the bucket: every
+#      backup under routine/, hourly/ and daily/ written since the new
+#      instance was created records an audit row no older than the restored
+#      one's (read from its hourly/ or daily/ copy once it has aged out of
+#      routine/), at least one was
+#      written (waiting on the backup timer's next run), and the host's journal
+#      since boot shows the backup refusing the snapshot's database.
+#  12. The elapsed time printed against the four-hour objective, taken before
+#      step 11's wait.
 #
 # A restore whose new instance is itself lost before --delete-old is not stuck:
 # when the open restore is complete and its host no longer proves itself, the
@@ -288,7 +299,9 @@ A restore run would, deciding each step from what AWS and Terraform report:
      through scripts/terraform-apply.sh, which opens port ${ORIGIN_PORT}
   9. re-take the host-key pin with scripts/install-known-hosts.sh
  10. check the host records FOOTBAG_ENV=${TARGET} and the site reports ready
- 11. print the elapsed time against the four-hour objective
+ 11. prove no backup written since ${CANON}-r<YYYYMMDDHHMM> was created holds the snapshot's
+     database, that backups resumed, and that the host's backup refused it
+ 12. print the elapsed time against the four-hour objective
 
 --delete-old would then delete the stopped old instance, after its own APPLY.
 EOF
@@ -366,7 +379,7 @@ undo_on_interrupt() {
       echo "  The static IP is on ${NEW}, so it is in use and is left in place. Run again to finish." >&2
     else
       echo "  Deleting ${NEW}, which this run created and nothing points at yet." >&2
-      if aws_ls delete-instance --instance-name "$NEW" >/dev/null 2>"$err"; then
+      if aws_ls delete-instance --instance-name "$NEW" --force-delete-add-ons >/dev/null 2>"$err"; then
         echo "  Deleted. The old instance is as this run left it; run again to start over." >&2
       else
         cr_error "the delete of ${NEW}, which this run created and nothing points at, was refused; remove it in Lightsail once you have checked it: $(tail -n 1 "$err")"
@@ -793,6 +806,170 @@ verify_restored_host() {
   esac
 }
 
+# ── The snapshot's database never reached the bucket ────────────────────────
+
+# The restored host boots on the snapshot's day-old database. The backup refuses
+# to upload a database that does not continue the stored history, both on the
+# timer's first run after boot and on the run the hold sets off when it stops
+# the service; the database restore then declares itself, and the next backup
+# uploads. This proves that outcome from the bucket, which is what a later
+# database restore reads: every backup written since the new instance was
+# created carries an audit row no older than the restored one's, and at least
+# one was written. The old host was stopped before the new instance existed, so
+# anything keyed after its creation came from the restored host, whichever
+# backup the restore put back. Audit timestamps share one fixed-width UTC form,
+# so they compare as text, in byte order.
+LINEAGE_BODY="$(cat <<'BODY'
+if ! out="$(journalctl -b --no-pager -o cat -u footbag-backup.service -u footbag.service 2>&1)"; then
+  printf '%s\n' "---FOOTBAG-JOURNAL-UNREADABLE---" "${out##*$'\n'}"
+  exit 1
+fi
+n="$(grep -c -F 'does not continue the stored history' <<< "$out")" || [[ $? == 1 ]]
+echo "---FOOTBAG-REFUSALS-${n}---"
+BODY
+)"
+
+# lineage_refusals: sets REFUSALS to how many backup runs on the restored host,
+# since it booted, refused its database; empty, with REFUSALS_WHY, when the
+# journal could not be read.
+REFUSALS="" REFUSALS_WHY=""
+lineage_refusals() {
+  local out
+  REFUSALS="" REFUSALS_WHY=""
+  require_host_ssh_opts || { REFUSALS_WHY="the host could not be reached"; return 0; }
+  out="$({ printf '%s\n' "$SUDO_PASS"; printf '%s\n' "$LINEAGE_BODY"; } \
+    | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-restore-lineage')" || true
+  if [[ "$out" =~ ---FOOTBAG-REFUSALS-([0-9]+)--- ]]; then
+    REFUSALS="${BASH_REMATCH[1]}"
+  elif grep -qx -- '---FOOTBAG-JOURNAL-UNREADABLE---' <<< "$out"; then
+    REFUSALS_WHY="the journal could not be read: $(tail -n 1 <<< "$out")"
+  else
+    REFUSALS_WHY="the host gave no answer to the journal read"
+  fi
+  return 0
+}
+
+# backups_after <bucket> <prefix>: prints the keys under <prefix>/ written after
+# the restored backup, one per line. Keys carry their UTC time and sort by it.
+# AFTER_KEY is the key a backup taken the moment the new instance was created
+# would carry, set by prove_lineage: the old host was stopped before then, so
+# every key after it in any generation came from the restored host.
+AFTER_KEY=""
+backups_after() {
+  local keys
+  keys="$("$AWS_BIN" s3api list-objects-v2 --bucket "$1" --prefix "$2/" \
+    --start-after "$2/${AFTER_KEY}" --region "$REGION" \
+    --query 'Contents[].Key' --output text </dev/null)" || return 1
+  [[ "$keys" == "None" ]] && return 0
+  tr '\t' '\n' <<< "$keys" | { grep -E '\.db\.gz$' || [[ $? == 1 ]]; }
+}
+
+# lineage_of <bucket> <key>: prints "<audit id><TAB><audit time>" as the backup
+# recorded them when it was uploaded.
+lineage_of() {
+  "$AWS_BIN" s3api head-object --bucket "$1" --key "$2" --region "$REGION" \
+    --query '[Metadata."audit-newest-id", Metadata."audit-newest-at"]' --output text </dev/null
+}
+
+LINEAGE_TS_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$'
+
+prove_lineage() {
+  local bucket meta ref_id ref_at prefix keys key id at uploaded=0 stale=0 failed=0
+  echo "==> The snapshot's database never reached the bucket"
+  if [[ -z "$REC_DB" ]]; then
+    cr_unproved "that the snapshot's database never reached the bucket: this restore records no database restored onto ${NEW}"
+    return 0
+  fi
+  bucket="$(tf_output snapshots_bucket_name)"
+  # Audit times are compared as text, byte by byte, whatever the locale.
+  local LC_ALL=C created created_epoch ref_key="" try out
+  if ! created="$(aws_ls get-instance --instance-name "$NEW" --query 'instance.createdAt' --output text 2>&1)"; then
+    cr_error "could not read when ${NEW} was created, so its uploads cannot be told from the old host's: ${created##*$'\n'}"
+    return 0
+  fi
+  if [[ "$created" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then created_epoch="${created%%.*}"
+  elif ! created_epoch="$(date -u -d "$created" +%s 2>/dev/null)"; then
+    cr_error "could not read ${NEW}'s creation time '${created}', so its uploads cannot be told from the old host's"
+    return 0
+  fi
+  AFTER_KEY="$(date -u -d "@${created_epoch}" +%Y/%m/%d/footbag-%Y%m%dT%H%M%SZ)"
+  # The restored backup's own record. A resumed run can come after it has aged
+  # out of its generation, so the copies promoted from it are read next; one
+  # that is gone everywhere leaves the judgement unproved, while a read that
+  # fails for any other reason is an error.
+  for try in "$REC_DB" "hourly/${REC_DB#*/}" "daily/${REC_DB#*/}"; do
+    if out="$(lineage_of "$bucket" "$try" 2>&1)"; then
+      meta="$out" ref_key="$try"
+      break
+    fi
+    if [[ "$out" != *"404"* && "$out" != *"Not Found"* && "$out" != *"NoSuchKey"* ]]; then
+      cr_error "could not read the lineage record of ${try} in ${bucket}, so the restored host's uploads cannot be judged: ${out##*$'\n'}"
+      return 0
+    fi
+  done
+  if [[ -z "$ref_key" ]]; then
+    cr_unproved "that the snapshot's database never reached the bucket: ${REC_DB} has aged out of every generation, so there is no record to judge later uploads against"
+    return 0
+  fi
+  IFS=$'\t' read -r ref_id ref_at <<< "$meta"
+  if [[ ! "$ref_at" =~ $LINEAGE_TS_RE ]]; then
+    cr_unproved "that the snapshot's database never reached the bucket: ${REC_DB} carries no lineage record to judge later uploads against"
+    return 0
+  fi
+  echo "    the restored backup ${REC_DB} records audit row ${ref_id} (${ref_at}), read from ${ref_key}"
+
+  # The first upload after the release comes on the timer's next run, within
+  # its five-minute interval.
+  routine_upload_seen() { [[ -n "$(backups_after "$bucket" routine)" ]]; }
+  poll_until routine_upload_seen || uploaded=-1
+
+  for prefix in routine hourly daily; do
+    if ! keys="$(backups_after "$bucket" "$prefix")"; then
+      cr_error "could not list ${prefix}/ in ${bucket}, so the restored host's uploads there cannot be judged"
+      failed=1
+      continue
+    fi
+    while IFS= read -r key; do
+      [[ -n "$key" ]] || continue
+      if ! meta="$(lineage_of "$bucket" "$key")"; then
+        cr_error "could not read the lineage record of ${key}, so whether it holds the snapshot's database is unknown"
+        failed=1
+        continue
+      fi
+      IFS=$'\t' read -r id at <<< "$meta"
+      if [[ ! "$at" =~ $LINEAGE_TS_RE ]]; then
+        cr_error "${key} was written since ${NEW} was created and carries no lineage record, so whether it holds the snapshot's database is unknown"
+        failed=1
+      elif [[ "$at" < "$ref_at" ]]; then
+        cr_error "${key} holds the snapshot's database: its newest audit row ${id} (${at}) is older than the restored backup's (${ref_at}). A database restore that takes the newest backup would bring the stale database back."
+        stale=1
+      else
+        [[ "$prefix" == routine ]] && (( uploaded >= 0 )) && uploaded=$(( uploaded + 1 ))
+      fi
+    done <<< "$keys"
+  done
+
+  if (( uploaded < 0 )); then
+    cr_error "no backup reached ${bucket} after the database restore, so backups on ${NEW} are not resuming"
+  elif (( uploaded == 0 )); then
+    (( failed )) || cr_error "no backup that continues the restored database reached ${bucket}, so backups on ${NEW} are not resuming"
+  else
+    echo "    ${uploaded} backup(s) after the restore continue it"
+    (( stale || failed )) || cr_proved "every backup written since ${NEW} was created continues ${REC_DB}, and backups on ${NEW} resumed"
+  fi
+
+  lineage_refusals
+  if [[ -z "$REFUSALS" ]]; then
+    cr_unproved "that the backup refused the snapshot's database on ${NEW}: ${REFUSALS_WHY}"
+  elif (( REFUSALS == 0 )); then
+    cr_unproved "that the backup refused the snapshot's database on ${NEW}: its journal since boot shows no refused run, so no backup ran on it before the hold"
+  else
+    echo "    ${REFUSALS} backup run(s) on ${NEW} refused the snapshot's database"
+    cr_proved "the backup on ${NEW} refused the snapshot's database ${REFUSALS} time(s) before the restore"
+  fi
+  return 0
+}
+
 # ── --delete-old ─────────────────────────────────────────────────────────────
 
 if [[ "$MODE" == "delete-old" ]]; then
@@ -816,7 +993,11 @@ if [[ "$MODE" == "delete-old" ]]; then
     echo "  This cannot be undone."
     echo ""
     confirm_from_tty "Type 'APPLY' to delete ${OLD}: " "APPLY" || die "not confirmed; nothing was deleted"
-    aws_ls delete-instance --instance-name "$OLD" >/dev/null || die "the delete of ${OLD} was refused"
+    # Lightsail refuses to delete an instance that still carries an add-on,
+    # and every instance here carries the automatic-snapshot add-on, so the
+    # delete removes it too; that is the loss of its automatic snapshots the
+    # confirmation above states.
+    aws_ls delete-instance --instance-name "$OLD" --force-delete-add-ons >/dev/null || die "the delete of ${OLD} was refused"
     gone() { ! instance_row "$OLD"; }
     poll "${OLD} to be deleted" gone
     echo "    ${OLD} is gone"
@@ -923,6 +1104,28 @@ else
       [[ -n "$RESTORE_DATE" ]] && die "${OLD} has no successful automatic snapshot dated ${RESTORE_DATE}"
       die "${OLD} has no successful automatic snapshot, so there is nothing to restore from"
     fi
+  fi
+  # On production the restored host boots with the environment file its
+  # snapshot carries, so until the restore holds it, minutes later, its worker
+  # sends with whatever the email switch read when the snapshot was taken, from
+  # the snapshot's day-old outbox: mail members were already sent. So the
+  # restore goes ahead only while the switch reads dark and has not changed
+  # since before the snapshot. Below production the mail adapter is a stub
+  # whatever the switch says.
+  if [[ "$TARGET" == "production" ]]; then
+    email_param="/footbag/production/app/email_send_armed"
+    email_row="$("$AWS_BIN" ssm get-parameter --name "$email_param" --region "$REGION" \
+      --query 'Parameter.[Value,LastModifiedDate]' --output text </dev/null 2>&1)" \
+      || die "could not read ${email_param}, so whether the restored host could resend mail is unknown: ${email_row##*$'\n'}"
+    IFS=$'\t' read -r email_value email_changed <<< "$email_row"
+    [[ "$email_value" == "false" ]] \
+      || die "the production email switch reads '${email_value}', not false: the restored host would send from the snapshot's outbox before the restore holds it. Disarm it with scripts/arming.sh --target production --switch email --state dark, wait for the next automatic snapshot, and run again."
+    if [[ "$email_changed" =~ ^[0-9]+(\.[0-9]+)?$ ]]; then email_epoch="${email_changed%%.*}"
+    else email_epoch="$(date -u -d "$email_changed" +%s 2>/dev/null)" \
+      || die "could not read when ${email_param} last changed ('${email_changed}')"; fi
+    (( email_epoch < source_epoch )) \
+      || die "the production email switch last changed at ${email_changed}, after $(source_label "$SOURCE_DATE") was taken, so the host it holds may still be armed. Wait for the next automatic snapshot and run again."
+    echo "    production email reads dark, and has since before $(source_label "$SOURCE_DATE")"
   fi
   STARTED="$(now_epoch)"
   age=$(( STARTED - source_epoch ))
@@ -1265,8 +1468,15 @@ echo "    pinned and proved against ${NEW}'s keys"
 # ── Step 10: the host and the site ───────────────────────────────────────────
 
 verify_restored_host
+# The restore is complete here; the lineage proof below waits on the backup
+# timer, so the elapsed time is taken before it.
+ELAPSED="$(elapsed_line "$STARTED")"
 
-# ── Step 11: the report ──────────────────────────────────────────────────────
+# ── Step 11: the snapshot's database never reached the bucket ──────────────
+
+prove_lineage
+
+# ── Step 12: the report ──────────────────────────────────────────────────────
 
 instance_is "$OLD" stopped || die "${OLD} is not stopped; a restore leaves it stopped until --delete-old"
 echo ""
@@ -1283,7 +1493,7 @@ cr_proved "port ${ORIGIN_PORT} on ${NEW} is open to the declared ranges and not 
 cr_proved "the host-key pin carries ${NEW}'s keys as Lightsail reports them"
 cr_proved "the host behind ${ALIAS} records FOOTBAG_ENV=${TARGET} and the site answered ready"
 cr_proved "${OLD} is stopped, not deleted"
-echo "   $(elapsed_line "$STARTED")"
+echo "   ${ELAPSED}"
 echo ""
 echo "Next, in order:"
 echo "  1. Commit the values-file change in the private operations checkout."
