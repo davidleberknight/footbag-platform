@@ -3673,7 +3673,7 @@ Success Criteria, Validation (enforced at the write; a save that fails any check
 
 Success Criteria, Superseding and status (no ordinary delete):
 
-- A record beaten by a later one is retired by pointing its superseded-by at the newer record, never by deletion.
+- A record that another outscores is retired by pointing its superseded-by at that record, whether it was set earlier or later, never by deletion.
 - A record whose accuracy is in question is marked disputed or provisional through its confidence rating rather than removed.
 - This story provides add, edit, correction, confidence change, and superseding. It does not provide an ordinary hard delete; removing a duplicate or bad row is an exceptional maintainer correction or a future soft-delete design, not default story behavior.
 

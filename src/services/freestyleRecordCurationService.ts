@@ -15,8 +15,9 @@
  *   - The public freestyle records pages (FreestyleService is public, read-only).
  *   - The historical_persons registry (a linked person is referenced by id, never
  *     created here) or the trick dictionary.
- *   - Deleting records: a beaten record is retired by pointing its superseded-by at
- *     the newer record, and a questionable one is marked by its confidence rating;
+ *   - Deleting records: an outscored record is retired by pointing its superseded-by
+ *     at the record that outscores it, set earlier or later, and a questionable one
+ *     is marked by its confidence rating;
  *     there is no hard delete on this surface.
  *
  * Write discipline: updateRecord validates the submitted fields (record type one of
