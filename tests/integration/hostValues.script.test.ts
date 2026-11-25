@@ -329,7 +329,8 @@ describe('the catalogue agrees with every list it must match', () => {
     const mod = createScratchDir('base-address-formula');
     try {
       const flags = ['enable_cloudfront', 'enable_platform_custom_domain', 'enable_preview_record',
-        'enable_cutover_notice', 'enable_apex_alias_records', 'rehearse_launch_base_address'];
+        'enable_cutover_notice', 'enable_apex_alias_records', 'rehearse_launch_base_address',
+        'launch_www_base_address'];
       writeFileSync(join(mod, 'main.tf'), [
         ...flags.map((f) => `variable "${f}" { type = bool }`),
         'variable "domain_name" { type = string }',
@@ -354,6 +355,8 @@ describe('the catalogue agrees with every list it must match', () => {
       expect(ask({ ...cf, enable_platform_custom_domain: true, enable_preview_record: true, enable_cutover_notice: true, enable_apex_alias_records: true })).toBe('https://preview.footbag.org');
       // The launch dress rehearsal: www, only through its own flag.
       expect(ask({ ...cf, enable_platform_custom_domain: true, enable_preview_record: true, rehearse_launch_base_address: true })).toBe('https://www.footbag.org');
+      // The launch's first run: www, behind the notice, only through its own flag.
+      expect(ask({ ...cf, enable_platform_custom_domain: true, enable_preview_record: true, enable_cutover_notice: true, enable_apex_alias_records: true, launch_www_base_address: true })).toBe('https://www.footbag.org');
       // Launch: the notice lifted with the records on the distribution: www.
       expect(ask({ ...cf, enable_platform_custom_domain: true, enable_apex_alias_records: true })).toBe('https://www.footbag.org');
     } finally {

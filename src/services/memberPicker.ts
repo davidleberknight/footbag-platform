@@ -69,6 +69,8 @@ export interface PickerSearchOutcome {
   hasMore: boolean;
   tooShort: boolean;
   rateLimited: boolean;
+  /** Seconds until the refused search can run again; null unless `rateLimited`. */
+  retryAfterSeconds: number | null;
 }
 
 /** A record search's outcome, as the page's service ran it for this picker. */
@@ -77,6 +79,8 @@ export interface RecordSearchOutcome {
   hasMore: boolean;
   tooShort: boolean;
   rateLimited: boolean;
+  /** Seconds until the refused search can run again; null unless `rateLimited`. */
+  retryAfterSeconds: number | null;
 }
 
 export interface MemberPickerRow {
@@ -126,6 +130,8 @@ export interface MemberPickerView {
   hasMore: boolean;
   tooShort: boolean;
   rateLimited: boolean;
+  /** Seconds until the refused search can run again; null unless `rateLimited`. */
+  retryAfterSeconds: number | null;
   notFound: boolean;
   /** What the no-match line says was not found: "member" unless the picker chooses something else. */
   notFoundNoun: string;
@@ -181,7 +187,7 @@ function buildPicker<T extends { displayName: string; location: string | null }>
   input: Omit<MemberPickerInput, 'chosen' | 'search'>,
   chosen: T | null,
   chosenId: string | null,
-  search0: { results: T[]; hasMore: boolean; tooShort: boolean; rateLimited: boolean } | null,
+  search0: { results: T[]; hasMore: boolean; tooShort: boolean; rateLimited: boolean; retryAfterSeconds: number | null } | null,
   idOf: (row: T) => string,
   notFoundNoun: string,
 ): MemberPickerView {
@@ -229,6 +235,7 @@ function buildPicker<T extends { displayName: string; location: string | null }>
     hasMore: search?.hasMore ?? false,
     tooShort: search?.tooShort ?? false,
     rateLimited: search?.rateLimited ?? false,
+    retryAfterSeconds: search?.rateLimited ? search.retryAfterSeconds : null,
     notFound: search !== null && !search.tooShort && !search.rateLimited && results.length === 0,
     notFoundNoun,
     notFoundHint: input.notFoundHint,
@@ -240,7 +247,7 @@ function buildPicker<T extends { displayName: string; location: string | null }>
 /** The search's own result rows, as a picker shows them. */
 export function pickerSearchOutcome(result: {
   results: ReadonlyArray<{ memberId: string | null; displayName: string; location: string | null }>;
-  hasMore: boolean; tooShort: boolean; rateLimited: boolean;
+  hasMore: boolean; tooShort: boolean; rateLimited: boolean; retryAfterSeconds: number | null;
 }): PickerSearchOutcome {
   return {
     results: result.results
@@ -249,6 +256,7 @@ export function pickerSearchOutcome(result: {
     hasMore: result.hasMore,
     tooShort: result.tooShort,
     rateLimited: result.rateLimited,
+    retryAfterSeconds: result.retryAfterSeconds,
   };
 }
 
@@ -259,7 +267,7 @@ export function pickerSearchOutcome(result: {
  */
 export function playerSearchOutcome(result: {
   results: ReadonlyArray<{ playerTag: string; isHistorical: boolean; displayName: string; location: string | null }>;
-  hasMore: boolean; tooShort: boolean; rateLimited: boolean;
+  hasMore: boolean; tooShort: boolean; rateLimited: boolean; retryAfterSeconds: number | null;
 }): RecordSearchOutcome {
   return {
     results: result.results.map((r) => ({
@@ -271,6 +279,7 @@ export function playerSearchOutcome(result: {
     hasMore: result.hasMore,
     tooShort: result.tooShort,
     rateLimited: result.rateLimited,
+    retryAfterSeconds: result.retryAfterSeconds,
   };
 }
 

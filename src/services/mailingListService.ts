@@ -520,7 +520,7 @@ function subscriberPicker(slug: string, formAction: string, form: SubscriptionAd
     intent,
     openOnLoad: true,
     query: form?.query ?? '',
-    search: search && { ...search, rateLimited: false },
+    search: search && { ...search, rateLimited: false, retryAfterSeconds: null },
     notFoundHint: 'Only members who hold a subscription on this list are listed.',
   });
 }

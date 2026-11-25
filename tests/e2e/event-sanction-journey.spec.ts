@@ -3,8 +3,9 @@
  *
  * One run covers the whole flow. A Tier 2 organizer creates a sanctioned event
  * with a fee and an open-only division, opens the request from the manage
- * page, is warned of the missing Women's and Intermediate divisions, is refused
- * an empty submit and corrects it. An administrator finds the request in the
+ * page, is told of the missing Women's and Intermediate divisions, is refused
+ * an empty submit and then a complete one while the divisions are missing,
+ * adds them on the manage page and submits. An administrator finds the request in the
  * sanctioning area with every answer, and rejects it with a reason. The
  * organizer sees the reason, resubmits from the prefilled form, and the
  * administrator approves: the event is public, badged as sanctioned, listed in
@@ -109,14 +110,33 @@ test('an organizer requests sanction, an administrator rejects then approves it,
   const submit = orgPage.getByRole('button', { name: 'Submit Sanction Request' });
   await submit.click();
   await expect(orgPage.locator('.form-field-error').first()).toBeVisible();
-  await orgPage.check('input[name="attest"][value="1"]');
-  await orgPage.check('input[name="deviates"][value="no"]');
-  await orgPage.check('input[name="prize_money"][value="no"]');
-  await orgPage.check('input[name="frequency"][value="first_time"]');
-  await orgPage.fill('input[name="expected_players"]', '32');
-  await orgPage.check('input[name="permits"][value="not_needed"]');
-  await orgPage.check('input[name="insurance"][value="yes"]');
-  await orgPage.fill('textarea[name="justification"]', 'Covers the gym and the trophies.');
+  const fillRequest = async (): Promise<void> => {
+    await orgPage.check('input[name="attest"][value="1"]');
+    await orgPage.check('input[name="deviates"][value="no"]');
+    await orgPage.check('input[name="prize_money"][value="no"]');
+    await orgPage.check('input[name="frequency"][value="first_time"]');
+    await orgPage.fill('input[name="expected_players"]', '32');
+    await orgPage.check('input[name="permits"][value="not_needed"]');
+    await orgPage.check('input[name="insurance"][value="yes"]');
+    await orgPage.fill('textarea[name="justification"]', 'Covers the gym and the trophies.');
+  };
+  // Every answer complete, but the event still lacks the divisions IFPA requires.
+  await fillRequest();
+  await submit.click();
+  await expect(orgPage).toHaveURL(new RegExp(`/events/${key}/sanction$`));
+  await expect(orgPage.locator('fieldset .form-field-error').first()).toContainText("Women's in Singles Footbag Net");
+
+  // The organizer adds the two divisions the page named, then asks again.
+  for (const [gender, cls] of [['women', 'open'], ['open', 'intermediate']] as const) {
+    await orgPage.goto(`/events/${key}/manage?game=game_footbag_net`);
+    await orgPage.check('input[name="team_type"][value="singles"]');
+    await orgPage.check(`input[name="gender"][value="${gender}"]`);
+    await orgPage.check(`input[name="division_class"][value="${cls}"]`);
+    await orgPage.locator(`form[action="/events/${key}/divisions"] button[type="submit"]`).click();
+  }
+  await orgPage.goto(`/events/${key}/sanction`);
+  await expect(orgPage.locator('.notice-card--warn')).toHaveCount(0);
+  await fillRequest();
   await submit.click();
   await expect(orgPage).toHaveURL(new RegExp(`/events/${key}/manage$`));
   await expect(sanctionLine(orgPage)).toHaveText('Pending review by IFPA.');
@@ -125,9 +145,8 @@ test('an organizer requests sanction, an administrator rejects then approves it,
   // ── The administrator rejects it from the sanctioning area ──────────────────
   const adminPage = await (await createAuthenticatedContext(browser, baseURL!, admin)).newPage();
   await openItemFor(adminPage, title);
-  await expect(adminPage.locator('p.badge').first()).toContainText("Women's in Singles Footbag Net");
   await expect(adminPage.locator('dd', { hasText: 'Covers the gym and the trophies.' })).toHaveCount(1);
-  const reason = "Add a Women's and an Intermediate division";
+  const reason = 'State the expected number of spectators';
   await adminPage.locator('form[action$="/sanction/reject"] textarea[name="reason"]').fill(reason);
   await adminPage.locator('form[action$="/sanction/reject"] button[type="submit"]').click();
   await expect(adminPage).toHaveURL(/\/admin\/work-queue/);

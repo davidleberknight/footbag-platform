@@ -200,7 +200,7 @@ function honorPicker(opts: {
     intent,
     openOnLoad: opts.openOnLoad,
     query: own?.query ?? '',
-    search: search && { ...search, rateLimited: false },
+    search: search && { ...search, rateLimited: false, retryAfterSeconds: null },
     notFoundHint: null,
   });
 }

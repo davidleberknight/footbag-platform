@@ -3,9 +3,11 @@
  *
  * The contract: only a current organizer of an event created on the
  * sanctioned path reaches the request, and only one holding Tier 2 or Tier 3
- * may send it. The form carries the attestation and every question, warns of a
- * missing Women's or Intermediate division without blocking, and refuses an
- * incomplete or inconsistent answer with nothing written. Submitting moves the
+ * may send it. The form carries the attestation and every question, names each
+ * competition category missing a Women's or an Intermediate division, and
+ * refuses that request, and any incomplete or inconsistent answer, with nothing
+ * written. An approval and a Board award are refused the same way while a
+ * category lacks either division. Submitting moves the
  * event to pending approval, raises one routine item in the sanctioning area of
  * the work queue, records who sent it and emails every organizer. One
  * administrator decides from the queue item: an approval sanctions the event,
@@ -224,18 +226,43 @@ describe('the request form', () => {
     expect(notice).toBeLessThan(body.indexOf('type="submit"'));
   });
 
-  // Defect caught: a tournament missing its Women's or Intermediate division
-  // is either not warned at all, or is blocked though the administrator decides.
-  it('warns of each missing division by category and still accepts the request', async () => {
+  // Defect caught: a tournament missing its Women's or Intermediate division,
+  // which IFPA's sanctioning guidelines require in every category, reaches the
+  // sanctioning queue; or the organizer is not told which division to add.
+  it('refuses a request missing a Women\'s or an Intermediate division, naming each, writing nothing', async () => {
     const event = seedEvent('Open Only Cup', [olive], { divisions: [{ gender: 'open', cls: 'open' }] });
     const page = await get(olive, `${event.base}/sanction`);
     expect(page.text).toContain('Women&#x27;s in Singles Footbag Net');
     expect(page.text).toContain('Intermediate in Singles Footbag Net');
+    const before = counts(event.id);
+    const res = await post(olive, `${event.base}/sanction`, requestForm());
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Women&#x27;s in Singles Footbag Net');
+    expect(res.text).toContain('Intermediate in Singles Footbag Net');
+    expect(eventRow(event.id).sanction_status).toBe('none');
+    expect(counts(event.id)).toEqual(before);
+    expect(queueItems(event.id)).toHaveLength(0);
+  });
+
+  // Defect caught: once the organizer adds the divisions the page named, the
+  // same request, resubmitted as rendered, is still refused.
+  it('accepts the same request once both missing divisions are added', async () => {
+    const event = seedEvent('Completed Cup', [olive], { divisions: [{ gender: 'open', cls: 'open' }] });
+    expect((await post(olive, `${event.base}/sanction`, requestForm())).status).toBe(422);
+    withDb((db) => {
+      insertDiscipline(db, event.id, {
+        name: 'Women', discipline_category: 'net', game_id: 'game_footbag_net', team_type: 'singles',
+        gender_eligibility: 'women', division_class: 'open', offers_prize_money: 0, sort_order: 2,
+      });
+      insertDiscipline(db, event.id, {
+        name: 'Intermediate', discipline_category: 'net', game_id: 'game_footbag_net', team_type: 'singles',
+        gender_eligibility: 'open', division_class: 'intermediate', offers_prize_money: 0, sort_order: 3,
+      });
+    });
     const res = await post(olive, `${event.base}/sanction`, requestForm());
     expect(res.status).toBe(303);
     expect(eventRow(event.id).sanction_status).toBe('pending');
-    const item = await get(admin, `/admin/work-queue/${openItem(event.id)}`, true);
-    expect(item.text).toContain('Women&#x27;s in Singles Footbag Net');
+    expect(queueItems(event.id)).toHaveLength(1);
   });
 
   // Defect caught: an incomplete or inconsistent request is accepted, or a
@@ -445,6 +472,28 @@ describe('the administrator\'s decision', () => {
 
   // Defect caught: a rejection without a reason, or one that leaves the event
   // under review, keeps the reason from the organizers, or bars a resubmission.
+  // Defect caught: an organizer removes the Women's division while the request
+  // waits, and the administrator approves a tournament IFPA's guidelines do not
+  // allow; or the refusal leaves the administrator no way to decide it.
+  it('refuses to approve once a required division is removed during review, and still allows a rejection', async () => {
+    const event = seedEvent('Shrunk Field Open', [olive]);
+    expect((await post(olive, `${event.base}/sanction`, requestForm())).status).toBe(303);
+    const itemId = openItem(event.id);
+    const women = withDb((db) => (db.prepare(
+      "SELECT id FROM event_disciplines WHERE event_id = ? AND gender_eligibility = 'women'",
+    ).get(event.id) as { id: string }).id);
+    expect((await post(olive, `${event.base}/divisions/${women}/remove`, { confirmed: '1' })).status).toBe(303);
+
+    const refused = await post(admin, `/admin/work-queue/${itemId}/sanction/approve`, { note: '' }, true);
+    expect(refused.status).toBe(422);
+    expect(eventRow(event.id).sanction_status).toBe('pending');
+    expect(audits(event.id, 'event.sanction_approved')).toHaveLength(0);
+    expect(openItem(event.id)).toBe(itemId);
+
+    expect((await post(admin, `/admin/work-queue/${itemId}/sanction/reject`, { reason: 'Add the Women\'s division back' }, true)).status).toBe(303);
+    expect(eventRow(event.id)).toMatchObject({ status: 'draft', sanction_status: 'rejected' });
+  });
+
   it('rejects with a reason, returns the event to draft, and takes a revised resubmission', async () => {
     const event = seedEvent('Rejected Open', [olive, oscar]);
     await post(olive, `${event.base}/sanction`, requestForm());
@@ -508,6 +557,20 @@ describe('a Board-awarded World Championships', () => {
     expect(counts(event.id)).toEqual(before);
     const after = await get(admin, '/admin/events/sanctions', true);
     expect(after.text).not.toContain(`action="/admin/events/${event.id}/sanction-award"`);
+  });
+
+  // Defect caught: a World Championships missing a Women's or an Intermediate
+  // division is recorded as sanctioned, or the administrator is not told which
+  // division the event lacks.
+  it('refuses the award while a category lacks a Women\'s or an Intermediate division, naming it', async () => {
+    const event = seedEvent('Incomplete Worlds', [olive], { divisions: [{ gender: 'open', cls: 'open' }, { gender: 'women', cls: 'open' }] });
+    const before = counts(event.id);
+    const res = await post(admin, `/admin/events/${event.id}/sanction-award`, { citation: 'Board decision of 2026-03-01' }, true);
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Intermediate in Singles Footbag Net');
+    expect(res.text).not.toContain('Women&#x27;s in Singles Footbag Net');
+    expect(eventRow(event.id)).toMatchObject({ status: 'draft', sanction_status: 'none' });
+    expect(counts(event.id)).toEqual(before);
   });
 
   // Defect caught: a member who is not an administrator records an award.

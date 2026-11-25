@@ -180,6 +180,9 @@ resource "aws_ssm_parameter" "app_ses_sender_identity" {
 #     for the launch dress rehearsal, while rehearse_launch_base_address is on,
 #     because testers then reach www through an edge address and their form
 #     posts must match the host's origin; its precondition below confines it.
+#     And www for the launch's first step, while launch_www_base_address is on,
+#     so a code-only deploy puts www on the host before the notice lifts and
+#     www accepts form posts from the moment it serves the platform.
 #   - preview, while its record exists and www does not yet serve the platform:
 #     from the custom-domain apply, while www still answers with the legacy
 #     site, through the notice window, when www serves the notice.
@@ -194,7 +197,7 @@ locals {
   platform_url        = var.enable_cloudfront ? "https://${var.enable_platform_custom_domain ? "www.${var.domain_name}" : aws_cloudfront_distribution.main[0].domain_name}" : null
   preview_url         = var.enable_cloudfront && var.enable_platform_custom_domain && var.enable_preview_record ? "https://preview.${var.domain_name}" : null
   distribution_url    = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.main[0].domain_name}" : null
-  www_serves_platform = (var.enable_platform_custom_domain && var.enable_apex_alias_records && !var.enable_cutover_notice) || var.rehearse_launch_base_address
+  www_serves_platform = (var.enable_platform_custom_domain && var.enable_apex_alias_records && !var.enable_cutover_notice) || var.rehearse_launch_base_address || var.launch_www_base_address
   public_base_url = (
     local.www_serves_platform ? "https://www.${var.domain_name}" :
     local.preview_url != null ? local.preview_url :
@@ -216,6 +219,10 @@ resource "aws_ssm_parameter" "app_public_base_url" {
     precondition {
       condition     = !var.rehearse_launch_base_address || (local.preview_url != null && !var.enable_cutover_notice && !var.enable_apex_alias_records)
       error_message = "rehearse_launch_base_address is for the launch dress rehearsal only: the custom domain and preview record on, the notice off, and the apex records still on the legacy site. Turn it off before the window state, the freeze or launch."
+    }
+    precondition {
+      condition     = !var.launch_www_base_address || (local.preview_url != null && var.enable_cutover_notice && var.enable_apex_alias_records)
+      error_message = "launch_www_base_address is the launch's first step only: the custom domain, the preview record, the notice and the apex records all on, after the record switch. Turn it off in the launch apply that lifts the notice."
     }
   }
 }

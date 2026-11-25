@@ -38,3 +38,38 @@ terminal_present() {
   { true >/dev/tty; } 2>/dev/null || return 1
   return 0
 }
+
+# tty_discard_pending
+#
+# Throws away whatever is already waiting on the terminal, so that the next
+# read takes only what is typed after the prompt is shown. A line typed while
+# the run was still busy, or pasted along with the command, otherwise becomes
+# the answer to a question nobody has read yet: a waiting "APPLY" accepts a
+# confirmation, a waiting "no" declines one in no time at all.
+#
+# The terminal holds a line it has not yet delivered in its own line buffer,
+# and reports input as available only once Enter has been pressed, so a check
+# with `read -t 0` never sees a half-typed word. A later Enter would then
+# complete it into the answer. Reading with -n makes bash take the terminal out
+# of line mode for that one read and put it back afterwards, which hands over
+# the half-typed part as well; a read that times out still keeps what it got,
+# which is why the loop goes on while anything arrived. The bound stops a
+# terminal that never goes quiet from holding the run here forever.
+#
+# Run it immediately before printing a prompt. It costs one short wait when
+# nothing is pending. Without a terminal it does nothing, and it always
+# returns 0, so a caller under errexit reaches its own refusal rather than
+# dying here.
+tty_discard_pending() {
+  local fd junk rc rounds=0
+  { exec {fd}</dev/tty; } 2>/dev/null || return 0
+  while (( rounds < 256 )); do
+    junk=""
+    rc=0
+    IFS= read -r -d "" -n 4096 -t 0.05 -u "$fd" junk || rc=$?
+    [[ $rc -eq 0 || -n "$junk" ]] || break
+    rounds=$((rounds + 1))
+  done
+  exec {fd}<&-
+  return 0
+}

@@ -717,12 +717,37 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
     expect(calls()).not.toMatch(/ apply \//);
   });
 
-  it('refuses the firewall mode on any tree but staging, before terraform runs', () => {
+  it('refuses the firewall mode on the shared and identity trees, before terraform runs', () => {
     writeTerraformStub();
-    const res = run(['--target', 'production', '--firewall-only', '--firewall-add', '203.0.113.7/32']);
-    expect(res.exitCode).toBe(2);
-    expect(res.stderr).toMatch(/applies to staging only/);
+    for (const target of ['shared', 'identity']) {
+      const res = run(['--target', target, '--firewall-only', '--firewall-add', ADDED]);
+      expect(res.exitCode, target).toBe(2);
+      expect(res.stderr, target).toMatch(/applies to staging and production only/);
+    }
     expect(calls()).toBe('');
+  });
+
+  // Defect caught: an operator's address change on production taking the
+  // ordinary firewall replacement, which closes port 80, CloudFront's only way
+  // to the origin, and so the site, for as long as the rewrite takes.
+  it('refuses on production a firewall plan it cannot write in place', () => {
+    writeTerraformStub({ planResourceChanges: [FIREWALL] });
+    const res = run(['--target', 'production', '--firewall-only', '--firewall-add', ADDED]);
+    expect(res.exitCode).toBe(1);
+    expect(closingReport(res.stderr)).toMatch(/cannot be written in place/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  // Defect caught: an operator's typed APPLY on production carrying the tree's
+  // whole backlog, which the person typing it came to change none of.
+  it('refuses on production a firewall-only apply that would carry other drift with it', () => {
+    writeTerraformStub({
+      planResourceChanges: [FIREWALL, { type: 'aws_s3_bucket', address: 'aws_s3_bucket.media', actions: ['update'] }],
+    });
+    const res = run(['--target', 'production', '--firewall-only', '--firewall-add', ADDED]);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/would also change:\n\s+aws_s3_bucket\.media/);
+    expect(calls()).not.toMatch(/ apply \//);
   });
 
   it('refuses the empty-plan mode on the shared and identity trees, before terraform runs', () => {
@@ -1197,6 +1222,29 @@ describe('terraform-apply.sh: the firewall written in place', () => {
     expect(at).toEqual([...at].sort((a, b) => a - b));
     expect(log.match(/ plan /g)?.length, 'planned twice').toBe(2);
     expect(log).toContain('lightsail-connect');
+  });
+
+  // Defect caught: a production address change that can be written in place
+  // refused anyway, so an operator cannot get on the host; or CloudFront's
+  // ranges on port 80 changing in the same write without the operator told.
+  it('lets a production firewall-only change it can write in place reach the typed confirmation, listing any port 80 change', () => {
+    const NEW_EDGE = '130.176.0.0/24';
+    writeTerraformStub({
+      planResourceChanges: [{ ...FIREWALL, after: ports([OPERATOR, '203.0.113.7/32'], { port80: [EDGE, NEW_EDGE] }) }],
+      planVariables: VARIABLES,
+    });
+    const res = run(['--target', 'production', '--firewall-only', '--firewall-add', '203.0.113.7/32'], true, awsStub());
+    // Stopped only by the confirmation, which no test can give: every check
+    // before it let the plan through.
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+    expect(res.stderr).not.toMatch(/would also change|not asked to|cannot be written in place/);
+    expect(res.stdout).toMatch(/port 80[^\n]*\n\s+added 130\.176\.0\.0\/24/);
+    // The port 80 list names CloudFront's ranges and nothing else: the SSH
+    // address this run adds is not among them.
+    const port80Block = res.stdout.match(/port 80[^\n]*\n((?:\s+(?:added|removed) \S+\n)*)/)?.[1] ?? '';
+    expect(port80Block).toBe('  added 130.176.0.0/24\n');
+    expect(calls()).not.toContain('put-instance-public-ports');
   });
 
   it('still writes in place when only fields it never writes are unknown until apply', () => {

@@ -30,8 +30,6 @@ scripts/check-certificate-transparency.sh
 scripts/check-media-integrity.sh
 scripts/clean_up_rubbish.sh
 scripts/compose-dev.sh
-scripts/create-stripe-endpoint.sh
-scripts/cutover-marker-host.sh
 scripts/cutover-marker.sh
 scripts/dev.sh
 scripts/diagnose-cwagent.sh
@@ -103,7 +101,6 @@ scripts/verify-captcha-outage-alarm.sh
 scripts/verify-cutover-notice.sh
 scripts/verify-host-snapshots.sh
 scripts/verify-mail-records.sh
-scripts/verify-production-release.sh
 scripts/verify-replication.sh
 scripts/verify-test-personas.sh
 scripts/verify-zone-mirror.sh

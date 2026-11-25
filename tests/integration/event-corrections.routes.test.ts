@@ -22,6 +22,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { flashCookieOf, flashValueOf } from '../fixtures/flashCookie';
 import { isoDaysFromNow } from '../fixtures/clock';
+import { spendMemberSearchAllowance, retryAfterIsAWait } from '../fixtures/memberSearchLimit';
 import {
   createMemberAtTier,
   completeOnboarding,
@@ -472,6 +473,25 @@ describe('Edit Entry', () => {
     expect(mailBody('event_registration_corrected', bo, ev.id)).toContain('Open Doubles Footbag Net');
   });
 
+  // Defect caught: a refused entrant or partner search on the organizer's
+  // forms answered as a success, so a client hammering the picker is never
+  // told to stop or how long to wait.
+  it('answers a refused search on Add Entrant and Edit Entry at 429 with a wait, the form re-rendered with the notice', async () => {
+    const ev = seedEvent();
+    const reg = enter(ev, ada, ev.doubles, null);
+    await spendMemberSearchAllowance(olive);
+    const added = await post(olive, `${ev.base}/participants/add`, { pick: 'search:entrant', pick_q: 'Ada Walk', member_id: '' });
+    const edited = await post(olive, `${ev.base}/participants/${reg}/edit`, {
+      division: ev.doubles, partner_division: ev.doubles, partner: '', pick: `search:partner-${ev.doubles}`, pick_q: 'Bo',
+    });
+    for (const [name, res, intent] of [['add', added, 'search:entrant'], ['edit', edited, `search:partner-${ev.doubles}`]] as const) {
+      expect(res.status, name).toBe(429);
+      expect(retryAfterIsAWait(res.headers['retry-after']), `${name}: ${String(res.headers['retry-after'])}`).toBe(true);
+      expect(res.text, name).toContain(`value="${intent}"`);
+      expect(res.text, name).toContain('form-error-banner');
+    }
+  });
+
   it('removes a partner with the picker\'s Remove, leaving the entry partnerless', async () => {
     // Defect caught: once chosen, a doubles partner can never be cleared, or
     // Remove saves the entry before the organizer submits it.
@@ -593,6 +613,18 @@ describe('results upload against the corrected registrations', () => {
 });
 
 describe('an administrator\'s Add Entrant and Edit Entry', () => {
+  // Defect caught: a refused entrant search on the administrator's form
+  // answered as a success, unlike the same refusal on the organizer's form.
+  it('answers a refused entrant search at 429 with a wait, the form re-rendered with the notice', async () => {
+    const ev = seedEvent({ deadlineInDays: -1 });
+    await spendMemberSearchAllowance(adam);
+    const res = await post(adam, `${ev.record}/registrations/add`, { pick: 'search:entrant', pick_q: 'Ada Walk', member_id: '', reason: '' }, true);
+    expect(res.status).toBe(429);
+    expect(retryAfterIsAWait(res.headers['retry-after']), String(res.headers['retry-after'])).toBe(true);
+    expect(res.text).toContain('value="search:entrant"');
+    expect(res.text).toContain('form-error-banner');
+  });
+
   it('adds a member after the deadline only on confirm, with the reason, the admin and the values in the audit row', async () => {
     // Defect caught: the preview writes, the write skips the reason, or the
     // trail does not say which administrator added whom to what.

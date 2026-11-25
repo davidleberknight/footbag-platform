@@ -73,6 +73,13 @@ source "$REPO_ROOT/scripts/lib/host-env-remote.sh"
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
 source "$REPO_ROOT/scripts/lib/aws-profile.sh"
+# Every refusal, disagreement and failed call is listed once at the end, with
+# what the run proved, so a failure part way through a long sitting names its
+# reason instead of ending on a bare exit status. The Stripe calls carry the key
+# in their config and a created endpoint's signing secret in their response, so
+# they run through the report's marked form, which never keeps their output.
+# shellcheck source=lib/closing-report.sh
+source "$REPO_ROOT/scripts/lib/closing-report.sh"
 
 TARGET=""
 MODE=""
@@ -82,42 +89,43 @@ REPAIR=0
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0" | sed 's/^# \{0,1\}//'
-  exit 2
+  cr_finish_with 2 USAGE
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)  TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
-    --mode)    MODE="${2:-}";   shift 2 || { echo "ERROR: --mode requires live or test" >&2; exit 2; } ;;
+    --target)  TARGET="${2:-}"; shift 2 || { cr_error "--target requires an argument"; exit 2; } ;;
+    --mode)    MODE="${2:-}";   shift 2 || { cr_error "--mode requires live or test"; exit 2; } ;;
     --dry-run) DRY_RUN=1; shift ;;
     --verify)  VERIFY=1; shift ;;
     --repair)  REPAIR=1; shift ;;
     --yes)     ASSUME_YES="yes"; shift ;;
     -h|--help) usage ;;
-    *)         echo "ERROR: unknown argument: $1" >&2; usage ;;
+    *)         cr_error "unknown argument: $1"; usage ;;
   esac
 done
 
 [[ "$TARGET" == "production" || "$TARGET" == "staging" ]] || {
-  echo "ERROR: --target must be production or staging." >&2; exit 2; }
+  cr_error "--target must be production or staging."; exit 2; }
 [[ "$MODE" == "live" || "$MODE" == "test" ]] || {
-  echo "ERROR: --mode must be live or test." >&2; exit 2; }
+  cr_error "--mode must be live or test."; exit 2; }
 
 # --repair alone would read as "create, and also repair", which is two different
 # writes to the same account. It only ever means "fix what --verify just found".
 if (( REPAIR )) && (( ! VERIFY )); then
-  echo "ERROR: --repair only applies alongside --verify." >&2
+  cr_error "--repair only applies alongside --verify."
   exit 2
 fi
 
-command -v jq   >/dev/null || { echo "ERROR: jq is required." >&2; exit 1; }
-command -v curl >/dev/null || { echo "ERROR: curl is required." >&2; exit 1; }
+command -v jq   >/dev/null || cr_die "jq is required."
+command -v curl >/dev/null || cr_die "curl is required."
 
 # Test seams. A stubbed run proves nothing about the account, so it says so.
 CURL_BIN="${FOOTBAG_STRIPE_ENDPOINT_CURL_BIN:-curl}"
 TF_BIN="${FOOTBAG_STRIPE_ENDPOINT_TF_BIN:-terraform}"
 if [[ -n "${FOOTBAG_STRIPE_ENDPOINT_CURL_BIN:-}${FOOTBAG_STRIPE_ENDPOINT_TF_BIN:-}" ]]; then
   echo "SYNTHETIC: a test seam is in use -- this run proves nothing about the account." >&2
+  cr_unproved "anything about the Stripe account or the terraform state: a test seam stood in for curl or terraform"
 fi
 
 # Both facts come from the activation script, which is the single source for the
@@ -126,19 +134,39 @@ fi
 ACTIVATE="$REPO_ROOT/scripts/activate-payments.sh"
 API_VERSION="$(grep '^STRIPE_API_VERSION=' "$ACTIVATE" | cut -d'"' -f2)"
 EVENTS="$(grep '^REQUIRED_WEBHOOK_EVENTS=' "$ACTIVATE" | cut -d'"' -f2)"
-[[ -n "$API_VERSION" && -n "$EVENTS" ]] || {
-  echo "ERROR: could not read the pinned API version and event list from the activation script." >&2
-  exit 1; }
+[[ -n "$API_VERSION" && -n "$EVENTS" ]] \
+  || cr_die "could not read the pinned API version and event list from the activation script."
+EVENT_COUNT="$(printf '%s\n' $EVENTS | wc -l)"
 
 # The reads below reach the state backend, so the identity is settled and proved
-# here rather than left for terraform to discover: these two reads discard their
-# own stderr, so a credential failure would arrive as an empty value.
-aws_profile_ensure || exit 1
+# here rather than left for terraform to discover: a credential failure would
+# otherwise arrive as an empty value.
+aws_profile_ensure \
+  || cr_die "the AWS identity this run reads terraform as could not be settled; the lines above say why."
+
+# tf_output <name> <var>
+# Reads one terraform output into <var>, from stdout alone. On a failure <var>
+# is empty and TF_ERR carries terraform's own last line, fetched by asking again
+# for stderr only, so a refusal names terraform's reason rather than an empty
+# value.
+tf_output() {
+  local value=""
+  TF_ERR=""
+  if ! value="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/$TARGET" output -raw "$1" 2>/dev/null)"; then
+    if TF_ERR="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/$TARGET" output -raw "$1" 2>&1 >/dev/null)"; then
+      TF_ERR=""
+    fi
+    TF_ERR="$(tail -n 1 <<<"$TF_ERR")"
+    value=""
+  fi
+  printf -v "$2" '%s' "$value"
+}
 
 # The distribution domain is a terraform output rather than a literal, so this
 # cannot be pointed at a stale host. A wrong URL fails silently at delivery time.
-DOMAIN="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/$TARGET" output -raw cloudfront_domain 2>/dev/null || true)"
-[[ -n "$DOMAIN" ]] || { echo "ERROR: could not read cloudfront_domain from terraform output for $TARGET." >&2; exit 1; }
+tf_output cloudfront_domain DOMAIN
+[[ -n "$DOMAIN" ]] \
+  || cr_die "could not read cloudfront_domain from terraform output for $TARGET: ${TF_ERR:-terraform printed nothing for it}"
 URL="https://${DOMAIN}/payments/webhook"
 
 # The endpoint is registered against the distribution's own name and stays
@@ -156,9 +184,17 @@ URL="https://${DOMAIN}/payments/webhook"
 # description carries the reason the apex form is wrong and would be easy to
 # reconstruct by mistake: the apex only 301s to www, and the provider counts a
 # redirect as a failed delivery.
-PLATFORM_URL="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/$TARGET" output -raw platform_url 2>/dev/null || true)"
+#
+# Unread, it is a warning rather than a refusal: the distribution's own name is
+# still checked, but an endpoint moved to the canonical host would then be
+# reported as a mismatch.
+tf_output platform_url PLATFORM_URL
 CANONICAL_URL=""
-[[ -n "$PLATFORM_URL" ]] && CANONICAL_URL="${PLATFORM_URL%/}/payments/webhook"
+if [[ -n "$PLATFORM_URL" ]]; then
+  CANONICAL_URL="${PLATFORM_URL%/}/payments/webhook"
+else
+  cr_warn "could not read platform_url from terraform output for $TARGET (${TF_ERR:-terraform printed nothing for it}); only $URL counts as this environment's webhook address this run"
+fi
 
 if (( VERIFY )); then
   ACTION_LABEL="verify"
@@ -171,13 +207,14 @@ fi
 echo "== $ACTION_LABEL Stripe webhook endpoint: $TARGET ($MODE mode) =="
 echo "  url:     $URL"
 echo "  version: $API_VERSION"
-echo "  events:  $(printf '%s\n' $EVENTS | wc -l)"
+echo "  events:  $EVENT_COUNT"
 if (( DRY_RUN )); then
   echo ""
   printf '%s\n' $EVENTS | sed 's/^/    /'
   echo ""
   echo "Dry run: no key read, no call made, $DRY_RUN_TAIL"
-  exit 0
+  cr_unproved "the endpoint itself: a dry run reads no key and makes no call"
+  cr_finish
 fi
 
 # The key may come from the environment only when the curl seam has replaced the
@@ -190,19 +227,19 @@ if [[ -n "${FOOTBAG_STRIPE_ENDPOINT_CURL_BIN:-}" ]]; then
 fi
 
 if [[ -z "$SYNTHETIC_KEY" ]] && ! { true >/dev/tty; } 2>/dev/null; then
-  echo "ERROR: no terminal. This reads a secret key, and the creating path prints" >&2
-  echo "       a signing secret, so it refuses to run where either could land in" >&2
-  echo "       a captured stream." >&2
-  exit 1
+  cr_die "no terminal. This reads a secret key, and the creating path prints a signing secret, so it refuses to run where either could land in a captured stream."
 fi
 
 umask 077
 WORK="$(mktemp -d)"
+# The curl config holds the key and a created endpoint's response holds its
+# signing secret, so every file is shredded before the directory goes; a
+# failure is listed as a warning.
 cleanup() {
-  find "$WORK" -type f -exec shred -u {} + 2>/dev/null || true
-  rm -rf "$WORK"
+  find "$WORK" -type f -exec shred -u {} +
+  rm -rf -- "$WORK"
 }
-trap cleanup EXIT INT TERM
+cr_cleanup cleanup
 
 if [[ -n "$SYNTHETIC_KEY" ]]; then
   STRIPE_KEY="$SYNTHETIC_KEY"
@@ -230,25 +267,49 @@ fi
 case "$STRIPE_KEY" in
   sk_live_*) KEY_MODE="live" ;;
   sk_test_*) KEY_MODE="test" ;;
-  rk_*)      echo "ERROR: restricted keys are not accepted; use the standard secret key." >&2; exit 1 ;;
-  *)         echo "ERROR: that is not a Stripe secret key." >&2; exit 1 ;;
+  rk_*)      cr_die "restricted keys are not accepted; use the standard secret key." ;;
+  *)         cr_die "that is not a Stripe secret key." ;;
 esac
 if [[ "$KEY_MODE" != "$MODE" ]]; then
-  echo "ERROR: --mode $MODE was given but the key is a $KEY_MODE key. Refusing." >&2
-  exit 1
+  cr_die "--mode $MODE was given but the key is a $KEY_MODE key. Refusing."
 fi
 
 printf 'user = "%s:"\n' "$STRIPE_KEY" > "$WORK/curlrc"
 unset STRIPE_KEY
 
+# stripe_call <label> <curl args...>
+# One Stripe API call, its response written by curl to the file the arguments
+# name. Run through the marked form of the report: curl reads the key from its
+# config and a creation response carries the signing secret, so nothing it
+# prints is kept whole; only curl's own error line is listed, which names a
+# network or TLS failure and never a credential.
+stripe_call() {
+  local label="$1"; shift
+  cr_run_marked --errors '^curl: \(' "$label" -- "$CURL_BIN" -sS --config "$WORK/curlrc" "$@"
+}
+
+# stripe_refusal <file>
+# Prints why the Stripe response in <file> is not a usable answer: the error
+# Stripe returned, or that it is not JSON at all. Prints nothing for a good
+# answer. The message is listed in the closing report, so anything in it shaped
+# like a key or a signing secret is masked first.
+stripe_refusal() {
+  local msg
+  if ! jq -e . "$1" >/dev/null 2>&1; then
+    echo "its answer could not be read as JSON"
+    return 0
+  fi
+  msg="$(jq -r '.error.message // empty' "$1")"
+  [[ -n "$msg" ]] || return 0
+  sed -E 's/(sk|rk|pk|whsec)_[A-Za-z0-9_*]+/[redacted]/g' <<<"$msg"
+}
+
 # Stripe delivers every event to every enabled destination, so a second enabled
 # endpoint silently takes a copy of all traffic. Listing first costs one call.
-"$CURL_BIN" -s --config "$WORK/curlrc" https://api.stripe.com/v1/webhook_endpoints -o "$WORK/existing.json"
-if [[ "$(jq -r '.error.message // empty' "$WORK/existing.json")" != "" ]]; then
-  echo "ERROR from Stripe listing endpoints:" >&2
-  jq -r '.error.message' "$WORK/existing.json" >&2
-  exit 1
-fi
+stripe_call "listing the account's webhook endpoints" \
+  https://api.stripe.com/v1/webhook_endpoints -o "$WORK/existing.json" || exit 1
+REFUSAL="$(stripe_refusal "$WORK/existing.json")"
+[[ -z "$REFUSAL" ]] || cr_die "Stripe refused listing the account's webhook endpoints: $REFUSAL"
 
 if (( VERIFY )); then
   ENABLED_COUNT="$(jq -r '[.data[] | select(.status=="enabled")] | length' "$WORK/existing.json")"
@@ -262,18 +323,14 @@ if (( VERIFY )); then
       '[.data[] | select(.status=="disabled" and (.url==$u or ($c != "" and .url==$c)))]' \
       "$WORK/existing.json" > "$WORK/disabled_here.json"
     if [[ "$(jq -r 'length' "$WORK/disabled_here.json")" != "1" ]]; then
-      echo "FAIL: no enabled webhook endpoint exists in this account." >&2
-      echo "      Nothing is receiving events at all." >&2
       jq -r '.data[] | select(.status=="disabled") | "  disabled: \(.id)  \(.url)"' "$WORK/existing.json" >&2
-      exit 1
+      cr_die "no enabled webhook endpoint exists in this account, and not exactly one disabled one at this environment's address: nothing is receiving events at all."
     fi
     jq -r '.[0]' "$WORK/disabled_here.json" > "$WORK/endpoint.json"
     EP_DISABLED=1
   elif [[ "$ENABLED_COUNT" != "1" ]]; then
-    echo "FAIL: $ENABLED_COUNT enabled endpoints exist; exactly one is expected." >&2
-    jq -r '.data[] | select(.status=="enabled") | "  \(.id)  \(.url)"' "$WORK/existing.json" >&2
-    echo "      Every enabled endpoint receives a copy; disable the extras first." >&2
-    exit 1
+    jq -r '.data[] | select(.status=="enabled") | "  enabled: \(.id)  \(.url)"' "$WORK/existing.json" >&2
+    cr_die "$ENABLED_COUNT enabled endpoints exist; exactly one is expected, since every enabled endpoint receives a copy of every event. Disable the extras first."
   else
     jq -r '[.data[] | select(.status=="enabled")][0]' "$WORK/existing.json" > "$WORK/endpoint.json"
   fi
@@ -288,26 +345,37 @@ if (( VERIFY )); then
   echo "  version: $EP_VERSION"
   echo ""
 
-  FAILED=0
+  # Each disagreement is shown as it is found and kept here, and becomes an
+  # error in the closing report only when the run ends with it unrepaired: a
+  # confirmed --repair that the re-read proves is a success, not a failure.
+  FINDINGS=()
+  # report_findings
+  # Lists every disagreement as an error, for a run ending with them in place.
+  report_findings() {
+    local finding
+    for finding in "${FINDINGS[@]+"${FINDINGS[@]}"}"; do cr_error "endpoint $EP_ID: $finding"; done
+  }
 
   if (( EP_DISABLED )); then
     echo "  DISABLED: Stripe delivers nothing to this endpoint until it is re-enabled." >&2
-    FAILED=1
+    FINDINGS+=("DISABLED: Stripe delivers nothing to it until it is re-enabled")
   fi
 
   # Compared rather than assumed: an endpoint pointing at a stale distribution
   # receives nothing and still reads as healthy from the account's own list.
+  URL_OK=1
   if [[ "$EP_URL" != "$URL" && ( -z "$CANONICAL_URL" || "$EP_URL" != "$CANONICAL_URL" ) ]]; then
     echo "  MISMATCH url: expected $URL" >&2
     [[ -n "$CANONICAL_URL" ]] && echo "                or $CANONICAL_URL if it has been moved there" >&2
-    FAILED=1
+    FINDINGS+=("MISMATCH url: it is $EP_URL, expected $URL${CANONICAL_URL:+ or $CANONICAL_URL}")
+    URL_OK=0
   fi
 
   # Reported, never repaired. Payload shapes are version-specific, so moving an
   # endpoint between versions is a decision someone makes, not a drift to tidy.
   if [[ "$EP_VERSION" != "$API_VERSION" ]]; then
     echo "  MISMATCH api_version: the adapter pins $API_VERSION" >&2
-    FAILED=1
+    FINDINGS+=("MISMATCH api_version: it is $EP_VERSION, the adapter pins $API_VERSION")
   fi
 
   jq -r '.enabled_events[]' "$WORK/endpoint.json" | sort > "$WORK/got"
@@ -320,27 +388,29 @@ if (( VERIFY )); then
     echo "  MISMATCH events: the endpoint subscribes to all events (\"*\")" >&2
     echo "    rather than the dispatcher's set. Nothing is dropped, but a future" >&2
     echo "    event this platform does not handle arrives unannounced." >&2
-    FAILED=1
+    FINDINGS+=("MISMATCH events: it subscribes to all events (\"*\") rather than the dispatcher's set")
   else
     MISSING="$(comm -23 "$WORK/want" "$WORK/got")"
     UNEXPECTED="$(comm -13 "$WORK/want" "$WORK/got")"
     if [[ -n "$MISSING" ]]; then
       echo "  MISSING -- Stripe never delivers these, so nothing records them:" >&2
       printf '%s\n' "$MISSING" | sed 's/^/    /' >&2
-      FAILED=1
+      FINDINGS+=("MISSING events Stripe never delivers, so nothing records them: $(paste -sd' ' <<<"$MISSING")")
     fi
     if [[ -n "$UNEXPECTED" ]]; then
       echo "  UNEXPECTED -- registered here but not dispatched by the code:" >&2
       printf '%s\n' "$UNEXPECTED" | sed 's/^/    /' >&2
-      FAILED=1
+      FINDINGS+=("UNEXPECTED events registered but not dispatched by the code: $(paste -sd' ' <<<"$UNEXPECTED")")
     fi
   fi
 
-  if (( ! FAILED )); then
+  if (( ${#FINDINGS[@]} == 0 )); then
     echo "  events:  exact match ($(wc -l < "$WORK/got") events)"
     echo ""
     echo "The registered endpoint matches the dispatcher."
-    exit 0
+    cr_proved "endpoint $EP_ID, read from Stripe, is enabled at $EP_URL on api_version $API_VERSION with exactly the dispatcher's $EVENT_COUNT events"
+    cr_unproved "that Stripe's deliveries reach the platform: only the endpoint's registration was read"
+    cr_finish
   fi
 
   if (( ! REPAIR )); then
@@ -350,23 +420,24 @@ if (( VERIFY )); then
     else
       echo "Re-run with --repair to set the event list to the dispatcher's." >&2
     fi
-    exit 1
+    # The verdict itself, reached at the end of the check: the errors just
+    # recorded make the exit 1.
+    report_findings
+    cr_finish
   fi
 
   # --repair rewrites one field. A url or version disagreement is neither its
   # business nor safe to guess at, and repairing around one would leave the run
   # reporting success over an endpoint that is still wrong.
-  if (( FAILED )) && [[ "$EP_VERSION" != "$API_VERSION" ]]; then
+  if [[ "$EP_VERSION" != "$API_VERSION" ]]; then
     echo "" >&2
-    echo "REFUSING to repair: the api_version disagrees, and --repair does not" >&2
-    echo "change it. Resolve that first." >&2
-    exit 1
+    report_findings
+    cr_die "REFUSING to repair: the api_version disagrees, and --repair does not change it. Resolve that first."
   fi
-  if [[ "$EP_URL" != "$URL" && ( -z "$CANONICAL_URL" || "$EP_URL" != "$CANONICAL_URL" ) ]]; then
+  if (( ! URL_OK )); then
     echo "" >&2
-    echo "REFUSING to repair: the url is neither this environment's distribution" >&2
-    echo "nor its published name, and --repair does not change it." >&2
-    exit 1
+    report_findings
+    cr_die "REFUSING to repair: the url is neither this environment's distribution nor its published name, and --repair does not change it."
   fi
 
   echo ""
@@ -376,73 +447,84 @@ if (( VERIFY )); then
   else
     echo "--repair replaces this endpoint's whole event list with the dispatcher's"
   fi
-  echo "$(printf '%s\n' $EVENTS | wc -l) events, so anything listed as unexpected above is removed too."
+  echo "$EVENT_COUNT events, so anything listed as unexpected above is removed too."
   if ! confirm_from_tty "Type 'APPLY' to continue: " "APPLY"; then
-    echo "Not confirmed; nothing was changed." >&2
-    exit 1
+    report_findings
+    cr_die "Not confirmed; nothing was changed."
   fi
 
   CURL_ARGS=()
   (( EP_DISABLED )) && CURL_ARGS+=(-d "disabled=false")
   for evt in $EVENTS; do CURL_ARGS+=(-d "enabled_events[]=$evt"); done
-  "$CURL_BIN" -s --config "$WORK/curlrc" \
-    "https://api.stripe.com/v1/webhook_endpoints/$EP_ID" \
-    "${CURL_ARGS[@]}" \
-    -o "$WORK/repaired.json"
-  if [[ "$(jq -r '.error.message // empty' "$WORK/repaired.json")" != "" ]]; then
-    echo "ERROR from Stripe updating the endpoint:" >&2
-    jq -r '.error.message' "$WORK/repaired.json" >&2
-    exit 1
+  if ! stripe_call "updating endpoint $EP_ID" \
+      "https://api.stripe.com/v1/webhook_endpoints/$EP_ID" \
+      "${CURL_ARGS[@]}" \
+      -o "$WORK/repaired.json"; then
+    report_findings
+    cr_die "whether the update reached endpoint $EP_ID is unknown; re-run --verify to read what it now holds."
+  fi
+  REFUSAL="$(stripe_refusal "$WORK/repaired.json")"
+  if [[ -n "$REFUSAL" ]]; then
+    report_findings
+    cr_die "Stripe refused updating endpoint $EP_ID: $REFUSAL"
   fi
 
   # Re-read rather than diff the update's own response. Trusting what the write
   # echoed back is the exact habit that let this drift go unnoticed for weeks.
-  "$CURL_BIN" -s --config "$WORK/curlrc" \
-    "https://api.stripe.com/v1/webhook_endpoints/$EP_ID" \
-    -o "$WORK/reread.json"
+  if ! stripe_call "re-reading endpoint $EP_ID" \
+      "https://api.stripe.com/v1/webhook_endpoints/$EP_ID" \
+      -o "$WORK/reread.json"; then
+    report_findings
+    cr_die "the update was sent but endpoint $EP_ID could not be re-read, so the repair is unproved; re-run --verify."
+  fi
+  REFUSAL="$(stripe_refusal "$WORK/reread.json")"
+  if [[ -n "$REFUSAL" ]]; then
+    report_findings
+    cr_die "Stripe refused re-reading endpoint $EP_ID, so the repair is unproved: $REFUSAL"
+  fi
   jq -r '.enabled_events[]' "$WORK/reread.json" | sort > "$WORK/after"
   echo ""
-  if [[ "$(jq -r '.status' "$WORK/reread.json")" != "enabled" ]]; then
-    echo "ERROR: the endpoint reads as '$(jq -r '.status' "$WORK/reread.json")' after the update, not enabled." >&2
-    exit 1
+  REREAD_STATUS="$(jq -r '.status' "$WORK/reread.json")"
+  if [[ "$REREAD_STATUS" != "enabled" ]]; then
+    cr_die "endpoint $EP_ID reads as '$REREAD_STATUS' after the update, not enabled."
   fi
   if diff "$WORK/want" "$WORK/after"; then
     echo "Repaired: the endpoint now carries the dispatcher's event set ($(wc -l < "$WORK/after") events)."
-    exit 0
+    cr_proved "endpoint $EP_ID repaired and re-read from Stripe: enabled, with exactly the dispatcher's $EVENT_COUNT events (it had: $(printf '%s; ' "${FINDINGS[@]}" | sed 's/; $//'))"
+    cr_unproved "that Stripe's deliveries reach the platform: only the endpoint's registration was read"
+    cr_finish
   fi
-  echo "ERROR: the endpoint still disagrees after the update; the difference is above." >&2
-  exit 1
+  cr_die "endpoint $EP_ID still disagrees with the dispatcher after the update; the difference is above."
 fi
 
 ENABLED="$(jq -r '[.data[] | select(.status=="enabled")] | length' "$WORK/existing.json")"
 if [[ "$ENABLED" != "0" ]]; then
-  echo "REFUSING: $ENABLED enabled endpoint(s) already exist in this account:" >&2
-  jq -r '.data[] | select(.status=="enabled") | "  \(.id)  \(.url)"' "$WORK/existing.json" >&2
-  echo "Disable or delete them first; every enabled endpoint receives every event." >&2
-  exit 1
+  jq -r '.data[] | select(.status=="enabled") | "  enabled: \(.id)  \(.url)"' "$WORK/existing.json" >&2
+  cr_die "REFUSING to create: $ENABLED enabled endpoint(s) already exist in this account, and every enabled endpoint receives every event. Disable or delete them first."
 fi
 
 CURL_ARGS=()
 for evt in $EVENTS; do CURL_ARGS+=(-d "enabled_events[]=$evt"); done
 
-"$CURL_BIN" -s --config "$WORK/curlrc" https://api.stripe.com/v1/webhook_endpoints \
+stripe_call "creating the endpoint" https://api.stripe.com/v1/webhook_endpoints \
   -d url="$URL" \
   -d api_version="$API_VERSION" \
   "${CURL_ARGS[@]}" \
-  -o "$WORK/created.json"
+  -o "$WORK/created.json" \
+  || cr_die "whether Stripe created the endpoint is unknown; a re-run lists the account first and refuses if one now exists."
 
-if [[ "$(jq -r '.error.message // empty' "$WORK/created.json")" != "" ]]; then
-  echo "ERROR from Stripe creating the endpoint:" >&2
-  jq -r '.error.message' "$WORK/created.json" >&2
+REFUSAL="$(stripe_refusal "$WORK/created.json")"
+if [[ -n "$REFUSAL" ]]; then
   echo "" >&2
   echo "If the pinned API version was rejected as unavailable, do NOT edit the adapter" >&2
   echo "constant to match: it is asserted equal to the version the installed Stripe" >&2
   echo "library pins, so they move together or the suite fails." >&2
-  exit 1
+  cr_die "Stripe refused creating the endpoint: $REFUSAL"
 fi
 
 echo ""
 jq -r '"Created:\n  id:      \(.id)\n  status:  \(.status)\n  url:     \(.url)\n  version: \(.api_version)"' "$WORK/created.json"
+CREATED_ID="$(jq -r '.id' "$WORK/created.json")"
 
 echo ""
 echo "Registered events vs the dispatcher's list:"
@@ -451,9 +533,7 @@ printf '%s\n' $EVENTS | sort > "$WORK/want"
 if diff "$WORK/want" "$WORK/got"; then
   echo "  exact match ($(wc -l < "$WORK/got") events)"
 else
-  echo "  MISMATCH shown above. The endpoint exists but does not match the dispatcher;" >&2
-  echo "  delete it and investigate before activating." >&2
-  exit 1
+  cr_die "endpoint $CREATED_ID was created but does not carry the dispatcher's events (the difference is above); delete it and investigate before activating."
 fi
 
 printf '\nSigning secret. It goes straight into the activation prompt; it stays readable\nin the Dashboard, so do not save it anywhere else:\n\n' > /dev/tty
@@ -463,3 +543,6 @@ printf '\n' > /dev/tty
 echo ""
 echo "Next: scripts/activate-payments.sh --target $TARGET --profile <profile>"
 echo "      It prompts for the key and this signing secret, and installs both together."
+cr_proved "endpoint $CREATED_ID created at $URL on api_version $API_VERSION, carrying exactly the dispatcher's $EVENT_COUNT events as Stripe returned them"
+cr_unproved "that the signing secret reached the activation script: it was shown on the terminal only"
+cr_finish

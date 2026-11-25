@@ -72,7 +72,7 @@ describe('buildRecordPicker', () => {
     expect(chosen).toMatchObject({ chosenId: 'master_person::00aa', holdsChoice: true });
     const shown = buildRecordPicker(recordInput({
       intent: { kind: 'search', key: 'person' }, query: 'ada',
-      search: { results: [{ ...RECORD, badge: null }], hasMore: false, tooShort: false, rateLimited: false },
+      search: { results: [{ ...RECORD, badge: null }], hasMore: false, tooShort: false, rateLimited: false, retryAfterSeconds: null },
     }));
     expect(shown.results[0]).toMatchObject({ buttonName: 'pick', buttonValue: 'choose:person:master_person::00aa' });
     expect(buildRecordPicker(recordInput()).chosenId).toBeNull();
@@ -81,7 +81,7 @@ describe('buildRecordPicker', () => {
   // Defect caught: a record search that found nothing tells the admin no member
   // was found, which reads as the wrong search having run.
   it('names what was not found by the picker noun, and a member picker by "member"', () => {
-    const empty = { results: [], hasMore: false, tooShort: false, rateLimited: false };
+    const empty = { results: [], hasMore: false, tooShort: false, rateLimited: false, retryAfterSeconds: null };
     const record = buildRecordPicker(recordInput({ intent: { kind: 'search', key: 'person' }, search: empty }));
     expect(record).toMatchObject({ notFound: true, notFoundNoun: 'record' });
     const member = buildMemberPicker(input({ intent: { kind: 'search', key: 'partner-d1' }, search: empty }));
@@ -105,14 +105,14 @@ describe('playerSearchOutcome', () => {
         { playerTag: '#player_max_ito', isHistorical: false, displayName: 'Max Ito', location: 'Boulder' },
         { playerTag: '#player_ada_old', isHistorical: true, displayName: 'Ada Old', location: null },
       ],
-      hasMore: true, tooShort: false, rateLimited: false,
+      hasMore: true, tooShort: false, rateLimited: false, retryAfterSeconds: null,
     });
     expect(outcome).toEqual({
       results: [
         { id: '#player_max_ito', displayName: 'Max Ito', location: 'Boulder', badge: null },
         { id: '#player_ada_old', displayName: 'Ada Old', location: null, badge: 'Historical' },
       ],
-      hasMore: true, tooShort: false, rateLimited: false,
+      hasMore: true, tooShort: false, rateLimited: false, retryAfterSeconds: null,
     });
   });
 });
@@ -147,7 +147,7 @@ describe('buildMemberPicker', () => {
   // Defect caught: results from another picker's search, or from no search,
   // are shown; or a row button posts somewhere other than the intent action.
   it('shows results only for its own search, each row choosing that member', () => {
-    const search = { results: [MAX], hasMore: false, tooShort: false, rateLimited: false };
+    const search = { results: [MAX], hasMore: false, tooShort: false, rateLimited: false, retryAfterSeconds: null };
     expect(buildMemberPicker(input({ intent: { kind: 'open', key: 'partner-d1' }, search })).results).toEqual([]);
     const shown = buildMemberPicker(input({ intent: { kind: 'search', key: 'partner-d1' }, search, query: 'max' }));
     expect(shown.results).toEqual([{
@@ -169,7 +169,7 @@ describe('buildMemberPicker', () => {
       fieldName: 'member_id', fieldKey: 'organizer', openOnLoad: true,
       rowAction: { label: 'Add Organizer', completes: true, ariaLabel: (n) => `Add Organizer: ${n}` },
       intent: { kind: 'search', key: 'organizer' },
-      search: { results: [MAX], hasMore: true, tooShort: false, rateLimited: false },
+      search: { results: [MAX], hasMore: true, tooShort: false, rateLimited: false, retryAfterSeconds: null },
     }));
     expect(view.results[0]).toMatchObject({ buttonName: 'member_id', buttonValue: 'm-max' });
     expect(view).toMatchObject({ rowFormAction: null, holdsChoice: false, showState: false, hasMore: true });

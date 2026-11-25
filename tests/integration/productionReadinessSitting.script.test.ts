@@ -22,6 +22,8 @@ import {
   chmodSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync,
 } from 'node:fs';
 import { dirname, join } from 'node:path';
+import { createHash } from 'node:crypto';
+import { realpathSync } from 'node:fs';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
@@ -53,6 +55,18 @@ const DEFAULT_RULES: Rule[] = [
   { match: 'scripts/production-live-marker.sh --status*', stdout: 'Marker /footbag/production/app/production_live currently reads: false' },
   // The status read's switch line, as arming.sh prints it for a dark switch.
   { match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): dark' },
+  // Staging's payments switch, read as arming.sh prints it: as seeded, then
+  // after s08b turns it dark, then after s08d arms it again.
+  {
+    match: 'scripts/arming.sh --target staging --status',
+    stdout: [
+      'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): armed',
+      'tfvars (x.tfvars): payments_armed = dark\\nSSM  (/footbag/staging/app/payments_armed): dark',
+      'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): armed',
+    ].join('~'),
+  },
+  // The denial check's stdout line when every refusal rests on an explicit deny.
+  { match: 'scripts/verify-dev-tester-role-denials.sh *', stdout: 'No findings.' },
 ];
 
 const STUB = `#!/usr/bin/env bash
@@ -97,8 +111,8 @@ function writeRules(rules: Rule[]): void {
 
 /** Every child path the dry run lists, each a stand-in in the stub tree. */
 function stageTree(): void {
-  for (const target of ['staging', 'production']) {
-    const r = spawnSync('bash', [SCRIPT, '--target', target, '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD });
+  for (const args of [['staging'], ['production'], ['production', '--pass', '2'], ['production', '--pass', '3']]) {
+    const r = spawnSync('bash', [SCRIPT, '--target', ...args, '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD });
     expect(r.status, r.stderr).toBe(0);
     for (const m of r.stdout.matchAll(/(?:^|\] |\s)((?:scripts|legacy_data)\/\S+\.sh|deploy_to_aws\.sh)/gm)) {
       const path = join(root, m[1]);
@@ -172,7 +186,19 @@ beforeEach(() => {
   }
   writeRules([]);
   stageTree();
+  // The tree the steps run from is a committed checkout, as the real one is;
+  // the private checkout inside it is ignored there, as it is in the real one.
+  writeFileSync(join(root, '.gitignore'), 'footbag_private_repo/\n');
+  git('init', '-q');
+  git('add', '-A');
+  git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'stand-in tree');
 });
+
+function git(...args: string[]): string {
+  const r = spawnSync('git', ['-C', root, ...args], { encoding: 'utf-8', ...SPAWN_GUARD });
+  expect(r.status, r.stderr).toBe(0);
+  return r.stdout.trim();
+}
 afterEach(() => removeScratch(dir));
 
 function env(extra: Record<string, string> = {}, arn?: string): NodeJS.ProcessEnv {
@@ -311,7 +337,7 @@ describe('a full staging run', () => {
     sit(['--target', 'staging'], YES(9));
     // The staging replacement reaches no host and reads no credential, so it
     // alone of bootstrap-host's forms takes the terminal.
-    const takesIt = /^scripts\/(bootstrap-host\.sh --target staging( --status| --restore-database)?$|(deploy-migrate|restore-db|restore-host|rotate-jwt-signing-key|incident-drill)\.sh )/;
+    const takesIt = /^scripts\/(bootstrap-host\.sh --target staging( --status| --restore-database)?$|(deploy-migrate|restore-db|restore-host|rotate-jwt-signing-key|incident-drill|verify-prelive-probes|step-amazon-linux|harden-sshd|verify-host-env)\.sh )/;
     expect(calls().some((c) => /^scripts\/restore-host\.sh --target staging --delete-old$/.test(c.call))).toBe(true);
     expect(calls().length).toBeGreaterThan(10);
     // The drill stops and restarts the host, so it needs the password; a table
@@ -387,7 +413,7 @@ describe('the host rebuild drills', () => {
       // Health read, then the mute of the step's expected alarms, then the step.
       expect(all.slice(step - 2, step)).toEqual([
         'scripts/check-env-health.sh --target staging --allow-site-down',
-        'scripts/mute-expected-alarms.sh --target staging --minutes 120',
+        'scripts/mute-expected-alarms.sh --target staging --minutes 240',
       ]);
       // After it: the alarm read, then the mute lifted, before the next step.
       const after = all.indexOf('scripts/check-env-health.sh --target staging --alarms-only --wait-minutes 10', step);
@@ -433,7 +459,7 @@ describe('the host rebuild drills', () => {
     const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's13b']);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/VERDICT: STOPPED AT s11k/);
-    const muted = at(/^scripts\/mute-expected-alarms\.sh --target staging --minutes 120$/);
+    const muted = at(/^scripts\/mute-expected-alarms\.sh --target staging --minutes 240$/);
     const lifted = at(/^scripts\/mute-expected-alarms\.sh --target staging --clear$/);
     expect(muted).toBeGreaterThan(-1);
     expect(lifted).toBeGreaterThan(muted);
@@ -445,7 +471,7 @@ describe('the host rebuild drills', () => {
     const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's11k']);
     expect(r.status, r.out).toBe(0);
     expect(at(/^scripts\/bootstrap-host\.sh --target staging --restore-database$/)).toBeGreaterThan(-1);
-    expect(r.out).toMatch(/mute-expected-alarms\.sh --target staging --minutes 120 exited 2/);
+    expect(r.out).toMatch(/mute-expected-alarms\.sh --target staging --minutes 240 exited 2/);
   });
 
   // Defect caught: the production drills replacing a live production's
@@ -477,21 +503,38 @@ describe('the host rebuild drills', () => {
     expect(stepCalls()[restore].line).toBe(PASSWORD);
     // Defect caught: the fresh-instance rebuild reached on production while it
     // still mints new host keys, so the drill makes the operator rewrite the
-    // vault. The run stops there, having replaced nothing.
+    // vault; or the steps that stand on that rebuild run anyway, so a restore
+    // lands on the old host and a question about the replacement is answered
+    // yes; or the drills that stand on nothing it does wait behind it.
     expect(dark.status, dark.out).toBe(3);
-    expect(dark.out).toMatch(/VERDICT: BLOCKED AT p90m/);
+    expect(dark.out).toMatch(/VERDICT: PENDING: blocked p90m; skipped p90n p90q/);
     expect(at(/bootstrap-host\.sh --target production --replace-instance/)).toBe(-1);
-
-    // The steps after it, resumed past the block: the fresh instance restores
-    // its database rather than rebuilding it, and the recovery-region copy is
-    // drilled after it.
-    writeFileSync(stubLog, '');
-    const after = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90s'], YES(2));
-    expect(after.status, after.out).toBe(0);
-    const bootstrap = at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/);
-    expect(bootstrap).toBeGreaterThan(-1);
-    expect(at(/restore-db\.sh --target production --drill --bucket footbag-production-db-snapshots-dr/)).toBeGreaterThan(bootstrap);
+    expect(at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/)).toBe(-1);
+    const result = (id: string) => rows().find((c) => c[3] === id)?.[5];
+    expect(result('p90m')).toBe('blocked');
+    expect(result('p90n')).toBe('skipped (needs p90m)');
+    expect(result('p90q')).toBe('skipped (needs p90m)');
+    for (const id of ['p90o', 'p90p', 'p90r', 'p90s']) expect(result(id), id).toBe('ok');
+    expect(at(/restore-db\.sh --target production --drill --bucket footbag-production-db-snapshots-dr/)).toBeGreaterThan(-1);
     expect(at(/^deploy_to_aws\.sh --target production --all-data/)).toBe(-1);
+
+    // Resumed past the block, the dependents stay skipped: the rebuild they
+    // stand on still has not happened.
+    writeFileSync(stubLog, '');
+    const resumed = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90n']);
+    expect(resumed.status, resumed.out).toBe(3);
+    expect(at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/)).toBe(-1);
+  });
+
+  // Defect caught: a dependency gate that skips whatever the log says, so the
+  // restore onto the fresh instance never runs once the rebuild is done.
+  it('runs a step whose dependency is recorded done', () => {
+    sit(['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a']);
+    // The rebuild recorded done, as it will be once its script carries the keys.
+    writeFileSync(logReal, `${log().trimEnd()}\n| 2026-11-24T00:00:00Z | 2026-11-24T01:00:00Z | production | p90m | scripts/bootstrap-host.sh --target production --replace-instance | ok |  |\n`);
+    const r = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90n']);
+    expect(r.status, r.out).toBe(0);
+    expect(at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/)).toBeGreaterThan(-1);
   });
 });
 
@@ -504,7 +547,7 @@ describe('stopping', () => {
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/VERDICT: STOPPED AT s04a/);
     expect(r.out).toMatch(/--from-step s04a/);
-    expect(r.out).toMatch(/not run: s04b s04c s04d s05a/);
+    expect(r.out).toMatch(/not run: s04b s04c s04d s04e s05a/);
     expect(firstCall(/table-digests|deploy-migrate/)).toBe(-1);
     expect(rows().at(-1)!.slice(3, 6)).toEqual(['s04a', expect.any(String), 'failed (exit 1)']);
   });
@@ -519,10 +562,33 @@ describe('stopping', () => {
   });
 
   // Defect caught: resuming at a blocked step reads as done.
-  it('stays blocked when resumed at a blocked step', () => {
+  it('stays pending when resumed at a blocked step', () => {
     const r = sit(['--target', 'production', '--from-step', 'p91', '--to-step', 'p91']);
     expect(r.status).toBe(3);
-    expect(r.out).toMatch(/VERDICT: BLOCKED AT p91/);
+    expect(r.out).toMatch(/VERDICT: PENDING: blocked p91/);
+  });
+
+  // Defect caught: a blocked step that ends the run, so every runnable step
+  // after it waits on work nobody can do yet.
+  it('carries on past a blocked step to the steps after it, and names every blocked one', () => {
+    const r = sit(['--target', 'production', '--from-step', 'p91', '--to-step', 'p97']);
+    expect(r.status, r.out).toBe(3);
+    expect(r.out).toMatch(/VERDICT: PENDING: blocked p91 p92 p93 p94 p96 p97/);
+    expect(rows().map((c) => c[3])).toContain('p95');
+  });
+
+  // Defect caught: a pending verdict over a run that also failed, so a caller
+  // branching on "pending" carries on past a real error.
+  it('reports a failure, not pending, when an error follows a deferred step', () => {
+    writeRules([
+      { match: 'scripts/reconfirm-alarm-subscriptions.sh --target * --status', codes: [3] },
+      { match: 'scripts/check-env-health.sh --target staging --alarms-only*', codes: [1] },
+    ]);
+    const r = sit(['--target', 'staging', '--from-step', 's11h', '--to-step', 's11k']);
+    expect(rows().find((c) => c[3] === 's11h')?.[5]).toBe('deferred (alarm mail not confirmed)');
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/VERDICT: FAILED/);
+    expect(r.out).not.toMatch(/VERDICT: PENDING/);
   });
 
   // Defect caught: the second operator's drill recorded under whoever happens to
@@ -639,6 +705,59 @@ describe('the cutover log', () => {
     const text = log();
     expect(text.indexOf('| staging | s01b |')).toBeLessThan(text.indexOf('## 10. Something later'));
     expect(text.trimEnd().endsWith('## 10. Something later')).toBe(true);
+  });
+
+  // Defect caught: a row that cannot say which code ran it, so no row can be
+  // matched to a commit, and a run from a changed tree reads like one from a
+  // clean checkout of the same commit.
+  it('opens every row\'s notes with the commit, the uncommitted count and a fingerprint of the uncommitted changes', () => {
+    const head = git('rev-parse', 'HEAD');
+    const once = () => {
+      sit(['--target', 'staging', '--from-step', 's01a', '--to-step', 's01a']);
+      const notes = rows().at(-1)![6];
+      const m = notes.match(/^at ([0-9a-f]{40}), (\d+) uncommitted, tree ([0-9a-f]{12})/);
+      expect(m, notes).not.toBeNull();
+      return { commit: m![1], count: Number(m![2]), tree: m![3] };
+    };
+    const clean = once();
+    expect(clean).toMatchObject({ commit: head, count: 0 });
+    // A tracked file changed.
+    writeFileSync(join(root, 'scripts', 'apply-account-baseline.sh'), `${STUB}# changed\n`);
+    const changed = once();
+    expect(changed).toMatchObject({ commit: head, count: 1 });
+    expect(changed.tree).not.toBe(clean.tree);
+    // A new file the commit does not hold is code the run may have used too,
+    // and its content counts, not only its name.
+    writeFileSync(join(root, 'scripts', 'new-helper.sh'), 'echo one\n');
+    const added = once();
+    expect(added).toMatchObject({ commit: head, count: 2 });
+    expect(added.tree).not.toBe(changed.tree);
+    writeFileSync(join(root, 'scripts', 'new-helper.sh'), 'echo two\n');
+    const changedAgain = once();
+    expect(changedAgain.tree).not.toBe(added.tree);
+    // A file the checkout ignores is not code the run used: changing it moves
+    // neither the count nor the fingerprint.
+    writeFileSync(join(root, '.gitignore'), 'footbag_private_repo/\nlocal-notes.txt\n');
+    git('add', '.gitignore');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'ignore notes');
+    const beforeIgnored = once();
+    writeFileSync(join(root, 'local-notes.txt'), 'one\n');
+    const ignoredOnce = once();
+    writeFileSync(join(root, 'local-notes.txt'), 'two\n');
+    const ignoredTwice = once();
+    expect(ignoredOnce).toMatchObject({ count: beforeIgnored.count, tree: beforeIgnored.tree });
+    expect(ignoredTwice).toMatchObject({ count: beforeIgnored.count, tree: beforeIgnored.tree });
+  });
+
+  // Defect caught: a run from a tree with no commit to name, so its rows carry
+  // nothing that ties them to code.
+  it('refuses to run from a tree that is not a git checkout', () => {
+    rmSync(join(root, '.git'), { recursive: true, force: true });
+    const r = sit(['--target', 'staging', '--to-step', 's01a']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/not a git checkout/);
+    expect(calls()).toEqual([]);
+    expect(log()).toBe(LOG_HEAD);
   });
 
   it('refuses a missing log', () => {
@@ -903,7 +1022,7 @@ describe('checks made by a read rather than asked', () => {
     const proved = sit(['--target', 'production', '--from-step', 'p17a', '--to-step', 'p17a']);
     expect(proved.status, proved.out).toBe(0);
     expect(proved.out).not.toMatch(/\(yes\/no/);
-    expect(rows().at(-1)!.slice(3, 7)).toEqual(['p17a', 'legacy_data/legacy_mirror/verify_mirror.sh', 'ok', expect.stringMatching(/^not asked: proved by/)]);
+    expect(rows().at(-1)!.slice(3, 7)).toEqual(['p17a', 'legacy_data/legacy_mirror/verify_mirror.sh', 'ok', expect.stringMatching(/; not asked: proved by/)]);
 
     writeRules([{ match: 'legacy_data/legacy_mirror/verify_mirror.sh*', codes: [1, 0] }]);
     const asked = sit(['--target', 'production', '--from-step', 'p17a', '--to-step', 'p17b'], ['yes']);
@@ -953,7 +1072,8 @@ describe('steps that need alarm mail', () => {
   it('runs the confirmation walk at a terminal, and carries on deferred when a topic is left pending', () => {
     writeRules([PENDING, { match: 'scripts/confirm-alarm-subscription.sh --target staging', codes: [3] }]);
     const r = sit(['--target', 'staging', '--from-step', 's03', '--to-step', 's04b']);
-    expect(r.status, r.out).toBe(0);
+    expect(r.status, r.out).toBe(3);
+    expect(r.out).toMatch(/VERDICT: PENDING: deferred s03 s04a s04b/);
     const walk = stepCalls().find((c) => /confirm-alarm-subscription/.test(c.call))!;
     expect(walk.call).toBe('scripts/confirm-alarm-subscription.sh --target staging');
     expect(walk.tty).toBe(true);
@@ -998,12 +1118,15 @@ describe('steps that need alarm mail', () => {
   it('defers them while the subscriptions are pending, and carries on with the rest', () => {
     writeRules([PENDING]);
     const r = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's05a'], ['yes']);
-    expect(r.status, r.out).toBe(0);
+    // Defect caught: a run whose alarm work was all deferred passing as done.
+    expect(r.status, r.out).toBe(3);
+    expect(r.out).toMatch(/VERDICT: PENDING: deferred s04a s04b s04c s04d s04e +\(exit 3\)/);
     expect(rows().map((c) => [c[3], c[5]])).toEqual([
       ['s04a', 'deferred (alarm mail not confirmed)'],
       ['s04b', 'deferred (alarm mail not confirmed)'],
       ['s04c', 'deferred (alarm mail not confirmed)'],
       ['s04d', 'deferred (alarm mail not confirmed)'],
+      ['s04e', 'deferred (alarm mail not confirmed)'],
       ['s05a', 'ok'],
     ]);
     expect(firstCall(/send-test-alarm/)).toBe(-1);
@@ -1036,11 +1159,11 @@ describe('steps that need alarm mail', () => {
   it('defers the production drills and the audit-alarm proof while mail is pending', () => {
     writeRules([PENDING]);
     const r = sit(['--target', 'production', '--from-step', 'p11a', '--to-step', 'p11b']);
-    expect(r.status, r.out).toBe(0);
+    expect(r.status, r.out).toBe(3);
     expect(rows().map((c) => c[5])).toEqual(['deferred (alarm mail not confirmed)', 'deferred (alarm mail not confirmed)']);
     expect(firstCall(/host-break-glass|list-host-access-mints/)).toBe(-1);
     const audit = sit(['--target', 'production', '--from-step', 'p13k', '--to-step', 'p13k']);
-    expect(audit.status).toBe(0);
+    expect(audit.status).toBe(3);
     expect(firstCall(/prove-audit-alarms/)).toBe(-1);
   });
 
@@ -1050,7 +1173,7 @@ describe('steps that need alarm mail', () => {
   it('defers every production step that sends or awaits alarm mail, across the whole alarm stretch', () => {
     writeRules([PENDING]);
     const r = sit(['--target', 'production', '--from-step', 'p11a', '--to-step', 'p14b'], YES(4));
-    expect(r.status, r.out).toBe(0);
+    expect(r.status, r.out).toBe(3);
     expect(stepCalls().filter((c) => /send-test-alarm\.sh(?!.*--status)|host-break-glass|prove-audit-alarms|list-host-access-mints/.test(c.call))).toEqual([]);
     expect(firstCall(/set-terraform-gate\.sh --target production --gate enable_container_alarms --state on/)).toBeGreaterThan(-1);
     expect(firstCall(/send-test-alarm\.sh .*--status --expect OK/)).toBeGreaterThan(-1);
@@ -1092,6 +1215,98 @@ describe('steps that need alarm mail', () => {
     const ready = sit(['--target', 'staging', '--from-step', 's04a', '--to-step', 's04a', '--status']);
     expect(ready.status).toBe(3);
     expect(ready.out).toMatch(/s04a +NOT RUN \(alarm mail is confirmed now: run it with --from-step s04a\)/);
+  });
+});
+
+describe('passes 2 and 3', () => {
+  const dryPass = (pass: string) => spawnSync('bash', [SCRIPT, '--target', 'production', '--pass', pass, '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD });
+  const listed = (out: string) => new Map([...out.matchAll(/^ {2}(p\S+) +\S+ +(.*)$/gm)].map((m) => [m[1], m[2]]));
+
+  // Defect caught: a later pass with no list of its own, so it is run from
+  // memory; or one whose stages are not the scripts that own them.
+  it('lists pass 2 from the custom domain to the rehearsal, each stage the cutover script owns', () => {
+    const r = dryPass('2');
+    expect(r.status, r.stderr).toBe(0);
+    const steps = listed(r.stdout);
+    for (const [id, cmd] of [
+      ['p2-1', 'scripts/production-cutover.sh --target production --stage custom-domain'],
+      ['p2-3a', 'scripts/production-cutover.sh --target production --stage ses-domain'],
+      ['p2-3b', '[password on stdin] scripts/ses-sender-cutover.sh --target production'],
+      ['p2-6a', 'scripts/production-cutover.sh --target production --stage window'],
+      ['p2-7c', '[password on stdin] scripts/verify-prelive-probes.sh --target production'],
+      ['p2-9b', 'scripts/production-cutover.sh --target production --stage rehearsal'],
+      ['p2-9e', 'scripts/production-cutover.sh --target production --stage window'],
+    ]) expect(steps.get(id), id).toBe(cmd);
+  });
+
+  // Defect caught: pass 3's battery drifting from pass 1's reads, or still
+  // expecting the site live while production rests behind the notice.
+  it('runs pass 1\'s section-1 reads again in pass 3, twice, with the notice expected on', () => {
+    const pass1 = listed(spawnSync('bash', [SCRIPT, '--target', 'production', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout);
+    const pass3 = listed(dryPass('3').stdout);
+    for (const letter of 'bcdefghijklmno') {
+      const want = pass1.get(`p07${letter}`)!.replace('--expect-live', '--expect-notice');
+      expect(want, letter).toBeDefined();
+      expect(pass3.get(`p3-2-${letter}`), `p3-2-${letter}`).toBe(want);
+      expect(pass3.get(`p3-3-${letter}`), `p3-3-${letter}`).toBe(want);
+    }
+    expect(pass3.get('p3-2-l')).toContain('--expect-notice');
+  });
+
+  // Defect caught: two steps of one pass sharing an id, so the log row of one
+  // reads as the other's, a resume starts at the wrong one, and a step that
+  // needs one is satisfied by the other.
+  it('gives every step of every pass an id of its own', () => {
+    for (const args of [['staging'], ['production'], ['production', '--pass', '2'], ['production', '--pass', '3']]) {
+      const out = spawnSync('bash', [SCRIPT, '--target', ...args, '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout;
+      const ids = [...out.matchAll(/^ {2}([ps]\S+) /gm)].map((m) => m[1]);
+      expect(ids.length, args.join(' ')).toBeGreaterThan(10);
+      expect(ids.filter((id, i) => ids.indexOf(id) !== i), args.join(' ')).toEqual([]);
+    }
+  });
+
+  it('refuses a later pass on staging and a pass it does not know', () => {
+    for (const args of [['--target', 'staging', '--pass', '2'], ['--target', 'production', '--pass', '4']]) {
+      const r = spawnSync('bash', [SCRIPT, ...args, '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD });
+      expect(r.status, args.join(' ')).toBe(2);
+    }
+  });
+
+  // Defect caught: a later pass's rows landing in pass 1's section, so its
+  // re-run of a step reads as pass 1's; or a stop's resume line dropping the
+  // pass, so the resume runs pass 1 instead.
+  it('writes under its own section and resumes within its own pass', () => {
+    writeRules([{ match: 'scripts/ses-sender-cutover.sh *', codes: [1] }]);
+    const r = sit(['--target', 'production', '--pass', '2', '--from-step', 'p2-3a', '--to-step', 'p2-3c']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/--target production --pass 2 --from-step p2-3b --to-step p2-3c/);
+    const text = log();
+    expect(text).toMatch(/^## 10\. Production-readiness sitting, pass 2$/m);
+    expect(text).not.toMatch(/^## 9\. /m);
+    expect(text.indexOf('| production | p2-3a |')).toBeGreaterThan(text.indexOf('## 10. Production-readiness sitting, pass 2'));
+  });
+
+  // Defect caught: a step that stands on two others run once one of them is
+  // done, because only its last-named need is kept.
+  it('skips a step while any one of the steps it needs is not done', () => {
+    sit(['--target', 'production', '--pass', '2', '--from-step', 'p2-1', '--to-step', 'p2-1']);
+    // Origin TLS recorded done, as it will be once its script exists; the
+    // cookie publisher still is not.
+    writeFileSync(logReal, `${log().trimEnd()}\n| 2026-11-24T00:00:00Z | 2026-11-24T01:00:00Z | production | p2-5 | scripts/provision-origin-tls.sh --target production | ok |  |\n`);
+    const r = sit(['--target', 'production', '--pass', '2', '--from-step', 'p2-8a', '--to-step', 'p2-8b']);
+    expect(r.status, r.out).toBe(3);
+    expect(rows().find((c) => c[3] === 'p2-8b')?.[5]).toBe('skipped (needs p2-8a)');
+    expect(r.out).not.toMatch(/\(yes\/no/);
+  });
+
+  // Defect caught: the window and the rehearsal run before the origin hop is
+  // encrypted, because the step that encrypts it is not built.
+  it('skips everything that stands on origin TLS while it is blocked, and ends pending', () => {
+    const r = sit(['--target', 'production', '--pass', '2', '--from-step', 'p2-5', '--to-step', 'p2-6b']);
+    expect(r.status, r.out).toBe(3);
+    expect(r.out).toMatch(/VERDICT: PENDING: blocked p2-5; skipped p2-6a p2-6b/);
+    expect(firstCall(/production-cutover\.sh --target production --stage window/)).toBe(-1);
+    expect(firstCall(/^deploy_to_aws\.sh/)).toBe(-1);
   });
 });
 
@@ -1217,7 +1432,7 @@ describe('the production steps around email, the zero-logins gate and the archiv
   it('defers the operator check with the drill while alarm mail is pending', () => {
     writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target * --status', codes: [3] }]);
     const r = sit(['--target', 'production', '--from-step', 'p10g', '--to-step', 'p11a']);
-    expect(r.status, r.out).toBe(0);
+    expect(r.status, r.out).toBe(3);
     // Not asked: the log row names the step, so the question's mark is what shows a prompt.
     expect(r.out).not.toMatch(/\(yes\/no/);
     expect(rows().map((c) => [c[3], c[5]])).toEqual([
@@ -1239,6 +1454,75 @@ describe('the production steps around email, the zero-logins gate and the archiv
     const none = sit(['--target', 'production', '--from-step', 'p10d', '--to-step', 'p10d']);
     expect(none.status).toBe(1);
     expect(none.out).toMatch(/VERDICT: STOPPED AT p10d/);
+  });
+
+  // Defect caught: a status read recorded ok because it exited 0, while what
+  // it printed showed the wrong state (payments armed, a host row not done,
+  // the agent stopped, a feed queue missing). Each read passes on the state the
+  // reads section expects, and stops on any one line of it wrong.
+  it.each([
+    ['p07b', 'scripts/arming.sh --target production --status*', [
+      'tfvars (/v/production.tfvars): payments_armed = dark',
+      'SSM  (/footbag/production/app/payments_armed): dark',
+    ], [
+      ['tfvars (/v/production.tfvars): payments_armed = dark', 'tfvars (/v/production.tfvars): payments_armed = armed'],
+      ['SSM  (/footbag/production/app/payments_armed): dark', 'SSM  (/footbag/production/app/payments_armed): <unreadable>'],
+    ]],
+    ['p07e', 'scripts/bringup-status.sh --target production --profile footbag-operator', [
+      ' 2. Terraform                DONE     plan reports no changes in shared, identity or production',
+      ' 3. Payments                 N-A      payments dark (stub adapter; fake checkout, no real money)',
+      ' 4. Backup pipeline          DONE     timer active',
+      ' 8. Deployed runtime         DONE     4 containers healthy',
+    ], [
+      [' 2. Terraform                DONE ', ' 2. Terraform                PENDING '],
+      [' 3. Payments                 N-A      payments dark', ' 3. Payments                 PENDING  payments dark'],
+      [' 4. Backup pipeline          DONE ', ' 4. Backup pipeline          UNKNOWN '],
+      [' 8. Deployed runtime         DONE ', ' 8. Deployed runtime         FAILED '],
+    ]],
+    ['p07j', 'scripts/diagnose-cwagent.sh --target production', [
+      '  enabled: enabled', '  active:  active', '  toml: namespace = "CWAgent/production"',
+    ], [
+      ['  enabled: enabled', '  enabled: disabled'],
+      ['  active:  active', '  active:  inactive'],
+      ['CWAgent/production', 'CWAgent'],
+    ]],
+    ['p07m', 'scripts/activate-notification-feeds.sh --target production --status*', [
+      'live feed queues: https://sqs.us-east-1.amazonaws.com/0/footbag-production-alarm-feed\thttps://sqs.us-east-1.amazonaws.com/0/footbag-production-ses-feedback-feed',
+    ], [
+      ['footbag-production-alarm-feed\t', 'footbag-production-alarm-feed-dlq\t'],
+      ['footbag-production-ses-feedback-feed', 'footbag-production-ses-feedback-feed-dlq'],
+    ]],
+  ] as const)('%s passes only on the expected state', (id, match, good, breaks) => {
+    const lines = good.join('\n');
+    writeRules([{ match, stdout: lines.replace(/\n/g, '\\n').replace(/\t/g, '\\t') }]);
+    expect(sit(['--target', 'production', '--from-step', id, '--to-step', id]).status, id).toBe(0);
+    for (const [from, to] of breaks) {
+      writeRules([{ match, stdout: lines.replace(from, to).replace(/\n/g, '\\n').replace(/\t/g, '\\t') }]);
+      const r = sit(['--target', 'production', '--from-step', id, '--to-step', id]);
+      expect(r.status, `${id}: ${to}`).toBe(1);
+      expect(r.out).toMatch(new RegExp(`VERDICT: STOPPED AT ${id}`));
+    }
+  });
+
+  // Defect caught: a row whose proof holds the table's field separator, so the
+  // rest of the proof is run as the step's command.
+  it('holds every step row to its fields: a known kind, stdin and proof, and a runnable command', () => {
+    const text = readFileSync(SCRIPT, 'utf-8');
+    const rowLines = [...text.matchAll(/^ {2}'([ps][0-9][^|']*\|.*)'$/gm)].map((m) => m[1].replace(/'"'"'/g, "'"));
+    expect(rowLines.length).toBeGreaterThan(150);
+    const runnable = /^(scripts\/|legacy_data\/|npm |deploy_to_aws\.sh)/;
+    for (const row of rowLines) {
+      const f = row.split('|');
+      expect(f.length, row).toBeGreaterThanOrEqual(5);
+      expect(f.length, row).toBeLessThanOrEqual(6);
+      const [, kind, stdin, proof, cmd, fallback] = f;
+      expect(kind, row).toMatch(/^(read|idem|once|ask|digest|blocked|mailwalk)(\+heavy)?(\+mail)?$/);
+      expect(stdin, row).toMatch(/^(cred|tty|-)$/);
+      expect(proof, row).toMatch(/^(-|log|rerun|save|match|fact=\S+|after=\S+|stdout=.+|(cred|tty):[0-9,]+=.+)$/);
+      if (!/^(ask|blocked)/.test(kind)) expect(cmd, row).toMatch(runnable);
+      if (/^(cred|tty):/.test(proof)) expect(proof.replace(/^\w+:[0-9,]+=/, ''), row).toMatch(runnable);
+      if (fallback !== undefined) expect(fallback, row).toMatch(runnable);
+    }
   });
 
   // Defect caught: section 1's reads attested by a question and never run.
@@ -1280,5 +1564,114 @@ describe('the cutover log', () => {
     const rowAt = text.indexOf('| production | p02a |');
     expect(rowAt).toBeGreaterThan(text.indexOf('## 9. Production-readiness sitting'));
     expect(rowAt).toBeLessThan(text.indexOf('## 10. Pass 2'));
+  });
+});
+
+describe('the run lock, the mute on any exit, and lapsed rows', () => {
+  const tmp = () => { const t = join(dir, 'tmp'); mkdirSync(t, { recursive: true }); return t; };
+  const lockDir = () => {
+    const hash = createHash('sha256').update(`${realpathSync(logReal)}\n`).digest('hex').slice(0, 16);
+    return join(tmp(), `footbag-sitting-${hash}.lock`);
+  };
+
+  // Defect caught: two sitting runs at once interleaving their steps and
+  // rewriting the log over each other's rows.
+  it('refuses while another live run holds the log, writing nothing', () => {
+    mkdirSync(lockDir(), { recursive: true });
+    writeFileSync(join(lockDir(), 'pid'), `${process.pid}\n`);
+    const r = sit(['--target', 'staging', '--to-step', 's01a'], [], { env: { TMPDIR: tmp() } });
+    expect(r.status).toBe(1);
+    expect(r.out).toContain(`process ${process.pid}`);
+    expect(stepCalls()).toEqual([]);
+    expect(log()).toBe(LOG_HEAD);
+  });
+
+  // Defect caught: a run killed outright leaving a lock no later run can pass.
+  it('takes over the lock of a run that is gone, and releases its own at the end', () => {
+    const gone = spawnSync('true', [], SPAWN_GUARD).pid!;
+    mkdirSync(lockDir(), { recursive: true });
+    writeFileSync(join(lockDir(), 'pid'), `${gone}\n`);
+    const r = sit(['--target', 'staging', '--to-step', 's01a'], [], { env: { TMPDIR: tmp() } });
+    expect(r.status, r.out).toBe(0);
+    expect(rows().map((c) => c[3])).toEqual(['s01a']);
+    expect(existsSync(lockDir())).toBe(false);
+  });
+
+  // Defect caught: an interrupt during a heavy step leaving its alarms muted
+  // for hours, so a real outage then sends no mail.
+  it('lifts the mute when a heavy step is interrupted', () => {
+    const stub = join(root, 'scripts', 'bootstrap-host.sh');
+    // The heavy step holds on a pipe nobody writes, so the interrupt always
+    // lands while it runs; its read gives up on its own so the run can end.
+    const hold = join(dir, 'hold');
+    expect(spawnSync('mkfifo', [hold], SPAWN_GUARD).status).toBe(0);
+    writeFileSync(stub, `#!/usr/bin/env bash\n[[ "$*" == *--restore-database* ]] && read -r -t 4 _ <> ${JSON.stringify(hold)}\n${readFileSync(stub, 'utf-8').replace(/^#!.*\n/, '')}`);
+    const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's11k'], [], { wrap: 'timeout --preserve-status -s INT 2' });
+    expect(r.status).toBe(130);
+    const all = stepCalls().map((c) => c.call);
+    const muted = all.indexOf('scripts/mute-expected-alarms.sh --target staging --minutes 240');
+    expect(muted).toBeGreaterThan(-1);
+    expect(all.indexOf('scripts/mute-expected-alarms.sh --target staging --clear')).toBeGreaterThan(muted);
+    expect(rows().at(-1)!.slice(3, 6)).toEqual(['s11k', expect.any(String), 'interrupted']);
+  });
+
+  // Defect caught: a staging command run from the production list recorded as
+  // though it acted on production.
+  it('says in the notes when a step\'s command acts on the other environment, and still finds the row', () => {
+    sit(['--target', 'production', '--from-step', 'p14c', '--to-step', 'p15a']);
+    const byId = Object.fromEntries(rows().map((c) => [c[3], c]));
+    expect(byId.p14c[2]).toBe('production');
+    expect(byId.p14c[6]).toContain('runs against staging');
+    expect(byId.p15a[6]).not.toContain('runs against');
+    const s = sit(['--target', 'production', '--from-step', 'p14c', '--to-step', 'p14c', '--status']);
+    expect(s.out).not.toMatch(/p14c +NOT RUN/);
+  });
+
+  // Defect caught: a row recorded by code that has since changed, or by no
+  // known code at all, read as proof the step is done.
+  it('reads a row as lapsed when it names no commit or what it ran has changed, and not otherwise', () => {
+    sit(['--target', 'staging', '--to-step', 's01a']);
+    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +RECORDED ok/);
+    writeFileSync(join(root, 'scripts', 'arming.sh'), readFileSync(join(root, 'scripts', 'arming.sh'), 'utf-8') + '# changed\n');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qam', 'unrelated change');
+    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +RECORDED ok/);
+    const baseline = join(root, 'scripts', 'apply-account-baseline.sh');
+    writeFileSync(baseline, readFileSync(baseline, 'utf-8') + '# changed\n');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qam', 'the step\'s own script changed');
+    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +LAPSED \(what it runs changed since [0-9a-f]{8}\)/);
+    writeFileSync(logReal, log().replace(/\| at [0-9a-f]{40}, \d+ uncommitted, tree [0-9a-f]{12}[^|]*\|/, '|  |'));
+    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +LAPSED \(the row names no commit\)/);
+  });
+
+  // Defect caught: a switch read that passes whichever way the switch reads.
+  it('fails the staging arming reads on the wrong state', () => {
+    writeRules([{ match: 'scripts/arming.sh --target staging --status', stdout: 'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): armed' }]);
+    const r = sit(['--target', 'staging', '--from-step', 's08a', '--to-step', 's08e']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT s08c/);
+  });
+
+  // Defect caught: the denial check recorded ok while refusals rest only on
+  // nothing granting the action.
+  it('fails the dev-and-tester denial read without its no-findings line', () => {
+    writeRules([{ match: 'scripts/verify-dev-tester-role-denials.sh *', stdout: '' }]);
+    const r = sit(['--target', 'production', '--from-step', 'p07o', '--to-step', 'p07o']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT p07o/);
+  });
+
+  // Defect caught: a production host or workstation read run for the first
+  // time on production, never proved on staging.
+  it('runs every production host read on staging first', () => {
+    const staging = spawnSync('bash', [SCRIPT, '--target', 'staging', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout;
+    for (const cmd of [
+      'scripts/check-versions.sh',
+      'scripts/step-amazon-linux.sh --target staging --status',
+      'scripts/harden-sshd.sh --target staging --expect-hardened',
+      'scripts/verify-host-env.sh --target staging',
+      'scripts/verify-replication.sh --target staging',
+      'npm run test:deployed -- --target staging',
+      'scripts/verify-captcha-outage-alarm.sh --target staging',
+    ]) expect(staging, cmd).toContain(cmd);
   });
 });

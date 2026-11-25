@@ -13,6 +13,7 @@ import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash, takeFlash } from '../lib/flashCookie';
 import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound, renderRateLimited, renderServiceUnavailable, setRetryAfter } from '../lib/controllerErrors';
+import { statusForPage } from '../lib/searchRefusal';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 
@@ -134,7 +135,7 @@ export const memberController = {
           clubActionNotice,
           ip: req.ip,
         });
-        res.render('members/profile', vm);
+        res.status(statusForPage(res, vm, 200)).render('members/profile', vm);
       } catch (err) {
         if (err instanceof NotFoundError) { renderNotFound(res); return; }
         logger.error('member profile error', { error: err instanceof Error ? err.message : String(err) });

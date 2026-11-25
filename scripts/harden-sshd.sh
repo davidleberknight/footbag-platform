@@ -15,6 +15,12 @@
 #   1. Proves the host it reached records the environment it was asked for.
 #   2. Reads and prints the effective sshd posture: root, password,
 #      keyboard-interactive and key login, and the listening ports.
+#      With --expect-hardened, it also fails unless root, password and
+#      keyboard-interactive login are off, judged with every Match block applied
+#      for root, the connecting account and the break-glass account from a
+#      loopback and an outside address, and no self-revert is pending or
+#      running. It changes nothing on the host. The plain read always exits 0,
+#      so only this form proves a host is hardened.
 #   3. With --apply: on production, shows that posture and then asks for APPLY.
 #      Writes root, password and keyboard-interactive login off as one drop-in
 #      file, validates it, confirms with every Match block applied that sshd
@@ -37,6 +43,7 @@
 #   - A production change nobody confirmed at a terminal.
 #   - A host whose main configuration does not read the drop-in directory, since
 #     the file would then change nothing.
+#   - More than one of --apply, --confirm and --expect-hardened in one run.
 #
 # A re-run writes the same file, validates and reloads again, which is harmless
 # and is what proves a run cut off before its reload is finished. If either proof
@@ -54,6 +61,7 @@
 #   your own named account:  ~/AWS/DEV_TESTER_HOST.txt  (staging only; none on production)
 #
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/harden-sshd.sh --target staging
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/harden-sshd.sh --target staging --expect-hardened
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/harden-sshd.sh --target staging --apply
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/harden-sshd.sh --target staging --confirm   # finish an unconfirmed change
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/harden-sshd.sh --target production --apply
@@ -80,8 +88,15 @@ usage() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)  TARGET="${2:-}"; shift 2 || { echo "harden-sshd: --target requires an argument" >&2; exit 2; } ;;
-    --apply)   MODE="apply"; shift ;;
-    --confirm) MODE="confirm"; shift ;;
+    --apply|--confirm|--expect-hardened)
+      [[ "$MODE" == "status" ]] \
+        || { echo "harden-sshd: --apply, --confirm and --expect-hardened are exclusive" >&2; exit 2; }
+      case "$1" in
+        --apply)           MODE="apply" ;;
+        --confirm)         MODE="confirm" ;;
+        --expect-hardened) MODE="verify" ;;
+      esac
+      shift ;;
     -h|--help) usage 0 ;;
     *) echo "harden-sshd: unknown argument '$1' (try --help)" >&2; exit 2 ;;
   esac
@@ -107,6 +122,16 @@ run_remote() {
 
 if [[ "$MODE" == "status" ]]; then
   run_remote status || die "could not read the sshd posture on ${ALIAS}"
+  exit 0
+fi
+
+# The verdict is the remote half's: it judges each connection with Match applied
+# and reads the self-revert timer, and exits non-zero on either.
+if [[ "$MODE" == "verify" ]]; then
+  run_remote verify \
+    || die "${ALIAS} is NOT proved hardened: the lines above say why. Nothing was changed."
+  echo ""
+  echo "== ${TARGET}: sshd hardened for every connection checked, no self-revert pending; nothing changed =="
   exit 0
 fi
 

@@ -33,6 +33,7 @@
           <p>This event has no competitions yet.</p>
         {{/if}}
         <small class="form-hint">Competitions, and whether each offers prize money, are set on the event's manage page.</small>
+        {{#if content.fieldErrors.divisions}}<p class="form-field-error" role="alert">{{content.fieldErrors.divisions}}</p>{{/if}}
       </fieldset>
 
       {{! The attestation opens the form, so "below" points at the question

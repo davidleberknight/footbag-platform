@@ -339,12 +339,12 @@ describe('set-terraform-gate.sh argument guards, each beside a run it lets throu
     // Defect caught: a cutover flag applied alone, outside the apply that
     // changes it together with its other values, or an operator sent looking
     // for a "pair flip" that never happens: the notice goes on in the window
-    // state, off in the launch apply and back on for a rollback in the
-    // notice-raise stage, and the alias records go on only in the record-switch
-    // stage.
+    // stage, off in the rehearsal and launch stages and back on for a rollback
+    // in the notice-raise stage, and the alias records go on only in the
+    // record-switch stage.
     const owners: Array<[string, string[], string[]]> = [
-      ['enable_cutover_notice', ['window state', 'launch apply', '--stage notice-raise'], ['record-switch', 'freeze']],
-      ['enable_apex_alias_records', ['--stage record-switch'], ['window state', 'launch apply', 'notice-raise', 'freeze']],
+      ['enable_cutover_notice', ['--stage window', '--stage rehearsal', '--stage launch', '--stage notice-raise'], ['record-switch', 'freeze']],
+      ['enable_apex_alias_records', ['--stage record-switch'], ['--stage window', '--stage rehearsal', '--stage launch', 'notice-raise', 'freeze']],
     ];
     for (const [gate, named, notNamed] of owners) {
       for (const state of ['on', 'off']) {
@@ -359,14 +359,23 @@ describe('set-terraform-gate.sh argument guards, each beside a run it lets throu
   });
 
   it('refuses each DNS, mail-verification and archive gate by name in both directions, naming its owner', () => {
-    // Defect caught: a DNS record on the cutover path, SES domain verification
-    // (published records and a running verification clock) or the archive stack
-    // switched by a one-gate apply outside the sitting that owns it, or the
-    // operator refused without being told where the change belongs.
+    // Defect caught: a DNS record or custom domain on the cutover path, a base
+    // address flag, SES domain verification (published records and a running
+    // verification clock) or the archive stack switched by a one-gate apply
+    // outside the stage that owns it, or the operator refused without being
+    // told where the change belongs.
     const refused: Array<[string, string]> = [
-      ['enable_preview_record', 'custom-domain apply'],
+      ['enable_preview_record', '--stage custom-domain'],
+      ['enable_preview_record', '--stage launch'],
       ['enable_preview_record', '--stage notice-raise'],
+      ['enable_platform_custom_domain', '--stage custom-domain'],
+      ['enable_archive_custom_domain', '--stage custom-domain'],
+      ['rehearse_launch_base_address', '--stage rehearsal'],
+      ['rehearse_launch_base_address', '--stage window'],
+      ['launch_www_base_address', '--stage launch'],
+      ['ses_enable_domain_identity', '--stage ses-domain'],
       ['ses_enable_domain_identity', 'zone delegation'],
+      ['ses_enable_domain_auth', '--stage ses-domain'],
       ['ses_enable_domain_auth', 'zone delegation'],
       ['enable_archive', 'prevent_destroy'],
     ];

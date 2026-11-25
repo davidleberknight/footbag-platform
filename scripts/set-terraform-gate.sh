@@ -47,19 +47,27 @@
 #     refused as though it were on.
 #   - enable_cutover_notice and enable_apex_alias_records, by name, either
 #     direction: cutover flags that change only together with other values in
-#     one apply, and this script sets one gate per apply. The notice goes on in
-#     the window state (the second pass of the production-readiness sitting)
-#     and off in the launch apply, and goes back on after launch only for a
-#     rollback, in scripts/production-cutover.sh --stage notice-raise; the
-#     alias records go on only in the record switch, --stage record-switch.
+#     one apply, and this script sets one gate per apply. Each is set by a
+#     stage of scripts/production-cutover.sh. The notice goes on in the window
+#     state, --stage window, goes off for the launch dress rehearsal in
+#     --stage rehearsal and off for good in --stage launch, and goes back on
+#     after launch only for a rollback, in --stage notice-raise; the alias
+#     records go on only in the record switch, --stage record-switch.
 #   - enable_preview_record, by name, either direction: a DNS record on the
-#     cutover path. The production custom-domain apply turns it on and the
-#     launch apply turns it off with the notice, and --stage notice-raise
-#     turns it back on with the notice for a rollback.
+#     cutover path. --stage custom-domain turns it on, --stage launch turns it
+#     off with the notice, and --stage notice-raise turns it back on with the
+#     notice for a rollback.
+#   - enable_platform_custom_domain and enable_archive_custom_domain, by name,
+#     either direction: the custom domains change together with their
+#     certificates and records in --stage custom-domain.
+#   - rehearse_launch_base_address, by name, either direction: it goes on with
+#     the notice off in --stage rehearsal, and back off in --stage window.
+#   - launch_www_base_address, by name, either direction: it publishes www as
+#     the base address before the notice lifts, in --stage launch.
 #   - ses_enable_domain_identity and ses_enable_domain_auth, by name, either
 #     direction: SES domain verification publishes DNS records and starts SES's
-#     verification clock; it runs in the production-readiness sitting only once
-#     the zone delegation is proved.
+#     verification clock; it runs only once the zone delegation is proved, in
+#     scripts/production-cutover.sh --target production --stage ses-domain.
 #   - ses_enable_mail_records, by name: on mail day it changes in one values
 #     change with the ifpa MX and TXT. Turning it off restores the mirrored
 #     legacy mail records while enable_legacy_mirror_records is on, which is
@@ -224,7 +232,7 @@ case "$GATE" in
     exit 2
     ;;
   enable_cutover_notice)
-    cr_error "enable_cutover_notice is a cutover flag that changes only together with other values: it goes on in the window state, in the second pass of the production-readiness sitting, and off in the launch apply, and back on for a rollback in scripts/production-cutover.sh --stage notice-raise; this script sets one gate per apply and refuses it"
+    cr_error "enable_cutover_notice is a cutover flag that changes only together with other values: it goes on in the window state, scripts/production-cutover.sh --target production --stage window, off for the launch dress rehearsal in --stage rehearsal, off for good in --stage launch, and back on for a rollback in --stage notice-raise; this script sets one gate per apply and refuses it"
     exit 2
     ;;
   enable_apex_alias_records)
@@ -232,11 +240,23 @@ case "$GATE" in
     exit 2
     ;;
   enable_preview_record)
-    cr_error "enable_preview_record is a DNS record on the cutover path: the production custom-domain apply turns it on and the launch apply turns it off with the notice, and scripts/production-cutover.sh --stage notice-raise turns it back on for a rollback; this script refuses it"
+    cr_error "enable_preview_record is a DNS record on the cutover path: scripts/production-cutover.sh --target production --stage custom-domain turns it on, --stage launch turns it off with the notice, and --stage notice-raise turns it back on for a rollback; this script refuses it"
+    exit 2
+    ;;
+  enable_platform_custom_domain|enable_archive_custom_domain)
+    cr_error "'${GATE}' is a custom domain that changes together with its certificate and records, in scripts/production-cutover.sh --target production --stage custom-domain; this script refuses it"
+    exit 2
+    ;;
+  rehearse_launch_base_address)
+    cr_error "'${GATE}' goes on with the notice off for the launch dress rehearsal, in scripts/production-cutover.sh --target production --stage rehearsal, and back off in --stage window; this script refuses it"
+    exit 2
+    ;;
+  launch_www_base_address)
+    cr_error "'${GATE}' publishes www as the base address before the notice lifts, together with the other launch values, in scripts/production-cutover.sh --target production --stage launch; this script refuses it"
     exit 2
     ;;
   ses_enable_domain_identity|ses_enable_domain_auth)
-    cr_error "${GATE}: SES domain verification publishes DNS records and starts SES's verification clock; it runs in the production-readiness sitting only once the zone delegation is proved; this script refuses it"
+    cr_error "${GATE}: SES domain verification publishes DNS records and starts SES's verification clock; it runs only once the zone delegation is proved, in scripts/production-cutover.sh --target production --stage ses-domain; this script refuses it"
     exit 2
     ;;
   enable_archive)

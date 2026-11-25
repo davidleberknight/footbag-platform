@@ -396,7 +396,11 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     const warn = vi.spyOn(logger, 'warn');
     try {
       const blocked = await request(app).get(`/members/${SEARCHER_SLUG}?q=charlie`).set('Cookie', searcherCookie());
-      expect(blocked.status).toBe(200);
+      // Defect caught: a refused search answered as a success, so a client
+      // hammering it is never told to stop or how long to wait.
+      expect(blocked.status).toBe(429);
+      const wait = Number(blocked.headers['retry-after']);
+      expect(Number.isInteger(wait) && wait >= 1 && wait <= 60, String(blocked.headers['retry-after'])).toBe(true);
       expect(blocked.text).toContain('Too many searches just now. Please wait a moment and try again.');
 
       const lines = warn.mock.calls.filter(([msg]) => msg === 'member search rate limited');

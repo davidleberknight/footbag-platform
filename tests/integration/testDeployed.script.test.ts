@@ -81,14 +81,26 @@ describe('test-deployed.sh', () => {
         ...SPAWN_GUARD,
       });
       expect(res.status, res.stderr).toBe(0);
-      const listed = (res.stdout ?? '').split('\n').filter((l) => l.includes('deployed-browser.spec.ts'));
+      const lines = (res.stdout ?? '').split('\n').filter((l) => l.includes('.spec.ts'));
+      const listed = lines.filter((l) => l.includes('deployed-browser.spec.ts'));
       expect(listed.length, `${target}:\n${res.stdout}`).toBe(2);
       expect(listed.some((l) => l.includes('anonymous landing pages')), target).toBe(true);
       expect(listed.some((l) => l.includes('old footbag.org address redirects')), target).toBe(true);
+      // The only other file is the read-only guard's self-check, which talks to
+      // a loopback server of its own and never to the deployed host.
+      const others = lines.filter((l) => !l.includes('deployed-browser.spec.ts'));
+      expect(others.every((l) => l.includes('read-only-guard.spec.ts')), `${target}:\n${res.stdout}`).toBe(true);
     }
     const spec = readFileSync(path.join(process.cwd(), 'tests/e2e/deployed/deployed-browser.spec.ts'), 'utf8');
     expect(spec).not.toContain('/dev/');
     expect(spec).not.toMatch(/\.(post|put|patch|delete|fetch)\(/);
+    // Defect caught: the walk going back to the unguarded Playwright test, so a
+    // write it attempts is no longer blocked or failed.
+    expect(spec).toMatch(/import \{ test, expect \} from '\.\.\/helpers\/readOnlyGuard'/);
+    expect(spec).not.toMatch(/import \{[^}]*\btest\b[^}]*\} from '@playwright\/test'/);
+    const selfCheck = readFileSync(path.join(process.cwd(), 'tests/e2e/deployed/read-only-guard.spec.ts'), 'utf8');
+    expect(selfCheck).toContain("server.listen(0, '127.0.0.1'");
+    expect(selfCheck).not.toContain('DEPLOYED_BASE_URL');
     // The local Playwright config never collects the deployed spec.
     expect(readFileSync(path.join(process.cwd(), 'tests/playwright.config.ts'), 'utf8')).toMatch(/testIgnore: \['deployed\/\*\*'[,\]]/);
   });

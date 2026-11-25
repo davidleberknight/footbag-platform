@@ -189,7 +189,7 @@ function getClubLeadershipPage(
     intent,
     openOnLoad: true,
     query: opts.form?.query ?? '',
-    search: search && { ...search, rateLimited: false },
+    search: search && { ...search, rateLimited: false, retryAfterSeconds: null },
     notFoundHint: null,
   });
   // The list keeps every leadership row so an admin can remove one, but the

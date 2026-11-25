@@ -13,11 +13,15 @@
  * nobody and submits nothing, so it writes nothing on the deployed host. The one
  * request a browser would otherwise send on its own, the policy-violation report
  * POST, is aborted before it leaves: a violation is still caught, through the
- * page's own listener, and the host's log is left alone.
+ * page's own listener, and the host's log is left alone. Every other request
+ * that is not a GET or HEAD, from the browser or from the API client, is
+ * blocked before it is sent and fails the test that made it, so a later change
+ * to this spec cannot make a production run write.
  *
  * Run through `npm run test:deployed -- --target <staging|production>`.
  */
-import { test, expect, type Page } from '@playwright/test';
+import type { Page } from '@playwright/test';
+import { test, expect } from '../helpers/readOnlyGuard';
 import { watchPageProblems } from '../helpers/pageProblems';
 import { LEGACY_REDIRECT_PATHS } from '../../../src/lib/legacyRedirects';
 

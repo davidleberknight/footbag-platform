@@ -377,7 +377,7 @@ export const adminHistoricalRecordService = {
   lookupRecordsForPicker(rawQuery: string, limit: number): RecordSearchOutcome {
     const query = rawQuery.trim();
     if (query.length < MIN_LOOKUP_QUERY) {
-      return { results: [], hasMore: false, tooShort: true, rateLimited: false };
+      return { results: [], hasMore: false, tooShort: true, rateLimited: false, retryAfterSeconds: null };
     }
     const escaped = query.toLowerCase().replace(/[\\%_]/g, (ch) => `\\${ch}`);
     const rows = deceasedMarking.searchHistoricalPersons.all(
@@ -391,6 +391,7 @@ export const adminHistoricalRecordService = {
       hasMore: rows.length > limit,
       tooShort: false,
       rateLimited: false,
+      retryAfterSeconds: null,
     };
   },
 

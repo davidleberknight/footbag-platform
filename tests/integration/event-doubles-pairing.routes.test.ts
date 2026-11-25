@@ -20,6 +20,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { flashCookieOf } from '../fixtures/flashCookie';
 import { isoDaysFromNow } from '../fixtures/clock';
+import { spendMemberSearchAllowance, retryAfterIsAWait } from '../fixtures/memberSearchLimit';
 import {
   createMemberAtTier,
   completeOnboarding,
@@ -349,6 +350,21 @@ describe('choosing a partner from the event page', () => {
 
   // Defect caught: a member registered as looking can only pair up by
   // withdrawing, or the save does not tell the new partner.
+  // Defect caught: a refused partner search on the choose-partner page
+  // answered as a success, so a client hammering it is never told to stop.
+  it('answers a refused partner search at 429 with a wait, the form re-rendered with the notice', async () => {
+    const ev = seedEvent();
+    await enterDoubles(ev, ada, null);
+    await spendMemberSearchAllowance(ada);
+    const res = await post(ada, pathOf(ev), {
+      partner_division: [ev.women], partner: [''], pick: `search:partner-${ev.women}`, pick_q: 'Wren',
+    });
+    expect(res.status).toBe(429);
+    expect(retryAfterIsAWait(res.headers['retry-after']), String(res.headers['retry-after'])).toBe(true);
+    expect(res.text).toContain(`value="search:partner-${ev.women}"`);
+    expect(res.text).toContain('form-error-banner');
+  });
+
   it('saves a partner chosen in place and tells them', async () => {
     const ev = seedEvent();
     await enterDoubles(ev, ada, null);

@@ -103,6 +103,10 @@ beforeEach(() => {
   // state Lightsail reported at that moment, prints DIAG_OUTPUT, exits DIAG_EXIT.
   exe(join(bin, 'diagnostics'), [
     `echo "diagnostics $* state=$(cat ${JSON.stringify(join(st, 'state'))})" >> ${JSON.stringify(join(st, 'calls.log'))}`,
+    // DIAG_UNREACHABLE_CALLS: the first n calls fail as ssh does against a
+    // host still booting (exit 255), as the real host did after a restart.
+    `n="$(cat ${JSON.stringify(join(st, 'diag-calls'))} 2>/dev/null || echo 0)"; echo $((n + 1)) > ${JSON.stringify(join(st, 'diag-calls'))}`,
+    'if (( n < ${DIAG_UNREACHABLE_CALLS:-0} )); then echo "ssh: connect to host 192.0.2.1 port 2222: Connection timed out" >&2; exit 255; fi',
     'printf "%s\\n" "${DIAG_OUTPUT:-NAME STATUS}"',
     'exit "${DIAG_EXIT:-0}"',
   ]);
@@ -124,6 +128,7 @@ function env(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     // runs out of tries.
     HOST_COLD_RESTART_POLL_TRIES: '20',
     HOST_COLD_RESTART_POLL_SECS: '0',
+    HOST_COLD_RESTART_BOOT_TRIES: '4',
     AWS_PROFILE: 'stub-profile',
     AWS_IDENTITY_BIN: join(bin, 'identity'),
     AWS_PROFILE_BIN: join(bin, 'identity'),
@@ -262,6 +267,28 @@ describe.skipIf(!HAS_SCRIPT)('host-cold-restart.sh, the stop and start end to en
     expect(r.out).toMatch(/Errors \(1\):/);
     expect(provenSection(r.out)).not.toContain(DIAG_PROOF);
     expect(state()).toBe('running');
+    // Bounded: the boot wait's four tries, then the one reported read.
+    expect(calls().filter((l) => l.startsWith('diagnostics'))).toHaveLength(5);
+  });
+
+  it('waits for a host still booting to answer, and then proves it', () => {
+    // Defect caught: a restart that worked reported FAILED because the status
+    // read ran the moment Lightsail said running, while the host was still
+    // booting and its ssh connection timed out, as on staging.
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { DIAG_UNREACHABLE_CALLS: '2' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).not.toMatch(/Errors \(/);
+    expect(provenSection(r.out)).toContain(DIAG_PROOF);
+    expect(r.out).toMatch(/does not answer yet/);
+  });
+
+  it('does not wait out a host that answers with a problem', () => {
+    // Defect caught: a real host failure (it answered, and said something is
+    // wrong) hidden behind minutes of retries meant only for a host booting.
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { DIAG_EXIT: '1' });
+    expect(r.status).toBe(1);
+    expect(calls().filter((l) => l.startsWith('diagnostics'))).toHaveLength(2);
+    expect(r.out).not.toMatch(/does not answer yet/);
   });
 
   it('fails the run when the diagnostics print an error and still exit 0, and claims nothing they did not prove', () => {

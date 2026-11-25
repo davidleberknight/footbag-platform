@@ -162,7 +162,7 @@ export const adminRoleService = {
       intent,
       openOnLoad: true,
       query: opts.form?.query ?? '',
-      search: search && { ...search, rateLimited: false },
+      search: search && { ...search, rateLimited: false, retryAfterSeconds: null },
       notFoundHint: null,
     });
     return {

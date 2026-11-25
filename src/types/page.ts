@@ -40,6 +40,12 @@ export interface PageMeta {
    * caution as the heads-up, so `why` and `how` are optional there.
    */
   instructions?: AdminInstructions;
+  /**
+   * Seconds to wait, when a member search on this page was refused by its
+   * rate limit. The page still renders, with the wait notice in its form, and
+   * the controller sends it at 429 with this as Retry-After.
+   */
+  rateLimitRetryAfterSeconds?: number;
 }
 
 export interface AdminInstructions {

@@ -29,7 +29,7 @@
  */
 import { eventOrganizers, eventRegistrations, eventWrites } from '../db/db';
 import {
-  eventService, emptyEventForm, type EventCorrection, type EventFormValues, type DivisionPartsStep,
+  eventService, emptyEventForm, entrySearchRefusal, type EventCorrection, type EventFormValues, type DivisionPartsStep,
   type EntryFormContent, type EntryFormState, type PickerRequest, type RegistrationSummaryContent,
 } from './eventService';
 import { NotFoundError } from './serviceErrors';
@@ -395,6 +395,7 @@ export const adminEventService = {
           how: 'Search for the member by name, choose the competitions and any doubles partner, and give a reason. You confirm before anything is saved.',
           headsUp: ['The member is emailed.', 'The reason is kept in the audit log.'],
         },
+        ...entrySearchRefusal(found.content),
       },
       navigation: { contextLinks: [{ label: `Back to ${found.eventTitle}`, href: recordHref(eventId) }] },
       content: found.content,

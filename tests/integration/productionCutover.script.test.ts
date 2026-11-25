@@ -33,9 +33,10 @@ let repo: string;
 let calls: string;
 let keyDir: string;
 
-/** The stand-in for terraform. `output -raw platform_url` answers
- *  STUB_PLATFORM_URL. A plan exits STUB_CURRENT_PLAN_RC when it carries no -var
- *  override and STUB_VAR_PLAN_RC when it does, 0 by default, and prints a Plan
+/** The stand-in for terraform. `output <name>` answers STUB_OUT_<name> when
+ *  the case sets it, and STUB_PLATFORM_URL otherwise. A plan exits
+ *  STUB_CURRENT_PLAN_RC when it carries no -var override and
+ *  STUB_VAR_PLAN_RC when it does, 0 by default, and prints a Plan
  *  line when it would exit 2. Once an apply has been logged, a plain plan exits
  *  STUB_AFTER_APPLY_PLAN_RC (0 by default). A plan with -out writes a saved-plan
  *  marker there and exits STUB_SAVED_PLAN_RC (2 by default); a -var-file is
@@ -47,7 +48,9 @@ case "$1" in
   output)
     echo "terraform output" >> "$STUB_CALLS"
     [[ -n "\${STUB_OUTPUT_RC:-}" ]] && exit "$STUB_OUTPUT_RC"
-    printf '%s' "$STUB_PLATFORM_URL"
+    name="\${@: -1}"
+    var="STUB_OUT_$name"
+    if [[ -n "\${!var+set}" ]]; then printf '%s' "\${!var}"; else printf '%s' "$STUB_PLATFORM_URL"; fi
     ;;
   show)
     echo "terraform show $2" >> "$STUB_CALLS"
@@ -149,7 +152,30 @@ const DIG_STUB = `#!/usr/bin/env bash
 echo "dig $*" >> "$STUB_CALLS"
 [[ -n "\${STUB_DIG_RC:-}" ]] && { echo "connection timed out"; exit "$STUB_DIG_RC"; }
 [[ "$*" == *"74.50.54.203"* ]] && echo "rimu3.footbag.org."
+[[ "$*" == *" footbag.org NS" ]] && printf '%s\\n' \${STUB_DELEGATED_NS:-}
 exit 0
+`;
+
+/** The stand-in for curl: records the address it was asked for and prints
+ *  STUB_ROBOTS as the body, or fails with STUB_CURL_RC. */
+const CURL_STUB = `#!/usr/bin/env bash
+echo "curl \${@: -1}" >> "$STUB_CALLS"
+[[ -n "\${STUB_CURL_RC:-}" ]] && { echo "curl: (6) Could not resolve host" >&2; exit "$STUB_CURL_RC"; }
+printf '%s' "$STUB_ROBOTS"
+`;
+
+/** The stand-in for aws: answers list-conflicting-aliases with the JSON
+ *  CloudFront documents, Items from STUB_CONFLICTS (a JSON list, the
+ *  distribution's own exact alias by default), or fails with STUB_AWS_RC. */
+const AWS_STUB = `#!/usr/bin/env bash
+alias=""
+prev=""
+for a in "$@"; do [[ "$prev" == --alias ]] && alias="$a"; prev="$a"; done
+echo "aws $1 $2 $alias" >> "$STUB_CALLS"
+[[ -n "\${STUB_AWS_RC:-}" ]] && { echo "An error occurred (AccessDenied)" >&2; exit "$STUB_AWS_RC"; }
+own='[{"Alias":"'"$alias"'","DistributionId":"E1*******XYZ","AccountId":"******789012"}]'
+items="\${STUB_CONFLICTS:-$own}"
+printf '{"ConflictingAliasesList":{"MaxItems":100,"Quantity":1,"Items":%s}}' "$items"
 `;
 
 const PLATFORM_URL = 'https://placeholder.cloudfront.net';
@@ -218,6 +244,8 @@ beforeEach(() => {
   writeFileSync(join(dir, 'key.sh'), KEY_STUB, { mode: 0o755 });
   writeFileSync(join(dir, 'verify.sh'), VERIFY_STUB, { mode: 0o755 });
   writeFileSync(join(dir, 'dig'), DIG_STUB, { mode: 0o755 });
+  writeFileSync(join(dir, 'curl'), CURL_STUB, { mode: 0o755 });
+  writeFileSync(join(dir, 'aws'), AWS_STUB, { mode: 0o755 });
   calls = join(dir, 'calls.log');
   writeFileSync(calls, '', 'utf-8');
 });
@@ -753,10 +781,19 @@ const WINDOW_VALUES = [
   'enable_cutover_notice         = true',
   'ses_enable_mail_records     = true',
   'enable_cutover_login_alarm  = true',
+  'launch_www_base_address     = true',
   '',
 ].join('\n');
 
-/** The same file after the launch write, written out by hand: the three flags
+/** The window before the launch's first run: www not yet published as the
+ *  base address. */
+const PRE_LAUNCH_VALUES = WINDOW_VALUES.replace('launch_www_base_address     = true\n', '');
+
+/** The same file after the first run's write, written out by hand: the
+ *  setting the file did not carry added at its end. */
+const PUBLISHED_VALUES = `${PRE_LAUNCH_VALUES}launch_www_base_address = true\n`;
+
+/** The same file after the launch write, written out by hand: the four flags
  *  false where they stood, the g entry gone, every other line as it was. */
 const LAUNCHED_VALUES = [
   'environment                  = "production"',
@@ -794,6 +831,7 @@ const LAUNCHED_VALUES = [
   'enable_cutover_notice = false',
   'ses_enable_mail_records     = true',
   'enable_cutover_login_alarm  = true',
+  'launch_www_base_address = false',
   '',
 ].join('\n');
 
@@ -809,7 +847,7 @@ const LOG_ROWS: Record<string, string> = {
   'Alarm subscriptions confirmed (root mailbox and `ops-alert@`)': 'pass',
   'Test alarm (`scripts/send-test-alarm.sh`) received by all three watchers': 'Passed',
   'Work-queue area groups receive the platform\'s mail (six live SES sends)': 'pass',
-  'Work-queue area digests on and area owners saved (after the load)': 'pass',
+  'Work-queue area owners saved (after the load)': 'pass',
 };
 
 function cutoverLog(rows: Record<string, string> = LOG_ROWS, launchSection = ''): string {
@@ -948,12 +986,23 @@ function runLaunch(args: string[], env: Record<string, string> = {}, opts: { noC
   const withCapture = opts.noCapture ? args : [...args, '--capture', capturePath()];
   return run(withCapture, {
     PRODUCTION_CUTOVER_DIG_BIN: join(dir, 'dig'),
+    PRODUCTION_CUTOVER_CURL_BIN: join(dir, 'curl'),
+    PRODUCTION_CUTOVER_AWS_BIN: join(dir, 'aws'),
     PRODUCTION_CUTOVER_LOG: join(dir, 'CUTOVER_LOG.md'),
     PRODUCTION_CUTOVER_TODAY: TODAY,
     STUB_PLAN_JSON: join(dir, 'plan.json'),
+    STUB_OUT_preview_url: 'https://preview.footbag.org',
+    STUB_OUT_platform_url: 'https://www.footbag.org',
+    STUB_ROBOTS: ROBOTS_ON_WWW,
     ...env,
   });
 }
+
+/** preview's robots.txt as the platform serves it with each base address. On
+ *  www the platform is indexable and names www's sitemap; on preview it keeps
+ *  every page out of the index. */
+const ROBOTS_ON_WWW = 'User-agent: *\nAllow: /\n\nSitemap: https://www.footbag.org/sitemap.xml\n';
+const ROBOTS_ON_PREVIEW = 'User-agent: *\nDisallow: /\n';
 
 function varFile(): string {
   return readFileSync(`${calls}.varfile`, 'utf-8');
@@ -1064,7 +1113,7 @@ describe('production-cutover.sh launch: the cutover log gate', () => {
       // Defect caught: launch with the work-queue area emails unproven or
       // switched off, so an area's group receives nothing from the first day.
       'Work-queue area groups receive the platform\'s mail (six live SES sends)',
-      'Work-queue area digests on and area owners saved (after the load)',
+      'Work-queue area owners saved (after the load)',
     ];
     for (const row of required) {
       for (const [how, rows] of [
@@ -1140,7 +1189,9 @@ describe('production-cutover.sh launch: the plan must be exactly the launch', ()
     expect(r.status).not.toBe(0);
     expect(r.report).toMatch(/other changes are pending/);
     expect(values()).toBe(WINDOW_VALUES);
-    expect(callLog()).not.toMatch(/^terraform plan-saved/m);
+    // What is pending is read, to tell a first run left unapplied from other
+    // changes; the launch's own settings are never planned.
+    expect(callLog()).not.toMatch(/^terraform var-file/m);
     expect(callLog()).not.toMatch(/^apply /m);
   });
 
@@ -1970,5 +2021,719 @@ describe('production-cutover.sh notice-raise: the write and the apply', () => {
     expect(done.status, done.stderr).toBe(0);
     expect(done.report).toMatch(/already in production/);
     expect(callLog()).not.toMatch(/^apply /m);
+  });
+});
+
+// ── The launch's two runs: www published first ───────────────────────────────
+
+const BASE_PARAM = 'aws_ssm_parameter.app_public_base_url[0]';
+
+/** The first run's plan: the base-address parameter moved to www, nothing
+ *  else. */
+const PUBLISH_PLAN: PlanShape = { prior: [BASE_PARAM, ...STAYS], deletes: [], creates: [], updates: [BASE_PARAM], noop: STAYS };
+
+describe('production-cutover.sh launch: www is published and on the host before the notice lifts', () => {
+  // Defect caught: the launch would lift the notice while the host still
+  // builds against preview, so www refuses every form post until a deploy.
+  it('first publishes www alone, applies it and stops for the deploy', () => {
+    launchSetup({ values: PRE_LAUNCH_VALUES, plan: PUBLISH_PLAN });
+    const r = runLaunch([...LAUNCH, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(PUBLISHED_VALUES);
+    expect(varFile()).toBe('launch_www_base_address = true\n');
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(callLog()).not.toMatch(/^curl /m);
+    expect(r.report).toMatch(/launch base address in production: applied/);
+    expect(r.report).toMatch(/code-only deploy/);
+  });
+
+  // Defect caught: the first run would carry the launch itself, or anything
+  // else pending, under the base-address step's name.
+  it('refuses a first-run plan that is anything but the base address', () => {
+    const cases: Array<[string, PlanShape, RegExp]> = [
+      ['the base address not moved', { ...PUBLISH_PLAN, updates: [] }, /does not update aws_ssm_parameter\.app_public_base_url\[0\] in place/],
+      ['the notice lifted too', { ...PUBLISH_PLAN, updates: [BASE_PARAM, NOTICE_FUNCTION] }, /would update aws_cloudfront_function\.apex_redirect\[0\]/],
+      ['a record removed', { ...PUBLISH_PLAN, deletes: ['aws_route53_record.preview_a[0]'] }, /would destroy aws_route53_record\.preview_a\[0\]/],
+      ['an alarm created', { ...PUBLISH_PLAN, creates: ALARMS }, /would create aws_route53_health_check\.site_ready\[0\]/],
+    ];
+    for (const [name, shape, why] of cases) {
+      launchSetup({ values: PRE_LAUNCH_VALUES, plan: shape });
+      writeFileSync(calls, '', 'utf-8');
+      const r = runLaunch([...LAUNCH, '--yes']);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(PRE_LAUNCH_VALUES);
+      expect(callLog(), name).not.toMatch(/^apply /m);
+    }
+  });
+
+  // Defect caught: the second run would lift the notice before the deploy put
+  // www on the host, or on a robots.txt it could not read.
+  it('lifts the notice only once preview serves the www robots.txt', () => {
+    for (const [name, env, why] of [
+      ['host still on preview', { STUB_ROBOTS: ROBOTS_ON_PREVIEW }, /not on the www base address/],
+      ['robots unreadable', { STUB_CURL_RC: '6' }, /could not read https:\/\/preview\.footbag\.org\/robots\.txt/],
+      ['a sitemap on another name', { STUB_ROBOTS: ROBOTS_ON_WWW.replace('www.footbag.org', 'preview.footbag.org') }, /not on the www base address/],
+    ] as Array<[string, Record<string, string>, RegExp]>) {
+      launchSetup();
+      writeFileSync(calls, '', 'utf-8');
+      const r = runLaunch([...LAUNCH, '--yes'], env);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(WINDOW_VALUES);
+      expect(callLog(), name).toMatch(/^curl https:\/\/preview\.footbag\.org\/robots\.txt$/m);
+      expect(callLog(), name).not.toMatch(/^apply /m);
+    }
+    launchSetup();
+    writeFileSync(calls, '', 'utf-8');
+    const ok = runLaunch([...LAUNCH, '--yes']);
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(ok.report).toMatch(/host is on the www base address/);
+    expect(varFile()).toContain('launch_www_base_address = false');
+    expect(values()).toBe(LAUNCHED_VALUES);
+  });
+
+  // Defect caught: a first run whose write landed but whose apply did not
+  // would be taken for a published base address and launched on.
+  it('finishes a first run whose apply did not land, and stops for the deploy', () => {
+    launchSetup({ values: PUBLISHED_VALUES, plan: PUBLISH_PLAN });
+    const r = runLaunch([...LAUNCH, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(callLog()).not.toMatch(/^curl /m);
+    expect(values()).toBe(PUBLISHED_VALUES);
+    expect(r.report).toMatch(/launch base address in production: applied/);
+  });
+
+  // Defect caught: a lifted notice with the launch-only setting still on is no
+  // state the stage makes, and Terraform would refuse its next plan.
+  it('refuses the notice lifted with www still published by the first run', () => {
+    const odd = LAUNCHED_VALUES.replace('launch_www_base_address = false', 'launch_www_base_address = true');
+    launchSetup({ values: odd });
+    expectRefusedUntouched(runLaunch([...LAUNCH, '--yes']), 'odd', odd, /still on/);
+  });
+
+  // Defect caught: a stage other than the launch run between the launch's
+  // two runs would change the window under a published www.
+  it('refuses every other stage between the launch runs', () => {
+    switchSetup({ values: `${PRE_SWITCH_VALUES}launch_www_base_address = true\n` });
+    expectRefusedUntouched(runLaunch([...SWITCH, '--yes']), 'record switch', `${PRE_SWITCH_VALUES}launch_www_base_address = true\n`, /launch_www_base_address is on/);
+    raiseSetup({ values: `${LIVE_VALUES}launch_www_base_address = true\n` });
+    writeFileSync(calls, '', 'utf-8');
+    expectRefusedUntouched(runRaise([...RAISE, '--yes']), 'notice raise', `${LIVE_VALUES}launch_www_base_address = true\n`, /launch_www_base_address is on/);
+    for (const [stage, content] of [
+      ['custom-domain', `${PASS1_VALUES}launch_www_base_address = true\n`],
+      ['window', `${CUSTOM_VALUES}launch_www_base_address = true\n`],
+      ['rehearsal', `${WINDOWED_VALUES}launch_www_base_address = true\n`],
+    ] as Array<[string, string]>) {
+      pass2Setup({ values: content });
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runPass2(['--target', 'production', '--stage', stage, '--yes']), stage, content, /launch_www_base_address is on/);
+    }
+  });
+
+  // Defect caught: a dry run that published www.
+  it('changes nothing on a dry run of the first run', () => {
+    launchSetup({ values: PRE_LAUNCH_VALUES, plan: PUBLISH_PLAN });
+    const r = runLaunch([...LAUNCH, '--dry-run']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/Would set launch_www_base_address to true/);
+    expect(values()).toBe(PRE_LAUNCH_VALUES);
+    expect(callLog()).not.toMatch(/^terraform plan/m);
+  });
+});
+
+// ── The pass-2 stages ────────────────────────────────────────────────────────
+
+const DISTRIBUTION = 'placeholder.cloudfront.net';
+const ZONE_NS = ['ns-101.awsdns-12.com', 'ns-202.awsdns-25.net', 'ns-303.awsdns-37.org', 'ns-404.awsdns-50.co.uk'];
+const CONVERGED = '2026-12-15T10:00Z';
+/** Epoch seconds of CONVERGED, and of the earliest moment the 25-hour wait
+ *  (the registry's 3600 plus the legacy zone's 86400 NS lifetime) allows. */
+const CONVERGED_EPOCH = Date.parse('2026-12-15T10:00:00Z') / 1000;
+const WAIT_OVER = String(CONVERGED_EPOCH + 90000);
+
+/** Pass 1, as the archive base stack leaves it: the archive on its
+ *  cloudfront.net name, the mirror serving, nothing of the custom domain. */
+const PASS1_VALUES = [
+  'environment                  = "production"',
+  SENSITIVE_LINE,
+  'enable_legacy_mirror_records = true',
+  'enable_platform_custom_domain = false',
+  'enable_preview_record         = false',
+  'enable_apex_alias_records     = false',
+  'enable_cutover_notice         = false',
+  'enable_cutover_login_alarm  = false',
+  'enable_archive = true',
+  'enable_archive_custom_domain = false',
+  `archive_platform_url = "https://${DISTRIBUTION}"`,
+  '',
+].join('\n');
+
+/** The same file after the custom-domain write, written out by hand. */
+const CUSTOM_VALUES = [
+  'environment                  = "production"',
+  SENSITIVE_LINE,
+  'enable_legacy_mirror_records = true',
+  'enable_platform_custom_domain = true',
+  'enable_preview_record = true',
+  'enable_apex_alias_records     = false',
+  'enable_cutover_notice         = false',
+  'enable_cutover_login_alarm  = false',
+  'enable_archive = true',
+  'enable_archive_custom_domain = true',
+  'archive_platform_url = "https://preview.footbag.org"',
+  '',
+].join('\n');
+
+/** The custom-domain file with the notice up: the window state. */
+const WINDOWED_VALUES = CUSTOM_VALUES.replace('enable_cutover_notice         = false', 'enable_cutover_notice = true');
+
+/** Pass 1 again after the undo's write: the three flags back off where they
+ *  stood, and the archive back on the distribution's own name. */
+const UNDONE_VALUES = CUSTOM_VALUES.replace('enable_platform_custom_domain = true', 'enable_platform_custom_domain = false')
+  .replace('enable_preview_record = true', 'enable_preview_record = false')
+  .replace('enable_archive_custom_domain = true', 'enable_archive_custom_domain = false')
+  .replace('archive_platform_url = "https://preview.footbag.org"', `archive_platform_url = "https://${DISTRIBUTION}"`);
+
+const CUSTOM_SET = [
+  'aws_acm_certificate.main[0]',
+  'aws_route53_record.cert_validation["footbag.org"]',
+  'aws_route53_record.cert_validation["www.footbag.org"]',
+  'aws_route53_record.cert_validation["preview.footbag.org"]',
+  'aws_acm_certificate_validation.main[0]',
+  'aws_route53_record.preview_a[0]',
+  'aws_route53_record.preview_aaaa[0]',
+  'aws_cloudwatch_metric_alarm.acm_cert_expiry[0]',
+  'aws_acm_certificate.archive[0]',
+  'aws_route53_record.archive_cert_validation["archive.footbag.org"]',
+  'aws_acm_certificate_validation.archive[0]',
+  'aws_route53_record.archive_a[0]',
+  'aws_route53_record.archive_aaaa[0]',
+  'aws_cloudwatch_metric_alarm.acm_archive_cert_expiry[0]',
+];
+const COOKIE_PARAM = 'aws_ssm_parameter.app_archive_cookie_domain[0]';
+const DIST = 'aws_cloudfront_distribution.main[0]';
+const PASS2_STAYS = ['aws_route53_record.apex_a[0]', 'aws_route53_record.www[0]'];
+
+/** By default, exactly the custom domain: everything it brings created, the
+ *  distribution and the base address moved, the archive's pages rebuilt. */
+function customPlan(shape: PlanShape = {}): PlanShape {
+  return {
+    prior: [...PASS2_STAYS, DIST, BASE_PARAM],
+    deletes: [],
+    creates: [...CUSTOM_SET, COOKIE_PARAM],
+    updates: [DIST, BASE_PARAM, 'aws_s3_object.archive_denied_page[0]'],
+    noop: PASS2_STAYS,
+    ...shape,
+  };
+}
+
+/** The cutover log's zone-move section with the delegation's convergence
+ *  time recorded as the zone move records it. */
+function delegationLog(converged: string = CONVERGED): string {
+  return [
+    '# Cutover log',
+    '',
+    '### 4a. The zone move and the mail preparation',
+    '',
+    '| Reading | Value | When measured | Notes |',
+    '|---|---|---|---|',
+    '| Registrar nameserver change saved | 2026-12-14T09:00Z | | |',
+    `| Delegation converged | ${converged} | | |`,
+    '',
+    '### 4b. T-0: the alias flip, then the mail apply',
+    '',
+    '| Reading | Value | When measured | Notes |',
+    '|---|---|---|---|',
+    '| Delegation converged | 2026-12-01T00:00Z | | a row of the same name in another section |',
+    '',
+  ].join('\n');
+}
+
+function pass2Setup(opts: { values?: string; plan?: PlanShape; log?: string | null } = {}): void {
+  setValues(opts.values ?? PASS1_VALUES);
+  writeFileSync(join(dir, 'plan.json'), planJson(opts.plan ?? customPlan()), 'utf-8');
+  const log = join(dir, 'CUTOVER_LOG.md');
+  if (opts.log === null) rmSync(log, { force: true });
+  else writeFileSync(log, opts.log ?? delegationLog(), 'utf-8');
+}
+
+/** Runs a pass-2 stage with its seams: the delegation converged 25 hours ago
+ *  and answered by the public resolver, CloudFront reporting no conflict. */
+function runPass2(args: string[], env: Record<string, string> = {}) {
+  return runLaunch(args, {
+    PRODUCTION_CUTOVER_NOW: WAIT_OVER,
+    STUB_OUT_cloudfront_domain: DISTRIBUTION,
+    STUB_OUT_cloudfront_distribution_id: 'E1EXAMPLE0XYZ',
+    STUB_OUT_route53_name_servers: JSON.stringify(ZONE_NS),
+    STUB_DELEGATED_NS: ZONE_NS.map((n) => `${n.toUpperCase()}.`).join(' '),
+    ...env,
+  }, { noCapture: true });
+}
+
+const CUSTOM = ['--target', 'production', '--stage', 'custom-domain'];
+
+describe('production-cutover.sh custom-domain: where and when it may run, each beside a run it lets through', () => {
+  // Defect caught: a pass-2 stage run against staging, or --undo on a stage
+  // that has none, would reach a values file it has no business in.
+  it('refuses staging, and --undo on any stage but the custom domain and the window', () => {
+    pass2Setup();
+    const staging = runPass2(['--target', 'staging', '--stage', 'custom-domain', '--yes']);
+    expect(staging.status).toBe(2);
+    expect(staging.stderr).toMatch(/production only/);
+    for (const stage of ['ses-domain', 'rehearsal', 'record-switch', 'notice-raise', 'archive-base']) {
+      const r = runPass2(['--target', 'production', '--stage', stage, '--undo', '--yes']);
+      expect(r.status, stage).toBe(2);
+      expect(r.stderr, stage).toMatch(/--undo is the custom-domain and window stages' own/);
+    }
+    expect(callLog()).toBe('');
+    const ok = runPass2([...CUSTOM, '--yes']);
+    expect(ok.status, ok.stderr).toBe(0);
+  });
+
+  // Defect caught: the custom domain applied over a state that is not pass 1
+  // (the record switch made, the notice up, the archive not built, a half
+  // write, a rehearsal running) would move the wrong names.
+  it('refuses outside pass 1 or half set, with the file unchanged and nothing planned', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['alias on', PASS1_VALUES.replace('enable_apex_alias_records     = false', 'enable_apex_alias_records     = true'), /enable_apex_alias_records is true, not false/],
+      ['notice on', PASS1_VALUES.replace('enable_cutover_notice         = false', 'enable_cutover_notice         = true'), /enable_cutover_notice is true, not false/],
+      ['archive off', PASS1_VALUES.replace('enable_archive = true', 'enable_archive = false'), /enable_archive is false, not true/],
+      ['mirror off', PASS1_VALUES.replace('enable_legacy_mirror_records = true', 'enable_legacy_mirror_records = false'), /enable_legacy_mirror_records is false, not true/],
+      ['half set', PASS1_VALUES.replace('enable_preview_record         = false', 'enable_preview_record         = true'), /half set/],
+      ['archive address elsewhere', PASS1_VALUES.replace(`https://${DISTRIBUTION}`, 'https://legacy.example'), /half set/],
+      ['rehearsal on', `${PASS1_VALUES}rehearse_launch_base_address = true\n`, /rehearse_launch_base_address is on/],
+      ['flag neither true nor false', PASS1_VALUES.replace('enable_preview_record         = false', 'enable_preview_record         = yes'), /neither true nor false/],
+    ];
+    for (const [name, content, why] of cases) {
+      pass2Setup({ values: content });
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runPass2([...CUSTOM, '--yes']), name, content, why);
+    }
+  });
+
+  // Defect caught: the certificates validated before every resolver reads
+  // the Route 53 nameservers, which hangs the apply, or with the delegation
+  // not where the log says it is.
+  it('waits 90000 seconds from the recorded convergence, and on the delegation itself', () => {
+    const cases: Array<[string, { log?: string | null; env?: Record<string, string> }, RegExp]> = [
+      ['one second early', { env: { PRODUCTION_CUTOVER_NOW: String(CONVERGED_EPOCH + 89999) } }, /89999 seconds ago; the custom-domain stage waits 90000 seconds/],
+      ['no time recorded', { log: delegationLog('') }, /reads '<empty>'/],
+      ['a time not in UTC', { log: delegationLog('2026-12-15 10:00') }, /not a UTC time/],
+      ['a time in the future', { log: delegationLog('2026-12-30T10:00Z') }, /in the future/],
+      ['no cutover log', { log: null }, /no cutover log/],
+      ['not delegated', { env: { STUB_DELEGATED_NS: 'dns1.llic.net. dns2.llic.net.' } }, /not delegated to the Route 53 zone/],
+      ['the resolver unreachable', { env: { STUB_DIG_RC: '9' } }, /could not ask 8\.8\.8\.8/],
+    ];
+    for (const [name, opt, why] of cases) {
+      pass2Setup({ log: opt.log });
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runPass2([...CUSTOM, '--yes'], opt.env ?? {}), name, PASS1_VALUES, why);
+    }
+    pass2Setup();
+    writeFileSync(calls, '', 'utf-8');
+    const exact = runPass2([...CUSTOM, '--yes'], { PRODUCTION_CUTOVER_NOW: WAIT_OVER });
+    expect(exact.status, exact.stderr).toBe(0);
+    expect(exact.stdout).toMatch(/delegation converged: 2026-12-15T10:00Z, 90000 seconds ago/);
+  });
+});
+
+describe('production-cutover.sh custom-domain: the plan must be exactly the custom domain', () => {
+  // Defect caught: other pending changes would ride along on the custom domain.
+  it('refuses a tree with other changes pending', () => {
+    pass2Setup();
+    const r = runPass2([...CUSTOM, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expectRefusedUntouched(r, 'pending', PASS1_VALUES, /other changes are pending/, true);
+  });
+
+  // Defect caught: a custom-domain plan that removes a record, misses a piece
+  // (the archive's IPv6 name), creates something else, or never moves the
+  // distribution onto the certificate would be applied as the custom domain.
+  it('refuses any plan that is not exactly the custom domain, with the file unchanged', () => {
+    const cases: Array<[string, PlanShape, RegExp]> = [
+      ['destroys the apex', { deletes: ['aws_route53_record.apex_a[0]'] }, /would destroy aws_route53_record\.apex_a\[0\]/],
+      ['misses the archive IPv6 name', { creates: CUSTOM_SET.filter((a) => !a.includes('archive_aaaa')) }, /does not create aws_route53_record\.archive_aaaa\[0\]/],
+      ['creates something else', { creates: [...CUSTOM_SET, 'aws_route53_record.apex_aaaa[0]'] }, /would create aws_route53_record\.apex_aaaa\[0\]/],
+      ['the distribution not moved', { updates: [BASE_PARAM] }, /does not update aws_cloudfront_distribution\.main\[0\] in place/],
+      ['the base address not moved', { updates: [DIST] }, /does not update aws_ssm_parameter\.app_public_base_url\[0\] in place/],
+      ['a replacement', { other: [[DIST, ['delete', 'create']]] }, /would delete,create aws_cloudfront_distribution\.main\[0\]/],
+    ];
+    for (const [name, shape, why] of cases) {
+      pass2Setup({ plan: customPlan(shape) });
+      writeFileSync(calls, '', 'utf-8');
+      const r = runPass2([...CUSTOM, '--yes']);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(PASS1_VALUES);
+      expect(callLog(), name).not.toMatch(/^apply /m);
+    }
+  });
+
+  // Defect caught: with the archive not requiring signed cookies, the custom
+  // domain refused for not creating the cookie-domain parameter.
+  it('takes the plan without the archive cookie domain', () => {
+    pass2Setup({ plan: customPlan({ creates: CUSTOM_SET }) });
+    const r = runPass2([...CUSTOM, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(CUSTOM_VALUES);
+  });
+});
+
+describe('production-cutover.sh custom-domain: the write, the apply and the undo', () => {
+  // Defect caught: the write must change exactly the four settings, plan from
+  // an override carrying only them, apply, prove the tree clean, and ask
+  // CloudFront about each of the three names.
+  it('writes exactly the custom-domain settings, applies and checks every name', () => {
+    pass2Setup();
+    const r = runPass2([...CUSTOM, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(CUSTOM_VALUES);
+    expect(varFile()).toBe([
+      'enable_platform_custom_domain = true',
+      'enable_preview_record = true',
+      'enable_archive_custom_domain = true',
+      'archive_platform_url = "https://preview.footbag.org"',
+      '',
+    ].join('\n'));
+    const log = callLog();
+    for (const alias of ['footbag.org', 'www.footbag.org', 'preview.footbag.org']) {
+      expect(log, alias).toContain(`aws cloudfront list-conflicting-aliases ${alias}`);
+      expect(log.indexOf(`aws cloudfront list-conflicting-aliases ${alias}`), alias).toBeGreaterThan(log.indexOf('apply --target production'));
+    }
+    expect(r.stdout).not.toContain(SENSITIVE);
+    expect(r.report).toMatch(/custom domain in production: applied/);
+    expect(readdirSync(join(dir, 'tmp'))).toEqual([]);
+  });
+
+  // Defect caught: a name another distribution overlaps, or an unreadable
+  // answer, reported as a working custom domain.
+  it('fails the run when another distribution overlaps a name or CloudFront cannot be asked', () => {
+    pass2Setup();
+    const overlap = runPass2([...CUSTOM, '--yes'], {
+      STUB_CONFLICTS: '[{"Alias":"*.footbag.org","DistributionId":"E9*******ABC","AccountId":"******111111"}]',
+    });
+    expect(overlap.status).not.toBe(0);
+    expect(overlap.report).toMatch(/www\.footbag\.org is overlapped by \*\.footbag\.org/);
+    expect(values()).toBe(CUSTOM_VALUES);
+
+    pass2Setup();
+    writeFileSync(calls, '', 'utf-8');
+    const failed = runPass2([...CUSTOM, '--yes'], { STUB_AWS_RC: '254' });
+    expect(failed.status).not.toBe(0);
+    expect(failed.report).toMatch(/list-conflicting-aliases for footbag\.org failed/);
+  });
+
+  // Defect caught: a custom domain whose write landed could never be finished,
+  // or a finished one would be applied again unchecked.
+  it('finishes a custom domain whose write landed, and leaves a finished one alone', () => {
+    pass2Setup({ values: CUSTOM_VALUES, plan: customPlan({ updates: [] }) });
+    const r = runPass2([...CUSTOM, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(values()).toBe(CUSTOM_VALUES);
+
+    pass2Setup({ values: CUSTOM_VALUES });
+    writeFileSync(calls, '', 'utf-8');
+    const done = runPass2([...CUSTOM, '--yes']);
+    expect(done.status, done.stderr).toBe(0);
+    expect(done.report).toMatch(/already in production/);
+    expect(callLog()).toContain('aws cloudfront list-conflicting-aliases www.footbag.org');
+    expect(callLog()).not.toMatch(/^apply /m);
+  });
+
+  // Defect caught: the undo would leave a piece of the custom domain behind,
+  // or point the archive's pages anywhere but the distribution's own name.
+  it('undoes it all, and refuses an undo that leaves a piece behind', () => {
+    const undoPlan = customPlan({ prior: [...CUSTOM_SET, COOKIE_PARAM, ...PASS2_STAYS], deletes: [...CUSTOM_SET, COOKIE_PARAM], creates: [], updates: [DIST, BASE_PARAM] });
+    pass2Setup({ values: CUSTOM_VALUES, plan: undoPlan });
+    const r = runPass2([...CUSTOM, '--undo', '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(UNDONE_VALUES);
+    expect(callLog()).not.toMatch(/^aws /m);
+
+    const partial = { ...undoPlan, deletes: CUSTOM_SET.filter((a) => !a.includes('preview_aaaa')) };
+    pass2Setup({ values: CUSTOM_VALUES, plan: partial });
+    writeFileSync(calls, '', 'utf-8');
+    const left = runPass2([...CUSTOM, '--undo', '--yes']);
+    expect(left.status).not.toBe(0);
+    expect(left.report).toMatch(/leaves aws_route53_record\.preview_aaaa\[0\] in place/);
+    expect(values()).toBe(CUSTOM_VALUES);
+  });
+
+  // Defect caught: a dry run that planned, wrote or applied.
+  it('changes nothing on a dry run, after checking the state and the delegation', () => {
+    pass2Setup();
+    const r = runPass2([...CUSTOM, '--dry-run']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/footbag\.org is delegated to the Route 53 zone/);
+    expect(values()).toBe(PASS1_VALUES);
+    expect(callLog()).not.toMatch(/^terraform plan/m);
+  });
+});
+
+// ── STAGE ses-domain ─────────────────────────────────────────────────────────
+
+const SES = ['--target', 'production', '--stage', 'ses-domain'];
+const SES_SET = [
+  'aws_ses_domain_identity.main[0]',
+  'aws_ses_domain_dkim.main[0]',
+  'aws_route53_record.ses_domain_verification[0]',
+  'aws_ses_domain_identity_verification.main[0]',
+  'aws_route53_record.ses_dkim[0]',
+  'aws_route53_record.ses_dkim[1]',
+  'aws_route53_record.ses_dkim[2]',
+  'aws_ses_identity_notification_topic.domain_bounce[0]',
+  'aws_ses_identity_notification_topic.domain_complaint[0]',
+  'aws_sesv2_email_identity_feedback_attributes.domain[0]',
+];
+
+/** The window's values file as production carries it: the domain
+ *  authentication flag written, the identity flag left to its default. */
+const PRE_SES_VALUES = `${CUSTOM_VALUES}ses_enable_domain_auth      = false\n`;
+/** After the write, by hand: the auth flag set where it stood, the identity
+ *  flag added at the end. */
+const SES_VALUES = `${CUSTOM_VALUES}ses_enable_domain_auth = true\nses_enable_domain_identity = true\n`;
+
+function sesPlan(shape: PlanShape = {}): PlanShape {
+  return { prior: PASS2_STAYS, deletes: [], creates: SES_SET, updates: [], noop: PASS2_STAYS, ...shape };
+}
+
+describe('production-cutover.sh ses-domain', () => {
+  // Defect caught: the identity and its authentication applied one without
+  // the other, or before the delegation wait, when SES may abandon the domain.
+  it('refuses a half-set pair or an early run, beside a run it lets through', () => {
+    const half = PRE_SES_VALUES.replace('ses_enable_domain_auth      = false', 'ses_enable_domain_auth      = true');
+    pass2Setup({ values: half, plan: sesPlan() });
+    expectRefusedUntouched(runPass2([...SES, '--yes']), 'half', half, /half set/);
+    pass2Setup({ values: PRE_SES_VALUES, plan: sesPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    expectRefusedUntouched(runPass2([...SES, '--yes'], { PRODUCTION_CUTOVER_NOW: String(CONVERGED_EPOCH + 3600) }), 'early', PRE_SES_VALUES, /the ses-domain stage waits 90000 seconds/);
+    pass2Setup({ values: PRE_SES_VALUES, plan: sesPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    const ok = runPass2([...SES, '--yes']);
+    expect(ok.status, ok.stderr).toBe(0);
+  });
+
+  // Defect caught: an SES plan that misses a DKIM record, creates or changes
+  // anything else, or removes something would be applied as the SES domain.
+  it('refuses any plan that is not exactly the SES domain', () => {
+    const cases: Array<[string, PlanShape, RegExp]> = [
+      ['a DKIM record missing', { creates: SES_SET.filter((a) => !a.endsWith('ses_dkim[2]')) }, /does not create aws_route53_record\.ses_dkim\[2\]/],
+      ['the sender moved too', { updates: ['aws_ssm_parameter.app_ses_sender_identity[0]'] }, /would update aws_ssm_parameter\.app_ses_sender_identity\[0\]/],
+      ['the mail records too', { creates: [...SES_SET, 'aws_ses_domain_mail_from.main[0]'] }, /would create aws_ses_domain_mail_from\.main\[0\]/],
+      ['the sender identity removed', { deletes: ['aws_ses_email_identity.sender[0]'] }, /would destroy aws_ses_email_identity\.sender\[0\]/],
+    ];
+    for (const [name, shape, why] of cases) {
+      pass2Setup({ values: PRE_SES_VALUES, plan: sesPlan(shape) });
+      writeFileSync(calls, '', 'utf-8');
+      const r = runPass2([...SES, '--yes']);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(PRE_SES_VALUES);
+      expect(callLog(), name).not.toMatch(/^apply /m);
+    }
+  });
+
+  // Defect caught: a setting the values file leaves out never written, so the
+  // stage could not run on the file production actually carries; or written
+  // anywhere but where the file holds it.
+  it('writes both settings, adding the one the file leaves out, and applies', () => {
+    pass2Setup({ values: PRE_SES_VALUES, plan: sesPlan() });
+    const r = runPass2([...SES, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(SES_VALUES);
+    expect(varFile()).toBe('ses_enable_domain_identity = true\nses_enable_domain_auth = true\n');
+    expect(r.report).toMatch(/SES domain in production: applied/);
+    expect(r.report).toMatch(/ses-sender-cutover\.sh/);
+  });
+
+  // Defect caught: a write that landed could never be finished.
+  it('finishes a write that landed, and changes nothing on a dry run', () => {
+    pass2Setup({ values: SES_VALUES, plan: sesPlan() });
+    const r = runPass2([...SES, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(values()).toBe(SES_VALUES);
+
+    pass2Setup({ values: PRE_SES_VALUES, plan: sesPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    const dry = runPass2([...SES, '--dry-run']);
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(values()).toBe(PRE_SES_VALUES);
+    expect(callLog()).not.toMatch(/^terraform plan/m);
+  });
+});
+
+// ── STAGE window, and STAGE rehearsal ────────────────────────────────────────
+
+const WINDOW = ['--target', 'production', '--stage', 'window'];
+const REHEARSAL = ['--target', 'production', '--stage', 'rehearsal'];
+
+/** The notice raised before the switch: the window alarms removed and the
+ *  notice compiled into the edge function. */
+function windowPlan(shape: PlanShape = {}): PlanShape {
+  return { prior: [...ALARMS, ...PASS2_STAYS, NOTICE_FUNCTION, BASE_PARAM], deletes: ALARMS, creates: [], updates: [NOTICE_FUNCTION], noop: PASS2_STAYS, ...shape };
+}
+/** The notice lowered: the window alarms back, the edge function changed, the
+ *  base address moved when the rehearsal gives the host www. */
+function loweredPlan(shape: PlanShape = {}): PlanShape {
+  return { prior: [...PASS2_STAYS, NOTICE_FUNCTION, BASE_PARAM], deletes: [], creates: ALARMS, updates: [NOTICE_FUNCTION, BASE_PARAM], noop: PASS2_STAYS, ...shape };
+}
+
+/** The rehearsal's write, by hand: the notice down where it stood, the
+ *  rehearsal setting added at the end. */
+const REHEARSING_VALUES = `${WINDOWED_VALUES.replace('enable_cutover_notice = true', 'enable_cutover_notice = false')}rehearse_launch_base_address = true\n`;
+/** The return's write, by hand. */
+const RETURNED_VALUES = `${WINDOWED_VALUES}rehearse_launch_base_address = false\n`;
+
+describe('production-cutover.sh window', () => {
+  // Defect caught: the notice raised without the custom domain and preview
+  // (Terraform refuses it), after the record switch (where it is the
+  // rollback's), or past launch.
+  it('refuses outside the pass-2 window state, beside a run it lets through', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['custom domain off', PASS1_VALUES, /enable_platform_custom_domain is false, not true/],
+      ['alias on', CUSTOM_VALUES.replace('enable_apex_alias_records     = false', 'enable_apex_alias_records     = true'), /enable_apex_alias_records is true, not false/],
+      ['mirror off', CUSTOM_VALUES.replace('enable_legacy_mirror_records = true', 'enable_legacy_mirror_records = false'), /notice-raise/],
+      ['notice and rehearsal both on', `${WINDOWED_VALUES}rehearse_launch_base_address = true\n`, /both on/],
+    ];
+    for (const [name, content, why] of cases) {
+      pass2Setup({ values: content, plan: windowPlan() });
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runPass2([...WINDOW, '--yes']), name, content, why);
+    }
+    pass2Setup({ values: CUSTOM_VALUES, plan: windowPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    const ok = runPass2([...WINDOW, '--yes']);
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(values()).toBe(WINDOWED_VALUES);
+    expect(varFile()).toBe('enable_cutover_notice = true\n');
+    expect(ok.report).toMatch(/window state in production: applied/);
+    expect(ok.report).toMatch(/code-only deploy/);
+  });
+
+  // Defect caught: a window plan that keeps an alarm paging through the
+  // window, never compiles the notice in, or carries anything else.
+  it('refuses any plan that is not exactly the notice raised', () => {
+    const cases: Array<[string, PlanShape, RegExp]> = [
+      ['leaves an alarm', { deletes: ALARMS.slice(1) }, /leaves aws_route53_health_check\.site_ready\[0\] in place/],
+      ['the notice not compiled in', { updates: [] }, /does not update aws_cloudfront_function\.apex_redirect\[0\] in place/],
+      ['destroys a record', { deletes: [...ALARMS, 'aws_route53_record.www[0]'] }, /would destroy aws_route53_record\.www\[0\]/],
+      ['creates something', { creates: ['aws_route53_record.apex_aaaa[0]'] }, /would create aws_route53_record\.apex_aaaa\[0\]/],
+    ];
+    for (const [name, shape, why] of cases) {
+      pass2Setup({ values: CUSTOM_VALUES, plan: windowPlan(shape) });
+      writeFileSync(calls, '', 'utf-8');
+      const r = runPass2([...WINDOW, '--yes']);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(CUSTOM_VALUES);
+    }
+  });
+
+  // Defect caught: the rehearsal's return would leave the host on www, where
+  // mail built after it links to a site still serving the legacy pages.
+  it('returns from the rehearsal, moving the base address back', () => {
+    const returnPlan = windowPlan({ updates: [NOTICE_FUNCTION, BASE_PARAM] });
+    pass2Setup({ values: REHEARSING_VALUES, plan: returnPlan });
+    const r = runPass2([...WINDOW, '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(RETURNED_VALUES);
+    expect(r.report).toMatch(/rehearsal return in production: applied/);
+
+    pass2Setup({ values: REHEARSING_VALUES, plan: windowPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    const stuck = runPass2([...WINDOW, '--yes']);
+    expect(stuck.status).not.toBe(0);
+    expect(stuck.report).toMatch(/does not update aws_ssm_parameter\.app_public_base_url\[0\] in place/);
+    expect(values()).toBe(REHEARSING_VALUES);
+  });
+
+  // Defect caught: the undo would bring back only some of the alarms, or run
+  // in the middle of a rehearsal, skipping its return.
+  it('takes the notice down again, every alarm back, never mid-rehearsal', () => {
+    pass2Setup({ values: WINDOWED_VALUES, plan: loweredPlan({ updates: [NOTICE_FUNCTION] }) });
+    const r = runPass2([...WINDOW, '--undo', '--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(values()).toBe(CUSTOM_VALUES.replace('enable_cutover_notice         = false', 'enable_cutover_notice = false'));
+
+    pass2Setup({ values: WINDOWED_VALUES, plan: loweredPlan({ creates: ALARMS.slice(1) }) });
+    writeFileSync(calls, '', 'utf-8');
+    const short = runPass2([...WINDOW, '--undo', '--yes']);
+    expect(short.status).not.toBe(0);
+    expect(short.report).toMatch(/does not create aws_route53_health_check\.site_ready\[0\]/);
+
+    pass2Setup({ values: REHEARSING_VALUES, plan: loweredPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    expectRefusedUntouched(runPass2([...WINDOW, '--undo', '--yes']), 'mid-rehearsal', REHEARSING_VALUES, /its return \(--stage window\) comes before/);
+  });
+
+  // Defect caught: a window whose write landed could never be finished, or a
+  // dry run that planned.
+  it('finishes a write that landed, and changes nothing on a dry run', () => {
+    pass2Setup({ values: WINDOWED_VALUES, plan: windowPlan({ updates: [] }) });
+    const r = runPass2([...WINDOW, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+
+    pass2Setup({ values: CUSTOM_VALUES, plan: windowPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    const dry = runPass2([...WINDOW, '--dry-run']);
+    expect(dry.status, dry.stderr).toBe(0);
+    expect(values()).toBe(CUSTOM_VALUES);
+    expect(callLog()).not.toMatch(/^terraform plan/m);
+  });
+});
+
+describe('production-cutover.sh rehearsal', () => {
+  // Defect caught: the rehearsal started anywhere but the window: after the
+  // record switch it would be the launch itself, and from outside the window
+  // the host would never come back to preview.
+  it('starts only from the window state, beside a run it lets through', () => {
+    const cases: Array<[string, string, RegExp]> = [
+      ['notice down', CUSTOM_VALUES, /starts from the window state/],
+      ['alias on', WINDOWED_VALUES.replace('enable_apex_alias_records     = false', 'enable_apex_alias_records     = true'), /enable_apex_alias_records is true, not false/],
+      ['preview off', WINDOWED_VALUES.replace('enable_preview_record = true', 'enable_preview_record = false'), /enable_preview_record is false, not true/],
+    ];
+    for (const [name, content, why] of cases) {
+      pass2Setup({ values: content, plan: loweredPlan() });
+      writeFileSync(calls, '', 'utf-8');
+      expectRefusedUntouched(runPass2([...REHEARSAL, '--yes']), name, content, why);
+    }
+    pass2Setup({ values: WINDOWED_VALUES, plan: loweredPlan() });
+    writeFileSync(calls, '', 'utf-8');
+    const ok = runPass2([...REHEARSAL, '--yes']);
+    expect(ok.status, ok.stderr).toBe(0);
+    expect(values()).toBe(REHEARSING_VALUES);
+    expect(varFile()).toBe('enable_cutover_notice = false\nrehearse_launch_base_address = true\n');
+    expect(ok.report).toMatch(/launch rehearsal in production: applied/);
+  });
+
+  // Defect caught: a rehearsal plan that leaves the host on preview (form
+  // posts on www refused), brings back only some alarms, or carries more.
+  it('refuses any plan that is not exactly the rehearsal', () => {
+    const cases: Array<[string, PlanShape, RegExp]> = [
+      ['base address not moved', { updates: [NOTICE_FUNCTION] }, /does not update aws_ssm_parameter\.app_public_base_url\[0\] in place/],
+      ['an alarm missing', { creates: ALARMS.slice(0, 2) }, /does not create aws_cloudwatch_metric_alarm\.cloudfront_5xx\[0\]/],
+      ['destroys a record', { deletes: ['aws_route53_record.preview_a[0]'] }, /would destroy aws_route53_record\.preview_a\[0\]/],
+    ];
+    for (const [name, shape, why] of cases) {
+      pass2Setup({ values: WINDOWED_VALUES, plan: loweredPlan(shape) });
+      writeFileSync(calls, '', 'utf-8');
+      const r = runPass2([...REHEARSAL, '--yes']);
+      expect(r.status, name).not.toBe(0);
+      expect(r.report, name).toMatch(why);
+      expect(values(), name).toBe(WINDOWED_VALUES);
+    }
+  });
+
+  // Defect caught: a rehearsal whose write landed could never be finished.
+  it('finishes a write that landed', () => {
+    pass2Setup({ values: REHEARSING_VALUES, plan: loweredPlan({ updates: [] }) });
+    const r = runPass2([...REHEARSAL, '--yes'], { STUB_CURRENT_PLAN_RC: '2' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+    expect(values()).toBe(REHEARSING_VALUES);
   });
 });

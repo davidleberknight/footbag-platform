@@ -43,7 +43,12 @@
 # survives a boot, while the hardened drop-in under /etc does.
 #
 # Required shell variables (from the wrapper's prepended assignments):
-#   MODE        status | apply | confirm
+#   MODE        status | verify | apply | confirm
+#
+# MODE=verify changes nothing. It fails unless, with every Match block applied,
+# root, password and keyboard-interactive login are off for every connection the
+# apply checks, and no self-revert is pending or running, since a pending revert
+# means the hardened file on disk is about to be replaced.
 #
 # Optional, overridable so this body also runs standalone for its tests:
 #   SSHD_BIN          the sshd binary (default sshd)
@@ -141,6 +146,32 @@ if [[ "$MODE" == "status" ]]; then
   elif revert_running; then
     echo "    NOTE: a self-revert is running now and is putting the previous file back." || true
   fi
+  exit 0
+fi
+
+# Verify: the read-only verdict a readiness step can rely on. The posture above
+# is read without Match, so the verdict is judged per connection instead.
+if [[ "$MODE" == "verify" ]]; then
+  [[ -n "$LOGIN_USER" ]] \
+    || { echo "ERROR: cannot tell which account this session logged in as, so cannot judge its login." >&2; exit 1; }
+  verify_failed=0
+  if ! applies_everywhere; then
+    echo "ERROR: not hardened: sshd would allow root, password or keyboard-interactive login for the" >&2
+    echo "       connection above." >&2
+    verify_failed=1
+  fi
+  if revert_pending; then
+    echo "ERROR: a change is waiting to be confirmed; its self-revert will put the previous file back." >&2
+    verify_failed=1
+  elif revert_running; then
+    echo "ERROR: a self-revert is running now and is putting the previous file back." >&2
+    verify_failed=1
+  fi
+  if (( verify_failed )); then
+    exit 1
+  fi
+  echo "    hardened: root, password and keyboard-interactive login off for root, ${LOGIN_USER} and"
+  echo "    ${BREAK_GLASS_USER}, from loopback and outside, with no self-revert pending or running"
   exit 0
 fi
 

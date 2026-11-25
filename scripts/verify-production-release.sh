@@ -27,22 +27,42 @@
 set -euo pipefail
 
 case "${1:-}" in
-  "") ;;
   -h|--help) sed -n '2,25p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-  *) echo "ERROR: unknown argument '$1'. This script takes none." >&2; exit 2 ;;
 esac
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$REPO_ROOT"
 
+# Every refusal and warning the rules raise is listed once at the end, so a
+# failure in a long sitting names its reason rather than a bare exit status.
+# shellcheck source=scripts/lib/closing-report.sh
+source "${REPO_ROOT}/scripts/lib/closing-report.sh"
 # shellcheck source=scripts/lib/production-release-gate.sh
 source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
 
+[[ -z "${1:-}" ]] || { cr_error "unknown argument '$1'. This script takes none."; exit 2; }
+
 # The standalone check honours the test seams, announced, so its suite can drive
 # it; the deploys never do.
+[[ -n "${FOOTBAG_GH_BIN:-}" ]] \
+  && cr_unproved "the CI result: a test seam (FOOTBAG_GH_BIN) stood in for gh"
+
+# The rules leave what they found in PRG_BLOCKERS and PRG_WARNINGS; each becomes
+# an error or a warning here, so the exit follows from the list.
 if production_release_gate_require "$REPO_ROOT" --allow-seams; then
-  echo "PASS: this tree may ship to production."
-  exit 0
+  GATE_OK=1
+else
+  GATE_OK=0
 fi
-exit 1
+for blocker in "${PRG_BLOCKERS[@]+"${PRG_BLOCKERS[@]}"}"; do cr_error "$blocker"; done
+for warning in "${PRG_WARNINGS[@]+"${PRG_WARNINGS[@]}"}"; do cr_warn "$warning"; done
+
+if (( GATE_OK )); then
+  echo "PASS: this tree may ship to production."
+  cr_proved "this tree may ship to production: it is clean, its origin is ${PRODUCTION_RELEASE_CANONICAL_SLUG}, main contains its HEAD, and CI's \"${PRODUCTION_RELEASE_CI_CHECK}\" check succeeded on every run for that commit"
+  cr_unproved "that the release works once deployed: after the deploy, npm run test:deployed -- --target production checks it"
+elif (( ${#PRG_BLOCKERS[@]} == 0 )); then
+  cr_error "the release rules refused this tree without naming a rule"
+fi
+cr_finish

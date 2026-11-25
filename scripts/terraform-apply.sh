@@ -83,9 +83,12 @@
 # Any other plan that replaces or destroys the web instance is refused.
 #
 # --firewall-only and --require-empty-plan are for callers that know in advance
-# what the plan may contain. The first, run by the dev-and-tester address path on
-# staging only, applies only when the firewall rule set is the whole change; the
-# rule set is written in place (see "The firewall, written in place"). The second,
+# what the plan may contain. The first, run by the operator and dev-and-tester
+# address paths on staging or production, applies only when the firewall rule
+# set is the whole change; the rule set is written in place (see "The firewall,
+# written in place"), and on production a firewall that cannot be written in
+# place is refused, since replacing it closes port 80, CloudFront's only way to
+# the origin. The second,
 # run when proving the job role and by every deploy (scripts/lib/infra-sync.sh),
 # on staging or production, applies nothing and refuses unless there is nothing
 # to apply. Either refuses any other change as drift it did not come to apply.
@@ -521,12 +524,14 @@ if (( ALLOW_MARKER_CREATE )) && [[ "$TARGET" != "production" ]]; then
   exit 2
 fi
 
-# The firewall shape is staging-only: the dev-and-tester address path exists on
-# staging alone, and a restriction on the plan is not a reason to apply any other
-# tree. The empty-plan shape applies nothing on any tree, so it also serves the
-# deploy's check that production runs the infrastructure its tree describes.
-if [[ "$PLAN_SHAPE" == "firewall-only" && "$TARGET" != "staging" ]]; then
-  echo "ERROR: --firewall-only applies to staging only." >&2
+# The firewall shape is for the two trees with an instance firewall, staging and
+# production: an address change there, an administrator's or a dev-and-tester's,
+# is held to the firewall and the addresses it names, so the typed word for one
+# address never also carries whatever else is pending in the tree. The
+# empty-plan shape applies nothing on any tree, so it also serves the deploy's
+# check that production runs the infrastructure its tree describes.
+if [[ "$PLAN_SHAPE" == "firewall-only" && "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
+  echo "ERROR: --firewall-only applies to staging and production only." >&2
   exit 2
 fi
 if [[ "$PLAN_SHAPE" == "empty" && "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
@@ -1528,12 +1533,41 @@ if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
     cr_error "this firewall-only apply would also change:"
     printf '%s\n' "$OTHER_CHANGES" | sed 's/^/  /' >&2
     echo "       That is drift this run did not come to apply. Nothing has been" >&2
-    echo "       applied; a footbag-operator holder applies staging first." >&2
+    echo "       applied; a footbag-operator holder applies ${TARGET} first." >&2
     exit 1
   fi
   if [[ -z "$PLANNED_CHANGES" ]]; then
-    echo "The staging firewall already admits exactly these addresses. Nothing to apply."
+    echo "The ${TARGET} firewall already admits exactly these addresses. Nothing to apply."
     exit 0
+  fi
+  # Production's firewall carries the site as well as SSH: port 80 is the only
+  # way CloudFront reaches the origin. The ordinary replacement closes every port
+  # while it rewrites them, so on production an address change is applied only
+  # when the list can be written in place; otherwise it is refused, and the
+  # reason the in-place write was ruled out says what to fix.
+  if [[ "$TARGET" == "production" ]] && (( ! FW_INPLACE )); then
+    cr_error "this firewall change on production cannot be written in place (${fw_reason:-the plan does not replace the firewall the way the in-place write expects}), and replacing it would close the site."
+    echo "       Nothing has been applied. The browser console's lightsail-connect" >&2
+    echo "       alias stays on port 22 for anyone locked out meanwhile." >&2
+    exit 1
+  fi
+  # CloudFront's published ranges move, and Terraform reads them afresh on each
+  # plan, so the same write can carry port 80 changes the operator did not come
+  # for. They are the tree's own, not drift, but they are listed before the
+  # typed word so nothing about the site's path changes unseen.
+  if ! PORT80_DIFF="$(printf '%s' "$PLAN_JSON" | jq -r --arg fw "$FIREWALL_ADDRESS" '
+      def web(x): [(x // {}).port_info[]? | select(.from_port == 80) | .cidrs[]?] | unique;
+      [.resource_changes[]? | select(.address == $fw)][0].change as $c
+      | (web($c.before)) as $b | (web($c.after)) as $a
+      | (($b - $a)[] | "removed \(.)"), (($a - $b)[] | "added \(.)")
+    ')"; then
+    cr_error "could not read the firewall's port 80 ranges out of the saved plan. Nothing has been applied."
+    exit 1
+  fi
+  if [[ -n "$PORT80_DIFF" ]]; then
+    echo "The same write also changes port 80, CloudFront's ranges, as Terraform read them now:"
+    printf '%s\n' "$PORT80_DIFF" | sed 's/^/  /'
+    echo ""
   fi
   # The resource being the whole change says nothing about which addresses it
   # carries. Compare the SSH ports' addresses before and after: anything gained
@@ -1567,9 +1601,10 @@ if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
     echo "       This machine's values file disagrees with the live firewall, so" >&2
     echo "       applying would drop or add somebody else's access. Nothing has been" >&2
     echo "       applied. Update the private checkout, or a footbag-operator holder" >&2
-    echo "       applies staging first." >&2
+    echo "       applies ${TARGET} first." >&2
     exit 1
   fi
+  # Reached only on staging: production refused a replacement above.
   if (( ! FW_INPLACE )); then
     echo "This apply replaces the staging firewall rule set (${FIREWALL_ADDRESS})."
     echo "Every staging port, SSH and the site alike, closes for a few seconds while"

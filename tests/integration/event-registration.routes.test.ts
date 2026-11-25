@@ -21,6 +21,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { flashCookieOf } from '../fixtures/flashCookie';
 import { isoDaysFromNow, isoDaysAgo } from '../fixtures/clock';
+import { spendMemberSearchAllowance, retryAfterIsAWait } from '../fixtures/memberSearchLimit';
 import {
   createMemberAtTier,
   completeOnboarding,
@@ -532,6 +533,19 @@ describe('choosing a partner in the form', () => {
   // Defect caught: a partner chosen from the search is not carried into the
   // form, lands on the wrong division, or the form as rendered does not
   // register with them.
+  // Defect caught: a refused partner search answered as a success, so a
+  // client hammering the picker is never told to stop or how long to wait.
+  it('answers a refused partner search at 429 with a wait, the form re-rendered with the notice', async () => {
+    const ev = seedEvent();
+    const body = registerBody(ev, { divisions: [ev.mixed] });
+    await spendMemberSearchAllowance(ada);
+    const refused = await post(ada, pathOf(ev), { ...body, pick: `search:${keyOf(ev.mixed)}`, pick_q: 'rg-max' });
+    expect(refused.status).toBe(429);
+    expect(retryAfterIsAWait(refused.headers['retry-after']), String(refused.headers['retry-after'])).toBe(true);
+    expect(refused.text).toContain(`value="search:${keyOf(ev.mixed)}"`);
+    expect(refused.text).toContain('form-error-banner');
+  });
+
   it('registers the doubles entry with the partner chosen from the search', async () => {
     const ev = seedEvent();
     const body = registerBody(ev, { divisions: [ev.mixed, ev.womenDoubles] });

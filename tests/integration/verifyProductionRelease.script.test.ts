@@ -28,7 +28,13 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 const REPO_ROOT = process.cwd();
 const CANONICAL = 'davidleberknight/footbag-platform';
 const CHECK = 'Type-check and test';
-const SHIPPED = ['scripts/verify-production-release.sh', 'scripts/lib/production-release-gate.sh'];
+const SHIPPED = [
+  'scripts/verify-production-release.sh',
+  'scripts/lib/production-release-gate.sh',
+  'scripts/lib/closing-report.sh',
+  'scripts/lib/closing-report-remote.sh',
+  'scripts/lib/verdict-banner.sh',
+];
 const ESCAPE_HATCHES = ['FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK', 'FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT', 'FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS'];
 const SEAM = 'FOOTBAG_GH_BIN';
 
@@ -121,6 +127,13 @@ function expectRefused(f: Fixture, fragment: string, extraEnv: Record<string, st
   const res = runGate(f, extraEnv);
   expect(res.status, res.stderr).toBe(1);
   expect(res.stderr).toContain(fragment);
+}
+
+/** The closing report a standalone check ends with: everything after its heading. */
+function closingReport(stderr: string): string {
+  const at = stderr.lastIndexOf('==== Closing report: verify-production-release.sh ====');
+  expect(at, `the check ends with a closing report:\n${stderr}`).toBeGreaterThan(-1);
+  return stderr.slice(at);
 }
 
 /** Adds a commit to main and pushes it, so the fixture's first commit becomes an earlier commit of main. */
@@ -292,6 +305,64 @@ describe('the production release gate', () => {
     });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain(`${SEAM} is set; test seams are never honoured on a production deploy`);
+  });
+});
+
+/**
+ * The standalone check's closing report. A sitting's log is read from the end,
+ * so a refusal names its rules there and a pass says so with no warning.
+ */
+describe('the standalone check\'s closing report', () => {
+  // Defect caught: a tree that may ship ends with a warning or a failed
+  // verdict, so the operator chases a problem that is not there.
+  it('ends a pass with DONE, no warning, and what it proved', () => {
+    const res = runGate(fixture());
+    expect(res.status, res.stderr).toBe(0);
+    const report = closingReport(res.stderr);
+    expect(report).toContain('No errors or warnings.');
+    expect(report).toMatch(/Proven:\n {2}- this tree may ship to production/);
+    expect(report).toMatch(/## VERDICT: DONE +\(exit 0\)/);
+  });
+
+  // Defect caught: a refused tree ends on a bare exit 1, so the sitting's log
+  // never says which rule refused it.
+  it('names every refusing rule in the report of a refusal', () => {
+    const f = fixture();
+    f.answerCi(['failure']);
+    writeFileSync(join(f.work, 'scratch.txt'), 'x\n');
+    const res = runGate(f, { SKIP_SMOKE: 'yes' });
+    expect(res.status).toBe(1);
+    const report = closingReport(res.stderr);
+    expect(report).toMatch(/Errors \(3\):/);
+    for (const rule of ['SKIP_SMOKE=yes', 'the working tree is not clean', 'finished red (failure)']) {
+      expect(report, rule).toContain(rule);
+    }
+    expect(report).toMatch(/## VERDICT: FAILED +\(exit 1\)/);
+  });
+
+  // Defect caught: a rollback passes with its warning shown only mid-stream,
+  // so nobody reading the end notices production is moving backwards.
+  it('lists the rollback warning and still exits 0', () => {
+    const f = fixture();
+    const earlier = f.head();
+    advanceMain(f);
+    sh(f.work, 'git', ['checkout', '-q', earlier]);
+    const res = runGate(f);
+    expect(res.status, res.stderr).toBe(0);
+    const report = closingReport(res.stderr);
+    expect(report).toMatch(/Warnings \(1\):\n {2}- HEAD \([0-9a-f]{12}\) is an earlier commit of main/);
+    expect(report).toMatch(/## VERDICT: DONE WITH WARNINGS +\(exit 0\)/);
+  });
+
+  // Defect caught: an argument refusal ends without its reason in the report,
+  // or with an exit a caller cannot tell from a refused tree.
+  it('names an unknown argument in the report and exits 2', () => {
+    const f = fixture();
+    const res = spawnSync('bash', [join(f.work, 'scripts/verify-production-release.sh'), '--bogus'], {
+      cwd: f.work, encoding: 'utf8', env: { ...process.env, ...f.env }, ...SPAWN_GUARD,
+    });
+    expect(res.status).toBe(2);
+    expect(closingReport(res.stderr ?? '')).toContain("- unknown argument '--bogus'");
   });
 });
 

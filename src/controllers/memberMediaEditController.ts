@@ -40,6 +40,7 @@ import { parsePickIntent } from '../services/memberPicker';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash, writeShareFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
+import { statusForPage } from '../lib/searchRefusal';
 import { z } from 'zod';
 import { parseFormBody, formText, formOptionalText } from '../lib/parseFormBody';
 import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
@@ -73,16 +74,14 @@ function renderForm(
     owner?: { memberId: string; slug: string };
   } = {},
 ): void {
-  res.status(opts.status ?? 200).render(
-    'members/media/edit',
-    getMemberMediaEditPage(memberKey, mediaId, values, {
-      errorMessage: opts.errorMessage,
-      tagSuggestions: opts.tagSuggestions,
-      playerSearch: opts.playerSearch,
-      galleryChips: opts.owner ? memberGalleryChips(buildSvc(), opts.owner.memberId) : [],
-      memberSlug: opts.owner?.slug,
-    }),
-  );
+  const vm = getMemberMediaEditPage(memberKey, mediaId, values, {
+    errorMessage: opts.errorMessage,
+    tagSuggestions: opts.tagSuggestions,
+    playerSearch: opts.playerSearch,
+    galleryChips: opts.owner ? memberGalleryChips(buildSvc(), opts.owner.memberId) : [],
+    memberSlug: opts.owner?.slug,
+  });
+  res.status(statusForPage(res, vm, opts.status ?? 200)).render('members/media/edit', vm);
 }
 
 export const memberMediaEditController = {

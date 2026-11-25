@@ -25,7 +25,7 @@ Which status each case takes is the design decision "HTTP Response Convention", 
 
 - A `NotFoundError`, a failed controller-side ownership check, or any `ValidationError` delegated to `handleControllerError` renders 404, so validation detail never reaches a public visitor.
 - 422 is controller-emitted: the discriminated-union `validation_error` result, or a locally caught `ConflictError`, re-rendered with the submitted values.
-- `RateLimitedError` is caught locally and rendered at 429 with `Retry-After` from `retryAfterSeconds`; `handleControllerError` does not handle it (delegating would 500).
+- `RateLimitedError` is caught locally and rendered at 429 with `Retry-After` from `retryAfterSeconds`; `handleControllerError` does not handle it (delegating would 500). A page whose member search the limit refused carries `page.rateLimitRetryAfterSeconds` instead, and its controller renders it at `statusForPage(res, vm, status)` from `src/lib/searchRefusal.ts`, which answers 429 with that wait.
 - `ServiceUnavailableError` maps to 503.
 - A repeat of an action that already landed (`own_repeat`, `already_held`) takes the success 303, never a conflict re-render.
 

@@ -73,6 +73,26 @@ const MATCHING = {
   rules: [...COMMITTED.rules].reverse(),
 };
 
+/**
+ * Other rulesets that apply to the default branch, each by a different
+ * condition. The first is the shape of the disabled leftover the live
+ * repository carried on 2026-11-24.
+ */
+const REACHING_MAIN = [
+  {
+    id: 13930881, name: 'Protect main and require PR workflow', target: 'branch', enforcement: 'disabled',
+    conditions: { ref_name: { exclude: [], include: ['~DEFAULT_BRANCH'] } }, rules: [{ type: 'pull_request' }],
+  },
+  { id: 21, name: 'every branch', target: 'branch', enforcement: 'active', conditions: { ref_name: { exclude: [], include: ['~ALL'] } }, rules: [] },
+  { id: 22, name: 'main by name', target: 'branch', enforcement: 'evaluate', conditions: { ref_name: { exclude: [], include: ['refs/heads/main'] } }, rules: [] },
+];
+
+/** Rulesets that never touch the default branch, which --apply must leave alone. */
+const NOT_REACHING_MAIN = [
+  { id: 31, name: 'release branches', target: 'branch', enforcement: 'active', conditions: { ref_name: { exclude: [], include: ['refs/heads/release/*'] } }, rules: [] },
+  { id: 32, name: 'all tags', target: 'tag', enforcement: 'active', conditions: { ref_name: { exclude: [], include: ['~ALL'] } }, rules: [] },
+];
+
 let dir: string;
 let caseNo = 0;
 const stateFile = () => join(dir, 'rulesets.json');
@@ -97,6 +117,10 @@ function ghStub(): string {
       'case "$method $path" in',
       '  "GET repos/"*"/rulesets?per_page=100") jq "[.[] | {id, name}]" "$state" ;;',
       '  "GET repos/"*"/rulesets/"*) id="${path##*/}"; jq -e --argjson i "$id" ".[] | select(.id == \\$i)" "$state" || { echo "HTTP 404: Not Found" >&2; exit 1; } ;;',
+      '  "GET repos/"*) echo "{\\"default_branch\\": \\"${FAKE_GH_DEFAULT_BRANCH:-main}\\"}" ;;',
+      '  "DELETE repos/"*"/rulesets/"*)',
+      '    [[ -n "${FAKE_GH_WRITE_IGNORED:-}" ]] && exit 0',
+      '    id="${path##*/}"; jq --argjson i "$id" "[.[] | select(.id != \\$i)]" "$state" > "$state.new" && mv "$state.new" "$state" ;;',
       '  "PUT repos/"*"/rulesets/"*|"POST repos/"*"/rulesets")',
       '    [[ -n "${FAKE_GH_WRITE_IGNORED:-}" ]] && { echo "{}"; exit 0; }',
       '    id="${path##*/}"; [[ "$method" == POST ]] && id=777',
@@ -128,7 +152,7 @@ function run(args: string[], rulesets: unknown[], extra: Record<string, string> 
 }
 
 const calls = () => (existsSync(callLog()) ? readFileSync(callLog(), 'utf-8') : '');
-const writesMade = () => calls().split('\n').filter((l) => /--method (PUT|POST)/.test(l));
+const writesMade = () => calls().split('\n').filter((l) => /--method (PUT|POST|DELETE)/.test(l));
 const stored = () => JSON.parse(readFileSync(stateFile(), 'utf-8')) as Array<Record<string, unknown>>;
 
 beforeEach(() => {
@@ -196,14 +220,14 @@ describe('github-ruleset.sh: --verify', () => {
   });
 
   it('reports a main that does not yet require a pull request as a difference, writing nothing', () => {
-    // Defect caught: the pre-launch ruleset, which blocks only deletion and
-    // force pushes, read as matching the go-live target, so main stays open to
-    // direct pushes after launch with --verify reporting it healthy.
-    const preLaunch = { ...MATCHING, rules: [{ type: 'deletion' }, { type: 'non_fast_forward' }] };
-    const r = run(['--verify'], [preLaunch]);
+    // Defect caught: a ruleset blocking only deletion and force pushes read as
+    // matching the committed copy, so main stays open to direct pushes with
+    // --verify reporting it healthy.
+    const noPullRequest = { ...MATCHING, rules: [{ type: 'deletion' }, { type: 'non_fast_forward' }] };
+    const r = run(['--verify'], [noPullRequest]);
     expect(r.status).toBe(1);
     expect(r.stdout).toMatch(/^-.*"type": "pull_request"/m);
-    expect(r.stderr).toMatch(/expected until go-live/);
+    expect(r.stderr).toMatch(/differs from github-ruleset-protect-main\.json/);
     expect(writesMade()).toEqual([]);
   });
 
@@ -213,9 +237,46 @@ describe('github-ruleset.sh: --verify', () => {
     const missing = run(['--verify'], [{ id: 1, name: 'something-else', rules: [] }]);
     expect(missing.status).toBe(1);
     expect(missing.stderr).toMatch(/no ruleset named protect-main/);
+    // Defect caught: before launch, when main takes direct pushes by design,
+    // the missing ruleset read as an outage to fix now rather than the
+    // expected pre-launch state that the post-launch switch-on closes.
+    expect(missing.stderr).toMatch(/expected until pull requests are switched on after launch/);
     const twice = run(['--verify'], [MATCHING, { ...MATCHING, id: 2 }]);
     expect(twice.status).toBe(1);
     expect(twice.stderr).toMatch(/more than one ruleset named protect-main/);
+  });
+
+  it('reports every other ruleset that reaches the default branch, and none that does not', () => {
+    // Defect caught: a second, unheld set of rules on main (a disabled leftover
+    // that someone re-enables in the web interface) read as healthy, or a
+    // ruleset on another branch or on tags reported and then deleted by --apply.
+    const r = run(['--verify'], [MATCHING, ...REACHING_MAIN, ...NOT_REACHING_MAIN]);
+    expect(r.status).toBe(1);
+    for (const s of REACHING_MAIN) expect(r.stdout).toContain(`ruleset ${s.id}, "${s.name}"`);
+    for (const s of NOT_REACHING_MAIN) expect(r.stdout).not.toContain(`ruleset ${s.id},`);
+    expect(r.stderr).toMatch(new RegExp(`${REACHING_MAIN.length} other ruleset\\(s\\)`));
+    expect(writesMade()).toEqual([]);
+    expect(run(['--verify'], [MATCHING, ...NOT_REACHING_MAIN]).status).toBe(0);
+  });
+
+  it('reports a single leftover ruleset as a difference', () => {
+    // Defect caught: a count check that only fires on several leftovers, so
+    // the one disabled leftover the repository really carries reads as healthy.
+    const r = run(['--verify'], [MATCHING, REACHING_MAIN[0]]);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/1 other ruleset\(s\)/);
+  });
+
+  it('matches a ruleset naming the default branch by the name the repository gives it', () => {
+    // Defect caught: the default branch assumed to be main, so on a repository
+    // whose default branch is named otherwise a ruleset naming that branch's
+    // own ref is missed, and one naming main is reported though it touches
+    // nothing the ruleset guards.
+    const onTrunk = { ...REACHING_MAIN[2], id: 41, name: 'trunk by name', conditions: { ref_name: { exclude: [], include: ['refs/heads/trunk'] } } };
+    const r = run(['--verify'], [MATCHING, onTrunk, REACHING_MAIN[2]], { FAKE_GH_DEFAULT_BRANCH: 'trunk' });
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('ruleset 41,');
+    expect(r.stdout).not.toContain(`ruleset ${REACHING_MAIN[2].id},`);
   });
 });
 
@@ -263,5 +324,26 @@ describe('github-ruleset.sh: --apply', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/no terminal to confirm on/);
     expect(writesMade()).toEqual([]);
+    const strays = run(['--apply'], [MATCHING, ...REACHING_MAIN]);
+    expect(strays.status).toBe(1);
+    expect(writesMade()).toEqual([]);
+  });
+
+  it('deletes every other ruleset that reaches the default branch, by its id, and leaves the rest', () => {
+    // Defect caught: a leftover ruleset left on main to be re-enabled later,
+    // a delete aimed at protect-main itself, or a ruleset on other branches or
+    // on tags deleted along with the leftovers.
+    const r = run(['--apply', '--yes'], [MATCHING, ...REACHING_MAIN, ...NOT_REACHING_MAIN]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(writesMade().sort()).toEqual(REACHING_MAIN.map((s) => `api --method DELETE repos/${REPO}/rulesets/${s.id}`).sort());
+    expect(stored().map((s) => s.id).sort()).toEqual([MATCHING.id, ...NOT_REACHING_MAIN.map((s) => s.id)].sort());
+  });
+
+  it('fails when GitHub accepts a delete but the ruleset is still there', () => {
+    // Defect caught: a delete judged done on the API's status alone, leaving a
+    // second set of rules on main behind a run reported clean.
+    const r = run(['--apply', '--yes'], [MATCHING, REACHING_MAIN[0]], { FAKE_GH_WRITE_IGNORED: '1' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/still reach main/);
   });
 });

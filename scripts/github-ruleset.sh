@@ -5,17 +5,17 @@
 # The branch protection on main is a repository setting, and a setting changed
 # in the web interface leaves no record anywhere: nothing notices it switched
 # off, a rule quietly added, or an entry allowed to bypass it. The intended
-# ruleset is committed as scripts/github-ruleset-protect-main.json, and it is the
-# target from go-live on: active on the default branch, blocking its deletion
-# and any force push, and requiring a pull request before anything merges into
-# main with one approving review (no code-owner review or resolved threads
-# required). The repository admin role may bypass the pull-request rule alone,
-# since GitHub lets no author approve their own pull request, so the
-# maintainer reviews every other contributor's change and can still merge
-# their own; there is no required status check. Until go-live, main takes
-# direct pushes and carries no such ruleset, so --verify reports that gap and
-# that is expected. --apply is a go-live-day step and is never run before
-# go-live. --verify compares the live ruleset with the committed copy; --apply
+# ruleset is committed as scripts/github-ruleset-protect-main.json: active on
+# the default branch, blocking its deletion and any force push, and requiring a
+# pull request before anything merges into main with one approving review (no
+# code-owner review or resolved threads required). The repository admin role
+# may bypass the pull-request rule alone, since GitHub lets no author approve
+# their own pull request, so the maintainer reviews every other contributor's
+# change and can still merge their own; there is no required status check.
+# It is the target after launch. Until the maintainer switches it on after
+# launch, main takes direct pushes and carries no such ruleset, so --verify
+# reports that gap and that is expected. --apply is run after launch, never
+# before. --verify compares the live ruleset with the committed copy; --apply
 # makes the live one match.
 #
 # The comparison covers what the ruleset does: its name, target, enforcement,
@@ -23,6 +23,13 @@
 # links, timestamps, the source and what the caller may bypass) is left out, and
 # the rules and bypass entries are compared as sets, since GitHub returns them
 # in no promised order.
+#
+# protect-main is the only ruleset main answers to. Any other branch ruleset
+# whose conditions reach the default branch (by ~DEFAULT_BRANCH, ~ALL or the
+# branch's own ref) is a second set of rules nothing holds to a committed copy,
+# so --verify reports each one as a difference and --apply deletes it under
+# the same confirmation, then reads the list back to prove it gone. A ruleset
+# on other branches only, or on tags, is left alone.
 #
 # The repository is the public one this checkout's origin remote names, read
 # when the script runs, so no repository name is written into this tree.
@@ -38,16 +45,19 @@
 #   bash scripts/github-ruleset.sh --verify
 #   bash scripts/github-ruleset.sh --apply [--yes]
 #
-#   --verify   read the live ruleset and compare it with the committed copy.
-#              Changes nothing.
-#   --apply    go-live day only, never before: when the live ruleset differs,
-#              show the difference, confirm, and
+#   --verify   read the live ruleset and compare it with the committed copy,
+#              and list any other ruleset on the default branch. Changes
+#              nothing.
+#   --apply    after launch only, when the maintainer switches pull requests
+#              on: when the live ruleset differs or another ruleset
+#              reaches the default branch, show the difference, confirm,
 #              replace it with the committed copy (creating it when there is
-#              none), then read it back and compare again.
+#              none) and delete the others, then read it all back and compare
+#              again.
 #   --yes      with --apply, accept the confirmation without being asked.
 #
-# Exit: 0 the live ruleset matches (or now matches), 1 it differs or a step
-# failed, 2 usage error.
+# Exit: 0 the live ruleset matches (or now matches) and no other ruleset reaches
+# the default branch, 1 either is not so or a step failed, 2 usage error.
 #
 # Test seams (CI only; operators never set these), each announced on stderr:
 #   GITHUB_RULESET_GH_BIN       replaces the gh CLI
@@ -162,17 +172,59 @@ show_diff() {
   return 1
 }
 
+# The default branch's name, read from the repository rather than assumed, so a
+# ruleset naming that branch's own ref is recognised.
+if ! "$GH_BIN" api "repos/${REPO}" > "${WORK_DIR}/repo.json" 2> "${WORK_DIR}/gh.err"; then
+  cr_die "could not read ${REPO}: $(tail -n 1 "${WORK_DIR}/gh.err")"
+fi
+DEFAULT_BRANCH="$(jq -r '.default_branch // empty' "${WORK_DIR}/repo.json")" \
+  || cr_die "${REPO} did not come back as JSON."
+[[ -n "$DEFAULT_BRANCH" ]] || cr_die "${REPO} named no default branch."
+
+# read_strays: reads every other ruleset from the list read_live just wrote and
+# sets STRAY_IDS to those that reach the default branch, one line each in
+# strays.txt. Run after read_live.
+STRAY_IDS=()
+read_strays() {
+  local id raw reaches
+  STRAY_IDS=()
+  : > "${WORK_DIR}/strays.txt"
+  for id in $(jq -r --arg n "$RULESET_NAME" '.[] | select(.name != $n) | .id' "${WORK_DIR}/list.json"); do
+    raw="${WORK_DIR}/other-${id}.json"
+    if ! "$GH_BIN" api "repos/${REPO}/rulesets/${id}" > "$raw" 2> "${WORK_DIR}/gh.err"; then
+      cr_die "could not read ruleset ${id} of ${REPO}: $(tail -n 1 "${WORK_DIR}/gh.err")"
+    fi
+    reaches="$(jq -r --arg ref "refs/heads/${DEFAULT_BRANCH}" \
+      '(.target == "branch") and ((.conditions.ref_name.include // []) | any(. == "~DEFAULT_BRANCH" or . == "~ALL" or . == $ref))' \
+      "$raw")" || cr_die "ruleset ${id} of ${REPO} did not come back as JSON."
+    if [[ "$reaches" != false ]]; then
+      STRAY_IDS+=("$id")
+      jq -r '"  ruleset \(.id), \"\(.name)\", \(.enforcement)"' "$raw" >> "${WORK_DIR}/strays.txt"
+    fi
+  done
+}
+
 read_live
-if show_diff; then
-  cr_proved "the live ${RULESET_NAME} ruleset of ${REPO} matches ${COMMITTED##*/}"
+read_strays
+DIFFERS=no
+show_diff || DIFFERS=yes
+if [[ "$DIFFERS" == no && ${#STRAY_IDS[@]} -eq 0 ]]; then
+  cr_proved "the live ${RULESET_NAME} ruleset of ${REPO} matches ${COMMITTED##*/}, and no other ruleset reaches ${DEFAULT_BRANCH}"
   cr_finish
+fi
+if (( ${#STRAY_IDS[@]} > 0 )); then
+  echo "Other rulesets that reach ${DEFAULT_BRANCH}:"
+  cat "${WORK_DIR}/strays.txt"
 fi
 
 if [[ "$MODE" == verify ]]; then
   if [[ -z "$RULESET_ID" ]]; then
-    cr_error "${REPO} has no ruleset named ${RULESET_NAME}; expected until go-live, when --apply creates it from ${COMMITTED##*/}"
-  else
-    cr_error "the live ${RULESET_NAME} ruleset of ${REPO} differs from ${COMMITTED##*/}, as shown above; expected until go-live, when --apply makes it match"
+    cr_error "${REPO} has no ruleset named ${RULESET_NAME}; expected until pull requests are switched on after launch, when --apply creates it from ${COMMITTED##*/}"
+  elif [[ "$DIFFERS" == yes ]]; then
+    cr_error "the live ${RULESET_NAME} ruleset of ${REPO} differs from ${COMMITTED##*/}, as shown above; --apply makes it match"
+  fi
+  if (( ${#STRAY_IDS[@]} > 0 )); then
+    cr_error "${#STRAY_IDS[@]} other ruleset(s) of ${REPO} reach ${DEFAULT_BRANCH}, listed above; --apply deletes them"
   fi
   cr_finish
 fi
@@ -180,11 +232,15 @@ fi
 # ── Apply ────────────────────────────────────────────────────────────────────
 
 echo ""
-if [[ -z "$RULESET_ID" ]]; then
+if [[ "$DIFFERS" == yes && -z "$RULESET_ID" ]]; then
   echo "About to create the ${RULESET_NAME} ruleset on ${REPO} from ${COMMITTED##*/}."
-else
+elif [[ "$DIFFERS" == yes ]]; then
   echo "About to replace ruleset ${RULESET_ID} (${RULESET_NAME}) on ${REPO} with ${COMMITTED##*/},"
   echo "removing the lines marked + above and adding the lines marked -."
+fi
+if (( ${#STRAY_IDS[@]} > 0 )); then
+  echo "About to delete every other ruleset listed above from ${REPO}. A deleted ruleset"
+  echo "cannot be restored; it can only be created again by hand."
 fi
 echo ""
 if ! confirm_from_tty "Type 'APPLY' to write the ruleset: " "APPLY"; then
@@ -193,18 +249,27 @@ if ! confirm_from_tty "Type 'APPLY' to write the ruleset: " "APPLY"; then
   cr_finish_with 1 ABORTED
 fi
 
-if [[ -z "$RULESET_ID" ]]; then
+if [[ "$DIFFERS" == yes && -z "$RULESET_ID" ]]; then
   "$GH_BIN" api --method POST "repos/${REPO}/rulesets" --input "$COMMITTED" > /dev/null 2> "${WORK_DIR}/gh.err" \
     || cr_die "GitHub refused to create the ruleset: $(tail -n 1 "${WORK_DIR}/gh.err")"
-else
+elif [[ "$DIFFERS" == yes ]]; then
   "$GH_BIN" api --method PUT "repos/${REPO}/rulesets/${RULESET_ID}" --input "$COMMITTED" > /dev/null 2> "${WORK_DIR}/gh.err" \
     || cr_die "GitHub refused to update ruleset ${RULESET_ID}: $(tail -n 1 "${WORK_DIR}/gh.err")"
 fi
+for id in "${STRAY_IDS[@]}"; do
+  "$GH_BIN" api --method DELETE "repos/${REPO}/rulesets/${id}" > /dev/null 2> "${WORK_DIR}/gh.err" \
+    || cr_die "GitHub refused to delete ruleset ${id}: $(tail -n 1 "${WORK_DIR}/gh.err")"
+done
 
 # The outcome, read back: GitHub accepting the write is not the ruleset matching.
 read_live
+read_strays
 if ! show_diff; then
   cr_die "GitHub accepted the write, but the live ruleset still differs from ${COMMITTED##*/}, as shown above."
 fi
-cr_proved "the live ${RULESET_NAME} ruleset of ${REPO} was written and read back matching ${COMMITTED##*/}"
+if (( ${#STRAY_IDS[@]} > 0 )); then
+  cat "${WORK_DIR}/strays.txt"
+  cr_die "GitHub accepted the deletes, but these rulesets still reach ${DEFAULT_BRANCH}."
+fi
+cr_proved "the live ${RULESET_NAME} ruleset of ${REPO} was read back matching ${COMMITTED##*/}, with no other ruleset reaching ${DEFAULT_BRANCH}"
 cr_finish

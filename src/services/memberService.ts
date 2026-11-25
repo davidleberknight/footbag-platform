@@ -43,7 +43,9 @@
  *     per-member rate limit (config keys member_search_rate_limit_max_per_ip /
  *     _per_member / _window_minutes). A search is a read and records nothing; a
  *     rate-limit hit logs a warning naming the actor member id, never the caller
- *     IP or the query text.
+ *     IP or the query text. A refused search comes back as data carrying the
+ *     refusing quota's wait, which the page carries on its metadata so its
+ *     controller answers 429 with Retry-After while the form shows the notice.
  *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
  *     Its two provider calls (deleting the payment provider's customer record,
  *     lifting the mail provider's suppression of the address), made by both the
@@ -164,6 +166,7 @@ import { toEventDatedItem, type EventListingRow } from './eventListing';
 import type { DatedItemView } from '../types/datedItem';
 import { formatDateRange } from '../lib/handlebarsHelpers';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
+import { searchRefusalMeta } from '../lib/searchRefusal';
 import { cleanUserText, sanitizeUserText, type TextShape } from '../lib/textSanitizer';
 import {
   assembleBirthDate,
@@ -265,6 +268,8 @@ export interface MemberSearchResult {
   tooShort: boolean;
   /** True when the per-IP or per-member search quota was exceeded; no DB read ran. */
   rateLimited: boolean;
+  /** Seconds until the refusing quota opens again; null unless `rateLimited`. */
+  retryAfterSeconds: number | null;
 }
 
 export interface ActivePlayerView {
@@ -482,6 +487,8 @@ export interface SearchBlockView {
   tooShort: boolean;
   /** True when the search quota was exceeded; the block shows a wait-and-retry notice. */
   rateLimited: boolean;
+  /** Seconds until the search can run again; null unless `rateLimited`. */
+  retryAfterSeconds: number | null;
   /** True when a search was performed (query was non-empty). */
   hasQuery: boolean;
 }
@@ -1427,6 +1434,7 @@ export const memberService = {
       hasMore: searchResult?.hasMore ?? false,
       tooShort: searchResult?.tooShort ?? false,
       rateLimited: searchResult?.rateLimited ?? false,
+      retryAfterSeconds: searchResult?.retryAfterSeconds ?? null,
       hasQuery: searchResult !== null,
     };
     return {
@@ -1438,6 +1446,7 @@ export const memberService = {
         // The only caller is the profile-updated flash, which reports an edit
         // that was saved, so the notice takes the success tone.
         ...(opts?.notice ? { notice: opts.notice, noticeTone: 'ok' as const } : {}),
+        ...searchRefusalMeta(search),
       },
       content: {
         ...rowToContent(row),
@@ -2248,7 +2257,7 @@ export const memberService = {
     const excluded = new Set(opts.excludeMemberIds ?? []);
     const trimmed = query.trim();
     if (trimmed.length < 2) {
-      return { query: trimmed, results: [], hasMore: false, tooShort: trimmed.length > 0, rateLimited: false };
+      return { query: trimmed, results: [], hasMore: false, tooShort: trimmed.length > 0, rateLimited: false, retryAfterSeconds: null };
     }
     const normalized = trimmed.toLowerCase();
 
@@ -2270,7 +2279,12 @@ export const memberService = {
         actorMemberId: ctx.actorMemberId,
         scope: ipRl.allowed ? 'member' : 'ip',
       });
-      return { query: trimmed, results: [], hasMore: false, tooShort: false, rateLimited: true };
+      // The wait is the refusing bucket's own, so the page can say how long.
+      const refused = ipRl.allowed ? memberRl : ipRl;
+      return {
+        query: trimmed, results: [], hasMore: false, tooShort: false, rateLimited: true,
+        retryAfterSeconds: refused.retryAfterSeconds ?? windowMinutes * 60,
+      };
     }
 
     const escaped = normalized
@@ -2344,7 +2358,7 @@ export const memberService = {
 
     const hasMore = merged.length > limit;
     const results = hasMore ? merged.slice(0, limit) : merged;
-    return { query: trimmed, results, hasMore, tooShort: false, rateLimited: false };
+    return { query: trimmed, results, hasMore, tooShort: false, rateLimited: false, retryAfterSeconds: null };
   },
 
   /** The membership-tier explainer rows, single-sourced for the IFPA page. */

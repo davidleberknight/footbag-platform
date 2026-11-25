@@ -67,7 +67,9 @@
 # Test seams (CI only; operators never set these), each announced on stderr:
 # HOST_COLD_RESTART_AWS_BIN and HOST_COLD_RESTART_TERRAFORM_BIN replace the two
 # tools; HOST_COLD_RESTART_DIAGNOSTICS replaces scripts/host-diagnostics.sh;
-# HOST_COLD_RESTART_POLL_TRIES and HOST_COLD_RESTART_POLL_SECS bound each wait.
+# HOST_COLD_RESTART_POLL_TRIES and HOST_COLD_RESTART_POLL_SECS bound each wait;
+# HOST_COLD_RESTART_BOOT_TRIES bounds the wait for a just-started host to
+# answer ssh (18 tries of POLL_SECS, three minutes, by default).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -110,19 +112,21 @@ TF_OUTPUT_BIN="${HOST_COLD_RESTART_TERRAFORM_BIN:-terraform}"
 DIAGNOSTICS="${HOST_COLD_RESTART_DIAGNOSTICS:-${SCRIPT_DIR}/host-diagnostics.sh}"
 POLL_TRIES="${HOST_COLD_RESTART_POLL_TRIES:-60}"
 POLL_SECS="${HOST_COLD_RESTART_POLL_SECS:-10}"
+BOOT_TRIES="${HOST_COLD_RESTART_BOOT_TRIES:-18}"
 for seam in HOST_COLD_RESTART_AWS_BIN HOST_COLD_RESTART_TERRAFORM_BIN HOST_COLD_RESTART_DIAGNOSTICS \
-            HOST_COLD_RESTART_POLL_TRIES HOST_COLD_RESTART_POLL_SECS; do
+            HOST_COLD_RESTART_POLL_TRIES HOST_COLD_RESTART_POLL_SECS HOST_COLD_RESTART_BOOT_TRIES; do
   [[ -n "${!seam:-}" ]] && echo "SYNTHETIC: ${seam}='${!seam}' -- this run proves nothing about the estate." >&2
 done
-[[ "$POLL_TRIES" =~ ^[1-9][0-9]*$ && "$POLL_SECS" =~ ^[0-9]+$ ]] \
-  || cr_die "the poll bounds must be whole numbers (tries ${POLL_TRIES}, seconds ${POLL_SECS})"
+[[ "$POLL_TRIES" =~ ^[1-9][0-9]*$ && "$POLL_SECS" =~ ^[0-9]+$ && "$BOOT_TRIES" =~ ^[1-9][0-9]*$ ]] \
+  || cr_die "the poll bounds must be whole numbers (tries ${POLL_TRIES}, seconds ${POLL_SECS}, boot tries ${BOOT_TRIES})"
 
 aws_profile_ensure || cr_die "no AWS identity is available for the Lightsail calls"
 tf_instance_name "$TARGET" || cr_die "could not read the ${TARGET} instance name from Terraform"
 INSTANCE="$TF_INSTANCE_NAME"
 
 ERR_FILE="$(mktemp)"
-cr_cleanup rm -f -- "$ERR_FILE"
+PROBE_REPORT="$(mktemp)"
+cr_cleanup rm -f -- "$ERR_FILE" "$PROBE_REPORT"
 aws_ls() { "$AWS_BIN" lightsail "$@" --region "$REGION" </dev/null 2>"$ERR_FILE"; }
 aws_said() { tail -n 1 "$ERR_FILE"; }
 
@@ -202,6 +206,20 @@ echo "    ${INSTANCE} is running"
 cr_proved "Lightsail reports ${INSTANCE} running again after the cold restart"
 
 echo "==> Asking the host for its status through scripts/host-diagnostics.sh"
+# Lightsail reports running once the instance is up, not once the host has
+# booted: right after a start its ssh connection can time out for a minute or
+# two. So the status is first tried quietly until the host is reachable, for up
+# to BOOT_TRIES tries. Only an unreachable host (ssh's exit 255) is waited on;
+# a host that answers and reports a problem goes straight to the reported read
+# below, so a real failure is not hidden behind the wait.
+for (( try = 1; try <= BOOT_TRIES; try++ )); do
+  probe_rc=0
+  FOOTBAG_CR_REPORT_TO="$PROBE_REPORT" bash "$DIAGNOSTICS" --target "$TARGET" status >/dev/null 2>&1 || probe_rc=$?
+  (( probe_rc == 255 )) || break
+  (( try < BOOT_TRIES )) || break
+  echo "    the host does not answer yet (try ${try} of ${BOOT_TRIES}); waiting ${POLL_SECS}s for it to finish booting"
+  sleep "$POLL_SECS"
+done
 # Judged on what the diagnostics printed as well as on their exit, so a status
 # that exits 0 over an error line it printed proves nothing here.
 errors_before=${#CR_ERRORS[@]}

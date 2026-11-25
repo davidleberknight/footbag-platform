@@ -70,6 +70,11 @@
  *     administrator who organizes the event cannot decide it. A Board-awarded
  *     World Championships is sanctioned by an administrator recording the
  *     Board's decision on the draft, with no request.
+ *   - Every competition category of a sanctioned event offers a Women's and an
+ *     Intermediate division, as IFPA's sanctioning guidelines require. The rule
+ *     is checked when the request is submitted, when it is approved and when a
+ *     Board award is recorded, and each is refused, naming what is missing,
+ *     while any category lacks one. Division editing is never refused for it.
  *   - Every organizer surface resolves the event by its key and refuses, as
  *     not-found, a member who is not a current organizer of it.
  *   - Max 5 organizers per event, all equal with no primary, counted on the current
@@ -294,6 +299,7 @@ import { getCommunicationService } from './communicationService';
 import { tierBadgeShort, TIER_NAMES } from './membershipTieringService';
 import { csvRow } from '../lib/csv';
 import { downloadFilename } from '../lib/downloadFilename';
+import { searchRefusalMeta } from '../lib/searchRefusal';
 import type { PrintColumn, PrintRow, PrintableDocument } from '../lib/printableDocument';
 import { config } from '../config/env';
 import { workQueueService } from './workQueueService';
@@ -571,6 +577,15 @@ export interface EventOrganizerView {
   name: string;
   /** Present only for a signed-in member viewer: holding the role makes it member-visible. */
   contactEmail?: string;
+}
+
+/**
+ * The page metadata an entry form adds when its entrant or partner search was
+ * refused by the member-search limit, so its controller answers 429 with the
+ * wait. Shared by the organizer's and the administrator's entry forms.
+ */
+export function entrySearchRefusal(content: EntryFormContent): { rateLimitRetryAfterSeconds?: number } {
+  return searchRefusalMeta(content.entrantPicker, ...content.divisions.map((d) => d.partnerPicker));
 }
 
 function assertArchiveYear(year: number): void {
@@ -2410,7 +2425,20 @@ export function missingSanctionDivisions(
 
 function sanctionDivisionWarning(missing: string[]): string | null {
   if (missing.length === 0) return null;
-  return `Sanctioned tournaments must offer a Women's and an Intermediate division in each format, such as Singles Net and Doubles Net. Missing: ${missing.join('; ')}. You can still submit; an administrator decides.`;
+  return `Sanctioned tournaments must offer a Women's and an Intermediate division in each competition category, such as Singles Net and Doubles Net. Add these before you request sanction: ${missing.join('; ')}.`;
+}
+
+/**
+ * The categories an event's divisions leave without a Women's or an
+ * Intermediate division. IFPA's sanctioning guidelines require both in every
+ * category, so a sanction is refused while this is not empty: when the
+ * organizer requests it, when an administrator approves it, and when a
+ * Board-awarded World Championships is recorded. Division editing itself stays
+ * free.
+ */
+function sanctionDivisionGaps(divisions: DivisionRow[]): string[] {
+  const games = eventWrites.listGames.all() as GameRow[];
+  return missingSanctionDivisions(divisions, (d) => divisionGameName(d as DivisionRow, games));
 }
 
 // A reason is shown inside a sentence that supplies its own full stop.
@@ -3331,6 +3359,7 @@ export class EventService {
         submitLabel: charged.length === types.length ? 'Continue to Payment' : 'Register',
       },
     };
+    Object.assign(page.page, searchRefusalMeta(...page.content.divisions.map((d) => d.partnerPicker)));
     return { branch: 'form', page };
   }
 
@@ -3623,28 +3652,32 @@ export class EventService {
       .map((s) => ({ divisionId: s.discipline_id, memberId: s.partner_member_id ?? '' }));
     const looking = form?.input.lookingDivisionIds
       ?? doubles.filter((s) => s.partner_member_id === null).map((s) => s.discipline_id);
+    const divisions = doubles.map((s) => {
+      const d = { id: s.discipline_id, name: s.division_name, team_type: s.team_type };
+      const partnerPicker = ownPartnerPicker(PARTNER_FORM_ID, formAction, d, memberId, carried, help, picker);
+      // A chosen partner is the answer, so the looking tick clears.
+      return {
+        id: d.id,
+        name: d.name,
+        partnerPicker,
+        ...doublesChoiceView(d, help, looking.includes(d.id) && !partnerPicker.chosenId),
+      };
+    });
     return {
       branch: 'form',
       page: {
         seo: { title: `Choose Your Partner for ${event.title}`, noindex: true },
-        page: { sectionKey: 'events', pageKey: 'event_partner', title: 'Choose Your Partner' },
+        page: {
+          sectionKey: 'events', pageKey: 'event_partner', title: 'Choose Your Partner',
+          ...searchRefusalMeta(...divisions.map((d) => d.partnerPicker)),
+        },
         navigation: { contextLinks: [{ label: `Back to ${event.title}`, href: base }] },
         content: {
           formId: PARTNER_FORM_ID,
           formAction,
           cancelHref: base,
           eventDates: eventDatesPhrase(event.start_date, event.end_date),
-          divisions: doubles.map((s) => {
-            const d = { id: s.discipline_id, name: s.division_name, team_type: s.team_type };
-            const partnerPicker = ownPartnerPicker(PARTNER_FORM_ID, formAction, d, memberId, carried, help, picker);
-            // A chosen partner is the answer, so the looking tick clears.
-            return {
-              id: d.id,
-              name: d.name,
-              partnerPicker,
-              ...doublesChoiceView(d, help, looking.includes(d.id) && !partnerPicker.chosenId),
-            };
-          }),
+          divisions,
           errorMessage: form?.message ?? null,
         },
       },
@@ -3954,6 +3987,24 @@ export class EventService {
         : null;
 
     const values = opts.detailsForm?.values ?? eventRowToForm(event);
+    const organizerPicker = organizers.length < ORGANIZER_CAP
+      ? buildMemberPicker({
+        formId: ADD_ORGANIZER_FORM_ID,
+        formAction: `${base}/organizers`,
+        fieldName: 'member_id',
+        fieldKey: 'organizer',
+        label: 'Organizer',
+        searchLabel: "New organizer's name",
+        openLabel: 'Add Organizer',
+        rowAction: { label: 'Add Organizer', completes: true, ariaLabel: (name) => `Add Organizer: ${name}` },
+        chosen: null,
+        intent: opts.organizerPicker?.intent ?? null,
+        openOnLoad: true,
+        query: opts.organizerPicker?.query ?? '',
+        search: runPickerSearch(opts.organizerPicker, 'organizer', viewerMemberId, organizers.map((o) => o.member_id)),
+        notFoundHint: null,
+      })
+      : null;
     return {
       seo: { title: `Manage ${event.title}`, noindex: true },
       page: {
@@ -3961,6 +4012,7 @@ export class EventService {
         pageKey: 'event_manage',
         title: `Manage ${event.title}`,
         intro: 'Every organizer of this event can change its details, its competitions and its organizers.',
+        ...searchRefusalMeta(organizerPicker),
       },
       navigation: { contextLinks: [{ label: 'Back to My Profile', href: `/members/${encodeURIComponent(this.slugFor(organizers, viewerMemberId))}` }] },
       content: {
@@ -4003,24 +4055,7 @@ export class EventService {
         organizerCap: ORGANIZER_CAP,
         addOrganizerAction: `${base}/organizers`,
         addOrganizerFormId: ADD_ORGANIZER_FORM_ID,
-        organizerPicker: organizers.length < ORGANIZER_CAP
-          ? buildMemberPicker({
-            formId: ADD_ORGANIZER_FORM_ID,
-            formAction: `${base}/organizers`,
-            fieldName: 'member_id',
-            fieldKey: 'organizer',
-            label: 'Organizer',
-            searchLabel: "New organizer's name",
-            openLabel: 'Add Organizer',
-            rowAction: { label: 'Add Organizer', completes: true, ariaLabel: (name) => `Add Organizer: ${name}` },
-            chosen: null,
-            intent: opts.organizerPicker?.intent ?? null,
-            openOnLoad: true,
-            query: opts.organizerPicker?.query ?? '',
-            search: runPickerSearch(opts.organizerPicker, 'organizer', viewerMemberId, organizers.map((o) => o.member_id)),
-            notFoundHint: null,
-          })
-          : null,
+        organizerPicker,
         stepDownAction: isSole ? null : `${base}/step-down`,
         onlineRegistration: event.status === 'reg_open'
           ? event.registration_status === 'open'
@@ -4521,6 +4556,10 @@ export class EventService {
     const divisions = eventWrites.listDivisions.all(event.id) as DivisionRow[];
     const fieldErrors: Record<string, string> = {};
     const answers = readSanctionForm(values, event, divisions, fieldErrors);
+    const gaps = sanctionDivisionGaps(divisions);
+    if (gaps.length > 0) {
+      fieldErrors.divisions = `Add these divisions before requesting sanction: ${gaps.join('; ')}. IFPA's sanctioning guidelines require a Women's and an Intermediate division alongside Open in every competition category.`;
+    }
 
     if (event.sanction_status === 'pending') {
       const own = findStandingOwnAct(memberId, 'event.sanction_requested', 'event.sanction_rejected', 'event', event.id);
@@ -4599,6 +4638,10 @@ export class EventService {
     }
     const submitter = event.sanction_requested_by_member_id;
     if (!submitter || !isTier2Plus(submitter)) throw new ValidationError(SANCTION_TIER_LAPSED);
+    const gaps = sanctionDivisionGaps(eventWrites.listDivisions.all(event.id) as DivisionRow[]);
+    if (gaps.length > 0) {
+      throw new ValidationError(`This request can't be approved: the event no longer offers ${gaps.join('; ')}. Reject it with that reason, or ask the organizers to add them.`);
+    }
 
     transaction(() => {
       this.grantSanctionInTx(event, input.adminMemberId, note || null, 'event.sanction_approved', item.id);
@@ -4709,6 +4752,10 @@ export class EventService {
     }
     if (event.status !== 'draft') {
       throw new ValidationError('This event has a sanction request waiting. Decide it in the work queue.');
+    }
+    const gaps = sanctionDivisionGaps(eventWrites.listDivisions.all(event.id) as DivisionRow[]);
+    if (gaps.length > 0) {
+      throw new ValidationError(`This World Championships can't be recorded as sanctioned yet: it is missing ${gaps.join('; ')}. Add the divisions first.`);
     }
     transaction(() => {
       this.grantSanctionInTx(event, adminMemberId, reason, 'event.sanction_awarded', null);
@@ -5195,18 +5242,19 @@ export class EventService {
     const event = this.requireOrganizedEvent(eventKey, organizerId);
     this.assertCorrectionsOpen(event);
     const base = eventBasePath(event);
+    const content = this.entryFormContent(event, organizerId, null, form, picker, {
+      formId: PARTICIPANT_ADD_FORM_ID,
+      formAction: `${base}/participants/add`,
+      cancelHref: `${base}/participants`,
+      submitLabel: 'Add Entrant',
+      withReason: false,
+      cancelRegistrationAction: null,
+    });
     return {
       seo: { title: `Add Entrant: ${event.title}`, noindex: true },
-      page: { sectionKey: 'events', pageKey: 'event_participant_add', title: 'Add Entrant' },
+      page: { sectionKey: 'events', pageKey: 'event_participant_add', title: 'Add Entrant', ...entrySearchRefusal(content) },
       navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
-      content: this.entryFormContent(event, organizerId, null, form, picker, {
-        formId: PARTICIPANT_ADD_FORM_ID,
-        formAction: `${base}/participants/add`,
-        cancelHref: `${base}/participants`,
-        submitLabel: 'Add Entrant',
-        withReason: false,
-        cancelRegistrationAction: null,
-      }),
+      content,
     };
   }
 
@@ -5218,18 +5266,19 @@ export class EventService {
     const entry = this.requireEditableEntry(event, registrationId);
     this.assertCorrectionsOpen(event);
     const base = eventBasePath(event);
+    const content = this.entryFormContent(event, organizerId, entry, form, picker, {
+      formId: PARTICIPANT_EDIT_FORM_ID,
+      formAction: `${base}/participants/${encodeURIComponent(entry.reg.id)}/edit`,
+      cancelHref: `${base}/participants`,
+      submitLabel: 'Save Entry',
+      withReason: false,
+      cancelRegistrationAction: `${base}/registrations/${encodeURIComponent(entry.reg.id)}/cancel`,
+    });
     return {
       seo: { title: `Edit Entry: ${event.title}`, noindex: true },
-      page: { sectionKey: 'events', pageKey: 'event_participant_edit', title: 'Edit Entry' },
+      page: { sectionKey: 'events', pageKey: 'event_participant_edit', title: 'Edit Entry', ...entrySearchRefusal(content) },
       navigation: { contextLinks: [{ label: 'Back to Participants', href: `${base}/participants` }] },
-      content: this.entryFormContent(event, organizerId, entry, form, picker, {
-        formId: PARTICIPANT_EDIT_FORM_ID,
-        formAction: `${base}/participants/${encodeURIComponent(entry.reg.id)}/edit`,
-        cancelHref: `${base}/participants`,
-        submitLabel: 'Save Entry',
-        withReason: false,
-        cancelRegistrationAction: `${base}/registrations/${encodeURIComponent(entry.reg.id)}/cancel`,
-      }),
+      content,
     };
   }
 

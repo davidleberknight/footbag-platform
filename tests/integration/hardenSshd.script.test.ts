@@ -680,9 +680,13 @@ describe('the operator-facing run', () => {
       '  fi',
       '  exit "${FRESH_EXIT:-0}"',
       'fi',
-      `{ cat; echo "=== end of session"; } >> "${sessions}"`,
-      // CONFIRM_FAILS fails only the session whose body carries MODE=confirm.
-      `if [[ -n "\${CONFIRM_FAILS:-}" ]] && tail -n 400 "${sessions}" | grep -q '^MODE=confirm$'; then exit 1; fi`,
+      `body="$(cat)"; printf '%s\\n=== end of session\\n' "$body" >> "${sessions}"`,
+      // RUN_BODY runs the session's body as the host would, against the sshd and
+      // systemctl stand-ins, so the remote half's own verdict decides the run.
+      `if [[ -n "\${RUN_BODY:-}" ]]; then tail -n +2 <<<"$body" | bash; exit $?; fi`,
+      // CONFIRM_FAILS fails only the session whose body carries MODE=confirm,
+      // judged on this session alone, whatever the body's length.
+      `if [[ -n "\${CONFIRM_FAILS:-}" ]] && grep -q '^MODE=confirm$' <<<"$body"; then exit 1; fi`,
       'exit 0',
     ].join('\n'));
     chmodSync(join(stubDir, 'ssh'), 0o755);
@@ -945,5 +949,98 @@ describe('the operator-facing run', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).toMatch(/records FOOTBAG_ENV=production, but this run is --target staging/);
     expect(read(sessions)).not.toMatch(/^MODE=apply$/m);
+  });
+
+  describe('--expect-hardened, judged by the real remote half against the stand-ins', () => {
+    /** The stand-in host runs each session's body with the sshd and systemctl
+     *  stand-ins in front, so the verdict comes from the remote half itself. */
+    function hostRunningBody(extra: NodeJS.ProcessEnv = {}) {
+      const host = standInHost();
+      const env = {
+        ...remoteEnv({}),
+        PATH: `${join(workDir, 'host-bin')}:${binDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_KNOWN_HOSTS: host.env.FOOTBAG_KNOWN_HOSTS,
+        RUN_BODY: '1',
+        ...extra,
+      };
+      return { ...host, env };
+    }
+
+    it('passes a hardened host, reading it in verify mode and changing nothing', () => {
+      // Defect caught: a readiness step that refuses a host which is hardened,
+      // so the sitting can never pass.
+      writeFileSync(DROPIN(), HARDENED);
+      const { env, sessions } = hostRunningBody();
+      const res = runOperator(['--target', 'staging', '--expect-hardened'], env);
+
+      expect(res.status, res.stderr).toBe(0);
+      const modes = read(sessions).split('\n').filter((l) => l.startsWith('MODE='));
+      expect(modes).toEqual(['MODE=verify']);
+      expect(readFileSync(DROPIN(), 'utf8')).toBe(HARDENED);
+      expect(reloads()).toBe(0);
+      expect(calls()).not.toContain('systemd-run');
+    });
+
+    it.each([
+      ['root login', 'PermitRootLogin yes\nPasswordAuthentication no\nKbdInteractiveAuthentication no\n', 'permitrootlogin yes'],
+      ['password login', 'PermitRootLogin no\nPasswordAuthentication yes\nKbdInteractiveAuthentication no\n', 'passwordauthentication yes'],
+      ['keyboard-interactive login', 'PermitRootLogin no\nPasswordAuthentication no\nKbdInteractiveAuthentication yes\n', 'kbdinteractiveauthentication yes'],
+    ] as const)('fails, naming it, when %s is still on, while the plain read of the same host exits 0', (_label, dropin, named) => {
+      // Defect caught: a sitting step that reports a host hardened while one of
+      // the three logins is still open, because the read it ran always exits 0.
+      writeFileSync(DROPIN(), dropin);
+      const { env } = hostRunningBody();
+      const res = runOperator(['--target', 'staging', '--expect-hardened'], env);
+
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain(named);
+      expect(res.stderr).toContain('NOT proved hardened');
+      expect(readFileSync(DROPIN(), 'utf8')).toBe(dropin);
+
+      // The plain read of the same open host still exits 0, so the flag, not
+      // the mode it extends, is what fails.
+      const plain = runOperator(['--target', 'staging'], env);
+      expect(plain.status, plain.stderr).toBe(0);
+    });
+
+    it('fails when a Match block re-opens password login for one account', () => {
+      // Defect caught: a verdict read from the configuration without Match,
+      // which shows the file's values and misses the block that overrides them.
+      writeFileSync(DROPIN(), HARDENED);
+      const { env } = hostRunningBody({ MATCH_USER: 'ec2-user', MATCH_KEY: 'PasswordAuthentication', MATCH_VALUE: 'yes' });
+      const res = runOperator(['--target', 'staging', '--expect-hardened'], env);
+
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain('for ec2-user');
+      expect(res.stderr).toContain('passwordauthentication yes');
+    });
+
+    it.each([
+      ['a change is still waiting to be confirmed', (): void => writeFileSync(TIMER(), REVERT()), {}, 'waiting to be confirmed'],
+      ['a self-revert is running now', (): void => undefined, { REVERT_SERVICE_STATE: 'activating' }, 'self-revert is running now'],
+    ] as const)('fails a hardened file when %s', (_label, arrange, extra, message) => {
+      // Defect caught: a host passed as hardened minutes before its own timer
+      // puts the previous, open configuration back.
+      writeFileSync(DROPIN(), HARDENED);
+      arrange();
+      const { env } = hostRunningBody(extra);
+      const res = runOperator(['--target', 'staging', '--expect-hardened'], env);
+
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain(message);
+      expect(res.stderr).toContain('NOT proved hardened');
+    });
+
+    it('refuses to combine --expect-hardened with --apply before reaching the host', () => {
+      // Defect caught: a read-only check that silently becomes a change, or a
+      // change that silently becomes a check, depending on flag order.
+      const { env, sessions } = hostRunningBody();
+      for (const args of [['--expect-hardened', '--apply'], ['--apply', '--expect-hardened']]) {
+        const res = runOperator(['--target', 'staging', ...args], env);
+        expect(res.status, args.join(' ')).toBe(2);
+        expect(res.stderr).toContain('exclusive');
+      }
+      expect(read(sessions)).toBe('');
+    });
   });
 });

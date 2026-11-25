@@ -137,7 +137,9 @@ describe('the operator-facing marker script', () => {
     for (const [args, message] of [
       [['--status'], '--target must be production or staging'],
       [['--target', 'prod', '--status'], '--target must be production or staging'],
-      [['--target', 'staging'], 'one of --status or --set'],
+      [['--target', 'staging'], 'one of --status, --check-guard or --set'],
+      [['--target', 'staging', '--status', '--check-guard'], 'name one action'],
+      [['--target', 'staging', '--check-guard', '--dry-run'], 'takes no --dry-run'],
       [['--target', 'staging', '--status', '--set', 'complete'], 'name one action'],
       [['--target', 'staging', '--set', 'sideways'], "--set takes 'complete' or 'reversed'"],
     ] as const) {
@@ -215,5 +217,118 @@ describe('the operator-facing marker script', () => {
     const res = runOperator(['--target', 'staging', '--status'], env);
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('did not report both markers');
+  });
+
+  /** A stand-in host that runs what it is sent: the password line is read off
+   *  as sudo would, and the rest runs in bash against this case's env file and
+   *  database, which the guard reads from ENV_PATH and DB_PATH. */
+  function runningHost() {
+    const stubDir = join(workDir, 'host-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const streams = join(workDir, 'streams.log');
+    writeFileSync(join(stubDir, 'ssh'), [
+      '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then printf "hostname 203.0.113.40\\nuser footbag\\n"; exit 0; fi',
+      'done',
+      `stream="$(cat)"; printf '%s\\n' "$stream" >> "${streams}"`,
+      `printf '%s\\n' "$stream" | { IFS= read -r _pw; ENV_PATH=${JSON.stringify(envPath)} DB_PATH=${JSON.stringify(dbPath)} bash; }`,
+    ].join('\n'));
+    chmodSync(join(stubDir, 'ssh'), 0o755);
+    const pin = join(workDir, 'pin');
+    writeFileSync(pin, '[203.0.113.40]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+    return {
+      env: { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}`, FOOTBAG_KNOWN_HOSTS: pin },
+      streams,
+    };
+  }
+  const guard = (env: NodeJS.ProcessEnv) => runOperator(['--target', 'staging', '--check-guard'], env);
+
+  // Defect caught: the P1-15 proof passing whether or not the marker is
+  // written, because what it ran refused for another reason before reading it.
+  // Here the deploy's own guard decides, on the markers the real marker script
+  // wrote, and the answer flips with them.
+  it('reports allow before the marker is set and refuse once both markers say complete', () => {
+    const { env, streams } = runningHost();
+    const before = guard(env);
+    expect(before.status, before.stderr).toBe(0);
+    expect(before.stdout).toContain('cutover guard on staging: allow');
+
+    expect(runRemote('set-complete').status).toBe(0);
+    const after = guard(env);
+    expect(after.status, after.stderr).toBe(3);
+    expect(after.stdout).toMatch(/cutover guard on staging: refuse \(.*post-cutover/);
+
+    expect(runRemote('set-reversed').status).toBe(0);
+    const reversed = guard(env);
+    expect(reversed.status, reversed.stderr).toBe(0);
+    expect(reversed.stdout).toContain('cutover guard on staging: allow');
+
+    // The guard travels as the deploy's own file, and the password only as the
+    // first line, never beside the values.
+    const sentStream = readFileSync(streams, 'utf8');
+    expect(sentStream).toContain('GUARD_SRC_B64=');
+    expect(sentStream.split('\n').filter((l) => l === 'fixture-sudo-password')).toHaveLength(3);
+    expect(sentStream).not.toMatch(/^(ENV_PATH|DB_PATH)=/m);
+  });
+
+  // Defect caught: a half-recorded marker read as protected or as clear, when
+  // the deploy refuses it.
+  it('reports refuse when the two markers disagree', () => {
+    const { env } = runningHost();
+    expect(runRemote('set-complete').status).toBe(0);
+    writeFileSync(envPath, 'FOOTBAG_ENV=staging\n');
+    const res = guard(env);
+    expect(res.status, res.stderr).toBe(3);
+    expect(res.stdout).toMatch(/refuse \(.*disagree/);
+  });
+
+  // Defect caught: a database the guard cannot read hidden, so the operator
+  // believes the in-database marker was consulted.
+  it('carries the guard\'s warning when it cannot read the database', () => {
+    const { env } = runningHost();
+    writeFileSync(dbPath, 'not a database\n');
+    const res = guard(env);
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr).toMatch(/Warnings \(1\):[\s\S]*unreadable/);
+  });
+
+  // Defect caught: a host that answered nothing read as either answer.
+  it('fails when the host gives no answer from the guard', () => {
+    const { env } = standInHost({ reply: 'nothing useful\\n' });
+    const res = guard(env);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('no answer from the cutover guard');
+  });
+});
+
+describe('the root-side guard probe', () => {
+  const PROBE_HALF = join(process.cwd(), 'scripts/internal/cutover-guard-probe-remote.sh');
+  const REPORT_REMOTE = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
+  const probe = (guardSource: string) => spawnSync('bash', ['-c', `source ${JSON.stringify(REPORT_REMOTE)}; source ${JSON.stringify(PROBE_HALF)}`], {
+    env: { ...process.env, GUARD_SRC_B64: Buffer.from(guardSource).toString('base64') },
+    encoding: 'utf8',
+    ...SPAWN_GUARD,
+  });
+
+  // Defect caught: a guard that stopped for some other reason read as a
+  // refusal, so a broken guard looks like a working marker.
+  it('reports an error, not refuse, when the guard ends without its answer', () => {
+    for (const src of ['exit 1', 'exit 4', 'true', 'crr_error "stand-in reason"; exit 4']) {
+      const res = probe(src);
+      expect(res.status, src).toBe(1);
+      expect(res.stdout, src).not.toMatch(/---FOOTBAG-GUARD--- /);
+      expect(res.stderr, src).toMatch(/---FOOTBAG-PROBLEM--- ERROR .*without an answer/);
+    }
+  });
+
+  it('reports refuse with the guard\'s reason, and allow only when the guard finished', () => {
+    const refused = probe('crr_error "stand-in reason"; exit 1');
+    expect(refused.status).toBe(0);
+    expect(refused.stdout).toBe('---FOOTBAG-GUARD--- refuse\n---FOOTBAG-GUARD-WHY--- stand-in reason\n');
+    const allowed = probe('CUTOVER_GUARD_RAN=1');
+    expect(allowed.status).toBe(0);
+    expect(allowed.stdout).toBe('---FOOTBAG-GUARD--- allow\n');
   });
 });

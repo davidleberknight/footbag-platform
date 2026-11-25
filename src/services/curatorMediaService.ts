@@ -241,6 +241,7 @@ import { config } from '../config/env';
 import { logger } from '../config/logger';
 import { detectImageType, photoShapeRefusal, RENDITION_IMAGE_MIME } from '../lib/imageProcessing';
 import { detectVideoFormat, type TranscodedVideo } from '../lib/videoProcessing';
+import { searchRefusalMeta } from '../lib/searchRefusal';
 import { Semaphore } from '../lib/semaphore';
 import { MediaStorageAdapter, getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { ImageProcessingAdapter, getImageProcessingAdapter } from '../adapters/imageProcessingAdapter';
@@ -5928,6 +5929,7 @@ function curatorMediaEditEnvelope(
           'The #curated hashtag cannot be removed.',
         ],
       },
+      ...searchRefusalMeta(content.playerPicker),
     },
     content,
   };
@@ -6765,14 +6767,15 @@ export function getMemberMediaEditPage(
 ): PageViewModel<MemberMediaEditContent> {
   const formAction = `/members/${memberKey}/media/${mediaId}/edit`;
   const automaticTag = `${UPLOADER_TAG_PREFIX}${opts.memberSlug ?? memberKey}`;
+  const playerPicker = buildPlayerPicker(MEMBER_EDIT_FORM_ID, formAction, opts.playerSearch);
   return {
     seo: { title: 'Edit Media' },
-    page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media' },
+    page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media', ...searchRefusalMeta(playerPicker) },
     content: {
       formAction,
       intro: `Change this item's caption, hashtags or external URL. Its hashtags decide where it shows: add a gallery's hashtags to show it in that gallery, remove one to stop. ${automaticTag} stays on it always.`,
       editFormId: MEMBER_EDIT_FORM_ID,
-      playerPicker: buildPlayerPicker(MEMBER_EDIT_FORM_ID, formAction, opts.playerSearch),
+      playerPicker,
       deleteConfirmHref: `/members/${memberKey}/media/${mediaId}/delete`,
       cancelHref: `/media/item/${mediaId}`,
       errorMessage: opts.errorMessage ?? null,

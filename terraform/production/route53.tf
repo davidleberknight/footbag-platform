@@ -538,6 +538,18 @@ variable "rehearse_launch_base_address" {
   default     = false
 }
 
+# The launch's own base-address step. Lifting the notice moves the base address
+# to www, but the host picks up a new base address only on a deploy, so between
+# that apply and the deploy www would refuse every form post. With this on, www
+# is published while the notice is still up, a code-only deploy puts it on the
+# host, and only then does the launch lift the notice, in the same apply that
+# turns this off again.
+variable "launch_www_base_address" {
+  description = "Give the host the www base address ahead of the launch apply, so that when the notice lifts the host already builds links and accepts form posts on www. Set and cleared only by scripts/production-cutover.sh --stage launch: on in its first run, inside the cutover window (custom domain, preview record, notice and apex records all on), followed by a code-only deploy; off again in its second run, which lifts the notice. While it is on, preview reaches the platform but refuses form posts, so only the deploy goes between the two runs."
+  type        = bool
+  default     = false
+}
+
 variable "enable_preview_record" {
   description = "Create the preview.<domain> alias records to CloudFront for the pre-cutover exercises. On after the zone move once the name is re-verified absent from the zone snapshot. It stays on through the freeze: while the public names serve the migration notice this is the only hostname reaching the platform. Turned off in the launch apply, because from go-live the only names served are the apex, www and archive."
   type        = bool

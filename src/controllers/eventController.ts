@@ -13,6 +13,7 @@ import { ConflictError, ForbiddenError, RateLimitedError, ValidationError } from
 import {
   handleControllerError, renderForbidden, renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound, renderRateLimited,
 } from '../lib/controllerErrors';
+import { statusForPage } from '../lib/searchRefusal';
 import { parseFormBody, formText, formOptionalText, formCheckbox, formList } from '../lib/parseFormBody';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { redirectWithOutcome, type ActionEnding } from '../lib/actionOutcome';
@@ -587,9 +588,10 @@ export const eventController = {
       if (!parsed.ok) { flashTo(req, res, manageHref(eventKey), 'refused', parsed.message); return; }
       // A member picker control draws the manage page again, adding nobody.
       if (parsed.data.pick !== undefined) {
-        res.render('events/manage', eventService.getManageEventPage(eventKey, req.user!.userId, {}, {
+        const vm = eventService.getManageEventPage(eventKey, req.user!.userId, {}, {
           organizerPicker: { intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown' },
-        }));
+        });
+        res.status(statusForPage(res, vm, 200)).render('events/manage', vm);
         return;
       }
       try {
@@ -715,7 +717,7 @@ export const eventController = {
         const page = eventService.getRegisterPage(eventKey, req.user!.userId, { input, message: null }, {
           intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown',
         });
-        if (page.branch === 'form') { res.render('events/register', page.page); return; }
+        if (page.branch === 'form') { res.status(statusForPage(res, page.page, 200)).render('events/register', page.page); return; }
         flashTo(req, res, eventHref(eventKey), page.branch === 'already_registered' ? 'already_held' : 'refused', page.message);
         return;
       }
@@ -758,7 +760,7 @@ export const eventController = {
       const parsed = parseFormBody(partnerForm, req.body);
       const renderForm = (input: PartnerInput, message: string | null, status: number, picker?: Parameters<typeof eventService.getPartnerPage>[3]): void => {
         const page = eventService.getPartnerPage(eventKey, req.user!.userId, { input, message }, picker);
-        if (page.branch === 'form') { res.status(status).render('events/partner', page.page); return; }
+        if (page.branch === 'form') { res.status(statusForPage(res, page.page, status)).render('events/partner', page.page); return; }
         flashTo(req, res, eventHref(eventKey), 'refused', page.message);
       };
       if (!parsed.ok) { renderForm(toPartnerInput(partnerForm.parse({})), parsed.message, 422); return; }
@@ -1054,9 +1056,10 @@ export const eventController = {
       const input = toEntryInput(parsed.data);
       // A picker control draws the form again with everything typed, adding nobody.
       if (parsed.data.pick !== undefined) {
-        res.render('events/participant-add', eventService.getAddEntrantPage(eventKey, userId, { input, message: null }, {
+        const vm = eventService.getAddEntrantPage(eventKey, userId, { input, message: null }, {
           intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown',
-        }));
+        });
+        res.status(statusForPage(res, vm, 200)).render('events/participant-add', vm);
         return;
       }
       let result;
@@ -1112,9 +1115,10 @@ export const eventController = {
       }
       const input = toEntryInput(parsed.data);
       if (parsed.data.pick !== undefined) {
-        res.render('events/participant-edit', eventService.getEditEntryPage(eventKey, userId, registrationId, { input, message: null }, {
+        const vm = eventService.getEditEntryPage(eventKey, userId, registrationId, { input, message: null }, {
           intent: parsePickIntent(parsed.data.pick), query: parsed.data.pick_q, ip: req.ip ?? 'unknown',
-        }));
+        });
+        res.status(statusForPage(res, vm, 200)).render('events/participant-edit', vm);
         return;
       }
       let result;

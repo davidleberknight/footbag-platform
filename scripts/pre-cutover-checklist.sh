@@ -14,7 +14,8 @@
 # Env vars:
 #   FOOTBAG_DB_PATH                  path to SQLite db (default: ./database/footbag.db)
 #   FOOTBAG_SNAPSHOT_DIR             snapshot output dir
-#   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Route 53 zone (required if not --mock-aws)
+#   FOOTBAG_LEGACY_HOSTED_ZONE_ID    Route 53 zone (required unless --skip-dns-ttl
+#                                    or --mock-aws; only the DNS TTL gate reads it)
 #   FOOTBAG_PRECUTOVER_MOCK_AWS=1    skip AWS calls (equivalent to --mock-aws)
 #   FOOTBAG_PRECUTOVER_SKIP_TESTS=1  skip npm run test:smoke / test:e2e
 #   FOOTBAG_SNAPSHOT_LOCAL_ONLY=1    the snapshot step keeps its artifact local

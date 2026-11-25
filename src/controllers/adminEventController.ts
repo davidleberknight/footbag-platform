@@ -7,6 +7,7 @@ import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { redirectWithOutcome, type ActionEnding } from '../lib/actionOutcome';
 import { outcomeNotice } from '../lib/outcomeNotice';
 import { handleControllerError, renderInvalidRequest } from '../lib/controllerErrors';
+import { statusForPage } from '../lib/searchRefusal';
 import { parseFormBody, formText, formCheckbox, formOptionalText } from '../lib/parseFormBody';
 import { parsePickIntent } from '../services/memberPicker';
 import { entryForm, toEntryInput } from './eventController';
@@ -131,9 +132,10 @@ function renderEntryForm(
   const picker = status === 200 && form.pick !== undefined
     ? { intent: parsePickIntent(form.pick), query: form.pick_q, ip: req.ip ?? 'unknown' }
     : undefined;
-  res.status(status).render('admin/events/entry', adminEventService.getEntryPage(
+  const vm = adminEventService.getEntryPage(
     req.user!.userId, eventId, registrationId, { input: toEntryInput(form), message, link, reason: form.reason }, picker,
-  ));
+  );
+  res.status(statusForPage(res, vm, status)).render('admin/events/entry', vm);
 }
 
 const CORRECTED_TEXT ='The event is corrected. Every changed value is in its audit history, and its organizers have been emailed.';

@@ -21,6 +21,7 @@ let createApp: typeof import('../../src/app').createApp;
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { spendMemberSearchAllowance, retryAfterIsAWait } from '../fixtures/memberSearchLimit';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {
@@ -280,6 +281,32 @@ describe('member edit page player search', () => {
       .send({ caption: '', tags: '#Player_Zoe_Pcquist', externalUrl: '', addPlayer: HP_ACCENTED_TAG });
     expect(res.status).toBe(303);
     expect(tagsOf(mediaId)).toEqual(['#by_pc_owner', HP_ACCENTED_TAG].sort());
+  });
+});
+
+describe('a refused player search', () => {
+  // Defect caught: a refused player search on either edit form answered as a
+  // success, so a client hammering the picker is never told to stop or how
+  // long to wait.
+  it('answers at 429 with a wait on the member and curator edit forms, each re-rendered with the notice', async () => {
+    await spendMemberSearchAllowance(OWNER_ID);
+    const member = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${creditedItemId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({ caption: '', tags: '', externalUrl: '', pick: 'search:player', pick_q: 'Pcquist' });
+    await spendMemberSearchAllowance(ADMIN_ID);
+    const curator = await request(createApp())
+      .post(`/admin/curator/media/${curatedItemId}/edit`)
+      .set('Cookie', cookieFor(ADMIN_ID, 'admin'))
+      .type('form')
+      .send({ caption: 'curated', tags: '#freestyle', pick: 'search:player', pick_q: 'Pcquist' });
+    for (const [name, res] of [['member', member], ['curator', curator]] as const) {
+      expect(res.status, name).toBe(429);
+      expect(retryAfterIsAWait(res.headers['retry-after']), `${name}: ${String(res.headers['retry-after'])}`).toBe(true);
+      expect(res.text, name).toContain('value="search:player"');
+      expect(res.text, name).toContain('form-error-banner');
+    }
   });
 });
 

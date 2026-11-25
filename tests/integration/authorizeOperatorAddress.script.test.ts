@@ -542,6 +542,18 @@ describe('authorize-operator-address asks the file and the firewall, and repairs
     expect(applyRan()).toBe(true);
   });
 
+  // Defect caught: an address change applying the whole tree, so the typed
+  // APPLY for one address also carries every other change pending there.
+  it('holds the apply to the firewall and the one address it changes', () => {
+    const added = run({ before: [EXISTING], after: [EXISTING, NEW_ADDRESS] });
+    expect(added.status, added.stderr).toBe(0);
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(`--target staging --firewall-only --firewall-add ${NEW_ADDRESS}`);
+    const body = listOf([`  "${EXISTING}", # dave_doe; home`, `  "${NEW_ADDRESS}", # jane_doe; office`]);
+    const removed = run({ args: removeArgs(NEW_ADDRESS), fileBody: body, before: [EXISTING, NEW_ADDRESS], after: [EXISTING] });
+    expect(removed.status, removed.stderr).toBe(0);
+    expect(readFileSync(appliedMarker, 'utf-8').trim()).toBe(`--target staging --firewall-only --firewall-remove ${NEW_ADDRESS}`);
+  });
+
   it('reports already absent only when neither the file nor the firewall carries it', () => {
     const r = run({ args: removeArgs(NEW_ADDRESS), before: [EXISTING] });
     expect(r.status, r.stderr).toBe(0);

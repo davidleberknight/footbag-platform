@@ -34,6 +34,9 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     actionTimeout: 15_000,
     navigationTimeout: 30_000,
+    // A request a service worker makes is invisible to request routing, which
+    // is what holds this check to reads.
+    serviceWorkers: 'block',
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
 });

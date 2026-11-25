@@ -53,6 +53,20 @@ const EXPECTED_URL = `https://${DOMAIN}/payments/webhook`;
  *  on: the `www` host, never the bare apex, which only redirects. */
 const CANONICAL_ORIGIN = 'https://www.footbag.org';
 
+/** The key every keyed run supplies through the seam. */
+const SYNTHETIC_KEY = 'sk_live_synthetic';
+
+/** What curl 7.81.0 printed for `curl -sS http://127.0.0.1:1/`, captured on a
+ *  workstation on 2026-11-24, exit status 7. */
+const CURL_CONNECT_FAILURE = 'curl: (7) Failed to connect to 127.0.0.1 port 1 after 0 ms: Connection refused';
+
+/** The closing report a run ends with: everything after its heading. */
+function closingReport(stderr: string): string {
+  const at = stderr.lastIndexOf('==== Closing report: create-stripe-endpoint.sh ====');
+  expect(at, `the run ends with a closing report:\n${stderr}`).toBeGreaterThan(-1);
+  return stderr.slice(at);
+}
+
 /** The dispatcher's event list and pinned version, from their single source. */
 function readFromActivationScript(name: string): string {
   const line = readFileSync(ACTIVATE, 'utf-8')
@@ -92,12 +106,18 @@ beforeAll(() => {
   // Answers the two outputs the script reads: the distribution's own name, which
   // the endpoint is created against, and the canonical origin, which is where
   // the cutover moves it. Both are real outputs; answering only the first is how
-  // the script came to rebuild the second by hand.
+  // the script came to rebuild the second by hand. FAKE_TF_FAIL names an output
+  // to refuse, the way terraform does for an output the state lacks.
   fakeTerraform = join(tmpDir, 'fake-terraform.sh');
   writeFileSync(
     fakeTerraform,
     [
       '#!/usr/bin/env bash',
+      'for arg in "$@"; do',
+      '  if [[ -n "${FAKE_TF_FAIL:-}" && "$arg" == "$FAKE_TF_FAIL" ]]; then',
+      '    echo "Error: Output \\"$arg\\" not found" >&2; exit 1',
+      '  fi',
+      'done',
       'for arg in "$@"; do',
       `  if [[ "$arg" == "platform_url" ]]; then echo "${CANONICAL_ORIGIN}"; exit 0; fi`,
       'done',
@@ -109,7 +129,9 @@ beforeAll(() => {
 
   // Answers the collection GET from FAKE_LIST and any single-endpoint GET or
   // POST from FAKE_SINGLE, and records every argv so a test can prove that a
-  // read-only run wrote nothing.
+  // read-only run wrote nothing. FAKE_CURL_FAIL makes the call fail the way curl
+  // -sS does when it cannot connect: its own error line on stderr, then its exit
+  // status. CURL_CONNECT_FAILURE is that line as curl printed it.
   fakeCurl = join(tmpDir, 'fake-curl.sh');
   writeFileSync(
     fakeCurl,
@@ -117,6 +139,9 @@ beforeAll(() => {
       '#!/usr/bin/env bash',
       'set -euo pipefail',
       'printf "%s\\n" "$*" >> "$FAKE_LOG"',
+      'if [[ -n "${FAKE_CURL_FAIL:-}" ]]; then',
+      `  echo ${JSON.stringify(CURL_CONNECT_FAILURE)} >&2; exit 7`,
+      'fi',
       'OUT=""; URL=""; prev=""',
       'for arg in "$@"; do',
       '  if [[ "$prev" == "-o" ]]; then OUT="$arg"; fi',
@@ -160,6 +185,8 @@ function endpoint(overrides: EndpointOverrides = {}): Record<string, unknown> {
 interface RunOptions {
   /** The account's endpoint list, as the collection GET returns it. */
   list?: Record<string, unknown>[];
+  /** The whole collection GET body, in place of a list built from `list`. */
+  listBody?: Record<string, unknown>;
   /** What a single-endpoint GET or POST returns; defaults to a corrected one. */
   single?: Record<string, unknown>;
   /** Omit the key so the run has neither a synthetic key nor a terminal. */
@@ -175,7 +202,7 @@ function runScript(args: string[], opts: RunOptions = {}): RunResult {
   const singlePath = join(tmpDir, `single-${caseCounter}.json`);
   const logPath = join(tmpDir, `curl-${caseCounter}.log`);
 
-  writeFileSync(listPath, JSON.stringify({ object: 'list', data: opts.list ?? [endpoint()] }));
+  writeFileSync(listPath, JSON.stringify(opts.listBody ?? { object: 'list', data: opts.list ?? [endpoint()] }));
   writeFileSync(singlePath, JSON.stringify(opts.single ?? endpoint()));
   writeFileSync(logPath, '');
 
@@ -190,7 +217,7 @@ function runScript(args: string[], opts: RunOptions = {}): RunResult {
     FAKE_LOG: logPath,
     ...opts.env,
   };
-  if (opts.withKey !== false) env.FOOTBAG_STRIPE_ENDPOINT_KEY_VALUE = 'sk_live_synthetic';
+  if (opts.withKey !== false) env.FOOTBAG_STRIPE_ENDPOINT_KEY_VALUE = SYNTHETIC_KEY;
 
   const [command, argv] = opts.noTerminal
     ? ['setsid', ['--wait', 'bash', SCRIPT, ...args]]
@@ -496,5 +523,113 @@ describe('create-stripe-endpoint.sh --repair', () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/REFUSING to repair/);
     expect(result.curlCalls.filter((c) => c.includes('-d '))).toHaveLength(0);
+  });
+});
+
+/**
+ * The closing report. In a long sitting the operator reads the end of a run, so
+ * a run that fails names its reason there, and one that passes says so with no
+ * warning an operator would have to chase.
+ */
+describe('create-stripe-endpoint.sh — the closing report', () => {
+  const verify = ['--target', 'production', '--mode', 'live', '--verify'];
+
+  // Defect caught: a passing gate ends with a warning or a failed verdict, so
+  // the operator chases a problem that is not there or the sitting stops.
+  it('ends a passing --verify with DONE, no warning, and the endpoint it proved', () => {
+    const result = runScript(verify);
+    expect(result.exitCode, result.stderr).toBe(0);
+    const report = closingReport(result.stderr);
+    expect(report).toContain('No errors or warnings.');
+    expect(report).toMatch(/## VERDICT: DONE +\(exit 0\)/);
+    expect(report).toMatch(/Proven:\n {2}- endpoint we_synthetic/);
+  });
+
+  // Defect caught: the disagreements a confirmed repair fixed are still listed
+  // as errors, so a successful repair exits 1 and the sitting reads it as failed.
+  it('ends a proved --repair with DONE and no error', () => {
+    const result = runScript([...verify, '--repair', '--yes'], {
+      list: [endpoint({ events: REQUIRED_EVENTS.filter((e) => !ADDED_AFTER_LIVE_ENDPOINT.includes(e)) })],
+      single: endpoint(),
+    });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const report = closingReport(result.stderr);
+    expect(report).toContain('No errors or warnings.');
+    expect(report).toMatch(/## VERDICT: DONE +\(exit 0\)/);
+    expect(report).toMatch(/Proven:\n {2}- endpoint we_synthetic repaired/);
+  });
+
+  // Defect caught: a failed --verify ends on a bare exit 1, so the sitting's log
+  // never says which events Stripe is not delivering.
+  it('names every missing event in the report of a failed --verify', () => {
+    const result = runScript(verify, {
+      list: [endpoint({ events: REQUIRED_EVENTS.filter((e) => !ADDED_AFTER_LIVE_ENDPOINT.includes(e)) })],
+    });
+    expect(result.exitCode).toBe(1);
+    const report = closingReport(result.stderr);
+    expect(report).toMatch(/Errors \(1\):\n {2}- endpoint we_synthetic: MISSING/);
+    for (const event of ADDED_AFTER_LIVE_ENDPOINT) expect(report).toContain(event);
+    expect(report).toMatch(/## VERDICT: FAILED +\(exit 1\)/);
+  });
+
+  // Defect caught: a Stripe call that cannot connect ends the run on curl's bare
+  // status, with curl's own reason never shown.
+  it('names curl\'s own reason when a Stripe call cannot connect', () => {
+    const result = runScript(verify, { env: { FAKE_CURL_FAIL: '1' } });
+    expect(result.exitCode).toBe(1);
+    const report = closingReport(result.stderr);
+    expect(report).toContain(`listing the account's webhook endpoints: ${CURL_CONNECT_FAILURE}`);
+    expect(report).toMatch(/## VERDICT: FAILED +\(exit 1\)/);
+  });
+
+  // Defect caught: a Stripe error that quotes the key it was given copies the
+  // key into the closing report, which a sitting's log keeps.
+  it('names Stripe\'s refusal and masks a key the message quotes', () => {
+    const result = runScript(verify, {
+      listBody: { error: { type: 'invalid_request_error', message: `Invalid API Key provided: ${SYNTHETIC_KEY}` } },
+    });
+    expect(result.exitCode).toBe(1);
+    const report = closingReport(result.stderr);
+    expect(report).toContain('Stripe refused listing the account\'s webhook endpoints: Invalid API Key provided: [redacted]');
+    expect(`${result.stdout}${result.stderr}`).not.toContain(SYNTHETIC_KEY);
+  });
+
+  // Defect caught: an unreadable distribution domain is refused with no reason,
+  // so the operator cannot tell a missing output from a dead credential.
+  it('names terraform\'s own reason when the distribution domain cannot be read', () => {
+    const result = runScript(verify, { env: { FAKE_TF_FAIL: 'cloudfront_domain' } });
+    expect(result.exitCode).toBe(1);
+    expect(closingReport(result.stderr)).toContain('Error: Output "cloudfront_domain" not found');
+    expect(result.curlCalls).toHaveLength(0);
+  });
+
+  // Defect caught: an unread canonical origin silently narrows the addresses
+  // accepted, so an endpoint moved to the canonical host later fails with no
+  // word of why.
+  it('warns, with terraform\'s reason, when the canonical origin cannot be read, and still checks the distribution name', () => {
+    const result = runScript(verify, { env: { FAKE_TF_FAIL: 'platform_url' } });
+    expect(result.exitCode, result.stderr).toBe(0);
+    const report = closingReport(result.stderr);
+    expect(report).toMatch(/Warnings \(1\):\n {2}- could not read platform_url .*Output "platform_url" not found/);
+    expect(report).toMatch(/## VERDICT: DONE WITH WARNINGS +\(exit 0\)/);
+  });
+
+  // Defect caught: an argument refusal ends without its reason in the report.
+  it('names an argument refusal in the report and keeps exit 2', () => {
+    const result = runScript(['--bogus']);
+    expect(result.exitCode).toBe(2);
+    expect(closingReport(result.stderr)).toContain('- unknown argument: --bogus');
+  });
+
+  // Defect caught: an unconfirmed --repair reports only that it stopped, not
+  // that the endpoint is still wrong.
+  it('lists the unrepaired disagreement when --repair is not confirmed', () => {
+    const result = runScript([...verify, '--repair'], {
+      list: [endpoint({ events: [...REQUIRED_EVENTS, 'payment_intent.canceled'] })],
+    });
+    expect(result.exitCode).toBe(1);
+    const report = closingReport(result.stderr);
+    expect(report).toContain('endpoint we_synthetic: UNEXPECTED events registered but not dispatched by the code: payment_intent.canceled');
+    expect(report).toContain('Not confirmed; nothing was changed.');
   });
 });

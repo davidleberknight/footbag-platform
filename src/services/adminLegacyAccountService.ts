@@ -88,7 +88,7 @@ export const adminLegacyAccountService = {
   lookupAccountsForPicker(rawQuery: string, limit: number): RecordSearchOutcome {
     const query = rawQuery.trim();
     if (query.length < MIN_LOOKUP_QUERY) {
-      return { results: [], hasMore: false, tooShort: true, rateLimited: false };
+      return { results: [], hasMore: false, tooShort: true, rateLimited: false, retryAfterSeconds: null };
     }
     const lowered = query.toLowerCase();
     const escaped = lowered.replace(/[\\%_]/g, (ch) => `\\${ch}`);
@@ -102,6 +102,7 @@ export const adminLegacyAccountService = {
       hasMore: rows.length > limit,
       tooShort: false,
       rateLimited: false,
+      retryAfterSeconds: null,
     };
   },
 

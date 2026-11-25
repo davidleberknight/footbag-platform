@@ -19,6 +19,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { flashCookieOf } from '../fixtures/flashCookie';
+import { spendMemberSearchAllowance, retryAfterIsAWait } from '../fixtures/memberSearchLimit';
 import {
   createMemberAtTier,
   completeOnboarding,
@@ -397,6 +398,18 @@ describe('organizers', () => {
 
   // Defect caught: the manage page offers no way to find a co-organizer by
   // name, its search offers someone who already organizes the event, a
+  // Defect caught: a refused organizer search answered as a success, so a
+  // client hammering the picker is never told to stop or how long to wait.
+  it('answers a refused organizer search at 429 with a wait, the form re-rendered with the notice', async () => {
+    const event = seedEvent('Picker Refused', [olive]);
+    await spendMemberSearchAllowance(olive);
+    const refused = await post(olive, `/events/${event.key}/organizers`, { member_id: '', pick: 'search:organizer', pick_q: 'eo-added' });
+    expect(refused.status).toBe(429);
+    expect(retryAfterIsAWait(refused.headers['retry-after']), String(refused.headers['retry-after'])).toBe(true);
+    expect(refused.text).toContain('value="search:organizer"');
+    expect(refused.text).toContain('form-error-banner');
+  });
+
   // picker control adds anyone, or the row button does not add the member.
   it('adds a co-organizer found by name through the picker row button', async () => {
     const event = seedEvent('Picker Open', [olive, otto]);

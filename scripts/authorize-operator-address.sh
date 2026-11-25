@@ -1315,10 +1315,16 @@ if (( EDIT )); then
   echo "==> ${TFVAR_NAME} written"
 fi
 
-echo "==> Applying the ${TARGET} tree"
+echo "==> Applying ${TARGET}'s firewall"
+# Held to the firewall and this one address: the values file changes only this
+# entry, so the only SSH change the plan may carry is this address going in or
+# out, and anything else pending in the tree is refused by name rather than
+# carried by the typed word for one address.
+declare -a FIREWALL_NAME=(--firewall-add "$ADDRESS")
+(( REMOVE )) && FIREWALL_NAME=(--firewall-remove "$ADDRESS")
 # Run directly, not through cr_run, because production's apply asks on the
 # terminal; its own problems reach this run's report through nested mode.
-if ! bash "$APPLY_CMD" --target "$TARGET"; then
+if ! bash "$APPLY_CMD" --target "$TARGET" --firewall-only "${FIREWALL_NAME[@]}"; then
   cr_error "the apply did not complete, so the firewall is whatever it left."
   echo "       The values file carries the intended state: re-run this to pick up" >&2
   echo "       where it stopped." >&2

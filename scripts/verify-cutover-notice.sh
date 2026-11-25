@@ -26,7 +26,12 @@
 #   --front-door Fetches the real names once they resolve, asserting the notice
 #                on www and the platform on preview in the same run. This is the
 #                check the launch decision rests on, because it is the only one
-#                that distinguishes the two states from outside.
+#                that distinguishes the two states from outside. With
+#                --expect-live it asserts the launched state instead: www serves
+#                the platform, preview has no DNS record (it is removed at
+#                launch, before this runs), and the apex 301 carries the path
+#                and query it was asked for to the same address on www. The
+#                apex is held to that Location in both states.
 #
 # Both modes assert the same four-way contract, which is the whole design:
 #
@@ -218,21 +223,61 @@ if [[ "$MODE" == "front-door" ]]; then
     fi
   fi
 
-  # Preview is the control in both states, and it is the assertion that makes
-  # this check worth running during the window: it is what proves the notice is
-  # per-hostname rather than a blanket outage.
-  preview_status="$(status_of "https://preview.footbag.org/events")"
-  if [[ "$preview_status" == "200" ]]; then
-    pass "preview page path: 200 (the real site, through the window and after it)"
+  # One probe that never aborts the run: the body is discarded, the -w format
+  # is written to PROBE_OUT and curl's own exit status to PROBE_RC, so a name
+  # that does not resolve becomes an expectation the verdict can read rather
+  # than an exit under set -e.
+  probe() {
+    PROBE_RC=0
+    PROBE_OUT="$(curl -s -o /dev/null -w "$2" --max-time 15 "$1")" || PROBE_RC=$?
+  }
+
+  if [[ "$EXPECT" == "notice" ]]; then
+    # Preview is the control during the window, and it is the assertion that
+    # makes this check worth running then: it is what proves the notice is
+    # per-hostname rather than a blanket outage.
+    preview_status="$(status_of "https://preview.footbag.org/events")"
+    if [[ "$preview_status" == "200" ]]; then
+      pass "preview page path: 200 (the real site, through the window)"
+    else
+      fail "preview page path: expected 200, got ${preview_status}; preview must serve the platform while the notice is up"
+    fi
   else
-    fail "preview page path: expected 200, got ${preview_status}; preview must serve the platform in both states"
+    # At launch the preview record is removed before this check runs, so the
+    # launched state is a preview name with no DNS record. curl's own exit 6
+    # (could not resolve host) is the only outcome that proves it: an answer of
+    # any status means the record is still published, and any other failure (a
+    # timeout, a refused connection) means the name still resolves to an
+    # address, so both fail.
+    probe "https://preview.footbag.org/events" '%{http_code}'
+    if [[ "$PROBE_RC" == "6" ]]; then
+      pass "preview: the name no longer resolves (its record is removed at launch)"
+    elif [[ "$PROBE_RC" == "0" ]]; then
+      fail "preview: expected no DNS record after launch, but it answered ${PROBE_OUT}"
+    else
+      fail "preview: expected no DNS record after launch, but curl failed with exit ${PROBE_RC} rather than a resolution failure, so the name still resolves"
+    fi
   fi
 
-  apex_status="$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://footbag.org/events")"
-  if [[ "$apex_status" == "301" ]]; then
-    pass "apex: 301 (the redirect is unaffected by the notice, as designed)"
-  else
+  # The apex redirect is the same with the notice up and down, so it is held to
+  # the same expectation in both states. It is probed with a path and a query
+  # string, because a redirect that sends every visitor to the www home page,
+  # or drops the query, still answers 301: only the Location shows that the
+  # address the visitor typed survives the hop.
+  apex_path="/events/year/2025"
+  apex_query="cutover-probe=1"
+  apex_want="https://www.footbag.org${apex_path}?${apex_query}"
+  probe "https://footbag.org${apex_path}?${apex_query}" '%{http_code} %{redirect_url}'
+  apex_status="${PROBE_OUT%% *}"
+  apex_location="${PROBE_OUT#* }"
+  if [[ "$PROBE_RC" != "0" ]]; then
+    fail "apex: the request failed (curl exit ${PROBE_RC})"
+  elif [[ "$apex_status" != "301" ]]; then
     fail "apex: expected 301, got ${apex_status}"
+  elif [[ "$apex_location" != "$apex_want" ]]; then
+    fail "apex: expected a 301 to ${apex_want}, got a 301 to '${apex_location}'"
+  else
+    pass "apex: 301 to ${apex_want} (path and query carried to www, unaffected by the notice)"
   fi
 fi
 

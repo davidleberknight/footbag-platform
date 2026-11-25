@@ -7,8 +7,9 @@
 # apply. Every stage has the same shape: it proves its preconditions, shows the
 # values-file change, takes a typed APPLY, writes the values through the
 # file's symlink, applies through scripts/terraform-apply.sh, and verifies what
-# is served. The stages still to come (the custom domain, the SES domain, the
-# window state and the launch rehearsal) join this file as they are built.
+# is served. In run order: archive-base (pass 1), custom-domain, ses-domain,
+# window and rehearsal (pass 2, after the zone move), record-switch (the
+# freeze), launch, and notice-raise (the rollback).
 #
 # WHY IT EXISTS.
 #
@@ -40,13 +41,68 @@
 # again, never undone: values already written are left as they are, an apply
 # not yet made is made, a key already stored is not stored again.
 #
-# STAGE launch: the go-live cutover change, production only.
+# STAGE custom-domain: the platform's own names, production only, pass 2.
 #
-# Lifts the migration notice and, in the same apply, removes every name not
-# served from go-live:
+# Puts the platform and the archive on their footbag.org names, in one apply:
+#   enable_platform_custom_domain  true (the certificate for the apex, www and
+#                                  preview, and the distribution's aliases)
+#   enable_preview_record          true (preview, the pre-cutover name)
+#   enable_archive_custom_domain   true (archive.footbag.org and its certificate)
+#   archive_platform_url           https://preview.footbag.org, the platform's
+#                                  address until the record switch clears it
+# It proves pass 1's state (the archive stack and the mirror on, the alias and
+# the notice off, the archive address the distribution's own), that the
+# delegation converged at least 90000 seconds ago by the cutover log's
+# zone-move section and is delegated now, and that the plan creates exactly the
+# certificates, their validation, the preview and archive names and the two
+# certificate-expiry alarms, destroys nothing, and moves the distribution and
+# the host's base address. After the apply it asks CloudFront whether another
+# distribution claims or overlaps any of the platform's names. --undo takes it
+# all down again, the archive address back to the distribution's own.
+#
+# STAGE ses-domain: the SES domain identity, production only, pass 2.
+#
+#   ses_enable_domain_identity     true
+#   ses_enable_domain_auth         true (the verification and DKIM records,
+#                                  and the apply's wait, up to 45 minutes, on
+#                                  SES verifying the domain)
+# Together in one apply, after the same delegation wait as the custom domain.
+# The plan creates exactly the identity, its DKIM, verification, records,
+# topics and feedback setting, and changes nothing else. The sender cutover
+# follows as its own script.
+#
+# STAGE window: the migration notice, before the record switch.
+#
+#   enable_cutover_notice          true (the edge function carries the notice;
+#                                  the window alarms are removed while it is up)
+# With the custom domain, the preview and the mirror on and the alias off.
+# Run while the launch rehearsal is in progress, it is the rehearsal's return:
+# rehearse_launch_base_address goes false in the same apply. --undo takes the
+# notice down again, the alias still off.
+#
+# STAGE rehearsal: the launch dress rehearsal, from the window state.
+#
+#   enable_cutover_notice          false
+#   rehearse_launch_base_address   true (the host is given www, which testers
+#                                  reach through an edge address)
+# Before the record switch only. Its APPLY attests the two things it cannot
+# read: www and the apex in the Turnstile widget, and the outbox drained. The
+# window stage returns from it.
+#
+# STAGE launch: the go-live cutover change, production only, in two runs.
+#
+# The first run, in the window after the record switch, publishes www as the
+# host's base address while the notice is still up, and nothing else:
+#   launch_www_base_address        true
+# then stops for the code-only deploy that puts it on the host. The second
+# run reads preview's robots.txt, which names www's sitemap only once the host
+# is on www, and refuses until it does. It then lifts the notice and, in the
+# same apply, removes every name not served from go-live, so www accepts form
+# posts from the moment it serves the platform:
 #   enable_cutover_notice          false (the platform serves www)
 #   enable_preview_record          false (preview, the pre-cutover name, goes)
 #   enable_legacy_mirror_records   false (every mirrored legacy name goes)
+#   launch_www_base_address        false (www now follows from the notice off)
 #   the "g" entry of each Workspace map, removed; my and *.my stay until the
 #   IFPA secretary retires them.
 # Launch opens member sign-in to the public and the legacy names do not come
@@ -74,8 +130,9 @@
 # values through the link, applies through scripts/terraform-apply.sh, and
 # proves the tree then plans clean. A run that stops after the write is
 # finished by running it again: it checks the pending plan is still exactly the
-# launch and applies it. The base-address deploy, the launch checks and the
-# mail resume that follow are their own steps.
+# launch and applies it. The launch checks and the mail resume that follow are
+# their own steps. Run again after the notice raise, it is the rollback's
+# re-lift, in the same two runs.
 #
 # STAGE record-switch: the switch at the write-freeze, production only.
 #
@@ -130,9 +187,14 @@
 #
 # WHAT IT REFUSES.
 #   - Any stage it does not know, and a target other than staging or production.
-#   - The launch, record-switch and notice-raise stages anywhere but
-#     production; on production, any of their preconditions above unmet, or
-#     their settings half written.
+#   - Every stage but archive-base anywhere but production; on production,
+#     any of its preconditions above unmet, or its settings half written.
+#   - --undo for any stage but custom-domain and window.
+#   - The custom-domain and ses-domain stages before the delegation has
+#     converged 90000 seconds, with no convergence time in the cutover log,
+#     or with footbag.org not delegated to the Route 53 zone now.
+#   - Every stage but the launch while the launch's first run has published
+#     www, and every stage but the window's return during the rehearsal.
 #   - A zone capture that is not a complete transfer, and for the record
 #     switch one not named for the day it was taken, one named for a day after
 #     today, one older than the verified capture the cutover log records, or
@@ -152,6 +214,12 @@
 #   scripts/production-cutover.sh --target staging --stage archive-base --dry-run
 #   scripts/production-cutover.sh --target staging --stage archive-base
 #   scripts/production-cutover.sh --target production --stage archive-base
+#   scripts/production-cutover.sh --target production --stage custom-domain
+#   scripts/production-cutover.sh --target production --stage custom-domain --undo
+#   scripts/production-cutover.sh --target production --stage ses-domain
+#   scripts/production-cutover.sh --target production --stage window
+#   scripts/production-cutover.sh --target production --stage window --undo
+#   scripts/production-cutover.sh --target production --stage rehearsal
 #   scripts/production-cutover.sh --target production --stage launch \
 #     --capture <fresh zone capture> --dry-run
 #   scripts/production-cutover.sh --target production --stage launch \
@@ -163,7 +231,10 @@
 # Flags:
 #   --target staging|production   The environment (required).
 #   --stage <stage>               The stage to run (required): archive-base,
-#                                 launch, record-switch or notice-raise.
+#                                 custom-domain, ses-domain, window, rehearsal,
+#                                 record-switch, launch or notice-raise.
+#   --undo                        Take the custom domain or the window down
+#                                 again (those two stages only).
 #   --capture <file>              The fresh zone capture (required for launch
 #                                 and record-switch, refused otherwise); the
 #                                 record switch takes the newest, no older than
@@ -179,7 +250,11 @@
 #   PRODUCTION_CUTOVER_VERIFY_CMD      scripts/verify-archive-edge.sh
 #   PRODUCTION_CUTOVER_KEY_DIR         where the signing keys live (~/AWS)
 #   PRODUCTION_CUTOVER_DIG_BIN         dig
+#   PRODUCTION_CUTOVER_AWS_BIN         aws (the custom domain's alias check)
+#   PRODUCTION_CUTOVER_CURL_BIN        curl (the launch's base-address check)
 #   PRODUCTION_CUTOVER_LOG             the cutover log
+#   PRODUCTION_CUTOVER_NOW             now, in epoch seconds, against which
+#                                      the delegation wait is measured
 #   PRODUCTION_CUTOVER_TODAY           today's date, YYYY-MM-DD, after which
 #                                      no record-switch capture can be named
 set -euo pipefail
@@ -194,6 +269,7 @@ TARGET=""
 STAGE=""
 CAPTURE=""
 DRY_RUN=0
+UNDO=0
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "$0"
@@ -214,6 +290,7 @@ while [[ $# -gt 0 ]]; do
       shift 2 || { cr_error "--capture requires a path"; exit 2; }
       ;;
     --dry-run) DRY_RUN=1; shift ;;
+    --undo) UNDO=1; shift ;;
     # Parsed after the library is sourced, which assigns ASSUME_YES
     # unconditionally, so only this flag can set it.
     --yes) ASSUME_YES="yes"; shift ;;
@@ -224,11 +301,17 @@ done
 
 require_target "$TARGET" staging production || exit 2
 
+STAGES_IN_ORDER="archive-base, custom-domain, ses-domain, window, rehearsal, record-switch, launch, notice-raise"
+
 case "$STAGE" in
-  archive-base|launch|record-switch|notice-raise) ;;
-  "") cr_error "--stage is required (one of: archive-base, launch, record-switch, notice-raise)"; exit 2 ;;
-  *) cr_error "unknown stage '${STAGE}' (one of: archive-base, launch, record-switch, notice-raise)"; exit 2 ;;
+  archive-base|custom-domain|ses-domain|window|rehearsal|record-switch|launch|notice-raise) ;;
+  "") cr_error "--stage is required (one of: ${STAGES_IN_ORDER})"; exit 2 ;;
+  *) cr_error "unknown stage '${STAGE}' (one of: ${STAGES_IN_ORDER})"; exit 2 ;;
 esac
+if (( UNDO )) && [[ "$STAGE" != custom-domain && "$STAGE" != window ]]; then
+  cr_error "--undo is the custom-domain and window stages' own; stage ${STAGE} is undone by a later stage, not by itself"
+  exit 2
+fi
 if [[ "$STAGE" != archive-base && "$TARGET" != production ]]; then
   cr_error "the ${STAGE} stage runs on production only: ${TARGET} has no cutover notice and no legacy mirror"
   exit 2
@@ -251,10 +334,13 @@ KEY_CMD="${PRODUCTION_CUTOVER_KEY_CMD:-${REPO_ROOT}/scripts/provision-archive-si
 VERIFY_CMD="${PRODUCTION_CUTOVER_VERIFY_CMD:-${REPO_ROOT}/scripts/verify-archive-edge.sh}"
 KEY_DIR="${PRODUCTION_CUTOVER_KEY_DIR:-${HOME}/AWS}"
 DIG_BIN="${PRODUCTION_CUTOVER_DIG_BIN:-dig}"
+AWS_BIN="${PRODUCTION_CUTOVER_AWS_BIN:-aws}"
+CURL_BIN="${PRODUCTION_CUTOVER_CURL_BIN:-curl}"
 LOG_PATH="${PRODUCTION_CUTOVER_LOG:-${REPO_ROOT}/footbag_private_repo/cutover/CUTOVER_LOG.md}"
 for seam in PRODUCTION_CUTOVER_TERRAFORM_BIN PRODUCTION_CUTOVER_APPLY_CMD \
             PRODUCTION_CUTOVER_KEY_CMD PRODUCTION_CUTOVER_VERIFY_CMD PRODUCTION_CUTOVER_KEY_DIR \
-            PRODUCTION_CUTOVER_DIG_BIN PRODUCTION_CUTOVER_LOG PRODUCTION_CUTOVER_TODAY; do
+            PRODUCTION_CUTOVER_DIG_BIN PRODUCTION_CUTOVER_AWS_BIN PRODUCTION_CUTOVER_CURL_BIN \
+            PRODUCTION_CUTOVER_LOG PRODUCTION_CUTOVER_TODAY PRODUCTION_CUTOVER_NOW; do
   if [[ -n "${!seam:-}" ]]; then
     echo "SYNTHETIC: ${seam}='${!seam}' -- this run proves nothing about the estate." >&2
   fi
@@ -442,7 +528,7 @@ echo "values file: ${TFVARS_PATH}"
 
 # ── STAGE launch ─────────────────────────────────────────────────────────────
 
-LAUNCH_FLAG_PATTERN='^[[:space:]]*(enable_cutover_notice|enable_preview_record|enable_legacy_mirror_records)[[:space:]]*='
+LAUNCH_FLAG_PATTERN='^[[:space:]]*(enable_cutover_notice|enable_preview_record|enable_legacy_mirror_records|launch_www_base_address)[[:space:]]*='
 
 # The last assignment of a true/false setting, which is the one terraform
 # reads; empty when the file sets none. grep finding no line is an answer.
@@ -515,9 +601,12 @@ log_value() {
 # results being recorded: the mail apply, its record check, the outside tests,
 # the admin@ receive-and-reply test the legal page's contact link depends on,
 # the certificate-address bounce test, the alarm receipts, each work-queue
-# area group receiving the platform's own mail, and the area digests switched
-# on after the load, which replaces the database and would wipe an earlier
-# setting. Each row's first cell, then the word its value must start with.
+# area group receiving the platform's own mail, and the area owners saved
+# after the load, which replaces the database and would wipe an earlier
+# setting. The area digests are not among them: they are switched on after
+# launch, once mail is built against www, because a digest queued before it
+# would carry preview links the launch removes. Each row's first cell, then
+# the word its value must start with.
 LAUNCH_LOG_ROWS=(
   "Mail apply|applied"
   "\`scripts/verify-mail-records.sh --stage mail-day\` passes|pass"
@@ -527,7 +616,7 @@ LAUNCH_LOG_ROWS=(
   "Alarm subscriptions confirmed|pass"
   "Test alarm|pass"
   "Work-queue area groups receive the platform's mail|pass"
-  "Work-queue area digests on and area owners saved|pass"
+  "Work-queue area owners saved|pass"
 )
 
 launch_log_gate() {
@@ -752,7 +841,9 @@ launch_reverse_lookups() {
   done
 }
 
-if [[ "$STAGE" == launch ]]; then
+# The launch runs as a function, called once the helpers it shares with the
+# later stages are defined below.
+launch_stage() {
   command -v jq >/dev/null || cr_die "jq is not installed; the launch plan cannot be checked without it. Nothing was changed."
   LAUNCH_TMP="$(mktemp -d)"
   chmod 700 "$LAUNCH_TMP"
@@ -813,12 +904,53 @@ if [[ "$STAGE" == launch ]]; then
 
   launch_log_gate
 
+  # The base address comes first: published as www while the notice is up, put
+  # on the host by a code-only deploy, and proved served before the notice
+  # lifts, so www accepts form posts from the moment it serves the platform.
+  CUR_LWWW="$(read_bool launch_www_base_address "$TFVARS_PATH")"
+  CUR_LWWW="${CUR_LWWW:-false}"
+  [[ "$CUR_LWWW" == true || "$CUR_LWWW" == false ]] \
+    || cr_die "launch_www_base_address reads '${CUR_LWWW}', neither true nor false. Nothing was changed."
+  echo "  launch_www_base_address:      ${CUR_LWWW}"
+  if (( RESUME )) && [[ "$CUR_LWWW" == true ]]; then
+    cr_die "the notice is lifted but launch_www_base_address is still on; the launch write sets both together, so this is not a launch the stage made. Nothing was changed."
+  fi
+  if (( ! RESUME )) && [[ "$CUR_LWWW" == false ]]; then
+    launch_base_address_run
+  fi
+  if (( ! RESUME )); then
+    if (( ! DRY_RUN )); then
+      # A first run whose write landed but whose apply did not is finished
+      # here, and stops for the deploy.
+      plan_tree -lock=false
+      case "$PLAN_RC" in
+        0) ;;
+        2)
+          if pending_is_base_address; then
+            RESUME=1
+            launch_base_address_run
+          fi
+          grep -E '^Plan: ' <<<"$PLAN_OUT" || [[ $? == 1 ]]
+          cr_error "other changes are pending in the production tree besides the launch; apply them first with scripts/terraform-apply.sh --target production, then re-run. The values file is unchanged and nothing was applied"
+          cr_unproved "the launch apply: refused with other changes pending"
+          cr_finish
+          ;;
+        *)
+          cr_error "the read-only plan of production failed (exit ${PLAN_RC}); nothing was applied"
+          cr_unproved "the launch apply: the state could not be read"
+          cr_finish
+          ;;
+      esac
+    fi
+    require_host_on_www
+  fi
+
   if (( DRY_RUN )); then
     if (( RESUME )); then
       echo "The values file would not be changed; the launch apply would be planned, checked and applied if still pending."
     else
-      echo "Would set enable_cutover_notice, enable_preview_record and enable_legacy_mirror_records to false"
-      echo "and remove the g entry from each Workspace map, then plan, check, apply."
+      echo "Would set enable_cutover_notice, enable_preview_record, enable_legacy_mirror_records and"
+      echo "launch_www_base_address to false and remove the g entry from each Workspace map, then plan, check, apply."
     fi
     cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
     cr_finish
@@ -867,7 +999,7 @@ if [[ "$STAGE" == launch ]]; then
     DROPPED="$(drop_g_entries "$TFVARS_PATH")" \
       || cr_die "a Workspace map or its g entry in the values file never closes, so the g entries cannot be removed safely; the values file is unchanged."
     NEW_CONTENT="$(printf '%s\n' "$DROPPED" | awk '
-      match($0, /^[ \t]*(enable_cutover_notice|enable_preview_record|enable_legacy_mirror_records)[ \t]*=/) {
+      match($0, /^[ \t]*(enable_cutover_notice|enable_preview_record|enable_legacy_mirror_records|launch_www_base_address)[ \t]*=/) {
         n = $0; sub(/^[ \t]*/, "", n); sub(/[ \t]*=.*/, "", n)
         if (!(n in seen)) { seen[n] = 1; print n " = false" }
         next
@@ -886,9 +1018,9 @@ if [[ "$STAGE" == launch ]]; then
     REMOVED="$(sed -n 's/^< //p' <<<"$DIFF_OUT")"
     ADDED="$(sed -n 's/^> //p' <<<"$DIFF_OUT")"
     BAD_REMOVED="$(grep -vE "${LAUNCH_FLAG_PATTERN}|^[[:space:]]*\"g\"[[:space:]]*=|^[[:space:]]*\"[^\"]*\",?[[:space:]]*\$|^[[:space:]]*\],?[[:space:]]*\$|^\$" <<<"$REMOVED" || [[ $? == 1 ]])"
-    BAD_ADDED="$(grep -vxE '(enable_cutover_notice|enable_preview_record|enable_legacy_mirror_records) = false|' <<<"$ADDED" || [[ $? == 1 ]])"
+    BAD_ADDED="$(grep -vxE '(enable_cutover_notice|enable_preview_record|enable_legacy_mirror_records|launch_www_base_address) = false|' <<<"$ADDED" || [[ $? == 1 ]])"
     [[ -z "$BAD_REMOVED" && -z "$BAD_ADDED" ]] || rewrite_ok=0
-    for f in enable_cutover_notice enable_preview_record enable_legacy_mirror_records; do
+    for f in enable_cutover_notice enable_preview_record enable_legacy_mirror_records launch_www_base_address; do
       [[ "$(read_bool "$f" <(printf '%s\n' "$NEW_CONTENT"))" == false ]] || rewrite_ok=0
       [[ "$(grep -cE "^[[:space:]]*${f}[[:space:]]*=" <<<"$NEW_CONTENT")" == 1 ]] || rewrite_ok=0
     done
@@ -898,11 +1030,11 @@ if [[ "$STAGE" == launch ]]; then
     (( rewrite_ok )) || cr_die "the rewrite of the launch settings did not come out as exactly those settings changed; the values file is unchanged."
 
     # Planned with the new values before the file is touched. The override
-    # carries only the launch settings: the three flags and the Workspace maps,
+    # carries only the launch settings: the four flags and the Workspace maps,
     # which hold DNS values and no operator address.
     OVERRIDE="${LAUNCH_TMP}/launch-override.tfvars"
     {
-      printf '%s\n' "enable_cutover_notice = false" "enable_preview_record = false" "enable_legacy_mirror_records = false"
+      printf '%s\n' "enable_cutover_notice = false" "enable_preview_record = false" "enable_legacy_mirror_records = false" "launch_www_base_address = false"
       for m in workspace_mx_records workspace_txt_records workspace_cname_records; do
         map_block "$m" <(printf '%s\n' "$NEW_CONTENT")
       done
@@ -919,7 +1051,7 @@ if [[ "$STAGE" == launch ]]; then
       diff <(grep -vE "$LAUNCH_FLAG_PATTERN" "$TFVARS_PATH") \
            <(grep -vE "$LAUNCH_FLAG_PATTERN" <<<"$NEW_CONTENT") \
         | sed -n 's/^< /-/p' || [[ $? == 1 ]]
-      printf '%s\n' "+enable_cutover_notice = false" "+enable_preview_record = false" "+enable_legacy_mirror_records = false"
+      printf '%s\n' "+enable_cutover_notice = false" "+enable_preview_record = false" "+enable_legacy_mirror_records = false" "+launch_www_base_address = false"
     } | tfvars_mask /dev/stdin
     echo ""
     echo "This is the launch: the notice lifts, member sign-in opens to the public, and the"
@@ -931,7 +1063,7 @@ if [[ "$STAGE" == launch ]]; then
     # Through the link, never mv: the values file is a symlink into the private
     # operations checkout, and moving over it would leave a real file here.
     printf '%s\n' "$NEW_CONTENT" > "$TFVARS_PATH"
-    for f in enable_cutover_notice enable_preview_record enable_legacy_mirror_records; do
+    for f in enable_cutover_notice enable_preview_record enable_legacy_mirror_records launch_www_base_address; do
       [[ "$(read_bool "$f" "$TFVARS_PATH")" == false ]] \
         || cr_die "${f} did not read back as false from ${TFVARS_PATH}; nothing was applied."
     done
@@ -954,28 +1086,32 @@ if [[ "$STAGE" == launch ]]; then
     cr_finish
   fi
   cr_proved "the launch apply in production: applied through scripts/terraform-apply.sh, and the tree plans clean"
-  cr_unproved "what is served: the base-address deploy, the launch checks (verify-cutover-notice.sh --front-door --expect-live and the survivor lookups) and the mail resume follow as their own steps"
+  cr_unproved "what is served: the launch checks (verify-cutover-notice.sh --front-door --expect-live, verify-host-env.sh and the survivor lookups) and the mail resume follow as their own steps"
   cr_finish
-fi
+}
 
 # ── Shared by the record switch and the notice raise ─────────────────────────
 
 # The values file with each named setting assigned once, where its first
 # assignment stood, and any later assignment of it dropped; every other line,
-# comments included, kept as written. A setting the file does not carry is not
-# added. Arguments: the file, then name=value pairs, no value holding a space.
+# comments included, kept as written. A setting the file does not carry is
+# added at its end, in the order given: every setting a stage writes is one
+# Terraform declares with a default, so the added line states what the file
+# meant by leaving it out, and then changes it. Arguments: the file, then
+# name=value pairs, no value holding a space.
 rewrite_assignments() {
   local file="$1"; shift
   awk -v pairs="$*" '
     BEGIN {
       n = split(pairs, p, " ")
-      for (i = 1; i <= n; i++) { k = p[i]; sub(/=.*/, "", k); v = p[i]; sub(/^[^=]*=/, "", v); want[k] = v }
+      for (i = 1; i <= n; i++) { k = p[i]; sub(/=.*/, "", k); v = p[i]; sub(/^[^=]*=/, "", v); want[k] = v; order[i] = k }
     }
     /^[ \t]*[a-z_]+[ \t]*=/ {
       name = $0; sub(/^[ \t]*/, "", name); sub(/[ \t]*=.*/, "", name)
       if (name in want) { if (!(name in seen)) { seen[name] = 1; print name " = " want[name] }; next }
     }
     { print }
+    END { for (i = 1; i <= n; i++) if (!(order[i] in seen)) print order[i] " = " want[order[i]] }
   ' "$file"
 }
 
@@ -1079,6 +1215,10 @@ check_stage_plan() {
       else empty end' <<<"$json"
 }
 
+# A check a stage runs once the state holds its settings, before the run is
+# reported proved: a function name, or empty for none.
+STAGE_AFTER_APPLY=""
+
 # The shared run of a two-or-three-setting stage once its preconditions hold:
 # resume or a fresh write, the typed APPLY, the read-back, the apply, and the
 # clean plan after it. Arguments: the stage's name for the report, the
@@ -1100,6 +1240,7 @@ run_settings_stage() {
     plan_tree -lock=false
     case "$PLAN_RC" in
       0)
+        [[ -z "$STAGE_AFTER_APPLY" ]] || "$STAGE_AFTER_APPLY"
         cr_proved "the ${what} is already in production: the values file holds it and the tree plans clean"
         cr_unproved "${next}"
         cr_finish
@@ -1181,6 +1322,7 @@ run_settings_stage() {
     cr_unproved "the ${what}: the state does not yet hold it"
     cr_finish
   fi
+  [[ -z "$STAGE_AFTER_APPLY" ]] || "$STAGE_AFTER_APPLY"
   cr_proved "the ${what} in production: applied through scripts/terraform-apply.sh, and the tree plans clean"
   cr_unproved "${next}"
   cr_finish
@@ -1199,6 +1341,202 @@ require_true() {
 refuse_rehearsal() {
   [[ "$(read_bool rehearse_launch_base_address "$TFVARS_PATH")" != true ]] \
     || cr_die "rehearse_launch_base_address is on: the launch rehearsal is in progress, and its return comes first. Nothing was changed."
+}
+refuse_launch_base_address() {
+  [[ "$(read_bool launch_www_base_address "$TFVARS_PATH")" != true ]] \
+    || cr_die "launch_www_base_address is on: the launch's first run has published www as the base address, and the launch's second run comes next. Nothing was changed."
+}
+
+# ── Shared by the pass-2 stages and the launch ───────────────────────────────
+
+# The true/false settings a stage reads, into FLAG[name], each printed. A
+# setting the file leaves out reads false, the default every one of them is
+# declared with, as Terraform reads it; anything else that is not true or
+# false is refused.
+declare -A FLAG=()
+load_flags() {
+  local name v
+  for name in "$@"; do
+    v="$(read_bool "$name" "$TFVARS_PATH")"
+    if [[ -z "$v" ]]; then
+      FLAG[$name]=false
+      echo "  ${name}: false (not set; the declared default)"
+      continue
+    fi
+    [[ "$v" == true || "$v" == false ]] \
+      || cr_die "${name} reads '${v}' in the production values file, neither true nor false. Nothing was changed."
+    FLAG[$name]="$v"
+    echo "  ${name}: ${v}"
+  done
+}
+
+# Refuses unless every named setting reads the given value. Arguments: the
+# value, the reason the stage needs it, then the settings.
+require_flags() {
+  local want="$1" why="$2" name; shift 2
+  for name in "$@"; do
+    [[ "${FLAG[$name]}" == "$want" ]] \
+      || cr_die "${name} is ${FLAG[$name]}, not ${want}: ${why}. Nothing was changed."
+  done
+}
+
+# The arguments as a JSON list of strings.
+jlist() {
+  if (( $# == 0 )); then echo '[]'; return; fi
+  printf '%s\n' "$@" | jq -R . | jq -cs .
+}
+
+# The plan check the pass-2 stages share: one line per way the plan differs
+# from the stage, nothing printed when it is exactly the stage. Arguments, each
+# a JSON list of addresses: whether this is a fresh write (true or false),
+# what it may create, what it must create (already held counts, on a resume),
+# what it may destroy (every one of those the state holds must go), what a
+# fresh write must update in place, and what it may update (null for anything,
+# as in the launch).
+set_plan_problems() {
+  jq -r --argjson fresh "$1" --argjson mayc "$2" --argjson mustc "$3" \
+        --argjson mayd "$4" --argjson mustu "$5" --argjson mayu "$6" "${PLAN_PRELUDE}"'
+      ($cre[] | select(IN($mayc[]) | not) | "would create \(.)"),
+      ($mustc[] | select(IN($cre[]) | not) | select(IN($prior[]) | not) | "does not create \(.)"),
+      ($del[] | select(IN($mayd[]) | not) | "would destroy \(.)"),
+      ($prior[] | select(IN($mayd[])) | select(IN($del[]) | not) | "leaves \(.) in place"),
+      (if $fresh then ($mustu[] | select(IN($upd[]) | not) | "does not update \(.) in place") else empty end),
+      (if $mayu == null then empty else ($upd[] | select(IN($mayu[]) | not) | "would update \(.)") end)
+  '
+}
+
+# A Terraform output of the production tree into TF_OUT. Arguments: the
+# output's flags and name, as terraform output takes them.
+tf_out() {
+  local rc=0
+  TF_OUT="$("$TF_BIN" -chdir="$TF_DIR" output "$@" 2>/dev/null)" || rc=$?
+  [[ "$rc" == 0 ]] \
+    || cr_die "the read of terraform/${TARGET}'s ${*: -1} output failed (exit ${rc}); nothing was changed."
+}
+
+# The alarms the migration notice keeps absent, as Terraform addresses: the
+# health check the site-unavailable alarm reads, that alarm, the edge 5xx
+# alarm, and the zero-logins watch, which exists only once it is armed.
+WINDOW_ALARMS=(
+  "aws_route53_health_check.site_ready[0]"
+  "aws_cloudwatch_metric_alarm.site_unavailable[0]"
+  "aws_cloudwatch_metric_alarm.cloudfront_5xx[0]"
+)
+WINDOW_LOGIN_ALARM="aws_cloudwatch_metric_alarm.cutover_zero_logins[0]"
+EDGE_FUNCTION="aws_cloudfront_function.apex_redirect[0]"
+BASE_URL_PARAM="aws_ssm_parameter.app_public_base_url[0]"
+
+# The custom domain and the SES domain both wait on certificate or identity
+# validation, which reads the nameserver set resolvers cache: the registry's
+# delegation lifetime (3600 seconds) plus the legacy zone's own NS lifetime
+# (86400), so 90000 seconds after the delegation converged every resolver
+# reads Route 53. Validated earlier, the certificate apply hangs and SES can
+# abandon the domain. The convergence time is the one the cutover log's
+# zone-move section records, in UTC as YYYY-MM-DDTHH:MMZ; the delegation itself
+# is checked live, the way scripts/add-apex-txt-token.sh checks it.
+DELEGATION_WAIT_SECONDS=90000
+DELEGATION_RESOLVER="8.8.8.8"
+require_delegation_converged() {
+  local cell converged now age zone_ns delegated rc=0
+  [[ -f "$LOG_PATH" ]] \
+    || cr_die "no cutover log at ${LOG_PATH}: the ${STAGE} stage reads the delegation's convergence time there, and the private operations checkout is missing. Nothing was changed."
+  cell="$(log_value "Delegation converged" 4a)" \
+    || cr_die "the cutover log's zone-move section has no 'Delegation converged' row. Nothing was changed."
+  [[ "$cell" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2})?Z$ ]] \
+    || cr_die "the cutover log's 'Delegation converged' row reads '${cell:-<empty>}', not a UTC time written as YYYY-MM-DDTHH:MMZ, so how long ago the delegation converged is unknown. Nothing was changed."
+  converged="$(date -u -d "$cell" +%s)" \
+    || cr_die "the cutover log's 'Delegation converged' time '${cell}' is not a real time. Nothing was changed."
+  now="${PRODUCTION_CUTOVER_NOW:-$(date -u +%s)}"
+  age=$(( now - converged ))
+  (( age >= 0 )) \
+    || cr_die "the cutover log's 'Delegation converged' time ${cell} is in the future. Nothing was changed."
+  if (( age < DELEGATION_WAIT_SECONDS )); then
+    cr_die "the delegation converged at ${cell}, ${age} seconds ago; the ${STAGE} stage waits ${DELEGATION_WAIT_SECONDS} seconds (25 hours) for every resolver's cached nameserver set to expire, so it can run from $(date -u -d "@$(( converged + DELEGATION_WAIT_SECONDS ))" +%FT%RZ). Nothing was changed."
+  fi
+  echo "  delegation converged: ${cell}, ${age} seconds ago"
+
+  tf_out -json route53_name_servers
+  zone_ns="$(jq -r 'if type == "array" then .[] else empty end' <<<"$TF_OUT" \
+    | tr '[:upper:]' '[:lower:]' | sed -E 's/\.$//' | LC_ALL=C sort -u)"
+  [[ -n "$zone_ns" ]] || cr_die "Terraform reports no name servers for the footbag.org zone. Nothing was changed."
+  delegated="$("$DIG_BIN" +short +tries=3 +time=3 "@${DELEGATION_RESOLVER}" footbag.org NS)" || rc=$?
+  [[ "$rc" == 0 ]] \
+    || cr_die "could not ask ${DELEGATION_RESOLVER} who serves footbag.org (dig exit ${rc}: ${delegated}). Nothing was changed."
+  delegated="$(sed '/^$/d' <<<"$delegated" | tr '[:upper:]' '[:lower:]' | sed -E 's/\.$//' | LC_ALL=C sort -u)"
+  if [[ "$delegated" != "$zone_ns" ]]; then
+    cr_error "${DELEGATION_RESOLVER} names $(paste -sd ' ' - <<<"${delegated:-nothing}") for footbag.org; the zone's own are $(paste -sd ' ' - <<<"$zone_ns")"
+    cr_die "footbag.org is not delegated to the Route 53 zone, so the ${STAGE} stage cannot validate against it. Nothing was changed."
+  fi
+  echo "  footbag.org is delegated to the Route 53 zone (${DELEGATION_RESOLVER} agrees)"
+}
+
+# The launch's second run lifts the notice only once the host builds against
+# www. With www as its base address the platform marks itself indexable, so
+# preview's robots.txt then allows crawling and names www's sitemap, which no
+# other state of the host serves. Read over HTTPS, as any visitor reads it.
+require_host_on_www() {
+  local preview www body rc=0
+  tf_out -raw preview_url
+  preview="$TF_OUT"
+  tf_out -raw platform_url
+  www="$TF_OUT"
+  [[ "$preview" =~ ^https://preview\. && "$www" =~ ^https://www\. ]] \
+    || cr_die "the tree's preview_url ('${preview}') and platform_url ('${www}') are not the preview and www addresses, so the custom domain or the preview is off. Nothing was changed."
+  body="$("$CURL_BIN" -sS --fail --max-time 20 "${preview}/robots.txt" 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    cr_error "could not read ${preview}/robots.txt (curl exit ${rc}: ${body})"
+    cr_unproved "the launch apply: whether the host is on the www base address could not be read"
+    cr_finish
+  fi
+  if grep -qx 'Allow: /' <<<"$body" && grep -qxF "Sitemap: ${www}/sitemap.xml" <<<"$body"; then
+    cr_proved "the host is on the www base address: ${preview}/robots.txt allows crawling and names ${www}/sitemap.xml"
+    return 0
+  fi
+  cr_error "${preview}/robots.txt does not yet allow crawling with ${www}/sitemap.xml, so the host is not on the www base address"
+  cr_unproved "the launch apply: run the code-only deploy (./deploy_to_aws.sh --target production), which syncs the www base address onto the host, then run this command again"
+  cr_finish
+}
+
+# Whether what the tree has pending is exactly the first run's change, the
+# base address moved and nothing else: a first run whose write landed and
+# whose apply did not. Read from a private saved plan, as every plan here is.
+pending_is_base_address() {
+  local plan_file="${LAUNCH_TMP}/pending.tfplan" json problems only_param
+  only_param="$(jlist "$BASE_URL_PARAM")"
+  plan_tree -lock=false -out="$plan_file"
+  [[ "$PLAN_RC" == 2 ]] || return 1
+  if ! json="$("$TF_BIN" -chdir="$TF_DIR" show -json "$plan_file" 2>/dev/null)"; then
+    cr_error "terraform show -json of the pending plan failed, so whether it is the launch's first run is unknown"
+    return 1
+  fi
+  if ! problems="$(set_plan_problems true '[]' '[]' '[]' "$only_param" "$only_param" <<<"$json")"; then
+    cr_error "the pending plan could not be read as Terraform's JSON plan"
+    return 1
+  fi
+  [[ -z "$problems" ]]
+}
+
+# The launch's first run: www published as the base address while the notice
+# stays up, and nothing else. It stops for the code-only deploy.
+launch_base_address_run() {
+  local only_param
+  only_param="$(jlist "$BASE_URL_PARAM")"
+  if (( DRY_RUN )); then
+    echo "Would set launch_www_base_address to true, then plan, check, apply. The code-only deploy and"
+    echo "this command again, which lifts the notice, follow."
+    cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
+    cr_finish
+  fi
+  STAGE_TMP="$LAUNCH_TMP"
+  run_settings_stage "launch base address" \
+    "This is the launch's first run: www becomes the base address the host is given, and the
+notice stays up. From the code-only deploy that follows, the host builds every link and
+mail against www and preview refuses form posts, so run the deploy and then this command
+again, with nothing between." \
+    "the code-only deploy (./deploy_to_aws.sh --target production), then this command again, which proves the host is on www and lifts the notice" \
+    set_plan_problems true '[]' '[]' '[]' "$only_param" "$only_param" -- \
+    set_plan_problems false '[]' '[]' '[]' "$only_param" "$only_param" -- \
+    launch_www_base_address=true
 }
 
 # ── STAGE record-switch ──────────────────────────────────────────────────────
@@ -1224,6 +1562,7 @@ if [[ "$STAGE" == record-switch ]]; then
   require_true enable_cutover_notice "the migration notice is not up, so the switch would open the platform on www before launch"
   require_true enable_legacy_mirror_records "the legacy mirror is off, so this is not the zone the switch expects"
   refuse_rehearsal
+  refuse_launch_base_address
 
   # The names riding the apex and www leave with the switch, and the mirror
   # carries them from the capture: a difference means the mirror is stale.
@@ -1292,6 +1631,7 @@ if [[ "$STAGE" == notice-raise ]]; then
   [[ "$(read_bool enable_apex_alias_records "$TFVARS_PATH")" == true ]] \
     || cr_die "enable_apex_alias_records is not true: the apex has not been switched, so this is before the window, not a rollback; the window stage raises the notice there. Nothing was changed."
   refuse_rehearsal
+  refuse_launch_base_address
 
   CUR_NOTICE="$(read_bool enable_cutover_notice "$TFVARS_PATH")"
   CUR_PREVIEW="$(read_bool enable_preview_record "$TFVARS_PATH")"
@@ -1322,6 +1662,363 @@ lifts." \
     "the preview base-address deploy (./deploy_to_aws.sh --target production), verify-host-env.sh and verify-cutover-notice.sh --front-door --expect-notice follow as their own steps" \
     notice_raise_plan_problems true -- notice_raise_plan_problems false -- \
     enable_cutover_notice=true enable_preview_record=true
+fi
+
+# ── STAGE launch ─────────────────────────────────────────────────────────────
+
+if [[ "$STAGE" == launch ]]; then
+  launch_stage
+fi
+
+# ── STAGE custom-domain ──────────────────────────────────────────────────────
+
+# Everything the custom domain brings, by Terraform address: the platform's
+# certificate (the apex, www and preview, from first issuance) with its
+# validation, the preview pair, the archive's own certificate and names, and
+# the two certificate-expiry alarms. The archive's cookie-domain parameter
+# comes with it only while the archive requires signed cookies.
+CUSTOM_DOMAIN_SET=(
+  "aws_acm_certificate.main[0]"
+  'aws_route53_record.cert_validation["footbag.org"]'
+  'aws_route53_record.cert_validation["www.footbag.org"]'
+  'aws_route53_record.cert_validation["preview.footbag.org"]'
+  "aws_acm_certificate_validation.main[0]"
+  "aws_route53_record.preview_a[0]"
+  "aws_route53_record.preview_aaaa[0]"
+  "aws_cloudwatch_metric_alarm.acm_cert_expiry[0]"
+  "aws_acm_certificate.archive[0]"
+  'aws_route53_record.archive_cert_validation["archive.footbag.org"]'
+  "aws_acm_certificate_validation.archive[0]"
+  "aws_route53_record.archive_a[0]"
+  "aws_route53_record.archive_aaaa[0]"
+  "aws_cloudwatch_metric_alarm.acm_archive_cert_expiry[0]"
+)
+CUSTOM_DOMAIN_OPTIONAL=("aws_ssm_parameter.app_archive_cookie_domain[0]")
+PREVIEW_URL="https://preview.footbag.org"
+CUSTOM_DOMAIN_ALIASES=(footbag.org www.footbag.org preview.footbag.org)
+
+# After the apply: no other distribution, in this account or another, claims
+# or overlaps the names the platform now answers on. CloudFront refuses an
+# exact claim at the apply itself, so what this adds is the overlap, such as
+# a wildcard held elsewhere, which would take the name back at the first
+# change to either distribution. The distribution's own exact alias is
+# expected and accepted.
+custom_domain_conflicts() {
+  local dist alias out rc items bad=0
+  tf_out -raw cloudfront_distribution_id
+  dist="$TF_OUT"
+  for alias in "${CUSTOM_DOMAIN_ALIASES[@]}"; do
+    rc=0
+    out="$("$AWS_BIN" cloudfront list-conflicting-aliases --distribution-id "$dist" --alias "$alias" --output json 2>&1)" || rc=$?
+    if [[ "$rc" != 0 ]]; then
+      cr_error "aws cloudfront list-conflicting-aliases for ${alias} failed (exit ${rc}): ${out}"
+      bad=1
+      continue
+    fi
+    items="$(jq -r --arg a "$alias" '.ConflictingAliasesList.Items // [] | .[] | select(.Alias != $a) | "\(.Alias) on distribution \(.DistributionId) in account \(.AccountId)"' <<<"$out")" \
+      || { cr_error "the conflicting-aliases answer for ${alias} is not the JSON CloudFront documents"; bad=1; continue; }
+    if [[ -n "$items" ]]; then
+      while IFS= read -r line; do cr_error "${alias} is overlapped by ${line}"; done <<<"$items"
+      bad=1
+      continue
+    fi
+    echo "  ${alias}: no other distribution claims or overlaps it"
+  done
+  if (( bad )); then
+    cr_unproved "the custom domain: another distribution claims or overlaps one of its names, or that could not be read; reclaiming a name goes through AWS support"
+    cr_finish
+  fi
+}
+
+if [[ "$STAGE" == custom-domain ]]; then
+  command -v jq >/dev/null || cr_die "jq is not installed; the custom-domain plan cannot be checked without it. Nothing was changed."
+  STAGE_TMP="$(mktemp -d)"
+  chmod 700 "$STAGE_TMP"
+  cr_cleanup rm -rf "$STAGE_TMP"
+
+  load_flags enable_archive enable_legacy_mirror_records enable_apex_alias_records enable_cutover_notice \
+             enable_platform_custom_domain enable_preview_record enable_archive_custom_domain
+  CUR_URL="$(read_url "$TFVARS_PATH")"
+  echo "  archive_platform_url: ${CUR_URL:-<empty or absent: www>}"
+  echo ""
+  refuse_rehearsal
+  refuse_launch_base_address
+  require_flags true "the custom domain is pass 2's, with the archive stack built and the legacy mirror serving" \
+    enable_archive enable_legacy_mirror_records
+  require_flags false "the record switch has been made, so the custom domain is long past" enable_apex_alias_records
+  require_flags false "the notice needs the custom domain; take the window down first with --stage window --undo" enable_cutover_notice
+
+  tf_out -raw cloudfront_domain
+  DISTRIBUTION_URL="https://${TF_OUT}"
+  [[ "$TF_OUT" =~ ^[a-z0-9]+\.cloudfront\.net$ ]] \
+    || cr_die "the tree's cloudfront_domain output ('${TF_OUT}') is not the distribution's own name. Nothing was changed."
+  ON="${FLAG[enable_platform_custom_domain]}${FLAG[enable_preview_record]}${FLAG[enable_archive_custom_domain]}"
+  ALL_SET="$(jlist "${CUSTOM_DOMAIN_SET[@]}" "${CUSTOM_DOMAIN_OPTIONAL[@]}")"
+  MUST_SET="$(jlist "${CUSTOM_DOMAIN_SET[@]}")"
+  MUST_UPDATE="$(jlist "aws_cloudfront_distribution.main[0]" "$BASE_URL_PARAM")"
+
+  RESUME=0
+  if (( ! UNDO )); then
+    if [[ "$ON" == falsefalsefalse && "$CUR_URL" == "$DISTRIBUTION_URL" ]]; then
+      :
+    elif [[ "$ON" == truetruetrue && "$CUR_URL" == "$PREVIEW_URL" ]]; then
+      RESUME=1
+      echo "The values file already holds the custom-domain settings."
+    else
+      cr_die "the custom-domain settings are half set (the three flags read ${FLAG[enable_platform_custom_domain]}, ${FLAG[enable_preview_record]} and ${FLAG[enable_archive_custom_domain]}, and the archive address '${CUR_URL}', where pass 1 has ${DISTRIBUTION_URL}); this is neither pass 1 nor a finished custom-domain write. Nothing was changed."
+    fi
+    require_delegation_converged
+  else
+    if [[ "$ON" == truetruetrue && "$CUR_URL" == "$PREVIEW_URL" ]]; then
+      :
+    elif [[ "$ON" == falsefalsefalse && "$CUR_URL" == "$DISTRIBUTION_URL" ]]; then
+      RESUME=1
+      echo "The values file already holds pass 1's settings."
+    else
+      cr_die "the custom-domain settings are half set (the three flags read ${FLAG[enable_platform_custom_domain]}, ${FLAG[enable_preview_record]} and ${FLAG[enable_archive_custom_domain]}, and the archive address '${CUR_URL}'); this is neither the custom domain nor a finished undo. Nothing was changed."
+    fi
+  fi
+
+  if (( DRY_RUN )); then
+    if (( RESUME )); then
+      echo "The values file would not be changed; the plan would be checked and applied if still pending."
+    elif (( UNDO )); then
+      echo "Would set the three custom-domain flags to false and archive_platform_url to ${DISTRIBUTION_URL}, then plan, check, apply."
+    else
+      echo "Would set the three custom-domain flags to true and archive_platform_url to ${PREVIEW_URL}, then plan, check, apply."
+    fi
+    cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
+    cr_finish
+  fi
+
+  if (( UNDO )); then
+    run_settings_stage "custom-domain undo" \
+      "This takes the custom domain down: the certificates, preview and the archive's own name
+are removed, and the platform and the archive answer on their cloudfront.net names again." \
+      "the code-only deploy (./deploy_to_aws.sh --target production), which puts the cloudfront.net base address back on the host, and verify-host-env.sh follow as their own steps" \
+      set_plan_problems true '[]' '[]' "$ALL_SET" '[]' null -- \
+      set_plan_problems false '[]' '[]' "$ALL_SET" '[]' null -- \
+      enable_platform_custom_domain=false enable_preview_record=false enable_archive_custom_domain=false \
+      "archive_platform_url=\"${DISTRIBUTION_URL}\""
+  fi
+  STAGE_AFTER_APPLY=custom_domain_conflicts
+  run_settings_stage "custom domain" \
+    "This is the custom domain: the platform's certificate for the apex, www and preview, the
+preview record, and the archive's own name and certificate. The apply waits on both
+certificates validating. www and the apex keep serving the legacy site; the host's base
+address becomes preview at the next deploy." \
+    "the Turnstile hostname for preview, the code-only deploy (./deploy_to_aws.sh --target production), which syncs the preview base address onto the host, and verify-host-env.sh follow as their own steps" \
+    set_plan_problems true "$ALL_SET" "$MUST_SET" '[]' "$MUST_UPDATE" null -- \
+    set_plan_problems false "$ALL_SET" "$MUST_SET" '[]' '[]' null -- \
+    enable_platform_custom_domain=true enable_preview_record=true enable_archive_custom_domain=true \
+    "archive_platform_url=\"${PREVIEW_URL}\""
+fi
+
+# ── STAGE ses-domain ─────────────────────────────────────────────────────────
+
+# The domain identity SES sends from once the sender moves onto it: the
+# identity and its DKIM, the verification record and the wait on it, the three
+# DKIM records, the domain's bounce and complaint topics, and its feedback
+# setting.
+SES_DOMAIN_SET=(
+  "aws_ses_domain_identity.main[0]"
+  "aws_ses_domain_dkim.main[0]"
+  "aws_route53_record.ses_domain_verification[0]"
+  "aws_ses_domain_identity_verification.main[0]"
+  "aws_route53_record.ses_dkim[0]"
+  "aws_route53_record.ses_dkim[1]"
+  "aws_route53_record.ses_dkim[2]"
+  "aws_ses_identity_notification_topic.domain_bounce[0]"
+  "aws_ses_identity_notification_topic.domain_complaint[0]"
+  "aws_sesv2_email_identity_feedback_attributes.domain[0]"
+)
+
+if [[ "$STAGE" == ses-domain ]]; then
+  command -v jq >/dev/null || cr_die "jq is not installed; the SES domain plan cannot be checked without it. Nothing was changed."
+  STAGE_TMP="$(mktemp -d)"
+  chmod 700 "$STAGE_TMP"
+  cr_cleanup rm -rf "$STAGE_TMP"
+
+  load_flags ses_enable_domain_identity ses_enable_domain_auth
+  echo ""
+  ON="${FLAG[ses_enable_domain_identity]}${FLAG[ses_enable_domain_auth]}"
+  RESUME=0
+  if [[ "$ON" == falsefalse ]]; then
+    :
+  elif [[ "$ON" == truetrue ]]; then
+    RESUME=1
+    echo "The values file already holds the SES domain settings."
+  else
+    cr_die "the SES domain settings are half set (identity ${FLAG[ses_enable_domain_identity]}, authentication ${FLAG[ses_enable_domain_auth]}); they go on together, in one apply. Nothing was changed."
+  fi
+  require_delegation_converged
+
+  if (( DRY_RUN )); then
+    if (( RESUME )); then
+      echo "The values file would not be changed; the plan would be checked and applied if still pending."
+    else
+      echo "Would set ses_enable_domain_identity and ses_enable_domain_auth to true, then plan, check, apply."
+    fi
+    cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
+    cr_finish
+  fi
+
+  SES_SET="$(jlist "${SES_DOMAIN_SET[@]}")"
+  run_settings_stage "SES domain" \
+    "This is the SES domain identity: its verification and DKIM records are published and the
+apply waits, up to 45 minutes, for SES to verify the domain. SES abandons a domain left
+unverified for about 72 hours, so the sender cutover follows the same day." \
+    "CRED bash scripts/ses-sender-cutover.sh --target production, then CRED bash scripts/verify-host-env.sh --target production, follow as their own steps" \
+    set_plan_problems true "$SES_SET" "$SES_SET" '[]' '[]' '[]' -- \
+    set_plan_problems false "$SES_SET" "$SES_SET" '[]' '[]' '[]' -- \
+    ses_enable_domain_identity=true ses_enable_domain_auth=true
+fi
+
+# ── STAGE window ─────────────────────────────────────────────────────────────
+
+if [[ "$STAGE" == window ]]; then
+  command -v jq >/dev/null || cr_die "jq is not installed; the window plan cannot be checked without it. Nothing was changed."
+  STAGE_TMP="$(mktemp -d)"
+  chmod 700 "$STAGE_TMP"
+  cr_cleanup rm -rf "$STAGE_TMP"
+
+  load_flags enable_platform_custom_domain enable_preview_record enable_legacy_mirror_records \
+             enable_apex_alias_records enable_cutover_notice rehearse_launch_base_address enable_cutover_login_alarm
+  echo ""
+  refuse_launch_base_address
+  require_flags true "the window serves the platform on preview behind the notice, which needs the custom domain and the preview record" \
+    enable_platform_custom_domain enable_preview_record
+  require_flags true "the legacy mirror is off, so this is past launch; the rollback raise is --stage notice-raise" enable_legacy_mirror_records
+  require_flags false "the record switch has been made; from here the notice is the launch's and the rollback's" enable_apex_alias_records
+
+  ALARMS="$(jlist "${WINDOW_ALARMS[@]}" "$WINDOW_LOGIN_ALARM")"
+  MUST_ALARMS="${WINDOW_ALARMS[*]}"
+  [[ "${FLAG[enable_cutover_login_alarm]}" == true ]] && MUST_ALARMS="${MUST_ALARMS} ${WINDOW_LOGIN_ALARM}"
+  # shellcheck disable=SC2086 # the addresses hold no space
+  MUST_ALARMS="$(jlist $MUST_ALARMS)"
+  NOTICE="${FLAG[enable_cutover_notice]}"
+  REHEARSAL="${FLAG[rehearse_launch_base_address]}"
+  RETURNING=0
+  RESUME=0
+  if (( ! UNDO )); then
+    if [[ "$NOTICE" == false && "$REHEARSAL" == false ]]; then
+      :
+    elif [[ "$NOTICE" == false && "$REHEARSAL" == true ]]; then
+      RETURNING=1
+      echo "The launch rehearsal is in progress; this is its return to the window."
+    elif [[ "$NOTICE" == true && "$REHEARSAL" == false ]]; then
+      RESUME=1
+      echo "The values file already holds the window settings."
+    else
+      cr_die "the notice and the rehearsal base address are both on; this is neither the window nor the rehearsal. Nothing was changed."
+    fi
+  else
+    if [[ "$REHEARSAL" == true ]]; then
+      cr_die "the launch rehearsal is in progress; its return (--stage window) comes before the window is taken down. Nothing was changed."
+    elif [[ "$NOTICE" == true ]]; then
+      :
+    else
+      RESUME=1
+      echo "The values file already holds the notice off."
+    fi
+  fi
+
+  if (( DRY_RUN )); then
+    if (( RESUME )); then
+      echo "The values file would not be changed; the plan would be checked and applied if still pending."
+    elif (( UNDO )); then
+      echo "Would set enable_cutover_notice to false, then plan, check, apply."
+    elif (( RETURNING )); then
+      echo "Would set rehearse_launch_base_address to false and enable_cutover_notice to true, then plan, check, apply."
+    else
+      echo "Would set enable_cutover_notice to true, then plan, check, apply."
+    fi
+    cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
+    cr_finish
+  fi
+
+  NEXT="the code-only deploy (./deploy_to_aws.sh --target production), which syncs the preview base address onto the host, then CRED bash scripts/verify-host-env.sh --target production and bash scripts/verify-cutover-notice.sh --function --expect-notice, follow as their own steps"
+  if (( UNDO )); then
+    run_settings_stage "window undo" \
+      "This takes the notice down: www and the apex, still on the legacy site, are untouched;
+the edge function loses the notice and the window alarms come back." \
+      "the code-only deploy (./deploy_to_aws.sh --target production) and verify-cutover-notice.sh --function --expect-live follow as their own steps" \
+      set_plan_problems true "$ALARMS" "$MUST_ALARMS" '[]' "$(jlist "$EDGE_FUNCTION")" null -- \
+      set_plan_problems false "$ALARMS" "$MUST_ALARMS" '[]' '[]' null -- \
+      enable_cutover_notice=false
+  fi
+  if (( RETURNING )); then
+    run_settings_stage "rehearsal return" \
+      "This ends the launch rehearsal: the notice goes back up and the host's base address goes
+back to preview at the deploy that follows; the window alarms are removed again." \
+      "$NEXT" \
+      set_plan_problems true '[]' '[]' "$ALARMS" "$(jlist "$EDGE_FUNCTION" "$BASE_URL_PARAM")" null -- \
+      set_plan_problems false '[]' '[]' "$ALARMS" '[]' null -- \
+      rehearse_launch_base_address=false enable_cutover_notice=true
+  fi
+  run_settings_stage "window state" \
+    "This is the window state: the edge function carries the migration notice, which www and
+the apex show once the record switch points them at the platform; until then they serve
+the legacy site. Preview serves the platform, and the window alarms are removed until
+launch." \
+    "$NEXT" \
+    set_plan_problems true '[]' '[]' "$ALARMS" "$(jlist "$EDGE_FUNCTION")" null -- \
+    set_plan_problems false '[]' '[]' "$ALARMS" '[]' null -- \
+    enable_cutover_notice=true
+fi
+
+# ── STAGE rehearsal ──────────────────────────────────────────────────────────
+
+if [[ "$STAGE" == rehearsal ]]; then
+  command -v jq >/dev/null || cr_die "jq is not installed; the rehearsal plan cannot be checked without it. Nothing was changed."
+  STAGE_TMP="$(mktemp -d)"
+  chmod 700 "$STAGE_TMP"
+  cr_cleanup rm -rf "$STAGE_TMP"
+
+  load_flags enable_platform_custom_domain enable_preview_record enable_legacy_mirror_records \
+             enable_apex_alias_records enable_cutover_notice rehearse_launch_base_address enable_cutover_login_alarm
+  echo ""
+  refuse_launch_base_address
+  require_flags true "the rehearsal starts from the window state" \
+    enable_platform_custom_domain enable_preview_record enable_legacy_mirror_records
+  require_flags false "the record switch has been made, and www's public records no longer reach the legacy site, so a rehearsal now would be the launch" \
+    enable_apex_alias_records
+
+  ALARMS="$(jlist "${WINDOW_ALARMS[@]}" "$WINDOW_LOGIN_ALARM")"
+  MUST_ALARMS="${WINDOW_ALARMS[*]}"
+  [[ "${FLAG[enable_cutover_login_alarm]}" == true ]] && MUST_ALARMS="${MUST_ALARMS} ${WINDOW_LOGIN_ALARM}"
+  # shellcheck disable=SC2086 # the addresses hold no space
+  MUST_ALARMS="$(jlist $MUST_ALARMS)"
+  RESUME=0
+  if [[ "${FLAG[enable_cutover_notice]}" == true && "${FLAG[rehearse_launch_base_address]}" == false ]]; then
+    :
+  elif [[ "${FLAG[enable_cutover_notice]}" == false && "${FLAG[rehearse_launch_base_address]}" == true ]]; then
+    RESUME=1
+    echo "The values file already holds the rehearsal settings."
+  else
+    cr_die "the notice reads ${FLAG[enable_cutover_notice]} and the rehearsal base address ${FLAG[rehearse_launch_base_address]}; the rehearsal starts from the window state (the notice on). Nothing was changed."
+  fi
+
+  if (( DRY_RUN )); then
+    if (( RESUME )); then
+      echo "The values file would not be changed; the plan would be checked and applied if still pending."
+    else
+      echo "Would set enable_cutover_notice to false and rehearse_launch_base_address to true, then plan, check, apply."
+    fi
+    cr_unproved "anything beyond the preconditions: a dry run changes and checks nothing else"
+    cr_finish
+  fi
+
+  run_settings_stage "launch rehearsal" \
+    "This is the launch dress rehearsal: the notice comes down and the host is given the www
+base address at the deploy that follows, while www's public records still serve the legacy
+site, so only testers reaching www through an edge address see the platform there. Mail
+sent meanwhile links to www. APPLY also attests what this cannot read: www and the apex
+are in the Turnstile widget, and the outbox has drained." \
+    "the code-only deploy (./deploy_to_aws.sh --target production), the walk on www through curl --resolve, and the return (this script's --stage window) follow as their own steps" \
+    set_plan_problems true "$ALARMS" "$MUST_ALARMS" '[]' "$(jlist "$EDGE_FUNCTION" "$BASE_URL_PARAM")" null -- \
+    set_plan_problems false "$ALARMS" "$MUST_ALARMS" '[]' '[]' null -- \
+    enable_cutover_notice=false rehearse_launch_base_address=true
 fi
 
 # The platform's own address, from the tree: the distribution's cloudfront.net

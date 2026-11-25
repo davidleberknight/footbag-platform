@@ -39,6 +39,7 @@ import { getDefaultMediaModerationService } from '../services/mediaModerationSer
 import { outcomeNotice } from '../lib/outcomeNotice';
 import { redirectWithOutcome } from '../lib/actionOutcome';
 import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { statusForPage } from '../lib/searchRefusal';
 import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
 import { config } from '../config/env';
@@ -487,7 +488,7 @@ export const adminCuratorController = {
           res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
           return;
         }
-        res.render('admin/curator/edit', vm);
+        res.status(statusForPage(res, vm, 200)).render('admin/curator/edit', vm);
         return;
       }
       const captionRaw = form.caption.trim();

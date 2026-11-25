@@ -1,18 +1,22 @@
 #!/usr/bin/env bash
-# production-readiness-sitting.sh -- run the production-readiness sitting's
-# first pass, the one that needs no DNS, for one environment: every step's own
-# script in order, every check only a person can make asked at the terminal, and
-# a row in the cutover log for each step as it ends.
+# production-readiness-sitting.sh -- run one pass of the production-readiness
+# sitting for one environment: every step's own script in order, every check
+# only a person can make asked at the terminal, and a row in the cutover log for
+# each step as it ends. Pass 1 needs no DNS and runs on staging and production;
+# pass 2 (after the nameserver move, the go-live window rehearsed) and pass 3
+# (the final pass on the frozen commit) are production's alone.
 #
 # WHY THIS EXISTS.
 #
-# The pass is some fifty steps across a dozen scripts, with human checks between
+# Each pass is many steps across dozens of scripts, with human checks between
 # them (did the alarm mail arrive, is a member signed in). Run by hand from a
 # list, a step is skipped or run out of order under pressure, a check is
 # remembered rather than asked, and the record is written afterwards from memory.
 # Here the order, the questions and the record are the script's: it stops at the
 # first step that does not finish, names every step that did not run, and prints
-# the one command that resumes from where it stopped.
+# the one command that resumes from where it stopped. Every row names the commit
+# it ran at, how many paths differed from it, and a fingerprint of those
+# differences, so a row can be matched to the code that wrote it.
 #
 # HOW A STEP RUNS. Each step's script runs as a child, at this terminal, with its
 # closing report collected privately so the step's outcome is read from it and
@@ -24,12 +28,15 @@
 #            proof is a read is not asked when that read already passes.
 #   digest   the preserved tables' digests, saved before a migration and
 #            compared after it.
-#   blocked  work not yet scriptable; it stops the run, so the pass cannot read
-#            as done. Blocked steps come last, so nothing runnable waits on them.
+#   blocked  work not yet scriptable; it is recorded and passed over, and the
+#            run ends pending (exit 3), so the pass cannot read as done. A step
+#            that stands on it (named beside the list, as "<step>:<needed>")
+#            is recorded as skipped and not run; every other step still runs.
 #   mailwalk the alarm-mail confirmation walk, at the terminal. Every
 #            subscription confirmed is ok; a topic the operator leaves pending
 #            (its exit 3) is recorded as deferred and the run carries on, since
-#            alarm mail must not block the pass; any other failure stops it.
+#            alarm mail must not block the pass, and ends pending; any other
+#            failure stops it.
 # A kind ending in "+mail" needs a confirmed alarm-mail subscription (a test
 # alarm, a drill or proof that asks whether its email arrived). Each target's
 # mailwalk step comes before its first such step; until the environment's
@@ -53,28 +60,38 @@
 #   - Any AWS identity but the footbag-operator IAM user.
 #   - A cutover log that is missing. Each row goes at the end of this pass's
 #     own section, so a section added after it is left where it is.
-#   - A --from-step or --to-step naming no step of the target's list.
+#   - A tree with no commit to name in its rows (not a git checkout).
+#   - A --from-step or --to-step naming no step of the pass's list.
+#   - Pass 2 or 3 on staging, or a pass that is not 1, 2 or 3.
 #
 # Usage:
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/production-readiness-sitting.sh \
 #     --target staging [--from-step <id>] [--to-step <id>]
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
 #     bash scripts/production-readiness-sitting.sh --target production
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt \
+#     bash scripts/production-readiness-sitting.sh --target production --pass 2
 #   bash scripts/production-readiness-sitting.sh --target <env> --dry-run
 #   < <credential file> bash scripts/production-readiness-sitting.sh \
 #     --target <env> --status
 #
 # Flags:
 #   --target <staging|production>  Required, no default.
+#   --pass <1|2|3>  Which pass to run; 1 when not given. 2 and 3 are
+#               production's, each recorded in its own cutover log section.
 #   --from-step <id>, --to-step <id>  Run only that stretch of the list.
 #   --dry-run   List the steps and their commands. Reads nothing, runs nothing,
 #               writes nothing, and needs no credential.
 #   --status    Run only the proof commands, read the rest from the log, and
 #               write nothing. Without a credential on stdin the proofs that
-#               need one read UNKNOWN.
+#               need one read UNKNOWN. A read proved by its own output
+#               (stdout=) is read from the log here, as it is not re-run. A
+#               row recorded ok reads LAPSED, and pending, when it names no
+#               commit or the code it ran has changed since.
 #
-# Exit: 0 every step done; 1 a step failed or was declined, or a refusal;
-# 2 usage error; 3 a blocked step reached, or (--status) anything pending.
+# Exit: 0 every step done; 1 a step failed or was declined, any error, or a
+# refusal; 2 usage error; 3 nothing failed but a step was blocked, skipped or
+# deferred, or (--status) anything is pending.
 #
 # Test seams (CI only), each announced on stderr:
 #   SITTING_ROOT       the tree holding the child scripts and the cutover log
@@ -84,6 +101,7 @@
 set -euo pipefail
 
 TARGET=""
+PASS=1
 FROM_STEP=""
 TO_STEP=""
 MODE=run
@@ -91,6 +109,7 @@ MODE=run
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target) TARGET="${2:-}"; shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; } ;;
+    --pass) PASS="${2:-}"; shift 2 || { echo "ERROR: --pass requires an argument" >&2; exit 2; } ;;
     --from-step) FROM_STEP="${2:-}"; shift 2 || { echo "ERROR: --from-step requires an argument" >&2; exit 2; } ;;
     --to-step) TO_STEP="${2:-}"; shift 2 || { echo "ERROR: --to-step requires an argument" >&2; exit 2; } ;;
     --dry-run) MODE=dry; shift ;;
@@ -104,6 +123,11 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 require_target "$TARGET" staging production || exit 2
+case "$PASS" in
+  1) ;;
+  2|3) [[ "$TARGET" == production ]] || { echo "ERROR: pass ${PASS} is production's alone: staging has no custom domain, preview or go-live window to rehearse." >&2; exit 2; } ;;
+  *) echo "ERROR: --pass takes 1, 2 or 3 (got '${PASS}')" >&2; exit 2 ;;
+esac
 
 ROOT="${SITTING_ROOT:-$REPO_ROOT}"
 NPM_BIN="${SITTING_NPM_BIN:-npm}"
@@ -113,7 +137,13 @@ for seam in SITTING_ROOT SITTING_NPM_BIN SITTING_AWS_BIN SITTING_POLL_SECS; do
   [[ -n "${!seam:-}" ]] && echo "SYNTHETIC: ${seam}='${!seam}' -- this run proves nothing about the estate." >&2
 done
 LOG="${ROOT}/footbag_private_repo/cutover/CUTOVER_LOG.md"
-SECTION='## 9. Production-readiness sitting'
+# Each pass writes its own section, so a later pass's re-run of a step is read
+# apart from the earlier pass's row for it.
+case "$PASS" in
+  1) SECTION='## 9. Production-readiness sitting' ;;
+  2) SECTION='## 10. Production-readiness sitting, pass 2' ;;
+  3) SECTION='## 11. Production-readiness sitting, pass 3' ;;
+esac
 
 # ── The steps ────────────────────────────────────────────────────────────────
 # id | kind | stdin | proof | command, question or reason | fallback
@@ -125,7 +155,8 @@ SECTION='## 9. Production-readiness sitting'
 #   <stdin>:<codes>=<cmd>   a read, run after the step, whose exit is one of
 #                           <codes> confirms it
 #   fact=<name>             the step's report must carry this fact
-#   stdout=<ERE>            the step's output must match
+#   stdout=<ERE>[ && <ERE>...]  every pattern must match a line of the step's
+#                           output; no pattern may hold "|" or a quote
 #   save, match             (digest) save the digests, or compare with the saved
 #   after=<id>+<minutes>    (read) not before <id> finished plus the minutes
 # Placeholders, each checked against a strict pattern before use:
@@ -140,11 +171,22 @@ STAGING_STEPS=(
   's01b|idem|tty|rerun|scripts/apply-account-baseline.sh --enable-guardduty'
   's01c|idem|tty|rerun|scripts/terraform-apply-all.sh --target staging'
   's02|idem|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging'
+  # The host and workstation reads production runs at p02a, p05a, p05d, p06a,
+  # p07g and p04b, each proved on staging first.
+  's02a|read|tty|-|scripts/check-versions.sh'
+  's02b|read|cred|-|scripts/step-amazon-linux.sh --target staging --status'
+  's02c|read|cred|-|scripts/harden-sshd.sh --target staging --expect-hardened'
+  's02d|read|cred|-|scripts/verify-host-env.sh --target staging'
+  's02e|read|tty|-|scripts/verify-replication.sh --target staging'
+  's02f|read|tty|-|npm run test:deployed -- --target staging'
   's03|mailwalk|tty|log|scripts/confirm-alarm-subscription.sh --target staging'
   's04a|once+mail|tty|log|scripts/send-test-alarm.sh --target staging --region us-west-2 --alarm footbag-staging-media-replication-backlog'
   's04b|ask+mail|-|log|Alarm mail check. s04a raised footbag-staging-media-replication-backlog (us-west-2) to ALARM and back to OK. The operations mailbox should now hold two emails from AWS Notifications, one with a subject starting ALARM: "footbag-staging-media-replication-backlog" and then one starting OK: with the same name (in Gmail, search from:no-reply@sns.amazonaws.com in:anywhere newer_than:1d and look for that subject; Gmail can file it inside an older conversation with the same subject). s04c and s04d then read that the alarm is back to OK and that the admin alarms page lists nothing active. Did both emails arrive?'
   's04c|read+mail|tty|-|scripts/send-test-alarm.sh --target staging --region us-west-2 --status --expect OK --wait-minutes 10 --alarm footbag-staging-media-replication-backlog'
   's04d|read+mail|tty|-|scripts/host-diagnostics.sh --target staging active-alarms'
+  # A real outage line through the log group and the metric filter to the
+  # alarm, so the alarm is proved watching its metric, not only set by hand.
+  's04e|once+mail|tty|log|scripts/verify-captcha-outage-alarm.sh --target staging'
   's05a|ask|-|log|Durability check (1 of 2). In a browser signed in as a staging admin, change one small thing now (for example, add a word to a gallery'"'"'s description under /admin/curator/galleries) and note what you changed. Next, the tables are snapshotted, a throwaway migration is deployed, and you are asked whether your change survived. Made the change?'
   's05b|digest|tty|save|scripts/host-diagnostics.sh --target staging table-digests'
   's05c|once|cred|fact=migration-applied|scripts/deploy-migrate.sh --target staging --migration {MIGRATION}'
@@ -158,9 +200,9 @@ STAGING_STEPS=(
   's07e|ask|-|log|Session check (2 of 2). Reload the tab where you signed in at s07a. You should now be signed out; sign in again with your password. Were you signed out, and did signing in again work? Answer yes only if both are true.'
   's08a|read|tty|-|scripts/arming.sh --target staging --status'
   's08b|idem|tty|rerun|scripts/arming.sh --target staging --state dark'
-  's08c|read|tty|-|scripts/arming.sh --target staging --status'
+  's08c|read|tty|stdout=^tfvars .*: payments_armed = dark$ && ^SSM  \(/footbag/staging/app/payments_armed\): dark$|scripts/arming.sh --target staging --status'
   's08d|idem|tty|rerun|scripts/arming.sh --target staging --state armed'
-  's08e|read|tty|-|scripts/arming.sh --target staging --status'
+  's08e|read|tty|stdout=^tfvars .*: payments_armed = armed$ && ^SSM  \(/footbag/staging/app/payments_armed\): armed$|scripts/arming.sh --target staging --status'
   's09e|idem|tty|rerun|scripts/admin-bootstrap-token.sh --target staging cleanup'
   's09f|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target staging status'
   's10a|once+mail|cred|log|scripts/incident-drill.sh --target staging'
@@ -183,11 +225,16 @@ STAGING_STEPS=(
   's11l|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   's11m|read|cred|-|scripts/restore-db.sh --target staging --drill'
   's11n|ask+mail|-|log|Alarm check, fresh instance. Since s11j began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
+  # The fresh instance proved to come back hardened, wired and serving.
+  's11o|read|cred|-|scripts/harden-sshd.sh --target staging --expect-hardened'
+  's11p|read|cred|-|scripts/verify-host-env.sh --target staging'
+  's11q|read|tty|-|npm run test:deployed -- --target staging'
   # The retention rules' outcome on the snapshots bucket, and a deleted
   # object brought back into each served bucket by both of its recoveries.
   's12|read|tty|-|scripts/apply-snapshot-retention.sh --target staging --verify --profile footbag-operator'
   's13a|once|tty|log|scripts/restore-bucket.sh --target staging --bucket media --drill'
   's13b|once|tty|log|scripts/restore-bucket.sh --target staging --bucket archive --drill'
+  's95|once+mail|cred|log|scripts/verify-prelive-probes.sh --target staging'
   's98|ask+mail|-|log|Second-operator check. The next step, s99, runs the staging incident drill again and records whoever runs it as the second operator; the second operator runs it from their own workstation, with their own credential, in their remote session. Is the second operator the one at this keyboard now, on their own workstation? If not, answer no: this run stops here.'
   's99|once+mail|cred|log|scripts/incident-drill.sh --target staging'
 )
@@ -204,16 +251,16 @@ PRODUCTION_STEPS=(
   'p05a|read|cred|-|scripts/step-amazon-linux.sh --target production --status'
   'p05b|read|cred|-|scripts/check-vulnerabilities.sh --target production'
   'p05c|once|cred|log|scripts/restart-host.sh --target production'
-  'p05d|read|cred|-|scripts/harden-sshd.sh --target production'
+  'p05d|read|cred|-|scripts/harden-sshd.sh --target production --expect-hardened'
   'p06a|read|cred|-|scripts/verify-host-env.sh --target production'
   'p06b|read|tty|-|scripts/verify-cwagent-metrics.sh --target production --profile footbag-operator'
   'p06c|read|tty|-|scripts/verify-cwagent-metrics.sh --target production --profile footbag-operator --containers'
   'p06d|read|tty|-|scripts/verify-host-snapshots.sh --target production'
   'p07a|ask|-|log|Open PRODUCTION_READINESS_RUNBOOK.md in the private checkout (footbag_private_repo/) and read its opening and its section 1, Reads: what this pass changes on production, what to have ready, and what to look for in each read. p07h to p07n run those reads later in this pass. Read it?'
-  'p07b|read|tty|-|scripts/arming.sh --target production --status --profile footbag-operator'
+  'p07b|read|tty|stdout=^tfvars .*: payments_armed = dark$ && ^SSM  \(/footbag/production/app/payments_armed\): dark$|scripts/arming.sh --target production --status --profile footbag-operator'
   'p07c|read|tty|-|scripts/production-live-marker.sh --status --profile footbag-operator'
   'p07d|read|tty|-|scripts/production-live-marker.sh --set live --dry-run --profile footbag-operator'
-  'p07e|read|cred|-|scripts/bringup-status.sh --target production --profile footbag-operator'
+  'p07e|read|cred|stdout=^ 2\. Terraform +DONE  && ^ 3\. Payments +N-A +payments dark && ^ 4\. Backup pipeline +DONE  && ^ 8\. Deployed runtime +DONE |scripts/bringup-status.sh --target production --profile footbag-operator'
   'p07f|read|tty|-|scripts/create-stripe-endpoint.sh --target production --mode live --verify'
   'p07g|read|tty|-|scripts/verify-replication.sh --target production'
   'p08a|read|cred|-|scripts/restore-db.sh --target production --drill'
@@ -221,12 +268,12 @@ PRODUCTION_STEPS=(
   'p08c|read|cred|-|scripts/pre-cutover-checklist.sh --target production --no-snapshot --skip-tests --skip-dns-ttl'
   'p07h|read|tty|-|scripts/apply-snapshot-retention.sh --target production --verify --profile footbag-operator'
   'p07i|read|tty|-|scripts/apply-bucket-tls-baseline.sh --verify-only --profile footbag-operator'
-  'p07j|read|cred|-|scripts/diagnose-cwagent.sh --target production'
+  'p07j|read|cred|stdout=^  enabled: enabled$ && ^  active:  active$ && ^  toml: .*namespace *= *.CWAgent/production.|scripts/diagnose-cwagent.sh --target production'
   'p07k|read|tty|-|scripts/provision-ssm-secret.sh --target production --secret session_secret status --profile footbag-operator'
   'p07l|read|tty|-|scripts/verify-cutover-notice.sh --function --expect-live --profile footbag-operator'
-  'p07m|read|cred|-|scripts/activate-notification-feeds.sh --target production --status --profile footbag-operator'
+  'p07m|read|cred|stdout=^live feed queues: .*/footbag-production-alarm-feed([[:space:]].*)?$ && ^live feed queues: .*/footbag-production-ses-feedback-feed([[:space:]].*)?$|scripts/activate-notification-feeds.sh --target production --status --profile footbag-operator'
   'p07n|read|cred|-|scripts/payments-pause.sh --target production --status'
-  'p07o|read|tty|-|scripts/verify-dev-tester-role-denials.sh --profile footbag-operator'
+  'p07o|read|tty|stdout=^No findings\.$|scripts/verify-dev-tester-role-denials.sh --profile footbag-operator'
   'p08d|once|cred|log|scripts/verify-prod-email.sh --profile footbag-production-runtime --read-profile footbag-operator --outbox --inbox-from-tty'
   'p08d1|ask|-|log|Outbox mail check. p08d sent one message through the production outbox to the inbox you typed. Open that inbox. Did the message arrive, and does its original source (in Gmail: the three-dot menu, Show original) show DKIM: PASS? Answer yes only if both are true.'
   'p08e|once|tty|log|scripts/verify-prod-email.sh --profile footbag-production-runtime --read-profile footbag-operator --bounce-probe'
@@ -244,7 +291,8 @@ PRODUCTION_STEPS=(
   'p12b|once|cred|log|scripts/rotate-jwt-signing-key.sh --target production'
   'p12c|once|tty|log|scripts/provision-ssm-secret.sh --target production --secret session_secret store'
   'p12d|once|tty|log|deploy_to_aws.sh --target production'
-  'p12e|ask|-|log|Session check (2 of 2). Reload the tab where you signed in at p12a. You should now be signed out; sign in again with your password. Were you signed out, and did signing in again work? Answer yes only if both are true.'
+  'p12d1|read|tty|-|npm run test:deployed -- --target production'
+  'p12e|ask|-|log|Session check (2 of 2). Reload the tab where you signed in at p12a. You should now be signed out; sign in again with your password. Then, still signed in, open the browser developer tools (Application, then Cookies) and read the session cookie. Were you signed out, did signing in again work, and is the session cookie named with the __Host- prefix and marked HttpOnly, Secure, SameSite=Lax and Path=/? Answer yes only if all of that is true.'
   'p13c|once+mail|tty|log|scripts/send-test-alarm.sh --target production --region us-west-2 --alarm footbag-production-snapshots-hourly-replication-stopped'
   'p13d|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_container_alarms --state on'
   'p13e|once+mail|tty|log|scripts/send-test-alarm.sh --target production --alarm-prefix footbag-production-container- --alarm-prefix footbag-production-cf-function- --alarm footbag-production-high-cpu --alarm footbag-production-high-memory --alarm footbag-production-rate-limit-refusals --alarm footbag-production-site-unavailable'
@@ -285,6 +333,7 @@ PRODUCTION_STEPS=(
   'p21a|read|tty|-|scripts/create-stripe-endpoint.sh --target production --mode test --verify|scripts/create-stripe-endpoint.sh --target production --mode test --verify --repair'
   'p21b|read|tty|-|scripts/verify-production-release.sh'
   'p21c|once|tty|log|deploy_to_aws.sh --target production'
+  'p21c0|read|tty|-|npm run test:deployed -- --target production'
   'p21c1|ask|-|log|Before the test key goes in. Did the bring-up status at p07e read the Stripe key as live (sk_live_)? If it did, answer no, run CRED bash scripts/activate-payments.sh --target production --profile footbag-operator --deactivate with payments dark, and resume with --from-step p21c1. Is the key a placeholder or a test key?'
   'p21d|once|cred|log|scripts/activate-payments.sh --target production --profile footbag-operator'
   'p21e|once|tty|log|scripts/arming.sh --target production --switch payments --state armed --profile footbag-operator'
@@ -332,6 +381,7 @@ PRODUCTION_STEPS=(
   'p90e|read|cred|-|scripts/bootstrap-host.sh --target production --status'
   'p90f|once+heavy|cred|log|scripts/restore-host.sh --target production'
   'p90g|once|tty|log|deploy_to_aws.sh --target production'
+  'p90g1|read|tty|-|npm run test:deployed -- --target production'
   'p90h|read|cred|-|scripts/bootstrap-host.sh --target production --status'
   'p90i|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p90j|read|cred|-|scripts/restore-db.sh --target production --drill'
@@ -348,18 +398,114 @@ PRODUCTION_STEPS=(
   'p90s|once|tty|log|scripts/restore-bucket.sh --target production --bucket archive --drill'
   'p91|blocked|-|-|The migration case matrix on production: deploy-migrate.sh has no one-off production mode yet'
   'p92|blocked|-|-|The video-curation walk on production: it follows the curation walk on staging'
-  'p93|blocked|-|-|The Stripe test-mode exercise of paid event registration: the event organizer and registration flow is not built'
+  'p93|blocked|-|-|The Stripe test-mode exercise of paid event registration: the flow is built, and its exercise is not yet written as steps'
   'p94|blocked|-|-|Forcing the 5xx alarm, proving the backup-age alarm, and the checkpoint-blocked alarm read: each needs its own script or alarm first'
-  'p95|blocked|-|-|The pre-live probes (spoofed forwarding header, image strip, Turnstile hostnames, error-line alarm, a known-bad URL refused): verify-prelive-probes.sh is not built'
+  'p95|once+mail|cred|log|scripts/verify-prelive-probes.sh --target production'
   'p96|blocked|-|-|The second-operator proof: their allow-listed address and key, their Workspace administrator recovery, and their drill walk'
   'p97|blocked|-|-|The deferred Amazon Linux patch halves, each once its staging half is proved'
 )
 
-if [[ "$TARGET" == staging ]]; then
-  STEPS=("${STAGING_STEPS[@]}")
-else
-  STEPS=("${PRODUCTION_STEPS[@]}")
-fi
+# Pass 2, production only: after the nameserver move, the go-live window
+# rehearsed (runbook P2-1 to P2-9). Every stage that takes a typed APPLY reads
+# the terminal, so none has a stdout proof, which would take its terminal away.
+PRODUCTION_PASS2_STEPS=(
+  'p2-1|once|tty|log|scripts/production-cutover.sh --target production --stage custom-domain'
+  'p2-2|ask|-|log|Turnstile: in the Cloudflare dashboard (Turnstile, the production widget, Hostname management), is preview.footbag.org added to the one widget, and does the widget render and complete on the preview sign-in and registration pages?'
+  'p2-3a|once|tty|log|scripts/production-cutover.sh --target production --stage ses-domain'
+  'p2-3b|once|cred|log|scripts/ses-sender-cutover.sh --target production'
+  'p2-3c|read|cred|-|scripts/verify-host-env.sh --target production'
+  'p2-3d|once|cred|log|scripts/verify-prod-email.sh --profile footbag-production-runtime --read-profile footbag-operator --outbox --inbox-from-tty'
+  'p2-3e|once|tty|log|scripts/arming.sh --target production --switch email --state armed --profile footbag-operator'
+  'p2-3f|read|tty|stdout=^tfvars .*: email_send_armed = armed$ && ^SSM  \(/footbag/production/app/email_send_armed\): armed$|scripts/arming.sh --target production --switch email --status --profile footbag-operator'
+  'p2-3g|once|tty|log|scripts/mail-domain-cutover.sh --target production --stage ifpa-move'
+  'p2-3h|ask|-|log|IFPA list domain: has scripts/mail-domain-cutover.sh --target production --stage ifpa-verify --token google-site-verification=<token> --resolver 8.8.8.8 run with the token Julie read in the Workspace console, and has Julie verified ifpa.footbag.org as a secondary domain?'
+  'p2-4a|ask|-|log|Google signing: has scripts/verify-mail-records.sh --stage signing --nameserver <route53-ns> --resolver 8.8.8.8 --tfvars <values-file> passed against Route 53, and does a message from an IFPA account to a personal Gmail show dkim=pass header.d=footbag.org under Show original?'
+  'p2-5|blocked|-|-|Origin TLS, then the origin-verify secret rotation: scripts/provision-origin-tls.sh is not built'
+  'p2-6a|once|tty|log|scripts/production-cutover.sh --target production --stage window'
+  'p2-6b|once|tty|log|deploy_to_aws.sh --target production'
+  'p2-6c|read|cred|-|scripts/verify-host-env.sh --target production'
+  'p2-6d|read|tty|-|scripts/verify-cutover-notice.sh --function --expect-notice --profile footbag-operator'
+  'p2-7a|read|tty|-|scripts/verify-archive-edge.sh --target production --profile footbag-operator'
+  'p2-7b|read|tty|-|scripts/verify-preview.sh --target production --profile footbag-operator'
+  'p2-7c|once+mail|cred|log|scripts/verify-prelive-probes.sh --target production'
+  'p2-7d|ask|-|log|Does Search Console still show footbag.org verified?'
+  'p2-8a|blocked|-|-|The three archive cookie host values on the host: their publisher is not built'
+  'p2-8b|ask|-|log|Preview and archive walk: signed in on preview, do the three CloudFront cookies carry the parent domain and the session cookie read host-only in the developer tools, does the Legacy Archive link load with no second login, and is the next archive request refused after signing out?'
+  'p2-9a|ask|-|log|Before the dress rehearsal: are www.footbag.org and the apex added to the one Turnstile widget, and has the outbox sent everything queued?'
+  'p2-9b|once|tty|log|scripts/production-cutover.sh --target production --stage rehearsal'
+  'p2-9c|once|tty|log|deploy_to_aws.sh --target production'
+  'p2-9d|ask|-|log|Dress rehearsal (gate OR15): reached through a CloudFront edge address with curl --resolve, does www.footbag.org serve the platform, does the apex answer 301, and have the testers walked www the same way?'
+  'p2-9e|once|tty|log|scripts/production-cutover.sh --target production --stage window'
+  'p2-9f|once|tty|log|deploy_to_aws.sh --target production'
+  'p2-9g|read|cred|-|scripts/verify-host-env.sh --target production'
+  'p2-4b|ask|-|log|Has Julie renamed the legacy webmaster account to brat@footbag.org, after the webmaster@ rehearsal sent with dkim=pass header.d=footbag.org and at least two days before T-0?'
+)
+
+# The section 1 reads (p07b to p07o), taken from the pass 1 list itself so the
+# commands have one home, under new ids, with the notice expected on, since
+# production now rests in the window state.
+pass3_reads() {
+  local prefix="$1" row id
+  for row in "${PRODUCTION_STEPS[@]}"; do
+    id="${row%%|*}"
+    [[ "$id" =~ ^p07[b-o]$ ]] || continue
+    row="${prefix}${id#p07}|${row#*|}"
+    printf '%s\n' "${row/--expect-live/--expect-notice}"
+  done
+}
+
+# Pass 3, production only: the final pass, on the frozen commit (runbook P3-1 to
+# P3-5). Every row of this run names the commit it ran at.
+mapfile -t PASS3_READS_2 < <(pass3_reads p3-2-)
+mapfile -t PASS3_READS_3 < <(pass3_reads p3-3-)
+PRODUCTION_PASS3_STEPS=(
+  'p3-1|ask|-|log|Release candidate frozen (gate OR26): is one commit through the release gate tagged, with its tag and SHA in the cutover log, staging deployed from it, and the closing personal-data greps over the public tree (GV3) clean?'
+  "${PASS3_READS_2[@]}"
+  'p3-2p|read|tty|-|scripts/verify-archive-edge.sh --target production --profile footbag-operator'
+  'p3-2q|read|tty|-|scripts/verify-preview.sh --target production --profile footbag-operator'
+  'p3-2r|once+mail|cred|log|scripts/verify-prelive-probes.sh --target production'
+  'p3-2s|read|tty|-|npm run test:deployed -- --target production'
+  'p3-2t|ask|-|log|The prompted checklist on preview: walked, including the session cookie read in the developer tools after a real sign-in, named with the __Host- prefix and marked HttpOnly, Secure, SameSite=Lax and Path=/?'
+  'p3-3a|ask|-|log|Are three or fewer sign-in-capable accounts left on production, the test accounts from P1-9a, P1-17 and P2-8 removed through the member account-deletion flow? The rebuild refuses above three.'
+  'p3-3b|once|tty|log|deploy_to_aws.sh --target production --all-data -W'
+  "${PASS3_READS_3[@]}"
+  'p3-3p|read|cred|-|scripts/pre-cutover-checklist.sh --target production --no-snapshot --skip-tests --skip-dns-ttl'
+  'p3-3q|read|cred|stdout=jwt_expiry_hours current=24([[:space:]].*)?$|scripts/reconcile-host-config.sh --target production --status --key jwt_expiry_hours'
+  'p3-4a|once|tty|log|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator provision'
+  'p3-4b|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status --wait-minutes 30'
+  'p3-4c|ask|-|log|First administrator identity match: claimed at /admin/bootstrap-claim on preview, have they finished the onboarding wizard claim task, and did it resolve to their historical record (go-live plan step 13a)?'
+  'p3-5a|read|cred|-|scripts/restore-db.sh --target production --drill'
+  'p3-5b|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
+)
+
+# What a step stands on, as "<step>:<the step it needs>" pairs. A step whose
+# needed step has no ok row in this pass's section is recorded as skipped and
+# not run: run without it, it acts on a state that does not exist (a restore
+# onto a fresh instance nobody built) or attests to one (a question about the
+# replacement), and its row would read as proof. A step not listed stands on
+# nothing a blocked step does, so it runs.
+STAGING_NEEDS=""
+PRODUCTION_NEEDS="p90n:p90m p90q:p90m"
+# Pass 2: the window, the checks on the real names, the walks and the dress
+# rehearsal all stand on the hop from CloudFront to the origin being encrypted
+# first, since each rehearses what members will use; the archive walk stands on
+# the cookie values its publisher sets.
+PRODUCTION_PASS2_NEEDS="p2-8b:p2-8a"
+for id in p2-6a p2-6b p2-6c p2-6d p2-7a p2-7b p2-7c p2-7d p2-8b p2-9a p2-9b p2-9c p2-9d p2-9e p2-9f p2-9g; do
+  PRODUCTION_PASS2_NEEDS+=" ${id}:p2-5"
+done
+PRODUCTION_PASS3_NEEDS=""
+
+case "${TARGET}:${PASS}" in
+  staging:1)    STEPS=("${STAGING_STEPS[@]}");          NEEDS_PAIRS="$STAGING_NEEDS" ;;
+  production:1) STEPS=("${PRODUCTION_STEPS[@]}");       NEEDS_PAIRS="$PRODUCTION_NEEDS" ;;
+  production:2) STEPS=("${PRODUCTION_PASS2_STEPS[@]}"); NEEDS_PAIRS="$PRODUCTION_PASS2_NEEDS" ;;
+  production:3) STEPS=("${PRODUCTION_PASS3_STEPS[@]}"); NEEDS_PAIRS="$PRODUCTION_PASS3_NEEDS" ;;
+esac
+declare -A NEEDS=()
+for pair in $NEEDS_PAIRS; do
+  NEEDS["${pair%%:*}"]="${NEEDS[${pair%%:*}]:+${NEEDS[${pair%%:*}]} }${pair#*:}"
+done
 
 # One record into the step fields.
 S_ID=""; S_KIND=""; S_STDIN=""; S_PROOF=""; S_CMD=""; S_FALLBACK=""; S_MAIL=0
@@ -379,9 +525,12 @@ parse_step() {
 health_before() { printf 'scripts/check-env-health.sh --target %s --allow-site-down' "$TARGET"; }
 health_after()  { printf 'scripts/check-env-health.sh --target %s --alarms-only --wait-minutes 10' "$TARGET"; }
 # The alarms a heavy step is expected to trip are muted for it, so the one that
-# matters is not buried in their mail; the mute ends on its own after two hours
-# if a run stops without lifting it. A mute that cannot be made is a warning.
-mute_cmd()   { printf 'scripts/mute-expected-alarms.sh --target %s --minutes 120' "$TARGET"; }
+# matters is not buried in their mail. Every way the run ends lifts it, an
+# interrupt included; it also ends on its own after four hours, longer than the
+# longest heavy step yet seen (a fresh instance's bootstrap at baseline CPU ran
+# two), so only a run killed outright leaves it standing that long. A mute that
+# cannot be made is a warning.
+mute_cmd()   { printf 'scripts/mute-expected-alarms.sh --target %s --minutes 240' "$TARGET"; }
 unmute_cmd() { printf 'scripts/mute-expected-alarms.sh --target %s --clear' "$TARGET"; }
 HEAVY_MUTED=0
 # run_aside <command>: a child whose failure is this run's warning, not its stop.
@@ -402,7 +551,9 @@ unmute_if_muted() {
 # The resume command a stop prints, carrying the run's own --to-step so a
 # resumed stretch ends where it was meant to.
 resume_line() {
-  echo "  < <credential file> bash scripts/production-readiness-sitting.sh --target ${TARGET} --from-step $1${TO_STEP:+ --to-step ${TO_STEP}}"
+  local pass_flag=""
+  (( PASS == 1 )) || pass_flag=" --pass ${PASS}"
+  echo "  < <credential file> bash scripts/production-readiness-sitting.sh --target ${TARGET}${pass_flag} --from-step $1${TO_STEP:+ --to-step ${TO_STEP}}"
 }
 
 index_of() {
@@ -429,7 +580,7 @@ source "${REPO_ROOT}/scripts/lib/closing-report.sh"
 
 # ── Dry run: list, touch nothing ─────────────────────────────────────────────
 if [[ "$MODE" == dry ]]; then
-  echo "The ${TARGET} pass, in order (nothing is run, read or written):"
+  echo "The ${TARGET} pass ${PASS}, in order (nothing is run, read or written):"
   for (( i = FIRST; i <= LAST; i++ )); do
     parse_step "${STEPS[$i]}"
     kind="$S_KIND"; (( S_HEAVY )) && kind+="+heavy"; (( S_MAIL )) && kind+="+mail"
@@ -453,7 +604,17 @@ source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 source "${REPO_ROOT}/scripts/lib/aws-identity.sh"
 
 SITTING_VERDICT=""
-sitting_verdict() { if [[ -n "$SITTING_VERDICT" ]]; then printf '%s' "$SITTING_VERDICT"; else printf '%s' "$3"; fi; }
+# A run that met an error is a failure whatever else it left pending, so a
+# caller branching on "pending" never carries on past one.
+sitting_verdict() {
+  if [[ -n "$SITTING_VERDICT" ]] && ! { (( $1 > 0 )) && [[ "$SITTING_VERDICT" == PENDING* ]]; }; then
+    printf '%s' "$SITTING_VERDICT"
+  else
+    printf '%s' "$3"
+  fi
+}
+# The steps this run passed over, each a reason the pass is not done.
+BLOCKED=(); SKIPPED=(); DEFERRED=()
 cr_verdict_with sitting_verdict
 
 terminal_present || cr_die "no terminal to ask on: run this from an interactive shell"
@@ -473,18 +634,45 @@ aws_profile_ensure || cr_die "no AWS identity could be settled; nothing was run"
 aws_identity_require_direct_user footbag-operator || cr_die "this pass runs only as the footbag-operator IAM user"
 
 [[ -f "$LOG" ]] || cr_die "no cutover log at ${LOG}: the private operations checkout is missing"
+# Every row names the commit it ran at, so a run needs one to name.
+if [[ "$MODE" == run ]] && ! git -C "$ROOT" --no-optional-locks rev-parse --verify -q HEAD >/dev/null 2>&1; then
+  cr_die "${ROOT} is not a git checkout with a commit, so no row could name the code it ran"
+fi
 
 SCRATCH="$(mktemp -d)"
 cr_cleanup rm -rf -- "$SCRATCH"
 
+# One run at a time writes the cutover log, whichever target it runs: two runs
+# at once interleave their steps (a second run once started p14c and p15a while
+# the first was inside p15a) and rewrite the log over each other's rows. The
+# lock is a directory, made atomically, holding the owner's process id; a lock
+# whose process is gone (a run killed outright) is taken over. A listing or a
+# status read writes nothing and takes no lock.
+if [[ "$MODE" == run ]]; then
+  LOCK_DIR="${TMPDIR:-/tmp}/footbag-sitting-$(readlink -f -- "$LOG" | sha256sum | cut -c1-16).lock"
+  if ! mkdir -- "$LOCK_DIR" 2>/dev/null; then
+    holder=""
+    [[ -r "${LOCK_DIR}/pid" ]] && holder="$(<"${LOCK_DIR}/pid")"
+    if [[ "$holder" =~ ^[0-9]+$ ]] && kill -0 "$holder" 2>/dev/null; then
+      cr_die "another sitting run (process ${holder}) is writing ${LOG}; wait for it to end, or stop it, before starting this one"
+    fi
+    echo "NOTE: taking over the run lock of a sitting run that is no longer running (${holder:-no process recorded})." >&2
+    rm -rf -- "$LOCK_DIR"
+    mkdir -- "$LOCK_DIR" || cr_die "could not take the cutover log's run lock at ${LOCK_DIR}"
+  fi
+  printf '%s\n' "$$" > "${LOCK_DIR}/pid"
+  cr_cleanup rm -rf -- "$LOCK_DIR"
+fi
+
 # ── The log ──────────────────────────────────────────────────────────────────
 now_utc() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 
-# A cell: no control characters, no table break, at most 200 characters.
+# A cell: no control characters, no table break, at most 300 characters, room
+# for the row's commit prefix and the step's own notes after it.
 cell() {
   local s
   s="$(printf '%s' "$1" | tr -d '\000-\037\177')"
-  s="${s:0:200}"
+  s="${s:0:300}"
   printf '%s' "${s//|/\\|}"
 }
 
@@ -498,10 +686,50 @@ ensure_section() {
 
 declare -A STARTED=() FINISHED=()
 
+# Which code a row was written by: the commit, how many paths differ from it,
+# and a fingerprint of those differences. The deploy ships the working tree, so
+# a commit alone does not name the code that ran; the fingerprint covers every
+# tracked change and every untracked, unignored file by content. Read with no
+# optional locks, so a row never contends with the operator's own git work.
+# Sets ROW_CODE; a read that fails says so in the row and in the report, and
+# never stops the run, since the row still records what happened.
+ROW_CODE=""
+tree_fingerprint() {
+  local f
+  {
+    git -C "$ROOT" --no-optional-locks diff HEAD --binary || return 1
+    git -C "$ROOT" --no-optional-locks ls-files --others --exclude-standard -z || return 1
+    while IFS= read -r -d '' f; do
+      printf '%s\n' "$f"
+      sha256sum < "${ROOT}/${f}" || return 1
+    done < <(git -C "$ROOT" --no-optional-locks ls-files --others --exclude-standard -z)
+  } | sha256sum | cut -c1-12
+}
+row_code() {
+  local head changed fp
+  if head="$(git -C "$ROOT" --no-optional-locks rev-parse --verify -q HEAD 2>&1)" \
+     && changed="$(git -C "$ROOT" --no-optional-locks status --porcelain 2>&1)" \
+     && fp="$(tree_fingerprint 2>&1)" && [[ "$fp" =~ ^[0-9a-f]{12}$ ]]; then
+    ROW_CODE="at ${head}, $(grep -c . <<<"$changed" || [[ $? == 1 ]]) uncommitted, tree ${fp}"
+  else
+    ROW_CODE="commit unreadable"
+    cr_warn "a log row could not record the commit it ran at, so that row names no code"
+  fi
+}
+
 log_row() {
   local id="$1" started="$2" command="$3" result="$4" notes="${5:-}" finished row
   finished="$(now_utc)"
   FINISHED["$id"]="$finished"
+  row_code
+  # The Target column is the sitting's own target, which every lookup of a row
+  # keys on. A step whose command names another environment (the staging
+  # archive stage, the staging break-glass drill, run from the production list)
+  # says so in its notes, so the row does not read as acting on this one.
+  local cmd_target=""
+  [[ " ${command} " =~ \ --target\ ([a-z]+)\  ]] && cmd_target="${BASH_REMATCH[1]}"
+  [[ -n "$cmd_target" && "$cmd_target" != "$TARGET" ]] && notes="runs against ${cmd_target}${notes:+; ${notes}}"
+  notes="${ROW_CODE}${notes:+; ${notes}}"
   row="| ${started} | ${finished} | ${TARGET} | ${id} | $(cell "$command") | ${result} | $(cell "$notes") |"
   echo "LOG: ${row}"
   # The row goes at the end of this pass's section, after its last table row,
@@ -524,13 +752,68 @@ log_row() {
   rm -f -- "$tmp"
 }
 
-# The last row of this pass's section for a step: started, finished, result, command.
+# The last row of this pass's section for a step: started, finished, result,
+# command, notes.
 log_last() {
   local id="$1"
   awk -v sec="$SECTION" '$0 == sec { on = 1; next } /^## / { on = 0 } on' "$LOG" \
     | sed 's/\\|/\x01/g' \
     | awk -F'|' -v t="$TARGET" -v id="$1" '{ for (i = 1; i <= NF; i++) gsub(/^ +| +$/, "", $i) }
-        $4 == t && $5 == id { line = $2 "\t" $3 "\t" $7 "\t" $6 } END { if (line != "") print line }'
+        $4 == t && $5 == id { line = $2 "\t" $3 "\t" $7 "\t" $6 "\t" $8 } END { if (line != "") print line }'
+}
+
+# row_lapsed <notes> <command>: prints why an ok row no longer proves its step,
+# or nothing when it still does. A row proves the code it ran, so it lapses
+# when it names no commit, when its commit is not in this checkout, when what
+# the step runs (its script, that script's own remote halves, the shared
+# libraries and the host configuration they ship) changed since that commit,
+# or when it ran on uncommitted changes the tree no longer holds.
+row_lapsed() {
+  local notes="$1" cmd="$2" sha count fp w stem now_head now_fp
+  local -a paths=()
+  if [[ ! "$notes" =~ ^at\ ([0-9a-f]{40}),\ ([0-9]+)\ uncommitted,\ tree\ ([0-9a-f]{12}) ]]; then
+    printf 'the row names no commit'
+    return 0
+  fi
+  sha="${BASH_REMATCH[1]}"; count="${BASH_REMATCH[2]}"; fp="${BASH_REMATCH[3]}"
+  if ! git -C "$ROOT" --no-optional-locks cat-file -e "${sha}^{commit}" 2>/dev/null; then
+    printf 'its commit %s is not in this checkout' "${sha:0:8}"
+    return 0
+  fi
+  for w in $cmd; do
+    case "$w" in
+      deploy_to_aws.sh)
+        paths+=(deploy_to_aws.sh ':(glob)scripts/deploy-*.sh' ':(glob)scripts/internal/deploy-*' docker) ;;
+      scripts/*.sh|legacy_data/*.sh)
+        stem="${w##*/}"; stem="${stem%.sh}"
+        paths+=("$w" ":(glob)scripts/internal/${stem}*") ;;
+      test:deployed)
+        paths+=(tests/e2e/deployed) ;;
+    esac
+  done
+  (( ${#paths[@]} )) && paths+=(scripts/lib ops)
+  if (( ${#paths[@]} )) && ! git -C "$ROOT" --no-optional-locks diff --quiet "$sha" -- "${paths[@]}"; then
+    printf 'what it runs changed since %s' "${sha:0:8}"
+    return 0
+  fi
+  if (( count > 0 )); then
+    now_head="$(git -C "$ROOT" --no-optional-locks rev-parse --verify -q HEAD)" || now_head=""
+    now_fp="$(tree_fingerprint)" || now_fp=""
+    if [[ "$now_head" != "$sha" || "$now_fp" != "$fp" ]]; then
+      printf 'it ran on %s uncommitted change(s) the tree no longer holds' "$count"
+      return 0
+    fi
+  fi
+}
+
+# The steps <id> needs that have no ok row in this pass's section, space-separated.
+unmet_needs() {
+  local need row unmet=""
+  for need in ${NEEDS[$1]:-}; do
+    row="$(log_last "$need")"
+    [[ "$(cut -f3 <<<"$row")" == ok* ]] || unmet+="${unmet:+ }${need}"
+  done
+  printf '%s' "$unmet"
 }
 
 # The UTC time a step started or finished, from this run or the log.
@@ -727,8 +1010,11 @@ if [[ "$MODE" == status ]]; then
     row="$(log_last "$S_ID")"
     r_start="$(cut -f1 <<<"$row")"; r_result="$(cut -f3 <<<"$row")"
     state=""
+    unmet="$(unmet_needs "$S_ID")"
     if [[ "$S_KIND" == blocked ]]; then
       state="BLOCKED: ${S_CMD}"; pending=1
+    elif [[ -n "$unmet" ]]; then
+      state="SKIPPED (needs ${unmet})"; pending=1
     elif (( S_MAIL )) && [[ "$r_result" != ok* ]]; then
       if mail_confirmed; then state="NOT RUN (alarm mail is confirmed now: run it with --from-step ${S_ID})"
       else state="DEFERRED (alarm mail not confirmed)"; fi
@@ -742,6 +1028,8 @@ if [[ "$MODE" == status ]]; then
       esac
     elif [[ -z "$row" ]]; then
       state="NOT RUN"; pending=1
+    elif [[ "$r_result" == ok* ]] && lapse="$(row_lapsed "$(cut -f5 <<<"$row")" "$(cut -f4 <<<"$row")")" && [[ -n "$lapse" ]]; then
+      state="LAPSED (${lapse}): recorded ok at ${r_start}, run it again"; pending=1
     elif [[ "$r_result" == ok* ]]; then
       if [[ "$S_KIND" == ask ]]; then state="ATTESTED at ${r_start} (log only)"
       elif [[ "$S_PROOF" == rerun ]]; then state="RE-RUN PROVES; recorded ok at ${r_start}"
@@ -768,6 +1056,9 @@ on_interrupt() {
   [[ -n "$CURRENT" ]] || return 0
   log_row "$CURRENT" "$CURRENT_START" "$CURRENT_CMD" interrupted
 }
+# Cleanups run newest first: the interrupted step's row, then the mute lifted,
+# then the run lock released.
+cr_cleanup unmute_if_muted
 cr_cleanup on_interrupt
 
 not_run_after() {
@@ -844,8 +1135,19 @@ for (( i = FIRST; i <= LAST; i++ )); do
   STARTED["$S_ID"]="$started"
   CURRENT="$S_ID"; CURRENT_START="$started"; CURRENT_CMD="$S_CMD"
 
+  unmet="$(unmet_needs "$S_ID")"
+  if [[ -n "$unmet" ]]; then
+    log_row "$S_ID" "$started" "-" "skipped (needs ${unmet})" "$S_CMD"
+    SKIPPED+=("$S_ID")
+    cr_unproved "skipped, because ${unmet} has not been done: ${S_ID}"
+    echo "Skipped: ${S_ID} stands on ${unmet}, which has not been done."
+    CURRENT=""
+    continue
+  fi
+
   if (( S_MAIL )) && ! mail_confirmed; then
     log_row "$S_ID" "$started" "$S_CMD" "deferred (alarm mail not confirmed)"
+    DEFERRED+=("$S_ID")
     cr_unproved "deferred until alarm mail is confirmed: ${S_ID}"
     echo "Deferred: ${S_ID} needs a confirmed alarm-mail subscription; run it with --from-step once confirmed."
     CURRENT=""
@@ -854,13 +1156,15 @@ for (( i = FIRST; i <= LAST; i++ )); do
 
   case "$S_KIND" in
     blocked)
-      rest="$(not_run_after "$i")"
+      # Recorded and passed over: the steps after it that stand on nothing it
+      # does still run, and the run ends pending, so the pass cannot read as
+      # done while this is outstanding.
       log_row "$S_ID" "$started" "-" blocked "$S_CMD"
-      cr_unproved "blocked: ${rest}; ${S_CMD}"
+      BLOCKED+=("$S_ID")
+      cr_unproved "blocked: ${S_ID}: ${S_CMD}"
       echo "Blocked: ${S_CMD}" >&2
-      SITTING_VERDICT="BLOCKED AT ${S_ID}"
       CURRENT=""
-      cr_finish_with 3 BLOCKED
+      continue
       ;;
     ask)
       # A question whose answer a read can already prove is not asked.
@@ -906,8 +1210,10 @@ for (( i = FIRST; i <= LAST; i++ )); do
     fi
     hand_on "$hreport"
     rm -f -- "$hreport"
-    run_aside "$(mute_cmd)"
+    # Marked before the call, so an interrupt while the mute is being made
+    # still lifts it on the way out.
     HEAVY_MUTED=1
+    run_aside "$(mute_cmd)"
   fi
 
   if ! resolve_command "$S_CMD" 2>"${SCRATCH}/resolve.err"; then
@@ -932,6 +1238,7 @@ for (( i = FIRST; i <= LAST; i++ )); do
       hand_on "$report" warn
       rm -f -- "$report"
       log_row "$S_ID" "$started" "$CURRENT_CMD" "deferred (alarm mail not confirmed)"
+      DEFERRED+=("$S_ID")
       cr_unproved "deferred until alarm mail is confirmed: ${S_ID}"
       echo "Deferred: ${S_ID} left a subscription pending; run it again with --from-step ${S_ID} once the emails are to hand."
       CURRENT=""
@@ -945,7 +1252,15 @@ for (( i = FIRST; i <= LAST; i++ )); do
       fact=*)
         grep -qxF -- $'FACT\t'"${S_PROOF#fact=}" "$report" || failed="no ${S_PROOF#fact=} fact: the step changed nothing it can prove" ;;
       stdout=*)
-        grep -qE -- "${S_PROOF#stdout=}" "$out" || failed="its output did not match ${S_PROOF#stdout=}" ;;
+        # One or more patterns joined by " && ", each of which must match a
+        # line: a state spread over several lines is proved line by line. A
+        # pattern grep cannot read fails the step rather than passing it.
+        rest="${S_PROOF#stdout=}"
+        while [[ -n "$rest" && -z "$failed" ]]; do
+          one="${rest%% && *}"
+          if [[ "$one" == "$rest" ]]; then rest=""; else rest="${rest#* && }"; fi
+          grep -qE -- "$one" "$out" || failed="its output did not match ${one}"
+        done ;;
       save)
         DIGESTS["$TARGET"]="$(grep -E '^DIGEST ' "$out" || [[ $? == 1 ]])"
         [[ -n "${DIGESTS[$TARGET]}" ]] || failed="it printed no digests" ;;
@@ -1028,5 +1343,16 @@ fi
 [[ -n "${uncommitted// /}" ]] && cr_unproved "the private checkout has uncommitted files (${uncommitted% }); the maintainer commits them"
 if (( LAST < ${#STEPS[@]} - 1 )); then
   cr_unproved "the steps after ${TO_STEP}: not run (--to-step)"
+fi
+# Everything that ran finished; what was passed over makes the run pending, and
+# any error makes it a failure instead.
+if (( ${#CR_ERRORS[@]} == 0 && ${#BLOCKED[@]} + ${#SKIPPED[@]} + ${#DEFERRED[@]} > 0 )); then
+  pending=()
+  (( ${#BLOCKED[@]} )) && pending+=("blocked ${BLOCKED[*]}")
+  (( ${#SKIPPED[@]} )) && pending+=("skipped ${SKIPPED[*]}")
+  (( ${#DEFERRED[@]} )) && pending+=("deferred ${DEFERRED[*]}")
+  SITTING_VERDICT="PENDING: ${pending[0]}"
+  for part in "${pending[@]:1}"; do SITTING_VERDICT+="; ${part}"; done
+  cr_finish_with 3 PENDING
 fi
 cr_finish
