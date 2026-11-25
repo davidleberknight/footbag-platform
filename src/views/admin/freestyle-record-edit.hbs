@@ -108,7 +108,7 @@
           <small class="form-hint" id="record-curatorReviewNote-hint">Shown on the records page; the record's trick link is hidden while a note is set.</small>
         </div>
         <div class="form-field">
-          <label for="record-supersededBy">Superseded by (record id of the newer record, optional)</label>
+          <label for="record-supersededBy">Superseded by (record id of the record that outscores this one, optional)</label>
           <input type="text" id="record-supersededBy" name="supersededBy" value="{{content.fields.supersededBy}}" />
           {{#if content.fieldErrors.supersededBy}}<p class="form-field-error" role="alert">{{content.fieldErrors.supersededBy}}</p>{{/if}}
         </div>
