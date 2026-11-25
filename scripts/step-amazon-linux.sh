@@ -153,7 +153,9 @@ marked() { grep -m1 -e "^---FOOTBAG-$1--- " -- "$LAST_LOG" | cut -d' ' -f2-; }
 
 if [[ "$MODE" == status ]]; then
   echo "==> status of Amazon Linux on ${ALIAS} (pinned ${PIN})"
-  send_reported "status" status || true
+  # The verdict line is a report, not a check: staging may run a release newer
+  # than the pin. A read that fails is the run's error, and nothing is claimed.
+  send_reported "status" status || cr_die "could not read the status of ${ALIAS}; nothing was changed"
   cr_proved "status read from ${ALIAS}; nothing was changed"
   cr_finish
 fi

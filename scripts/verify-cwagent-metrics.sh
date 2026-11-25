@@ -43,7 +43,18 @@
 #                                (default 15). Widen it only when the agent was
 #                                just installed and the first publish is still
 #                                in flight.
-#   --containers                 Check the container monitor's readings instead,
+#   --since <UTC time>           Count only datapoints from this moment on (any
+#                                time `date -d` reads, such as
+#                                2026-01-01T12:00:00Z), when that is later than
+#                                the window's start. A bootstrap passes the
+#                                moment it installed the agent: no metric
+#                                carries an instance dimension, so datapoints
+#                                the replaced host published minutes before
+#                                would otherwise pass for the new agent's. It is
+#                                rounded up to the next whole minute, because a
+#                                one-minute datapoint carries its minute's start
+#                                and may hold samples from before it.
+#   --containers                Check the container monitor's readings instead,
 #                                the binding the container alarms need:
 #                                container_monitor_heartbeat with no dimensions,
 #                                and container_memory_percent for container=web.
@@ -60,6 +71,7 @@ set -euo pipefail
 TARGET=""
 PROFILE=""
 WINDOW_MINUTES=15
+SINCE=""
 CONTAINERS=0
 
 # Both environments' stacks are us-east-1, and metrics are region-scoped, so an
@@ -90,6 +102,10 @@ while [[ $# -gt 0 ]]; do
       WINDOW_MINUTES="${2:-}"
       shift 2 || { echo "ERROR: --window-minutes requires an argument" >&2; exit 2; }
       ;;
+    --since)
+      SINCE="${2:-}"
+      shift 2 || { echo "ERROR: --since requires an argument" >&2; exit 2; }
+      ;;
     --containers) CONTAINERS=1; shift ;;
     --help|-h) usage ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage ;;
@@ -106,6 +122,14 @@ require_target "$TARGET" staging production || exit 2
 if [[ ! "$WINDOW_MINUTES" =~ ^[0-9]+$ ]] || (( WINDOW_MINUTES < 1 )); then
   echo "ERROR: --window-minutes must be a positive whole number (got '$WINDOW_MINUTES')" >&2
   exit 2
+fi
+SINCE_EPOCH=""
+if [[ -n "$SINCE" ]]; then
+  SINCE_EPOCH="$(date -u -d "$SINCE" +%s 2>/dev/null)" || {
+    echo "ERROR: --since must be a time date can read (got '$SINCE')" >&2
+    exit 2
+  }
+  SINCE_EPOCH=$(( (SINCE_EPOCH + 59) / 60 * 60 ))
 fi
 
 # One closing report from here on, on stderr, so the PASS and FAIL rows on stdout
@@ -137,7 +161,11 @@ else
   NAMESPACE="CWAgent"
 fi
 
-START="$(date -u -d "${WINDOW_MINUTES} minutes ago" +%Y-%m-%dT%H:%M:%SZ)"
+START_EPOCH="$(date -u -d "${WINDOW_MINUTES} minutes ago" +%s)"
+if [[ -n "$SINCE_EPOCH" ]] && (( SINCE_EPOCH > START_EPOCH )); then
+  START_EPOCH="$SINCE_EPOCH"
+fi
+START="$(date -u -d "@${START_EPOCH}" +%Y-%m-%dT%H:%M:%SZ)"
 END="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 PASSED=0
@@ -173,7 +201,7 @@ if [[ -n "${CWAGENT_VERIFY_AWS_BIN:-}" ]]; then
 fi
 
 if (( CONTAINERS )); then
-  echo "Checking ${TARGET} container monitor readings in namespace ${NAMESPACE}, last ${WINDOW_MINUTES} minutes:"
+  echo "Checking ${TARGET} container monitor readings in namespace ${NAMESPACE}, from ${START}:"
   check_metric container_monitor_heartbeat "no dimensions"
   check_metric container_memory_percent    "container=web" --dimensions Name=container,Value=web
   echo
@@ -191,7 +219,7 @@ if (( CONTAINERS )); then
   cr_finish
 fi
 
-echo "Checking ${TARGET} host metrics in namespace ${NAMESPACE}, last ${WINDOW_MINUTES} minutes:"
+echo "Checking ${TARGET} host metrics in namespace ${NAMESPACE}, from ${START}:"
 check_metric cpu_usage_active  "cpu=cpu-total"    --dimensions Name=cpu,Value=cpu-total
 check_metric mem_used_percent  "no dimensions"
 check_metric disk_used_percent "path=/ fstype=xfs" --dimensions Name=path,Value=/ Name=fstype,Value=xfs

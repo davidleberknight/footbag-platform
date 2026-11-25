@@ -422,6 +422,28 @@ describe('the operator half', () => {
     expect(r.out).toMatch(/SESSION-ONLY-LINE from the host/);
   });
 
+  it('reports the status of a host newer than the pin as a clean read, changing nothing', () => {
+    // Defect caught: staging, which may run a release newer than the pin, read
+    // as a failure, or the status mode changing the host.
+    const { env, sessions } = standInHost();
+    const r = runOperator(['--target', 'staging', '--status'], env);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/verdict: differs from the pin/);
+    expect(report(r.out)).toMatch(/status read from footbag-staging/);
+    expect(sent(sessions)).not.toMatch(/MODE=(preview|stop|step)/);
+  });
+
+  it('fails the status mode when the host cannot be read, and never claims the read', () => {
+    // Defect caught: a failed status read swallowed, so the run ends claiming
+    // the host's state was read when it was not.
+    flag('needs-restarting-rc', '2');
+    const { env } = standInHost();
+    const r = runOperator(['--target', 'staging', '--status'], env);
+    expect(r.status).not.toBe(0);
+    expect(report(r.out)).toMatch(/could not tell whether a reboot is needed/);
+    expect(report(r.out)).not.toMatch(/status read from footbag-staging/);
+  });
+
   it('does not step when the stop session fails, even after it reported the backup done', () => {
     // Defect caught: a failed privileged session judged by its completion marker
     // alone, so the host is stepped and the closing report never names the failure.

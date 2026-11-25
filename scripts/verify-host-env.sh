@@ -444,12 +444,19 @@ echo ""
 echo "Critical invariants:"
 
 # Env discriminator + cross-invariant (mirrors R1: FOOTBAG_ENV in {staging,
-# production} requires NODE_ENV=production; src/config/env.ts enforces this
-# at module load, but only after dotenv has populated process.env from
-# /srv/footbag/env. This check catches a misconfigured host before the
-# container even starts.)
+# production} requires NODE_ENV=production).
 check_equals "FOOTBAG_ENV" "$TARGET" "env discriminator"
-check_equals "NODE_ENV" "production" "NODE_ENV cross-invariant"
+# NODE_ENV is not a host value: the images and the compose services set it to
+# production themselves, and src/config/env.ts refuses to boot a staging or
+# production FOOTBAG_ENV with any other value, so a host built from scratch
+# carries no line for it and none is required. A line that is present, even an
+# empty one, must still read production: a host value that disagrees with what
+# the containers run is drift, and is failed here rather than left to mislead.
+if [[ -n "${HOST_ENV[NODE_ENV]+set}" ]]; then
+  check_equals "NODE_ENV" "production" "NODE_ENV cross-invariant"
+else
+  check_pass "NODE_ENV cross-invariant: NODE_ENV not held on the host (the image and compose set it to production)"
+fi
 
 # Session secret hardening. Checked by name against the development fallback and
 # again by negative properties, so lengthening the literal one day still fails

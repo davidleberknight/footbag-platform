@@ -303,9 +303,9 @@ bh_probe_aws() {
     --query 'AccessKeyMetadata[].AccessKeyId' --output text </dev/null 2>/dev/null)" \
     && P[IAM_CW_KEYS]="$(tr -s '[:space:]' ' ' <<< "$ids" | sed 's/^ //; s/ $//; s/None//')" \
     || P[IAM_CW_KEYS]=unknown
-  # The inactive ones apart, because what may be done with a key depends on it:
-  # an active key the host does not hold is retired, and only one already
-  # inactive when it is read is ever deleted.
+  # The inactive ones apart, because what the maintainer may do with a key
+  # depends on it: an active key the host does not hold is retired, and only one
+  # already inactive when it is read is ever deleted.
   ids="$("$BH_AWS_BIN" iam list-access-keys --user-name "footbag-${target}-source-profile" \
     --query 'AccessKeyMetadata[?Status==`Inactive`].AccessKeyId' --output text </dev/null 2>/dev/null)" \
     && P[IAM_SRC_INACTIVE]="$(tr -s '[:space:]' ' ' <<< "$ids" | sed 's/^ //; s/ $//; s/None//')" \
@@ -329,14 +329,9 @@ bh_probe_aws() {
     fi
   fi
 
-  local out
-  rc=0
-  bh_probe_report
-  out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/verify-cwagent-metrics.sh" --target "$target" </dev/null 2>&1)" || rc=$?
-  P[CW_METRICS_SAID]=""
-  if (( rc == 0 )); then P[CW_METRICS]=ok; else P[CW_METRICS]=fail; P[CW_METRICS_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"; fi
-  bh_probe_report_done
+  bh_probe_cw_metrics "$target"
 
+  local out
   rc=0
   bh_probe_report
   out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/verify-host-snapshots.sh" --target "$target" </dev/null 2>&1)" || rc=$?
@@ -355,6 +350,27 @@ bh_probe_aws() {
       *) P[MARKER]=unknown ;;
     esac
   fi
+}
+
+# bh_probe_cw_metrics <target> [since]
+# Whether the agent's metrics arrive where the alarms read them, from the
+# verifier that asserts the binding and the liveness together. Read alone as
+# well as with the rest, because a run that just installed the agent polls it
+# while the metrics are on their way. With <since>, a UTC time, only a datapoint
+# from then on counts: the agent publishes no instance dimension, so the
+# datapoints the host it replaced published in the last minutes would
+# otherwise pass for the new agent's. Each read is bounded, so a client that
+# hangs reads as a failed check rather than holding the run.
+BH_METRICS_PROBE_SECS=180
+bh_probe_cw_metrics() {
+  local out rc=0 since=()
+  [[ -n "${2:-}" ]] && since=(--since "$2")
+  bh_probe_report
+  out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" timeout "$BH_METRICS_PROBE_SECS" \
+    bash "${BH_SCRIPTS}/verify-cwagent-metrics.sh" --target "$1" ${since[@]+"${since[@]}"} </dev/null 2>&1)" || rc=$?
+  P[CW_METRICS_SAID]=""
+  if (( rc == 0 )); then P[CW_METRICS]=ok; else P[CW_METRICS]=fail; P[CW_METRICS_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"; fi
+  bh_probe_report_done
 }
 
 # bh_tfvars_flag <target> <name>
@@ -410,7 +426,7 @@ bh_container_health() {
 }
 
 # bh_extra_keys <iam-key-list> <host-key-id>
-# The user's keys other than the one the host holds: the dead host's, to retire.
+# The user's keys other than the one the host holds.
 bh_extra_keys() {
   local k out=""
   for k in $1; do
@@ -430,19 +446,24 @@ bh_keys_in() {
 }
 
 # bh_cwagent_key_in_service
-# True when the agent on the host holds one of the publisher's keys, so an
-# upgrade can keep it rather than mint another.
+# True when the agent on the host holds one of the publisher's active keys, so
+# an upgrade can keep it rather than mint another. A key the user holds
+# inactive cannot publish, and an unread inactive list proves nothing either way.
 bh_cwagent_key_in_service() {
-  [[ -n "${P[CWAGENT_KEY_ID]:-}" && "${P[IAM_CW_KEYS]-unknown}" != "unknown" ]] \
-    && bh_has_word "${P[IAM_CW_KEYS]}" "${P[CWAGENT_KEY_ID]}"
+  [[ -n "${P[CWAGENT_KEY_ID]:-}" && "${P[IAM_CW_KEYS]-unknown}" != "unknown" \
+      && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]] \
+    && bh_has_word "${P[IAM_CW_KEYS]}" "${P[CWAGENT_KEY_ID]}" \
+    && ! bh_has_word "${P[IAM_CW_INACTIVE]}" "${P[CWAGENT_KEY_ID]}"
 }
 
-# bh_retirement_verdict <keys> <inactive> <host-key> <done-detail> <subject> <retire-cmd> <delete-cmd>
-# The pending state of a user still holding keys its host does not use. An
-# active one is retired; one already inactive is deleted. The two are never the
-# same run for the same key: a key is deleted only once it has been seen
-# inactive, so whatever still held it has had the time between to fail visibly.
-bh_retirement_verdict() {
+# bh_extra_keys_verdict <keys> <inactive> <host-key> <done-detail> <subject> <retire-cmd> <delete-cmd>
+# A user also holding keys its host does not use. Whether such a key is retired
+# or deleted is the maintainer's decision, never a script's, so the step reads
+# INFO rather than pending: the host works, and the row names the installer's
+# --retire for an active key and --delete for one already inactive. A key is
+# deleted only once it has been seen inactive, so whatever still held it has had
+# the time between to fail visibly.
+bh_extra_keys_verdict() {
   local keys="$1" inactive="$2" host_key="$3" done_detail="$4" subject="$5" retire="$6" delete="$7"
   local extra active dead k
   extra="$(bh_extra_keys "$keys" "$host_key")"
@@ -454,13 +475,13 @@ bh_retirement_verdict() {
   active=""
   for k in $extra; do bh_has_word "$dead" "$k" || active+="${k} "; done
   active="${active% }"
-  BH_STATE=PENDING
+  BH_STATE=INFO
   if [[ -n "$active" ]]; then
-    BH_DETAIL="${subject} still holds ${active}, active, which the host does not use"
+    BH_DETAIL="${subject} also holds ${active}, active, which the host does not use; retiring it is the maintainer's call"
     BH_NEXT="${retire} --retire <id>, for: ${active}; then, on a later run once it reads inactive, ${delete} --delete <id>"
-    [[ -n "$dead" ]] && BH_DETAIL+="; and ${dead}, already inactive, to delete"
+    [[ -n "$dead" ]] && BH_DETAIL+="; and ${dead}, already inactive"
   else
-    BH_DETAIL="${subject} still holds ${dead}, inactive, which the host does not use"
+    BH_DETAIL="${subject} also holds ${dead}, inactive, which the host does not use; deleting it is the maintainer's call"
     BH_NEXT="${delete} --delete <id>, for: ${dead}"
   fi
   return 0
@@ -655,7 +676,7 @@ bh_verdict() {
       local installer="scripts/install-host-credentials.sh --target ${t}"
       if [[ "${P[CRED_CHAIN]:-fail}" != "ok" ]]; then
         BH_STATE=PENDING; BH_DETAIL="the host does not resolve its runtime role"
-        BH_NEXT="< ${cred} bash ${installer} --rotate"
+        BH_NEXT="< ${cred} bash ${installer} --rotate   (mints a key: the maintainer's call; a replacement carries the old host's)"
       elif [[ "${P[IAM_SRC_KEYS]-unknown}" == "unknown" ]]; then
         BH_STATE=UNKNOWN; BH_DETAIL="the host resolves its runtime role; the user's keys were not read"
       elif [[ -z "${P[CRED_KEY_ID]:-}" ]]; then
@@ -663,7 +684,7 @@ bh_verdict() {
         BH_DETAIL="the host resolves its runtime role, but the key id it holds reads empty, so the user's keys cannot be told apart and none is retired"
         BH_NEXT="< ${cred} bash ${installer} --rotate   (gives the host a key whose id it records)"
       else
-        bh_retirement_verdict "${P[IAM_SRC_KEYS]}" "${P[IAM_SRC_INACTIVE]:-}" "${P[CRED_KEY_ID]}" \
+        bh_extra_keys_verdict "${P[IAM_SRC_KEYS]}" "${P[IAM_SRC_INACTIVE]:-}" "${P[CRED_KEY_ID]}" \
           "the host resolves its runtime role with ${P[CRED_KEY_ID]}, the user's only key" \
           "the host resolves its chain; the user" "< ${cred} bash ${installer}" "bash ${installer}"
       fi
@@ -681,7 +702,8 @@ bh_verdict() {
         local why="${P[CWAGENT_LAST_ERROR]:-}" state="${P[CWAGENT_ACTIVE]:-unknown}"
         BH_STATE=FAILED
         if [[ "$why" =~ AccessDenied|403|ExpiredToken|InvalidClientTokenId|SignatureDoesNotMatch|UnrecognizedClient ]] \
-            || { [[ "${P[IAM_CW_KEYS]-unknown}" != "unknown" ]] && ! bh_cwagent_key_in_service; }; then
+            || { [[ "${P[IAM_CW_KEYS]-unknown}" != "unknown" && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]] \
+                   && ! bh_cwagent_key_in_service; }; then
           BH_DETAIL="the agent is ${state}: its credentials do not publish${why:+ (${why})}"
           BH_NEXT="< ${cred} bash ${cw} --rotate"
         else
@@ -706,8 +728,17 @@ bh_verdict() {
         BH_STATE=UNKNOWN
         BH_DETAIL="the agent publishes, but the key id the host holds reads empty, so the publisher's keys cannot be told apart and none is retired"
         BH_NEXT="< ${cred} bash ${cw} --rotate"
+      elif [[ "${P[IAM_CW_INACTIVE]-unknown}" == "unknown" ]]; then
+        BH_STATE=UNKNOWN; BH_DETAIL="the agent publishes; which of the publisher's keys are inactive was not read"
+      elif ! bh_cwagent_key_in_service; then
+        # Metrics read within their window can still be the last ones a key
+        # published before it was deactivated or deleted, so the agent's key is
+        # held to the publisher's active keys rather than judged by them.
+        BH_STATE=FAILED
+        BH_DETAIL="the agent holds ${P[CWAGENT_KEY_ID]}, which is not one of the publisher's active keys, so it cannot go on publishing; a new key is the maintainer's call"
+        BH_NEXT="< ${cred} bash ${cw} --rotate   (mints a key: the maintainer's call)"
       else
-        bh_retirement_verdict "${P[IAM_CW_KEYS]}" "${P[IAM_CW_INACTIVE]:-}" "${P[CWAGENT_KEY_ID]}" \
+        bh_extra_keys_verdict "${P[IAM_CW_KEYS]}" "${P[IAM_CW_INACTIVE]:-}" "${P[CWAGENT_KEY_ID]}" \
           "agent ${want} running, metrics arriving, publishing with the publisher's only key" \
           "the agent publishes; the publisher" "< ${cred} bash ${cw}" "bash ${cw}"
       fi

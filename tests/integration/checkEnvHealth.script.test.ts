@@ -179,6 +179,40 @@ describe('the alarm read', () => {
     expect(strict.status).toBe(1);
   });
 
+  it.each([
+    ['footbag-staging-db-backup-stale'],
+    ['footbag-staging-db-backup-failing'],
+  ])('with --fresh-instance, warns on %s and still stops on any other critical alarm', (backup) => {
+    // Defect caught: the bootstrap of a fresh instance refused forever by the
+    // backup alarm it exists to end (the instance has no database to back up
+    // until that bootstrap restores one); or, the other way, the flag waving
+    // through every critical alarm, or the backup alarm passing without it.
+    const alarms = `${backup}\\t${CRITICAL}\\n`;
+    const strict = run(['--target', 'staging', '--alarms-only', '--allow-site-down'], { ALARMS: alarms });
+    expect(strict.status).toBe(1);
+    expect(strict.out).toContain(`critical alarm ${backup} is in ALARM`);
+
+    const fresh = run(['--target', 'staging', '--alarms-only', '--allow-site-down', '--fresh-instance'], { ALARMS: alarms });
+    expect(fresh.status, fresh.out).toBe(0);
+    expect(fresh.out).toContain(`warning alarm ${backup} is in ALARM`);
+
+    const cpu = run(['--target', 'staging', '--alarms-only', '--allow-site-down', '--fresh-instance'], {
+      ALARMS: `${alarms}footbag-staging-high-cpu\\t${CRITICAL}\\n`,
+    });
+    expect(cpu.status).toBe(1);
+    expect(cpu.out).toMatch(/critical alarm footbag-staging-high-cpu is in ALARM/);
+  });
+
+  it('with --fresh-instance, exempts only the target\'s own backup alarms', () => {
+    // Defect caught: a match loose enough to wave through another environment's
+    // backup alarm, or a backup alarm with a longer name.
+    const res = run(['--target', 'staging', '--alarms-only', '--fresh-instance'], {
+      ALARMS: `footbag-staging-db-backup-stale-x\\t${CRITICAL}\\n`,
+    });
+    expect(res.status).toBe(1);
+    expect(res.out).toMatch(/critical alarm footbag-staging-db-backup-stale-x is in ALARM/);
+  });
+
   it('does not take a topic whose name only starts like the critical one as critical', () => {
     // Defect caught: a substring match counting another topic as critical.
     const res = run(['--target', 'staging'], {

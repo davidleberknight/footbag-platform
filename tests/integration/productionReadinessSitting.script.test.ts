@@ -55,15 +55,31 @@ const DEFAULT_RULES: Rule[] = [
   { match: 'scripts/production-live-marker.sh --status*', stdout: 'Marker /footbag/production/app/production_live currently reads: false' },
   // The status read's switch line, as arming.sh prints it for a dark switch.
   { match: 'scripts/arming.sh --target production --switch email --status*', stdout: 'SSM  (/footbag/production/app/email_send_armed): dark' },
+  // arming.sh reads the parameter store only when given --profile; without one
+  // it prints the switch line as not read, which no armed or dark proof matches.
+  {
+    match: 'scripts/arming.sh --target staging --status',
+    stdout: 'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): (no --profile; not read)',
+  },
+  // Without --profile, arming.sh cannot check the Stripe credentials itself and
+  // asks for a typed attestation instead; nothing answers it here, so it aborts.
+  { match: 'scripts/arming.sh --target staging --state dark', codes: [1], stdout: 'Aborted: nothing has been changed.' },
+  { match: 'scripts/arming.sh --target staging --state armed', codes: [1], stdout: 'Aborted: nothing has been changed.' },
   // Staging's payments switch, read as arming.sh prints it: as seeded, then
   // after s08b turns it dark, then after s08d arms it again.
   {
-    match: 'scripts/arming.sh --target staging --status',
+    match: 'scripts/arming.sh --target staging --status --profile footbag-operator',
     stdout: [
       'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): armed',
       'tfvars (x.tfvars): payments_armed = dark\\nSSM  (/footbag/staging/app/payments_armed): dark',
       'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): armed',
     ].join('~'),
+  },
+  // The restore drill's verdict block, as restore-db prints it for a snapshot
+  // holding members and audit history.
+  {
+    match: 'scripts/restore-db.sh * --drill*',
+    stdout: '  RESTORE DRILL PASSED on host\\n  Members:       12\\n  Payments:      0\\n  Newest audit:  2026-11-24T10:00:00.000Z',
   },
   // The denial check's stdout line when every refusal rests on an explicit deny.
   { match: 'scripts/verify-dev-tester-role-denials.sh *', stdout: 'No findings.' },
@@ -335,9 +351,9 @@ describe('a full staging run', () => {
   // answer or a link, or missing from one that needs it, or put in argv.
   it('gives the password on stdin to exactly the steps that take it', () => {
     sit(['--target', 'staging'], YES(9));
-    // The staging replacement reaches no host and reads no credential, so it
-    // alone of bootstrap-host's forms takes the terminal.
-    const takesIt = /^scripts\/(bootstrap-host\.sh --target staging( --status| --restore-database)?$|(deploy-migrate|restore-db|restore-host|rotate-jwt-signing-key|incident-drill|verify-prelive-probes|step-amazon-linux|harden-sshd|verify-host-env)\.sh )/;
+    // Every form of bootstrap-host takes the password, the replacement included:
+    // it reads the host's AWS access keys off the old instance to carry them over.
+    const takesIt = /^scripts\/(bootstrap-host\.sh --target staging( --status| --restore-database| --replace-instance)?$|(deploy-migrate|restore-db|restore-host|rotate-jwt-signing-key|incident-drill|verify-prelive-probes|step-amazon-linux|harden-sshd|verify-host-env)\.sh )/;
     expect(calls().some((c) => /^scripts\/restore-host\.sh --target staging --delete-old$/.test(c.call))).toBe(true);
     expect(calls().length).toBeGreaterThan(10);
     // The drill stops and restarts the host, so it needs the password; a table
@@ -385,7 +401,7 @@ describe('the host rebuild drills', () => {
     expect(stepCalls()[restore].line).toBe(PASSWORD);
     expect(stepCalls()[deleteOld].line).toBe(PASSWORD);
     expect(stepCalls()[bootstrap].line).toBe(PASSWORD);
-    expect(stepCalls()[replace].tty).toBe(true);
+    expect(stepCalls()[replace].line).toBe(PASSWORD);
     // Then the retention read and both buckets' restore drills.
     for (const re of [/^scripts\/apply-snapshot-retention\.sh --target staging --verify/, /^scripts\/restore-bucket\.sh --target staging --bucket media --drill$/, /^scripts\/restore-bucket\.sh --target staging --bucket archive --drill$/]) {
       expect(at(re), String(re)).toBeGreaterThan(drills[1]);
@@ -401,22 +417,30 @@ describe('the host rebuild drills', () => {
     expect(r.status, r.out).toBe(0);
     // Each heavy step, then the next step's command: the alarm read comes
     // after the step (and its proof read) and before the next step runs.
-    const pairs: [RegExp, RegExp][] = [
-      [/^scripts\/restore-host\.sh --target staging$/, /^deploy_to_aws\.sh --target staging$/],
-      [/^scripts\/bootstrap-host\.sh --target staging --restore-database$/, /^scripts\/verify-account-baseline\.sh/],
+    // The fresh instance's bootstrap (s11k) lets through the backup alarms its
+    // missing database raises, and waits for them to clear after it; the
+    // snapshot restore (s11c) has a database, so its backup alarms still stop
+    // it, and it waits the usual ten minutes.
+    const pairs: [RegExp, RegExp, string, string][] = [
+      [/^scripts\/restore-host\.sh --target staging$/, /^deploy_to_aws\.sh --target staging$/,
+        'scripts/check-env-health.sh --target staging --allow-site-down',
+        'scripts/check-env-health.sh --target staging --alarms-only --wait-minutes 10'],
+      [/^scripts\/bootstrap-host\.sh --target staging --restore-database$/, /^scripts\/verify-account-baseline\.sh/,
+        'scripts/check-env-health.sh --target staging --allow-site-down --fresh-instance',
+        'scripts/check-env-health.sh --target staging --alarms-only --wait-minutes 25'],
     ];
     const all = stepCalls().map((c) => c.call);
-    for (const [heavy, next] of pairs) {
+    for (const [heavy, next, before, afterRead] of pairs) {
       const step = at(heavy);
       expect(step, String(heavy)).toBeGreaterThan(1);
       const following = all.findIndex((c, k) => k > step && next.test(c));
       // Health read, then the mute of the step's expected alarms, then the step.
       expect(all.slice(step - 2, step)).toEqual([
-        'scripts/check-env-health.sh --target staging --allow-site-down',
+        before,
         'scripts/mute-expected-alarms.sh --target staging --minutes 240',
       ]);
       // After it: the alarm read, then the mute lifted, before the next step.
-      const after = all.indexOf('scripts/check-env-health.sh --target staging --alarms-only --wait-minutes 10', step);
+      const after = all.indexOf(afterRead, step);
       const unmute = all.indexOf('scripts/mute-expected-alarms.sh --target staging --clear', step);
       expect(after, `alarm read after ${heavy}`).toBeGreaterThan(step);
       expect(unmute).toBeGreaterThan(after);
@@ -428,14 +452,14 @@ describe('the host rebuild drills', () => {
   });
 
   it('does not start a heavy step on an unfit host, and resumes at that step within the same stretch', () => {
-    writeRules([{ match: 'scripts/check-env-health.sh --target staging --allow-site-down', codes: [1] }]);
+    writeRules([{ match: 'scripts/check-env-health.sh --target staging --allow-site-down*', codes: [1] }]);
     const r = sit(['--target', 'staging', '--from-step', 's11k', '--to-step', 's13b']);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/VERDICT: STOPPED AT s11k/);
     expect(at(/^scripts\/bootstrap-host\.sh --target staging --restore-database$/)).toBe(-1);
     // Nothing was muted for a step that never started.
     expect(at(/^scripts\/mute-expected-alarms\.sh/)).toBe(-1);
-    expect(rows().at(-1)!.slice(3, 6)).toEqual(['s11k', 'scripts/check-env-health.sh --target staging --allow-site-down', 'failed (health)']);
+    expect(rows().at(-1)!.slice(3, 6)).toEqual(['s11k', 'scripts/check-env-health.sh --target staging --allow-site-down --fresh-instance', 'failed (health)']);
     // The resume a stop prints keeps the stretch's end, so it does not run on
     // past the drills into the second operator's step.
     expect(r.out).toMatch(/--from-step s11k --to-step s13b/);
@@ -496,41 +520,37 @@ describe('the host rebuild drills', () => {
 
     writeRules([]);
     writeFileSync(stubLog, '');
-    const dark = sit(['--target', 'production', '--from-step', 'p90a', '--to-step', 'p90s'], YES(2));
+    const dark = sit(['--target', 'production', '--from-step', 'p90a', '--to-step', 'p90s'], YES(3));
     const restore = at(/^scripts\/restore-host\.sh --target production$/);
     expect(restore).toBeGreaterThan(at(/arming\.sh --target production --switch email --status/));
     expect(restore).toBeGreaterThan(at(/terraform-apply-all\.sh --target production --check/));
     expect(stepCalls()[restore].line).toBe(PASSWORD);
-    // Defect caught: the fresh-instance rebuild reached on production while it
-    // still mints new host keys, so the drill makes the operator rewrite the
-    // vault; or the steps that stand on that rebuild run anyway, so a restore
-    // lands on the old host and a question about the replacement is answered
-    // yes; or the drills that stand on nothing it does wait behind it.
-    expect(dark.status, dark.out).toBe(3);
-    expect(dark.out).toMatch(/VERDICT: PENDING: blocked p90m; skipped p90n p90q/);
-    expect(at(/bootstrap-host\.sh --target production --replace-instance/)).toBe(-1);
-    expect(at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/)).toBe(-1);
+    // Defect caught: the fresh-instance rebuild held back on production, so the
+    // drill never proves on production the replacement that carries the host's
+    // keys; or it runs without the password its key read and a live host's
+    // stop need; or the bootstrap that stands on it runs before it.
+    expect(dark.status, dark.out).toBe(0);
+    const replace = at(/^scripts\/bootstrap-host\.sh --target production --replace-instance$/);
+    expect(replace).toBeGreaterThan(restore);
+    expect(stepCalls()[replace].line).toBe(PASSWORD);
+    expect(at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/)).toBeGreaterThan(replace);
     const result = (id: string) => rows().find((c) => c[3] === id)?.[5];
-    expect(result('p90m')).toBe('blocked');
-    expect(result('p90n')).toBe('skipped (needs p90m)');
-    expect(result('p90q')).toBe('skipped (needs p90m)');
-    for (const id of ['p90o', 'p90p', 'p90r', 'p90s']) expect(result(id), id).toBe('ok');
+    for (const id of ['p90m', 'p90n', 'p90o', 'p90p', 'p90q', 'p90r', 'p90s']) expect(result(id), id).toBe('ok');
     expect(at(/restore-db\.sh --target production --drill --bucket footbag-production-db-snapshots-dr/)).toBeGreaterThan(-1);
     expect(at(/^deploy_to_aws\.sh --target production --all-data/)).toBe(-1);
-
-    // Resumed past the block, the dependents stay skipped: the rebuild they
-    // stand on still has not happened.
-    writeFileSync(stubLog, '');
-    const resumed = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90n']);
-    expect(resumed.status, resumed.out).toBe(3);
-    expect(at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/)).toBe(-1);
   });
 
   // Defect caught: a dependency gate that skips whatever the log says, so the
-  // restore onto the fresh instance never runs once the rebuild is done.
-  it('runs a step whose dependency is recorded done', () => {
+  // restore onto the fresh instance never runs once the rebuild is done; or one
+  // that runs it with no rebuild recorded, so it lands on the old host.
+  it('runs a step whose dependency is recorded done, and skips it until then', () => {
     sit(['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a']);
-    // The rebuild recorded done, as it will be once its script carries the keys.
+    writeFileSync(stubLog, '');
+    const before = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90n']);
+    expect(before.status, before.out).toBe(3);
+    expect(rows().find((c) => c[3] === 'p90n')?.[5]).toBe('skipped (needs p90m)');
+    expect(at(/^scripts\/bootstrap-host\.sh --target production --restore-database$/)).toBe(-1);
+    // The rebuild recorded done.
     writeFileSync(logReal, `${log().trimEnd()}\n| 2026-11-24T00:00:00Z | 2026-11-24T01:00:00Z | production | p90m | scripts/bootstrap-host.sh --target production --replace-instance | ok |  |\n`);
     const r = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90n']);
     expect(r.status, r.out).toBe(0);
@@ -1368,6 +1388,24 @@ describe('the production steps around email, the zero-logins gate and the archiv
   // Defect caught: the zero-logins wait shorter than the alarm's two clean
   // hours after the sign-in a few steps earlier, so the step times out on a
   // healthy alarm.
+  // Defect caught: production's fresh-instance bootstrap refused forever by
+  // the backup alarms its missing database raises, or its snapshot restore
+  // let through backup alarms that mean a real backup failure.
+  it('lets the backup alarms through only around the fresh instance\'s bootstrap', () => {
+    const lines = dry().split('\n');
+    const around = (id: string) => {
+      const k = lines.findIndex((l) => new RegExp(`^ {2}${id} `).test(l));
+      expect(k, id).toBeGreaterThan(1);
+      return { before: lines[k - 2], after: lines[k + 1] };
+    };
+    const fresh = around('p90n');
+    expect(fresh.before).toMatch(/before +scripts\/check-env-health\.sh --target production --allow-site-down --fresh-instance$/);
+    expect(fresh.after).toMatch(/after +scripts\/check-env-health\.sh --target production --alarms-only --wait-minutes 25$/);
+    const restore = around('p90f');
+    expect(restore.before).toMatch(/before +scripts\/check-env-health\.sh --target production --allow-site-down$/);
+    expect(restore.after).toMatch(/after +scripts\/check-env-health\.sh --target production --alarms-only --wait-minutes 10$/);
+  });
+
   it('waits long enough for two clean hours after the session check', () => {
     const line = dry().split('\n').find((l) => /^ {2}p13n /.test(l))!;
     expect(Number(line.match(/--wait-minutes (\d+)/)![1])).toBeGreaterThanOrEqual(180);
@@ -1492,6 +1530,15 @@ describe('the production steps around email, the zero-logins gate and the archiv
       ['footbag-production-alarm-feed\t', 'footbag-production-alarm-feed-dlq\t'],
       ['footbag-production-ses-feedback-feed', 'footbag-production-ses-feedback-feed-dlq'],
     ]],
+    // The restore drill reports its counts and does not judge them; the sitting
+    // does. Defect caught: a drill of an empty or history-less snapshot (the
+    // placeholder, a database never loaded) recorded as a proven restore.
+    ['p08a', 'scripts/restore-db.sh --target production --drill', [
+      '  RESTORE DRILL PASSED on host', '  Members:       12', '  Payments:      0', '  Newest audit:  2026-11-24T10:00:00.000Z',
+    ], [
+      ['  Members:       12', '  Members:       0'],
+      ['  Newest audit:  2026-11-24T10:00:00.000Z', '  Newest audit:  none'],
+    ]],
   ] as const)('%s passes only on the expected state', (id, match, good, breaks) => {
     const lines = good.join('\n');
     writeRules([{ match, stdout: lines.replace(/\n/g, '\\n').replace(/\t/g, '\\t') }]);
@@ -1516,7 +1563,7 @@ describe('the production steps around email, the zero-logins gate and the archiv
       expect(f.length, row).toBeGreaterThanOrEqual(5);
       expect(f.length, row).toBeLessThanOrEqual(6);
       const [, kind, stdin, proof, cmd, fallback] = f;
-      expect(kind, row).toMatch(/^(read|idem|once|ask|digest|blocked|mailwalk)(\+heavy)?(\+mail)?$/);
+      expect(kind, row).toMatch(/^(read|idem|once|ask|digest|blocked|mailwalk)(\+heavy(\+fresh)?)?(\+mail)?$/);
       expect(stdin, row).toMatch(/^(cred|tty|-)$/);
       expect(proof, row).toMatch(/^(-|log|rerun|save|match|fact=\S+|after=\S+|stdout=.+|(cred|tty):[0-9,]+=.+)$/);
       if (!/^(ask|blocked)/.test(kind)) expect(cmd, row).toMatch(runnable);
@@ -1644,8 +1691,59 @@ describe('the run lock, the mute on any exit, and lapsed rows', () => {
   });
 
   // Defect caught: a switch read that passes whichever way the switch reads.
+  // Defect caught: a staging switch read run without a profile, so it never
+  // reads the parameter store and its proof can never pass, stopping every
+  // staging pass at the arming reads; or a switch change run without one, so
+  // the Stripe credentials are attested at the terminal rather than checked.
+  it('passes the staging arming reads when the switch moves dark and back to armed', () => {
+    const r = sit(['--target', 'staging', '--from-step', 's08a', '--to-step', 's08e']);
+    expect(r.status, r.out).toBe(0);
+    expect(rows().filter((row) => /^s08[ace]$/.test(row[3]) && row[5] === 'ok').map((row) => row[3])).toEqual(['s08a', 's08c', 's08e']);
+  });
+
+  // Defect caught: the first staging switch read recorded ok when the switch
+  // could not be read at all, so the pass starts from a state nobody saw.
+  it('fails the first staging arming read when the switch is unreadable', () => {
+    writeRules([{ match: 'scripts/arming.sh --target staging --status --profile footbag-operator', stdout: 'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): <unreadable>' }]);
+    const r = sit(['--target', 'staging', '--from-step', 's08a', '--to-step', 's08a']);
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT s08a/);
+  });
+
+  // Defect caught: every staging drill of a restored database, and the drills
+  // on production's fresh instance, recorded ok on a snapshot with no members.
+  it('judges every restore drill on its members and its newest audit row', () => {
+    const text = readFileSync(SCRIPT, 'utf-8');
+    const drills = [...text.matchAll(/^ {2}'([ps][0-9][^|']*)\|[^']*restore-db\.sh --target \w+ --drill[^']*'$/gm)];
+    expect(drills.map((m) => m[1])).toEqual(['s11g', 's11m', 'p08a', 'p08b', 'p90j', 'p90p', 'p3-5a', 'p3-5b']);
+    for (const m of drills) {
+      expect(m[0], m[1]).toMatch(/\|stdout=\^  Members: \+\[1-9\]/);
+      expect(m[0], m[1]).toMatch(/Newest audit: \+\[0-9\]\{4\}-/);
+    }
+  });
+
+  // Defect caught: production's fresh instance recorded rebuilt without the
+  // reads staging's gets (sshd hardened, the host values whole, the site served),
+  // so a lesson proved on staging never reaches production.
+  it('proves production\'s fresh instance hardened, wired and serving, as staging\'s is', () => {
+    const text = readFileSync(SCRIPT, 'utf-8');
+    const ids = (re: RegExp) => [...text.matchAll(re)].map((m) => m[1]);
+    const after = (first: string) => {
+      const rows = [...text.matchAll(/^ {2}'([ps][0-9][^|']*)\|[^|]*\|([^|]*)\|[^|]*\|([^|']*)/gm)];
+      const at = rows.findIndex((m) => m[1] === first);
+      return rows.slice(at + 1, at + 4).map((m) => `${m[2]} ${m[3].replace(/--target \w+/, '--target <t>')}`);
+    };
+    expect(ids(/^ {2}'(s11[a-z])\|[^']*--restore-database'$/gm)).toEqual(['s11k']);
+    expect(after('s11n')).toEqual([
+      'cred scripts/harden-sshd.sh --target <t> --expect-hardened',
+      'cred scripts/verify-host-env.sh --target <t>',
+      'tty npm run test:deployed -- --target <t>',
+    ]);
+    expect(after('p90q')).toEqual(after('s11n'));
+  });
+
   it('fails the staging arming reads on the wrong state', () => {
-    writeRules([{ match: 'scripts/arming.sh --target staging --status', stdout: 'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): armed' }]);
+    writeRules([{ match: 'scripts/arming.sh --target staging --status --profile footbag-operator', stdout: 'tfvars (x.tfvars): payments_armed = armed\\nSSM  (/footbag/staging/app/payments_armed): armed' }]);
     const r = sit(['--target', 'staging', '--from-step', 's08a', '--to-step', 's08e']);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/VERDICT: STOPPED AT s08c/);

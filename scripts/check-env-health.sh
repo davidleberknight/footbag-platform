@@ -37,6 +37,7 @@
 #
 #   bash scripts/check-env-health.sh --target staging
 #   bash scripts/check-env-health.sh --target staging --alarms-only --wait-minutes 10
+#   bash scripts/check-env-health.sh --target staging --allow-site-down --fresh-instance
 #   bash scripts/check-env-health.sh --target production --min-burst 30
 #
 # Flags:
@@ -49,6 +50,14 @@
 #                                  or restore, which exists to end them. The
 #                                  host's CPU, memory and disk alarms and the
 #                                  backup alarms still stop it.
+#   --fresh-instance               also count footbag-<target>-db-backup-stale
+#                                  and footbag-<target>-db-backup-failing as
+#                                  warnings: the read before the bootstrap of a
+#                                  fresh instance. Such an instance holds no
+#                                  database yet, so its backups cannot run and
+#                                  those alarms stay in ALARM until the step
+#                                  restores the database they read. Every other
+#                                  critical alarm still stops it.
 #   --wait-minutes <n>             wait up to n minutes for critical alarms to
 #                                  return to OK before judging them (0).
 #
@@ -77,6 +86,7 @@ TARGET=""
 MIN_BURST=50
 ALARMS_ONLY=0
 ALLOW_SITE_DOWN=0
+FRESH_INSTANCE=0
 WAIT_MINUTES=0
 
 usage() {
@@ -90,6 +100,7 @@ while [[ $# -gt 0 ]]; do
     --min-burst) MIN_BURST="${2:-}"; shift 2 || { cr_error "--min-burst requires an argument"; exit 2; } ;;
     --alarms-only) ALARMS_ONLY=1; shift ;;
     --allow-site-down) ALLOW_SITE_DOWN=1; shift ;;
+    --fresh-instance) FRESH_INSTANCE=1; shift ;;
     --wait-minutes) WAIT_MINUTES="${2:-}"; shift 2 || { cr_error "--wait-minutes requires an argument"; exit 2; } ;;
     -h|--help) usage 0 ;;
     *) cr_error "unknown argument '$1' (try --help)"; exit 2 ;;
@@ -155,6 +166,16 @@ site_down_alarm() {
   esac
   return 1
 }
+# The alarms a fresh instance raises because it holds no database to back up:
+# what its bootstrap ends by restoring one. Matched by exact name, so any other
+# backup alarm (a failing promotion) still counts as it is.
+fresh_instance_alarm() {
+  local p="footbag-${TARGET}-"
+  case "$1" in
+    "${p}db-backup-stale"|"${p}db-backup-failing") return 0 ;;
+  esac
+  return 1
+}
 read_alarms() {
   local listing name actions
   CRITICAL=(); OTHERS=()
@@ -165,6 +186,7 @@ read_alarms() {
   while IFS=$'\t' read -r name actions; do
     [[ -n "$name" ]] || continue
     if (( ALLOW_SITE_DOWN )) && site_down_alarm "$name"; then OTHERS+=("$name"); continue; fi
+    if (( FRESH_INSTANCE )) && fresh_instance_alarm "$name"; then OTHERS+=("$name"); continue; fi
     if [[ ",${actions}," == *"${CRITICAL_TOPIC},"* ]]; then CRITICAL+=("$name"); else OTHERS+=("$name"); fi
   done <<<"$listing"
 }

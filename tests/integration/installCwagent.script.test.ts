@@ -144,6 +144,11 @@ describe.each(INSTALLERS)('$script — the pinned agent package and a rebuilt ho
     expect(r.stderr).toMatch(/--retire AKIAEXAMPLEEXAMPLE02/);
     expect(r.stderr).toMatch(/--delete AKIAEXAMPLEEXAMPLE02/);
     expect(readFileSync(join(stubDir, 'calls.log'), 'utf-8')).not.toMatch(/create-access-key/);
+    // The bootstrap mints no key, so pointing the operator at it would leave
+    // them re-running a step that stops on the same host; the route that
+    // avoids the state is the replacement, which carries the keys.
+    expect(r.stderr).not.toMatch(/bootstrap-host\.sh --target \w+ runs/);
+    expect(r.stderr).toMatch(new RegExp(`bootstrap-host\\.sh --target ${environment} --replace-instance`));
   });
 
   it('upgrades the agent keeping the key the host holds, minting nothing and sending no key', () => {

@@ -47,6 +47,12 @@
 # burst capacity in hand and no critical alarm firing, and is followed by the
 # same read of the alarms alone, which waits for the step's own expected alarms
 # to clear; either failing stops the run.
+# A heavy step also carrying "+fresh" (the bootstrap of a fresh instance, which
+# restores its database) gives the read before it --fresh-instance: the instance
+# has no database for its backups to read, so the backup alarms stay in ALARM
+# until this step ends them. The read after it waits 25 minutes rather than 10,
+# long enough for the first backups to run and those alarms, which judge
+# ten-minute periods, to return to OK.
 #
 # THE CREDENTIAL. The host sudo password arrives once, on stdin, from the file
 # the environment's alias selects. It goes on stdin to exactly the steps that
@@ -198,11 +204,11 @@ STAGING_STEPS=(
   's07c|once|tty|log|scripts/provision-ssm-secret.sh --target staging --secret session_secret store'
   's07d|once|cred|log|scripts/deploy-migrate.sh --target staging --migration {PROBE_CLEANUP<s05c}'
   's07e|ask|-|log|Session check (2 of 2). Reload the tab where you signed in at s07a. You should now be signed out; sign in again with your password. Were you signed out, and did signing in again work? Answer yes only if both are true.'
-  's08a|read|tty|-|scripts/arming.sh --target staging --status'
-  's08b|idem|tty|rerun|scripts/arming.sh --target staging --state dark'
-  's08c|read|tty|stdout=^tfvars .*: payments_armed = dark$ && ^SSM  \(/footbag/staging/app/payments_armed\): dark$|scripts/arming.sh --target staging --status'
-  's08d|idem|tty|rerun|scripts/arming.sh --target staging --state armed'
-  's08e|read|tty|stdout=^tfvars .*: payments_armed = armed$ && ^SSM  \(/footbag/staging/app/payments_armed\): armed$|scripts/arming.sh --target staging --status'
+  's08a|read|tty|stdout=^SSM  \(/footbag/staging/app/payments_armed\): [a-z]+$|scripts/arming.sh --target staging --status --profile footbag-operator'
+  's08b|idem|tty|rerun|scripts/arming.sh --target staging --state dark --profile footbag-operator'
+  's08c|read|tty|stdout=^tfvars .*: payments_armed = dark$ && ^SSM  \(/footbag/staging/app/payments_armed\): dark$|scripts/arming.sh --target staging --status --profile footbag-operator'
+  's08d|idem|tty|rerun|scripts/arming.sh --target staging --state armed --profile footbag-operator'
+  's08e|read|tty|stdout=^tfvars .*: payments_armed = armed$ && ^SSM  \(/footbag/staging/app/payments_armed\): armed$|scripts/arming.sh --target staging --status --profile footbag-operator'
   's09e|idem|tty|rerun|scripts/admin-bootstrap-token.sh --target staging cleanup'
   's09f|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target staging status'
   's10a|once+mail|cred|log|scripts/incident-drill.sh --target staging'
@@ -214,16 +220,16 @@ STAGING_STEPS=(
   's11d|once|tty|log|deploy_to_aws.sh --target staging'
   's11e|read|cred|-|scripts/bootstrap-host.sh --target staging --status'
   's11f|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
-  's11g|read|cred|-|scripts/restore-db.sh --target staging --drill'
+  's11g|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target staging --drill'
   's11h|ask+mail|-|log|Alarm check, snapshot restore. Since s11c began, the operations mailbox should hold an IAM-write or alerting-disabled alarm email only for an apply the restore or the deploy made, and a break-glass alarm email for each host-key read the restore made. Does every such email match one of those?'
   's11i|once|cred|log|scripts/restore-host.sh --target staging --delete-old'
-  's11j|once|tty|log|scripts/bootstrap-host.sh --target staging --replace-instance'
+  's11j|once|cred|log|scripts/bootstrap-host.sh --target staging --replace-instance'
   # The fresh instance comes back the way a live production's does: the
   # release installed unstarted, the newest backup restored with its erasure
   # replay, then the code deploy, all inside the bootstrap.
-  's11k|idem+heavy|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging --restore-database'
+  's11k|idem+heavy+fresh|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging --restore-database'
   's11l|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
-  's11m|read|cred|-|scripts/restore-db.sh --target staging --drill'
+  's11m|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target staging --drill'
   's11n|ask+mail|-|log|Alarm check, fresh instance. Since s11j began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
   # The fresh instance proved to come back hardened, wired and serving.
   's11o|read|cred|-|scripts/harden-sshd.sh --target staging --expect-hardened'
@@ -263,8 +269,8 @@ PRODUCTION_STEPS=(
   'p07e|read|cred|stdout=^ 2\. Terraform +DONE  && ^ 3\. Payments +N-A +payments dark && ^ 4\. Backup pipeline +DONE  && ^ 8\. Deployed runtime +DONE |scripts/bringup-status.sh --target production --profile footbag-operator'
   'p07f|read|tty|-|scripts/create-stripe-endpoint.sh --target production --mode live --verify'
   'p07g|read|tty|-|scripts/verify-replication.sh --target production'
-  'p08a|read|cred|-|scripts/restore-db.sh --target production --drill'
-  'p08b|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
+  'p08a|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill'
+  'p08b|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
   'p08c|read|cred|-|scripts/pre-cutover-checklist.sh --target production --no-snapshot --skip-tests --skip-dns-ttl'
   'p07h|read|tty|-|scripts/apply-snapshot-retention.sh --target production --verify --profile footbag-operator'
   'p07i|read|tty|-|scripts/apply-bucket-tls-baseline.sh --verify-only --profile footbag-operator'
@@ -384,16 +390,21 @@ PRODUCTION_STEPS=(
   'p90g1|read|tty|-|npm run test:deployed -- --target production'
   'p90h|read|cred|-|scripts/bootstrap-host.sh --target production --status'
   'p90i|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
-  'p90j|read|cred|-|scripts/restore-db.sh --target production --drill'
+  'p90j|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill'
   'p90k|ask+mail|-|log|Alarm check, snapshot restore. Since p90f began, the operations mailbox should hold an IAM-write or alerting-disabled alarm email only for an apply the restore or the deploy made, and a break-glass alarm email for each host-key read the restore made. Does every such email match one of those?'
   'p90l|once|cred|log|scripts/restore-host.sh --target production --delete-old'
-  'p90m|blocked|-|-|The fresh-instance rebuild on production: bootstrap-host.sh --replace-instance does not yet carry the outgoing host'"'"'s keys onto the new instance, so the rebuild would mint new keys and ask for the vault to be updated'
+  'p90m|once|cred|log|scripts/bootstrap-host.sh --target production --replace-instance'
   # As on staging, the fresh instance comes back the way it will after go-live,
   # which also keeps the first-admin claim and the rest of pass 1's database.
-  'p90n|idem+heavy|cred|cred:0=scripts/bootstrap-host.sh --target production --status|scripts/bootstrap-host.sh --target production --restore-database'
+  'p90n|idem+heavy+fresh|cred|cred:0=scripts/bootstrap-host.sh --target production --status|scripts/bootstrap-host.sh --target production --restore-database'
   'p90o|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
-  'p90p|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
+  'p90p|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
   'p90q|ask+mail|-|log|Alarm check, fresh instance. Since p90m began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
+  # The fresh instance proved to come back hardened, wired and serving, as
+  # staging's is at s11o to s11q.
+  'p90q1|read|cred|-|scripts/harden-sshd.sh --target production --expect-hardened'
+  'p90q2|read|cred|-|scripts/verify-host-env.sh --target production'
+  'p90q3|read|tty|-|npm run test:deployed -- --target production'
   'p90r|once|tty|log|scripts/restore-bucket.sh --target production --bucket media --drill'
   'p90s|once|tty|log|scripts/restore-bucket.sh --target production --bucket archive --drill'
   'p91|blocked|-|-|The migration case matrix on production: deploy-migrate.sh has no one-off production mode yet'
@@ -474,8 +485,8 @@ PRODUCTION_PASS3_STEPS=(
   'p3-4a|once|tty|log|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator provision'
   'p3-4b|read|tty|stdout=^ABSENT:|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator status --wait-minutes 30'
   'p3-4c|ask|-|log|First administrator identity match: claimed at /admin/bootstrap-claim on preview, have they finished the onboarding wizard claim task, and did it resolve to their historical record (go-live plan step 13a)?'
-  'p3-5a|read|cred|-|scripts/restore-db.sh --target production --drill'
-  'p3-5b|read|cred|-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
+  'p3-5a|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill'
+  'p3-5b|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
 )
 
 # What a step stands on, as "<step>:<the step it needs>" pairs. A step whose
@@ -508,10 +519,11 @@ for pair in $NEEDS_PAIRS; do
 done
 
 # One record into the step fields.
-S_ID=""; S_KIND=""; S_STDIN=""; S_PROOF=""; S_CMD=""; S_FALLBACK=""; S_MAIL=0
+S_ID=""; S_KIND=""; S_STDIN=""; S_PROOF=""; S_CMD=""; S_FALLBACK=""; S_MAIL=0; S_HEAVY=0; S_FRESH=0
 parse_step() {
   IFS='|' read -r S_ID S_KIND S_STDIN S_PROOF S_CMD S_FALLBACK <<<"$1"
-  S_MAIL=0; S_HEAVY=0
+  S_MAIL=0; S_HEAVY=0; S_FRESH=0
+  if [[ "$S_KIND" == *+fresh* ]]; then S_KIND="${S_KIND/+fresh/}"; S_FRESH=1; fi
   if [[ "$S_KIND" == *+heavy* ]]; then S_KIND="${S_KIND/+heavy/}"; S_HEAVY=1; fi
   if [[ "$S_KIND" == *+mail ]]; then S_KIND="${S_KIND%+mail}"; S_MAIL=1; fi
 }
@@ -522,8 +534,18 @@ parse_step() {
 # Lightsail host with its burst spent runs at baseline CPU, where a heavy step
 # crawls, times out and fails; and an alarm fired during a long run is only
 # email unless the run stops on it.
-health_before() { printf 'scripts/check-env-health.sh --target %s --allow-site-down' "$TARGET"; }
-health_after()  { printf 'scripts/check-env-health.sh --target %s --alarms-only --wait-minutes 10' "$TARGET"; }
+# A fresh instance's bootstrap also lets the backup alarms through before it
+# and waits longer after it, for the reason the header gives under "+fresh".
+health_before() {
+  printf 'scripts/check-env-health.sh --target %s --allow-site-down' "$TARGET"
+  (( S_FRESH )) && printf ' --fresh-instance'
+  return 0
+}
+health_after() {
+  local minutes=10
+  (( S_FRESH )) && minutes=25
+  printf 'scripts/check-env-health.sh --target %s --alarms-only --wait-minutes %s' "$TARGET" "$minutes"
+}
 # The alarms a heavy step is expected to trip are muted for it, so the one that
 # matters is not buried in their mail. Every way the run ends lifts it, an
 # interrupt included; it also ends on its own after four hours, longer than the
@@ -583,7 +605,7 @@ if [[ "$MODE" == dry ]]; then
   echo "The ${TARGET} pass ${PASS}, in order (nothing is run, read or written):"
   for (( i = FIRST; i <= LAST; i++ )); do
     parse_step "${STEPS[$i]}"
-    kind="$S_KIND"; (( S_HEAVY )) && kind+="+heavy"; (( S_MAIL )) && kind+="+mail"
+    kind="$S_KIND"; (( S_HEAVY )) && kind+="+heavy"; (( S_FRESH )) && kind+="+fresh"; (( S_MAIL )) && kind+="+mail"
     (( S_HEAVY )) && printf '  %-5s %-9s %s\n' "" "before" "$(health_before)" "" "mute" "$(mute_cmd)"
     case "$S_KIND" in
       ask|blocked) printf '  %-5s %-9s %s\n' "$S_ID" "$kind" "$S_CMD" ;;

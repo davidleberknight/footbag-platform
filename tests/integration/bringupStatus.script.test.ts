@@ -843,6 +843,8 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
     `DB_SCHEMA_BASELINE=${SCHEMA_SHA}`, 'DB_ADMINS=1',
     'HOST_ENV_VERIFY=ok',
     'PIN=current', 'IAM_SRC_KEYS=AKIAEXAMPLEEXAMPLE01', 'IAM_CW_KEYS=AKIAEXAMPLEEXAMPLE01', 'CW_METRICS=ok',
+    // The workstation reads each user's inactive keys apart, and finds none.
+    'IAM_SRC_INACTIVE=', 'IAM_CW_INACTIVE=',
     'SNAPSHOT=ok', 'FEEDS_FLAG=false', 'MARKER=false',
   ];
 

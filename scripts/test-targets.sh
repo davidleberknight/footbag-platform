@@ -989,6 +989,19 @@ map_path() {
       add_check "bash scripts/ci/assert_conventions.sh"
       collect naming "$base" || note "$p is checked only by the full gate"
       return ;;
+    scripts/internal/*.sh)
+      # A remote half or a sourced step library is driven through the scripts
+      # that send or source it, so their companion tests are its tests, as well
+      # as any suite naming it.
+      add_check "bash scripts/ci/assert_conventions.sh"
+      local internal_found=1 u
+      collect naming "$base" && internal_found=0
+      while IFS= read -r u; do
+        [ -n "$u" ] || continue
+        collect script_tests "$(basename "$u")" && internal_found=0
+      done < <(grep -rlF --include='*.sh' -- "internal/$base" scripts 2>/dev/null | grep -v "^$p\$" || true)
+      (( internal_found == 0 )) || no_tests "$p"
+      return ;;
     scripts/*.sh|run_all_tests.sh|run_dev.sh|*.sh)
       add_check "bash scripts/ci/assert_conventions.sh"
       collect script_tests "$base" || no_tests "$p"

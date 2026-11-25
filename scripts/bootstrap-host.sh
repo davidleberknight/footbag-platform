@@ -52,16 +52,15 @@
 #    6  set-host-env.sh: the host's FOOTBAG_ENV record. From here every step
 #       first asks the host which environment it is.
 #    7  the database directory, owned by the containers' account.
-#    8  install-host-credentials.sh --rotate, the host proving its own chain,
-#       then --retire for the dead host's key. A key is deleted only on a later
-#       run, once it has been seen inactive, never in the run that retired it,
-#       and nothing is retired while the host's own key id reads empty. A user
-#       holding two keys while the host holds neither, which no rotation can
-#       mint past, has one of them retired without the host's proof, since
-#       nothing here uses either; the rotation follows once it is deleted.
-#    9  install-cwagent-<target>.sh: --upgrade when only the pinned version
-#       moved, keeping the agent's key; --rotate when the host holds none of the
-#       publisher's keys; its metrics proved, then the same retirement.
+#    8  the host proving its own credential chain with the key it holds, which
+#       a replacement carried over. Nothing is minted or retired: a chain that
+#       does not resolve stops the run, naming install-host-credentials.sh
+#       --rotate as the maintainer's call.
+#    9  install-cwagent-<target>.sh --upgrade when the agent is missing,
+#       stopped or off its pinned version, keeping the key the host holds; then
+#       a bounded wait for metrics published after that install to arrive. An
+#       agent holding none of the publisher's active keys stops the run, naming
+#       its --rotate as the maintainer's call.
 #   10  the first deploy, and again on staging or a production not yet live
 #       whose database was built from a schema file other than the one this
 #       release carries, since a code-only deploy never reapplies the schema; a
@@ -103,9 +102,10 @@
 #
 #   - A target it was not given. There is no default.
 #   - Any identity but the directly authenticated footbag-operator user: the
-#     run mints and retires keys and applies the identity tree.
+#     run applies the identity tree and reads the IAM users' keys.
 #   - A run with no terminal, before anything changes: it asks for typed
-#     confirmations and shows each minted key once.
+#     confirmations.
+#   - Minting, retiring or deleting a host access key, on any route.
 #   - A tool-version list still holding a placeholder pin, before anything
 #     changes.
 #   - An alias whose HostName is not the address Terraform reports.
@@ -136,6 +136,33 @@
 # deleted by this script: once taken it is AWS's record, and the fresh instance
 # is bootstrapped next by a plain run of this script.
 #
+# THE HOST'S AWS ACCESS KEYS. Whether a host access key rotates is the
+# maintainer's decision, so no run of this script mints, retires or deletes one.
+# --replace-instance carries both keys the host holds (the source-profile key in
+# /root/.aws/credentials with its /root/.aws/config, and the CloudWatch agent's
+# key in /etc/amazon-cloudwatch-agent.aws/credentials): before the typed APPLY
+# it reads the three files off the host and checks each key id is an active key
+# of its IAM user, refusing with nothing changed when the host cannot be read
+# or holds no such file, since a lost host is reinstalled from the vault rather
+# than by this route. After the apply it pins the new instance's host key from
+# the Lightsail API, again on every try until the instance answers its first
+# login as ec2-user on port 22, since a booting instance may report no key yet;
+# then it installs the files there,
+# root-owned, and proves the runtime profile resolves the runtime role. The
+# content is held in one restricted file in the run's private temp directory,
+# never in an argument or a log, and shredded on every way out. A run that ends
+# after the apply and before that proof says the keys are live in IAM and on no
+# host, and names the installers' --rotate as the maintainer's call; it
+# withdraws nothing. A re-run after such a stop pins the host key afresh, since
+# the one on file may be the old instance's, then finds the new instance already
+# holding the carried keys when the install landed, says so, and replaces
+# nothing again. The bootstrap then finds the chain resolving and the agent's
+# key in service: step 8 proves the chain and step 9 upgrades the agent in
+# place. A host whose chain does not resolve, or whose agent holds none of the
+# publisher's keys, stops the bootstrap, naming the installer's --rotate as the
+# maintainer's call. A key the user holds and the host does not use is reported
+# for information, with the installer's --retire and --delete.
+#
 # Usage (the host sudo password is read from stdin, line 1; which file holds it
 # follows the account the alias connects as):
 #
@@ -143,21 +170,25 @@
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bootstrap-host.sh --target production
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/bootstrap-host.sh --target staging --status
 #   < ~/AWS/AWS_OPERATOR.txt bash scripts/bootstrap-host.sh --target staging --restore-database
-#   bash scripts/bootstrap-host.sh --target staging --replace-instance
+#   < ~/AWS/AWS_OPERATOR.txt bash scripts/bootstrap-host.sh --target staging --replace-instance
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/bootstrap-host.sh --target production --replace-instance
 #
 # --status without the redirect still reports the Terraform, pin and AWS rows
-# and reads the host rows as UNKNOWN. --replace-instance reaches the host only on
-# a live production, to stop it and take its last backup, and reads the
-# password from stdin only there.
+# and reads the host rows as UNKNOWN. --replace-instance always reads the
+# password from stdin: it reads the keys off the host, and on a live production
+# also stops it and takes its last backup.
 #
 # Test seams (CI only; operators never set these), each announced on stderr:
 # FOOTBAG_HOST_SSH_BIN (the ssh client, from the shared wire library),
 # BOOTSTRAP_HOST_TF_BIN, BOOTSTRAP_HOST_AWS_BIN, BOOTSTRAP_HOST_SCRIPTS_DIR (the
 # directory the sibling scripts are run from, the sqlite3 build among them),
 # BOOTSTRAP_HOST_TFVARS, FOOTBAG_TOOL_VERSIONS, BOOTSTRAP_HOST_SQLITE3_BIN (a
-# file shipped in place of the built sqlite3), and BOOTSTRAP_HOST_POLL_SECS (the
-# pause between polls of a snapshot or a reboot).
+# file shipped in place of the built sqlite3), BOOTSTRAP_HOST_POLL_SECS (the
+# pause between polls of a snapshot, a reboot, a first login or the agent's
+# metrics), BOOTSTRAP_HOST_FRESH_LOGIN_WAIT_SECS (how long a replacement waits
+# for the new instance's host key and first login, 900 by default) and
+# BOOTSTRAP_HOST_METRICS_WAIT_SECS (how long the bootstrap waits for the agent's
+# metrics after installing it, 600 by default).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -243,8 +274,8 @@ operator_credential_select "$ALIAS" "$TARGET" 2>/dev/null && BH_CRED="$OPERATOR_
 
 # Every mode reaches AWS. The identity is settled and proved before anything
 # else, and held to the directly authenticated operator user: this run applies
-# the identity tree, mints access keys and retires them, none of which the job
-# role may do, and a run that discovered that partway would leave half a host.
+# the identity tree and replaces instances, neither of which the job role may
+# do, and a run that discovered that partway would leave half a host.
 aws_profile_ensure || cr_die "the AWS profile for this run could not be settled; nothing was read or changed"
 aws_identity_require_direct_user footbag-operator \
   || cr_die "this run needs the directly authenticated footbag-operator user; nothing was read or changed"
@@ -381,10 +412,211 @@ if [[ "$MODE" == "replace" ]]; then
   inst_epoch="$(date -u -d "$inst_created" +%s 2>/dev/null)" \
     || cr_die "${INSTANCE} reports no readable creation time ('${inst_row}'). Nothing was changed."
 
+  # The host's AWS access keys are read off it below, and a live host is also
+  # stopped and backed up, so the password is settled before anything is asked
+  # or changed, on every run of this route.
+  require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" "$ALIAS" "$TARGET" \
+    || cr_die "no host sudo password on stdin. Nothing was changed."
+  require_host_ssh_opts || cr_die "the pinned host key for ${ALIAS} is not installed. Nothing was changed."
+
+  # ── The keys this host holds, carried to the new instance ──
+  # Whether a host access key rotates is the maintainer's decision, so this
+  # route mints, retires and deletes none: it reads the two credential files off
+  # the host before anything is destroyed and installs them on the new instance
+  # once it answers. A host that cannot be read is refused here, with nothing
+  # changed: a lost host is reinstalled from the vault, not by this route.
+  #
+  # The content is held in one restricted file in the run's private temp
+  # directory, never in an argument or a log, and shredded on every way out.
+  # Whether a failure leaves the keys on no host depends on how far the run got,
+  # which CARRY_STAGE records for the closing report.
+  CARRY_HALF="${SCRIPT_DIR}/internal/bootstrap-host-carry-remote.sh"
+  CARRY_SRC_USER="footbag-${TARGET}-source-profile"
+  CARRY_CW_USER="footbag-${TARGET}-cwagent-publisher"
+  CARRY_LOGIN_SENTINEL="---FOOTBAG-FRESH-LOGIN-OK---"
+  CARRY_LOGIN_WAIT="${BOOTSTRAP_HOST_FRESH_LOGIN_WAIT_SECS:-900}"
+  if [[ -n "${BOOTSTRAP_HOST_FRESH_LOGIN_WAIT_SECS:-}" ]]; then
+    echo "SYNTHETIC: the wait for the new instance's host key and first login is ${CARRY_LOGIN_WAIT}s -- this run proves nothing about the estate." >&2
+  fi
+  # A session on the new instance that stops answering mid-way is ended here,
+  # rather than holding the run, with the keys' whereabouts unreported, until
+  # someone interrupts it.
+  CARRY_SESSION_SECS=300
+  CARRY_LOGIN_TRY_SECS=60
+  CARRY_STAGE=none
+  CARRY_SRC_KEY=""
+  CARRY_CW_KEY=""
+  # The five values the read half returns, parsed and checked one by one. The
+  # install stream is written from these, never by replaying the file.
+  CARRY_NAMES=(CARRY_CREDS_B64 CARRY_CONFIG_B64 CARRY_AGENT_B64 CARRY_SRC_KEY CARRY_CW_KEY)
+  declare -A CARRY_VAL=()
+  CARRY_FILE="$(mktemp "$(_cr_tmp)/carry.XXXXXX")"
+  chmod 600 "$CARRY_FILE"
+  carry_shred() {
+    [[ -n "$CARRY_FILE" && -e "$CARRY_FILE" ]] || return 0
+    shred -u "$CARRY_FILE"
+  }
+  cr_cleanup carry_shred
+
+  # The maintainer's call when the keys did not reach the new instance: each
+  # installer's rotation mints a key, installs it and asks for it in the vault.
+  carry_rotation_named() {
+    printf '%s' "the maintainer decides whether to give the new instance new keys: < ${BH_CRED} bash scripts/install-host-credentials.sh --target ${TARGET} --rotate, and < ${BH_CRED} bash scripts/install-cwagent-${TARGET}.sh --rotate"
+  }
+  # Reported on any end after the destroy and before the install proved,
+  # interrupts included. It states the state and withdraws nothing: the keys
+  # stay live in IAM, recorded in the vault, exactly as they were.
+  carry_report_unfinished() {
+    local keys="${CARRY_SRC_KEY} (${CARRY_SRC_USER}) and ${CARRY_CW_KEY} (${CARRY_CW_USER})"
+    case "$CARRY_STAGE" in
+      applying)
+        cr_error "the replacement apply did not finish, so whether ${INSTANCE} still stands is not known here. If it does, re-run this route, which reads its keys again. If it was destroyed, the host AWS access keys ${keys} are live in IAM and on no host; $(carry_rotation_named). Nothing was deleted, deactivated or withdrawn."
+        ;;
+      applied)
+        cr_error "the host AWS access keys ${keys} are live in IAM and on no host: ${INSTANCE} was replaced and they were not installed on the new instance. $(carry_rotation_named). Nothing was deleted, deactivated or withdrawn."
+        ;;
+      installing)
+        cr_error "the run stopped while installing the host AWS access keys ${keys} on the new instance, so whether they reached it is not known here. A re-run of this route proves them there if they did, and replaces nothing again. If they did not, they are live in IAM and on no host; $(carry_rotation_named). Nothing was deleted, deactivated or withdrawn."
+        ;;
+      installed)
+        cr_error "the host AWS access keys ${keys} are installed on the new instance, but its credential chain was not proved there. The bootstrap proves it as its credential step: < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}. Nothing was deleted, deactivated or withdrawn."
+        ;;
+    esac
+    return 0
+  }
+  cr_cleanup carry_report_unfinished
+
+  carry_read_send() {
+    {
+      printf '%s\n' "$SUDO_PASS"
+      printf 'MODE=%q\n' read
+      printf 'TARGET_ENV=%q\n' "$TARGET"
+      cat "$REMOTE_REPORT_LIB" "$CARRY_HALF"
+    } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-bootstrap-carry'
+  }
+  # The fresh instance answers only as ec2-user on port 22, whose sudo takes no
+  # password, so the stream starts with the values: a password line would run
+  # as a command. The carried content goes only on the install, as the five
+  # assignments written from the parsed values, each name fixed here and each
+  # value held to its pattern, so nothing the old host sent reaches the new
+  # one's root shell except those values.
+  carry_fresh_send() {
+    {
+      printf 'MODE=%q\n' "$1"
+      printf 'TARGET_ENV=%q\n' "$TARGET"
+      if [[ "$1" == install ]]; then carry_emit_values; fi
+      cat "$REMOTE_REPORT_LIB" "$CARRY_HALF"
+    } | timeout "$CARRY_SESSION_SECS" "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" -p 22 -l ec2-user "$ALIAS" 'sudo -n bash -s footbag-bootstrap-carry'
+  }
+  carry_emit_values() {
+    local name
+    for name in "${CARRY_NAMES[@]}"; do
+      printf '%s=%s\n' "$name" "${CARRY_VAL[$name]}"
+    done
+  }
+  # Base64 as base64 writes it: the alphabet, a length that is a multiple of
+  # four, and padding only at the end.
+  carry_b64_ok() { [[ "$1" =~ ^[A-Za-z0-9+/]+={0,2}$ ]] && (( ${#1} % 4 == 0 )); }
+  # The id of a long-term IAM user access key, which is what both host keys are.
+  carry_key_id_ok() { [[ "$1" =~ ^AKIA[A-Z0-9]{16}$ ]]; }
+  # Exactly the five lines the read half promises, each once and each ending in
+  # its newline: base64 content and key ids, parsed into CARRY_VAL. Anything
+  # else is refused, a final line without its newline included, which `read`
+  # would otherwise drop unjudged.
+  carry_file_valid() {
+    local line name value
+    CARRY_VAL=()
+    [[ "$(tail -c 1 "$CARRY_FILE" | od -An -tx1 | tr -d ' \n')" == 0a ]] || return 1
+    (( $(wc -l < "$CARRY_FILE") == 5 )) || return 1
+    while IFS= read -r line; do
+      [[ "$line" == *=* ]] || return 1
+      name="${line%%=*}"
+      value="${line#*=}"
+      case "$name" in
+        CARRY_CREDS_B64|CARRY_CONFIG_B64|CARRY_AGENT_B64) carry_b64_ok "$value" || return 1 ;;
+        CARRY_SRC_KEY|CARRY_CW_KEY) carry_key_id_ok "$value" || return 1 ;;
+        *) return 1 ;;
+      esac
+      [[ -z "${CARRY_VAL[$name]+set}" ]] || return 1
+      CARRY_VAL[$name]="$value"
+    done < "$CARRY_FILE"
+    (( ${#CARRY_VAL[@]} == 5 ))
+  }
+  # carry_key_live <user> <key-id>
+  # True when the key is one of the user's active keys. A read that fails is an
+  # error, never a yes.
+  carry_key_live() {
+    local ids
+    ids="$("$BH_AWS_BIN" iam list-access-keys --user-name "$1" \
+        --query 'AccessKeyMetadata[?Status==`Active`].AccessKeyId' --output text </dev/null 2>"${BH_WORK}/aws.err")" || {
+      cr_error "could not read the access keys of ${1} ($(tail -n 1 "${BH_WORK}/aws.err"))."
+      return 1
+    }
+    grep -qxF -- "$2" <<< "$(tr -s '[:space:]' '\n' <<< "$ids")" || {
+      cr_error "${2}, the key the host holds for ${1}, is not one of that user's active keys in IAM."
+      return 1
+    }
+  }
+
+  say "The host AWS access keys on ${ALIAS}, carried to the new instance"
+  if ! require_host_is "$ALIAS" "$TARGET"; then
+    # A re-run after a stop part way: the instance Terraform records may be the
+    # new one, not yet bootstrapped, already holding the carried keys. That is
+    # proved there, as ec2-user, and said; nothing is replaced again. The new
+    # instance has new host keys, and a stop before its pin leaves the old
+    # instance's on file, so the pin is rebuilt from the Lightsail API first.
+    bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$TARGET" </dev/null \
+      || cr_die "the host key for ${ALIAS} could not be pinned from the Lightsail API, so nothing connects to it. Nothing was changed."
+    held=0
+    if capture_send "carried keys on the new instance" carry_fresh_send check \
+        && grep -qx -- '---FOOTBAG-CARRY-HELD---' <<< "$SEND_OUT"; then
+      held=1
+    fi
+    if (( held )); then
+      for k in CARRY_SRC_KEY CARRY_CW_KEY; do
+        printf -v "$k" '%s' "$(grep -m1 "^${k}=" <<< "$SEND_OUT" | cut -d= -f2)"
+        carry_key_id_ok "${!k}" || cr_die "${ALIAS} answered the carried-keys check without a key id for ${k}. Nothing was changed."
+      done
+      if carry_key_live "$CARRY_SRC_USER" "$CARRY_SRC_KEY" && carry_key_live "$CARRY_CW_USER" "$CARRY_CW_KEY"; then
+        if grep -qx -- '---FOOTBAG-CARRY-DEFERRED---' <<< "$SEND_OUT"; then
+          proved "${INSTANCE} is a new instance already holding the carried keys ${CARRY_SRC_KEY} and ${CARRY_CW_KEY}, live in IAM"
+          cr_unproved "the new instance's credential chain: its image has no aws CLI yet, so the bootstrap's credential step proves it"
+        else
+          proved "${INSTANCE} is a new instance already holding the carried keys ${CARRY_SRC_KEY} and ${CARRY_CW_KEY}, live in IAM, and its runtime profile resolves the runtime role"
+        fi
+        echo ""
+        echo "Already replaced, and the keys are carried. Nothing was replaced again; bootstrap it next:"
+        echo "  < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}"
+        cr_finish
+      fi
+      cr_die "${INSTANCE} holds keys that are not live in IAM. Nothing was changed."
+    fi
+    cr_error "${ALIAS} did not answer as the ${TARGET} host, so its AWS access keys could not be read. Nothing was changed."
+    echo "       This route carries the keys of a host that answers. A host that is lost" >&2
+    echo "       is reinstalled from the vault, and a new key for it is the maintainer's" >&2
+    echo "       call: $(carry_rotation_named)." >&2
+    exit 1
+  fi
+  if ! cr_run_marked "read the host AWS access keys on ${ALIAS}" -- carry_read_send > "$CARRY_FILE"; then
+    cr_die "the host AWS access keys could not be read off ${ALIAS}; this route carries only the keys of a host that holds them. Nothing was changed."
+  fi
+  carry_file_valid \
+    || cr_die "${ALIAS} answered the key read with something other than the credential files and their key ids. Nothing was changed."
+  CARRY_SRC_KEY="${CARRY_VAL[CARRY_SRC_KEY]}"
+  CARRY_CW_KEY="${CARRY_VAL[CARRY_CW_KEY]}"
+  carry_key_live "$CARRY_SRC_USER" "$CARRY_SRC_KEY" \
+    || cr_die "the source-profile key on ${ALIAS} is not live in IAM; carrying it would give the new host a chain that cannot work. Nothing was changed."
+  carry_key_live "$CARRY_CW_USER" "$CARRY_CW_KEY" \
+    || cr_die "the CloudWatch agent's key on ${ALIAS} is not live in IAM; carrying it would give the new host an agent that cannot publish. Nothing was changed."
+  CARRY_STAGE=read
+  proved "read ${CARRY_SRC_KEY} (${CARRY_SRC_USER}) and ${CARRY_CW_KEY} (${CARRY_CW_USER}) off ${ALIAS}, each an active key in IAM"
+
   # On production after go-live the instance holds the member database, and the
   # only copy younger than the last backup is on its disk. A snapshot captures
   # it, but a backup in the bucket is what every restore path reads, so one must
-  # be there and fresh before the host is taken away.
+  # be there and fresh before the host is taken away. Judged only once the host
+  # has answered as itself above: a re-run after the replacement, whose old
+  # host and its backup timer are gone, ends at the carried keys instead.
   LIVE=0
   if [[ "$TARGET" == "production" ]]; then
     marker_rc=0
@@ -424,14 +656,6 @@ if [[ "$MODE" == "replace" ]]; then
         cr_die "could not read the production-live marker (${marker}), which decides whether a fresh backup is required first. Nothing was changed."
         ;;
     esac
-  fi
-
-  # A live host is stopped and backed up below, which needs the host and its
-  # password, so both are settled before anything is asked or changed.
-  if (( LIVE )); then
-    require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" "$ALIAS" "$TARGET" \
-      || cr_die "no host sudo password on stdin. Nothing was changed."
-    require_host_is "$ALIAS" "$TARGET" || cr_die "${ALIAS} is not the ${TARGET} host. Nothing was changed."
   fi
 
   # How old a snapshot may be when the apply wrapper reads it. The wrapper
@@ -476,6 +700,9 @@ if [[ "$MODE" == "replace" ]]; then
   echo "  ${snap}"
   echo "and the replacement goes ahead only once that snapshot is complete. The"
   echo "snapshot is kept: it is the way back to the host as it is now."
+  echo "The host's AWS access keys, ${CARRY_SRC_KEY} and ${CARRY_CW_KEY}, were read off it"
+  echo "and are installed on the new instance once it answers. No key is minted,"
+  echo "retired or deleted."
   echo ""
   confirm_from_tty "Type 'APPLY' to snapshot and replace ${INSTANCE}: " "APPLY" \
     || cr_die "not confirmed. Nothing was changed."
@@ -532,6 +759,9 @@ if [[ "$MODE" == "replace" ]]; then
   proved "Lightsail reports ${snap} complete, $(( HS_AGE / 60 )) minutes old"
 
   say "Replacing ${INSTANCE} through the apply wrapper"
+  # From here the old instance may be gone, and with it the only host holding
+  # the keys, so every end from here until the install proves is reported.
+  CARRY_STAGE=applying
   bash "${BH_SCRIPTS}/terraform-apply.sh" --target "$TARGET" \
     --replace aws_lightsail_instance.web --instance-snapshot "$snap" </dev/null || {
     cr_error "the replacement apply did not complete. The snapshot ${snap} is kept."
@@ -542,20 +772,87 @@ if [[ "$MODE" == "replace" ]]; then
     fi
     exit 1
   }
+  CARRY_STAGE=applied
   proved "the apply wrapper replaced ${INSTANCE} from ${snap}"
+
+  # The new instance has new host keys, so the pin is rebuilt from the Lightsail
+  # API before anything connects to it, as the bootstrap's own pin step does.
+  # Lightsail may report no key for an instance still booting, and a new
+  # instance takes a few minutes to start sshd, so the pin and the first login,
+  # ec2-user on port 22, are tried together until both answer. A try that fails
+  # is this wait's to judge, not the run's: its report goes to a private file,
+  # and only the last reason is kept for the closing report.
+  say "Waiting for the new instance's host key and first login (ec2-user, port 22)"
+  carry_deadline=$(( $(date +%s) + CARRY_LOGIN_WAIT ))
+  carry_said=""
+  # In the run's own scratch, so an interrupt mid-try leaves nothing behind.
+  carry_pin_report="${BH_WORK}/pin-report"
+  while :; do
+    carry_rc=0
+    : > "$carry_pin_report"
+    if FOOTBAG_CR_REPORT_TO="$carry_pin_report" bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$TARGET" </dev/null; then
+      carry_out="$(timeout "$CARRY_LOGIN_TRY_SECS" "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" -p 22 -l ec2-user "$ALIAS" "echo ${CARRY_LOGIN_SENTINEL}" </dev/null 2>&1)" || carry_rc=$?
+      grep -qxF -- "$CARRY_LOGIN_SENTINEL" <<< "$carry_out" && break
+      carry_said="$(grep -v '^[[:space:]]*$' <<< "$carry_out" | tail -n 1 || [[ $? == 1 ]])"
+    else
+      carry_rc=$?
+      carry_said="the host key could not be pinned from the Lightsail API: $(bh_reason "" "$carry_pin_report")"
+    fi
+    (( $(date +%s) < carry_deadline )) \
+      || cr_die "the new instance did not take its host key pin and answer ec2-user on port 22 within ${CARRY_LOGIN_WAIT}s (exit ${carry_rc}: ${carry_said:-no reason given})."
+    sleep "$POLL_SECS"
+  done
+  proved "the new instance answers ec2-user on port 22 with the host key pinned from the Lightsail API"
+
+  say "Installing the carried keys on the new instance"
+  # Judged on what the half reports it did, not on the session's exit alone: a
+  # half that installed the files and then failed its proof leaves the keys on
+  # the new instance, which the closing report must say rather than "on no host".
+  # The session carries the keys, so only the lines the half marked are kept:
+  # its problems into the report, and its ---FOOTBAG-CARRY-*--- markers into a
+  # file of this run's own, read below. A session that ends without saying
+  # whether it installed anything leaves the stage at installing: the keys may
+  # or may not be on the new instance.
+  CARRY_MARKS="$(mktemp "${BH_WORK}/carry-marks.XXXXXX")"
+  carry_install_marked() {
+    carry_fresh_send install | cr_keep_marked "$CARRY_MARKS"
+    return "${PIPESTATUS[0]}"
+  }
+  carry_rc=0
+  CARRY_STAGE=installing
+  cr_run_marked "install the carried keys on the new instance" -- carry_install_marked || carry_rc=$?
+  if grep -qx -- '---FOOTBAG-CARRY-INSTALLED---' "$CARRY_MARKS"; then
+    CARRY_STAGE=installed
+  elif grep -qx -- '---FOOTBAG-CARRY-NOTHING-INSTALLED---' "$CARRY_MARKS"; then
+    CARRY_STAGE=applied
+  fi
+  # An image without the aws CLI yet cannot prove the chain on the instance; the
+  # half then proves the key ids the files hold and defers the chain to the
+  # bootstrap's credential step, which installs the CLI first.
+  carry_deferred=0
+  grep -qx -- '---FOOTBAG-CARRY-DEFERRED---' "$CARRY_MARKS" && carry_deferred=1
+  { grep -qx -- '---FOOTBAG-CARRY-PROVED---' "$CARRY_MARKS" || (( carry_deferred )); } && (( carry_rc == 0 )) \
+    || cr_die "the carried keys were not proved on the new instance (the install session ended with exit ${carry_rc})."
+  CARRY_STAGE=proved
+  carry_shred
+  if (( carry_deferred )); then
+    proved "the new instance holds ${CARRY_SRC_KEY} and ${CARRY_CW_KEY}, carried from the old host; no key was minted, retired or deleted"
+    cr_unproved "the new instance's credential chain: its image has no aws CLI yet, so the bootstrap's credential step proves it"
+  else
+    proved "the new instance holds ${CARRY_SRC_KEY} and ${CARRY_CW_KEY}, carried from the old host, and its runtime profile resolves the runtime role; no key was minted, retired or deleted"
+  fi
   echo ""
-  echo "Replaced. The new instance is empty; bootstrap it next:"
+  echo "Replaced, with the host's AWS access keys carried over. Bootstrap it next:"
   echo "  < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}"
-  cr_unproved "the new instance: it is empty until this script bootstraps it"
+  cr_unproved "the rest of the new instance: it is bare until this script bootstraps it"
   cr_finish
 fi
 
 # ── The bootstrap ────────────────────────────────────────────────────────────
 
-# Refused before anything changes: the confirmations below are typed, and each
-# minted key is shown once on a terminal.
+# Refused before anything changes: the confirmations below are typed.
 terminal_present \
-  || cr_die "the bootstrap asks for typed confirmations and shows each minted key once, so it needs a terminal. Nothing was changed."
+  || cr_die "the bootstrap asks for typed confirmations, so it needs a terminal. Nothing was changed."
 require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET}" "$ALIAS" "$TARGET" \
   || cr_die "no host sudo password on stdin. Nothing was changed."
 
@@ -690,72 +987,6 @@ host_step() {
   proved "${title}: ${BH_DETAIL}"
 }
 
-# The keys this run deactivated. None of them is deleted by this run: a key is
-# deleted only once a later run has seen it inactive, so whatever still held it
-# has had the time between to fail visibly while it could still be switched back.
-RETIRED_THIS_RUN=""
-
-# retire_dead_keys <installer> <keys> <inactive> <host-key> [installer args...]
-# Every key on the user that the host does not hold: an active one is retired
-# with the installer's own --retire, which makes the host prove itself first and
-# refuses the host's own key; one already inactive when it was read, and not by
-# this run's doing, is deleted. Each asks for its own APPLY. Nothing is touched
-# while the host's own key id reads empty, because then every key looks unused.
-retire_dead_keys() {
-  local installer="$1" keys="$2" inactive="$3" host_key="$4" k
-  shift 4
-  local args=("$@")
-  if [[ -z "$host_key" ]]; then
-    cr_error "the host's own key id reads empty, so the key it uses cannot be told apart from the ones it does not. Nothing was retired."
-    return 1
-  fi
-  for k in $(bh_extra_keys "$keys" "$host_key"); do
-    if bh_has_word "$RETIRED_THIS_RUN" "$k"; then
-      echo "    ${k} was retired by this run; a later run deletes it once it reads inactive"
-    elif bh_has_word "$inactive" "$k"; then
-      say "Deleting ${k}: inactive since an earlier run, and the host does not use it"
-      bash "${BH_SCRIPTS}/${installer}" ${args[@]+"${args[@]}"} --delete "$k" </dev/null || return 1
-    else
-      say "Retiring ${k}, which the host does not use"
-      with_pass "${BH_SCRIPTS}/${installer}" ${args[@]+"${args[@]}"} --retire "$k" || return 1
-      RETIRED_THIS_RUN+=" ${k}"
-      echo "    ${k} is inactive now; re-run this script later and it is deleted then"
-    fi
-  done
-  return 0
-}
-
-# free_key_slot <installer> <keys> <inactive> <host-key> [installer args...]
-# A user holding the two keys IAM allows while the host holds neither can never
-# be rotated: the rotation would mint a third. Neither key is in service here,
-# so one is retired without the host's proof, which the installer allows in
-# exactly this case, and deleted on a later run once it reads inactive; one
-# already inactive from an earlier run is deleted now. Returns 0 when a slot is
-# free for the rotation, 2 when this run retired a key and the slot frees on the
-# next run.
-free_key_slot() {
-  local installer="$1" keys="$2" inactive="$3" host_key="$4" k
-  shift 4
-  local args=("$@") held
-  # shellcheck disable=SC2086  # one key id per word
-  held=$(printf '%s\n' $keys | grep -c . || true)
-  if (( held < 2 )) || { [[ -n "$host_key" ]] && bh_has_word "$keys" "$host_key"; }; then
-    return 0
-  fi
-  k="$(bh_keys_in "$keys" "$inactive")"
-  k="${k%% *}"
-  if [[ -n "$k" ]]; then
-    say "Deleting ${k} to free a key for this host: inactive since an earlier run, and the host holds neither key"
-    bash "${BH_SCRIPTS}/${installer}" ${args[@]+"${args[@]}"} --delete "$k" </dev/null || return 1
-    return 0
-  fi
-  k="${keys%% *}"
-  say "Retiring ${k} to free a key for this host: the user holds two and the host holds neither"
-  with_pass "${BH_SCRIPTS}/${installer}" ${args[@]+"${args[@]}"} --retire "$k" || return 1
-  RETIRED_THIS_RUN+=" ${k}"
-  return 2
-}
-
 # 1. Terraform.
 say "Terraform: shared, identity, then ${TARGET}"
 bash "${BH_SCRIPTS}/terraform-apply-all.sh" --target "$TARGET" </dev/null \
@@ -884,75 +1115,49 @@ require_host_is "$ALIAS" "$TARGET" || cr_die "${ALIAS} did not confirm it is the
 # 7. The database directory.
 host_step dbdir dbdir
 
-# 8. The host credential chain.
+# 8. The host credential chain, with the key the host holds. The bootstrap
+# mints and retires nothing: a replacement carried the key over, and whether a
+# host that holds none gets a new one is the maintainer's call.
 refresh_host; refresh_aws
-bh_verdict credentials
 if [[ "${P[CRED_CHAIN]:-}" != "ok" ]]; then
-  [[ "${P[IAM_SRC_KEYS]-unknown}" != "unknown" && "${P[IAM_SRC_INACTIVE]-unknown}" != "unknown" ]] \
-    || cr_die "could not read the source-profile user's keys."
-  slot=0
-  free_key_slot install-host-credentials.sh "${P[IAM_SRC_KEYS]}" "${P[IAM_SRC_INACTIVE]}" "${P[CRED_KEY_ID]:-}" \
-    --target "$TARGET" || slot=$?
-  case "$slot" in
-    0) ;;
-    2)
-      echo ""
-      echo "STOPPED: a key was retired to make room for this host's own, and it is deleted"
-      echo "only once a later run has seen it inactive. Re-run this script; it deletes the"
-      echo "key and then gives the host its own:"
-      echo "  < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}"
-      cr_die "stopped: a source-profile key was retired to free a slot; a re-run deletes it and gives the host its own"
-      ;;
-    *) cr_die "could not free a key for this host." ;;
-  esac
-  refresh_aws
-  say "Host credential chain: a key of its own for this host"
-  with_pass "${BH_SCRIPTS}/install-host-credentials.sh" --target "$TARGET" --rotate \
-    || cr_die "the host's own key was not installed."
-  refresh_host; refresh_aws
-  [[ "${P[CRED_CHAIN]:-}" == "ok" ]] || cr_die "the host still does not resolve its runtime role after the install."
+  cr_error "${ALIAS} does not resolve its runtime role with the key it holds${P[CRED_KEY_ID]:+ (${P[CRED_KEY_ID]})}, and the bootstrap mints no key."
+  echo "       A host replaced with --replace-instance carries its key over, and a lost" >&2
+  echo "       host is reinstalled from the vault. Giving this one a new key is the" >&2
+  echo "       maintainer's call:" >&2
+  echo "         < ${BH_CRED} bash scripts/install-host-credentials.sh --target ${TARGET} --rotate" >&2
+  echo "       then re-run this script." >&2
+  exit 1
 fi
 proved "the host resolves its runtime role with ${P[CRED_KEY_ID]:-its key}"
-[[ "${P[IAM_SRC_KEYS]-unknown}" != "unknown" && "${P[IAM_SRC_INACTIVE]-unknown}" != "unknown" ]] \
-  || cr_die "could not read the source-profile user's keys."
-retire_dead_keys install-host-credentials.sh "${P[IAM_SRC_KEYS]}" "${P[IAM_SRC_INACTIVE]}" "${P[CRED_KEY_ID]:-}" \
-  --target "$TARGET" || cr_die "the dead host's key was not retired."
-refresh_aws
 
-# 9. The CloudWatch agent. Its metrics take minutes to arrive after an install,
-# so a retirement that cannot be proved yet is reported pending and the run goes
-# on: the predecessor key stays active, which is the safe side.
-refresh_host; refresh_aws
+# 9. The CloudWatch agent, installed or upgraded in place with the key the host
+# holds, never a new one. Its metrics take minutes to arrive after an install,
+# so a run that installed it waits for them, bounded, rather than ending with
+# the row pending for metrics still on their way.
 want_cw="${P[PIN_CWAGENT_VERSION]:-}"
 CW_INSTALLER="install-cwagent-${TARGET}.sh"
+cw_installed=0
 if [[ "${P[CWAGENT_ACTIVE]:-}" != "active" || "${P[CWAGENT_ENABLED]:-}" != "enabled" \
       || "${P[CWAGENT_VERSION]:-}" != "$want_cw" ]]; then
-  if bh_cwagent_key_in_service; then
-    # The host already publishes with one of the publisher's keys. A version
-    # bump or a stopped agent is a package and service change, and minting a key
-    # for it would leave a rotation half-done for nothing.
-    say "CloudWatch agent ${want_cw}: upgraded in place, keeping ${P[CWAGENT_KEY_ID]}"
-    with_pass "${BH_SCRIPTS}/${CW_INSTALLER}" --upgrade || cr_die "the CloudWatch agent upgrade did not complete."
-  else
-    [[ "${P[IAM_CW_KEYS]-unknown}" != "unknown" && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]] \
-      || cr_die "could not read the publisher's keys."
-    slot=0
-    free_key_slot "$CW_INSTALLER" "${P[IAM_CW_KEYS]}" "${P[IAM_CW_INACTIVE]}" "${P[CWAGENT_KEY_ID]:-}" || slot=$?
-    case "$slot" in
-      0) ;;
-      2)
-        echo ""
-        echo "STOPPED: a publisher key was retired to make room for this host's own, and it is"
-        echo "deleted only once a later run has seen it inactive. Re-run this script:"
-        echo "  < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}"
-        cr_die "stopped: a publisher key was retired to free a slot; a re-run deletes it and gives the host its own"
-        ;;
-      *) cr_die "could not free a publisher key for this host." ;;
-    esac
-    say "CloudWatch agent ${want_cw}: a key of its own for this host"
-    with_pass "${BH_SCRIPTS}/${CW_INSTALLER}" --rotate || cr_die "the CloudWatch agent's own key was not installed."
+  if ! bh_cwagent_key_in_service; then
+    cr_error "the CloudWatch agent on ${ALIAS} holds ${P[CWAGENT_KEY_ID]:-no key}, which is not one of the publisher's active keys as IAM was read, and the bootstrap mints no key."
+    echo "       A host replaced with --replace-instance carries the agent's key over." >&2
+    echo "       Giving this one a new key is the maintainer's call:" >&2
+    echo "         < ${BH_CRED} bash scripts/${CW_INSTALLER} --rotate" >&2
+    echo "       then re-run this script." >&2
+    exit 1
   fi
+  # A missing agent, a stopped one or a version bump is a package and service
+  # change; the key the host holds stays.
+  say "CloudWatch agent ${want_cw}: installed in place, keeping ${P[CWAGENT_KEY_ID]}"
+  with_pass "${BH_SCRIPTS}/${CW_INSTALLER}" --upgrade || cr_die "the CloudWatch agent install did not complete."
+  cw_installed=1
+  # Only a datapoint published after the install counts as this agent's: the
+  # metrics carry no instance dimension, and the host a replacement destroyed
+  # published into the same series minutes before.
+  CW_INSTALLED_AT="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   refresh_host; refresh_aws
+  bh_probe_cw_metrics "$TARGET" "$CW_INSTALLED_AT"
 fi
 bh_verdict cwagent
 if [[ "$BH_STATE" == "FAILED" ]]; then
@@ -960,13 +1165,20 @@ if [[ "$BH_STATE" == "FAILED" ]]; then
   # restart it into the same failure, so the cause and its remedy are stated.
   echo "    FAILED: ${BH_DETAIL}"
   echo "    next: ${BH_NEXT}"
-elif [[ "${P[CW_METRICS]:-}" == "ok" && "${P[IAM_CW_KEYS]-unknown}" != "unknown" && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]]; then
-  retire_dead_keys "$CW_INSTALLER" "${P[IAM_CW_KEYS]}" "${P[IAM_CW_INACTIVE]}" "${P[CWAGENT_KEY_ID]:-}" \
-    || cr_die "the publisher's dead key was not retired."
-  refresh_aws
-else
-  echo "    pending: the agent's metrics are not arriving yet, so its predecessor key is"
-  echo "    kept. Re-run this script in a few minutes to retire it."
+elif (( cw_installed )) && [[ "${P[CW_METRICS]:-}" != "ok" ]]; then
+  METRICS_WAIT="${BOOTSTRAP_HOST_METRICS_WAIT_SECS:-600}"
+  if [[ -n "${BOOTSTRAP_HOST_METRICS_WAIT_SECS:-}" ]]; then
+    echo "SYNTHETIC: the wait for the agent's metrics is ${METRICS_WAIT}s -- this run proves nothing about the estate." >&2
+  fi
+  say "Waiting up to ${METRICS_WAIT}s for the agent's metrics to arrive"
+  metrics_deadline=$(( $(date +%s) + METRICS_WAIT ))
+  while [[ "${P[CW_METRICS]:-}" != "ok" ]] && (( $(date +%s) < metrics_deadline )); do
+    sleep "$POLL_SECS"
+    bh_probe_cw_metrics "$TARGET" "$CW_INSTALLED_AT"
+  done
+  [[ "${P[CW_METRICS]:-}" == "ok" ]] \
+    || cr_die "the agent's metrics did not arrive within ${METRICS_WAIT}s of its install${P[CW_METRICS_SAID]:+ (${P[CW_METRICS_SAID]})}. Check them with: bash scripts/verify-cwagent-metrics.sh --target ${TARGET}"
+  proved "the agent's metrics arrive where the alarms read them"
 fi
 
 # The deploy boots the site, and the site refuses to boot on a secret that still

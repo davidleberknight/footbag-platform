@@ -27,7 +27,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {
-  chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
@@ -42,10 +42,20 @@ const STATUS_HALF = join(process.cwd(), 'scripts/internal/bootstrap-host-status-
 const REMOTE_REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 
 const IP = '203.0.113.10';
-// Key ids copied from the shapes the secret scan already allowlists.
-const HOST_KEY = 'AKIAEXAMPLEEXAMPLE01';
+// Key ids copied from the shapes the secret scan already allowlists. Each host
+// key is distinct, per environment and per user, so a run that reads one
+// profile's key for another's, or one environment's for the other's, holds the
+// wrong id where the case looks.
+const KEYS = {
+  staging: { src: 'AKIAEXAMPLEEXAMPLE11', cw: 'AKIAEXAMPLEEXAMPLE12' },
+  production: { src: 'AKIAEXAMPLEEXAMPLE21', cw: 'AKIAEXAMPLEEXAMPLE22' },
+} as const;
+const SRC_KEY = KEYS.staging.src;
+const CW_KEY = KEYS.staging.cw;
 const DEAD_KEY = 'AKIAEXAMPLEEXAMPLE02';
 const OTHER_DEAD_KEY = 'AKIAEXAMPLEEXAMPLE03';
+/** The key an installer's rotation would mint; no case here should see it. */
+const MINTED_KEY = 'AKIAEXAMPLEEXAMPLE99';
 const HEALTHY_CONTAINERS =
   'footbag-web-1 Up 2 hours (healthy), footbag-worker-1 Up 2 hours (healthy), '
   + 'footbag-image-1 Up 2 hours (healthy), footbag-nginx-1 Up 2 hours (healthy)';
@@ -59,6 +69,22 @@ const AL_PIN = '2023.12.20261021';
 // value the deploy step compares the host's database against.
 const SCHEMA_SHA = createHash('sha256').update(readFileSync(join(process.cwd(), 'database/schema.sql'))).digest('hex');
 const OTHER_SCHEMA_SHA = 'b'.repeat(64);
+
+// The secrets the host's credential files hold, recognisable wherever they
+// leak: an argument, a log, a file left behind.
+const SRC_SECRET = 'secret-value-not-real-SOURCE';
+const AGENT_SECRET = 'secret-value-not-real-AGENT';
+/** The three credential files on the instance being replaced, by path under its root. */
+const OLD_HOST_FILES: Record<string, string> = {
+  'root/.aws/credentials': (['staging', 'production'] as const).map((t) =>
+    `[footbag-${t}-source-profile]\naws_access_key_id = ${KEYS[t].src}\naws_secret_access_key = ${SRC_SECRET}\n`).join('\n'),
+  'root/.aws/config': ['staging', 'production'].map((t) =>
+    `[profile footbag-${t}-source-profile]\nregion = us-east-1\n\n[profile footbag-${t}-runtime]\n`
+    + `role_arn = arn:aws:iam::000000000000:role/footbag-${t}-app-runtime\nsource_profile = footbag-${t}-source-profile\nregion = us-east-1\n\n`
+    + `[profile footbag-${t}-logs]\nrole_arn = arn:aws:iam::000000000000:role/footbag-${t}-logs-publisher\nsource_profile = footbag-${t}-source-profile\nregion = us-east-1\n`).join('\n'),
+  'etc/amazon-cloudwatch-agent.aws/credentials': (['staging', 'production'] as const).map((t) =>
+    `[footbag-${t}-cwagent]\naws_access_key_id = ${KEYS[t].cw}\naws_secret_access_key = ${AGENT_SECRET}\n`).join('\n'),
+};
 
 /** A host every bootstrap step has finished on, as the status body reports it. */
 function finishedHost(target: 'staging' | 'production'): Record<string, string> {
@@ -92,14 +118,14 @@ function finishedHost(target: 'staging' | 'production'): Record<string, string> 
     FEED_SES_QUEUE: 'set',
     FEED_ALARM_QUEUE: 'set',
     CRED_CHAIN: 'ok',
-    CRED_KEY_ID: HOST_KEY,
+    CRED_KEY_ID: KEYS[target].src,
     CWAGENT_ACTIVE: 'active',
     CWAGENT_ENABLED: 'enabled',
     CWAGENT_SUBSTATE: 'running',
     CWAGENT_NRESTARTS: '0',
     CWAGENT_LAST_ERROR: '',
     CWAGENT_VERSION: CWAGENT,
-    CWAGENT_KEY_ID: HOST_KEY,
+    CWAGENT_KEY_ID: KEYS[target].cw,
     LOG_DRIVERS: 'footbag-web-1:awslogs footbag-worker-1:awslogs footbag-nginx-1:awslogs footbag-image-1:json-file',
     SERVICE_ENABLED: 'enabled',
     CONTAINERS: HEALTHY_CONTAINERS,
@@ -177,6 +203,9 @@ beforeEach(() => {
     'cat > "$f"',
     'fact() { grep "^$1=" "$STATE/host.status" | tail -1 | cut -d= -f2-; }',
     'printf "ssh %s\\n" "$*" >> "$STATE/calls.log"',
+    // A pin left from the instance a replacement destroyed: every session is
+    // refused, as OpenSSH refuses a changed host key, until the pin step runs.
+    '[[ -e "$STATE/pin-stale" ]] && { echo "Host key verification failed." >&2; exit 255; }',
     'case "$*" in',
     // The unprivileged login probe. The refusal text is OpenSSH's own format
     // ("%s@%s: Permission denied (%s)." in sshconnect2.c, exit 255); the
@@ -193,6 +222,7 @@ beforeEach(() => {
     '    [[ -e "$STATE/status-warn" ]] && echo "---FOOTBAG-PROBLEM--- WARN stand-in status warning" >&2',
     '    echo "---FOOTBAG-BOOTSTRAP-STATUS---"; cat "$STATE/host.status"; echo "---FOOTBAG-END---" ;;',
     '  *footbag-host-identity*)',
+    '    if [[ -e "$STATE/unreachable" ]]; then echo "ssh: connect to host 203.0.113.10 port 2222: Connection refused" >&2; exit 255; fi',
     '    printf -- "---FOOTBAG-HOST-ENV---\\n%s\\n---FOOTBAG-HOST-URL---\\nhttps://example.test\\n---FOOTBAG-END---\\n" "$(fact FOOTBAG_ENV)" ;;',
     '  *footbag-bootstrap-account*)',
     '    [[ -e "$STATE/exit/account" ]] && exit "$(cat "$STATE/exit/account")"',
@@ -211,6 +241,41 @@ beforeEach(() => {
     '    apply_fix "provision-$mode" ;;',
     '  *footbag-reboot*)',
     '    printf -- "---FOOTBAG-BOOT-ID---\\nold-boot\\n---FOOTBAG-END---\\n"; apply_fix reboot ;;',
+    // The new instance's first login as ec2-user: down for as many tries as
+    // state/fresh-down counts, or for good when it holds "forever".
+    '  *FOOTBAG-FRESH-LOGIN-OK*)',
+    '    if [[ -e "$STATE/fresh-down" ]]; then',
+    '      n="$(cat "$STATE/fresh-down")"',
+    '      if [[ "$n" == forever ]]; then echo "ssh: connect to host 203.0.113.10 port 22: Connection refused" >&2; exit 255; fi',
+    '      if (( n > 0 )); then echo $(( n - 1 )) > "$STATE/fresh-down"; echo "ssh: connect to host 203.0.113.10 port 22: Connection refused" >&2; exit 255; fi',
+    '    fi',
+    '    echo "---FOOTBAG-FRESH-LOGIN-OK---" ;;',
+    // The carry half runs for real, against stand-in host tools and a file
+    // tree per instance: the instance being replaced answers as footbag
+    // through sudo with the password line first, and the new one as ec2-user
+    // whose sudo takes none.
+    '  *footbag-bootstrap-carry*)',
+    '    if [[ "$*" == *"sudo -k -S"* ]]; then',
+    '      if [[ -e "$STATE/unreachable" ]]; then echo "ssh: connect to host 203.0.113.10 port 2222: Connection refused" >&2; exit 255; fi',
+    // A case can have the old host answer the key read with lines of its own.
+    '      [[ -e "$STATE/old-host-says" ]] && { cat "$STATE/old-host-says"; exit 0; }',
+    '      tail -n +2 "$f" | CARRY_ROOT_DIR="$STATE/oldhost" PATH="$STATE/hosttools:$PATH" bash; exit $?',
+    '    fi',
+    // On the install, a case can copy the run's temp tree as it stands while
+    // the keys are on their way, or have the session drop before the half says
+    // anything.
+    '    if grep -qx "MODE=install" "$f"; then',
+    '      [[ -e "$STATE/snap-tmp" ]] && cp -a "$TMPDIR" "$STATE/tmpsnap"',
+    '      [[ -e "$STATE/install-dies" ]] && { echo "Connection to 203.0.113.10 closed by remote host." >&2; exit 255; }',
+    '    fi',
+    // A case can have the new instance's image carry no aws CLI yet.
+    '    nocli=""; [[ -e "$STATE/new-host-no-cli" ]] && nocli="$STATE/no-such-aws-cli"',
+    '    CARRY_ROOT_DIR="$STATE/newhost" CARRY_AWS_BIN="${nocli}" PATH="$STATE/hosttools:$PATH" bash < "$f"; exit $? ;;',
+    // The installers ask which key a credentials file holds; the answer is the
+    // host's fact for that file.
+    '  *footbag-host-key-id*)',
+    '    if grep -q "^CRED_FILE=/etc/amazon-cloudwatch-agent" "$f"; then k="$(fact CWAGENT_KEY_ID)"; else k="$(fact CRED_KEY_ID)"; fi',
+    '    printf -- "---FOOTBAG-KEY-ID---\\n%s\\n---FOOTBAG-END---\\n" "$k" ;;',
     // Stopping the live host's writes: its last backup lands in the bucket now,
     // unless the case says the backup service fails.
     '  *footbag-bootstrap-quiesce*)',
@@ -221,6 +286,9 @@ beforeEach(() => {
     '      echo "---FOOTBAG-QUIESCED---"',
     '    fi ;;',
     '  *boot_id*) echo new-boot ;;',
+    // The real agent installer's install session: an upgrade keeps the key the
+    // host holds and leaves the agent running at the pin.
+    '  *) if grep -q "^CWAGENT_KEEP_CREDENTIALS=1$" "$f"; then apply_fix cwagent-upgrade; touch "$STATE/agent-installed"; fi ;;',
     'esac',
     'exit 0',
   ]);
@@ -233,6 +301,12 @@ beforeEach(() => {
     '  exit 0',
     'fi',
     'echo "path ssh stand-in: refusing to connect" >&2; exit 255',
+  ]);
+  // shred on PATH, recording what it was asked to destroy and then doing it,
+  // so a case can tell a shredded file from one merely swept with its directory.
+  sh(join(work, 'path', 'shred'), [
+    `printf '%s\\n' "$*" >> ${JSON.stringify(join(state, 'shred.log'))}`,
+    `PATH=${JSON.stringify(process.env.PATH ?? '')} exec shred "$@"`,
   ]);
 
   // Terraform: plans exit as state/exit/plan-<tree> says (0 when absent), state
@@ -255,19 +329,23 @@ beforeEach(() => {
   ]);
 
   // The AWS CLI.
-  writeFileSync(join(state, `keys-footbag-staging-source-profile`), `${HOST_KEY}\n`);
-  writeFileSync(join(state, `keys-footbag-staging-cwagent-publisher`), `${HOST_KEY}\n`);
-  writeFileSync(join(state, `keys-footbag-production-source-profile`), `${HOST_KEY}\n`);
-  writeFileSync(join(state, `keys-footbag-production-cwagent-publisher`), `${HOST_KEY}\n`);
+  for (const t of ['staging', 'production'] as const) {
+    writeFileSync(join(state, `keys-footbag-${t}-source-profile`), `${KEYS[t].src}\n`);
+    writeFileSync(join(state, `keys-footbag-${t}-cwagent-publisher`), `${KEYS[t].cw}\n`);
+  }
   writeFileSync(join(state, 'marker'), 'false\n');
   sh(join(work, 'bin', 'aws'), [
     `STATE=${JSON.stringify(state)}`,
     'echo "aws $*" >> "$STATE/calls.log"',
     'user=""; prev=""; for a in "$@"; do [[ "$prev" == "--user-name" ]] && user="$a"; prev="$a"; done',
     'case "$1 $2" in',
-    // The inactive keys answer the Status filter; every other listing answers
-    // all of the user\'s keys.
-    '  "iam list-access-keys") if [[ "$*" == *Inactive* ]]; then cat "$STATE/inactive-$user" 2>/dev/null; else cat "$STATE/keys-$user" 2>/dev/null; fi; exit 0 ;;',
+    // Each Status filter answers its own keys, the active ones being the
+    // user\'s keys less the inactive; an unfiltered listing answers them all.
+    '  "iam list-access-keys")',
+    '    inactive="$STATE/inactive-$user"; [[ -e "$inactive" ]] || inactive=/dev/null',
+    '    if [[ "$*" == *Inactive* ]]; then cat "$inactive"',
+    '    elif [[ "$*" == *Active* ]]; then tr -s "[:space:]" "\\n" < "$STATE/keys-$user" 2>/dev/null | grep -vxF -f <(tr -s "[:space:]" "\\n" < "$inactive" | grep .) || true',
+    '    else cat "$STATE/keys-$user" 2>/dev/null; fi; exit 0 ;;',
     '  "ssm get-parameter") [[ -e "$STATE/marker" ]] || exit 255; cat "$STATE/marker"; exit 0 ;;',
     // A name Parameter Store does not hold comes back under InvalidParameters.
     '  "ssm get-parameters") [[ -e "$STATE/no-base-url" ]] && printf "%s\\n" "${4:-}"; exit 0 ;;',
@@ -321,6 +399,9 @@ beforeEach(() => {
   // enables it. A production code deploy fails its readiness check on a host
   // with no database.
   mkdirSync(join(state, 'hook'));
+  // Pinning reads the instance's current host key from the Lightsail API, so a
+  // pin left stale by a replacement is current again once it runs.
+  hook('install-known-hosts.sh', ['rm -f "$STATE/pin-stale"']);
   hook('restore-db.sh--onto-empty', [
     'grep -qx "DB_FILE=present" "$STATE/host.status" && { echo "restore stand-in: a database exists" >&2; exit 1; }',
     '[[ -e "$STATE/release-installed" ]] || { echo "restore stand-in: no release on the host to replay the erasures in" >&2; exit 1; }',
@@ -371,6 +452,48 @@ beforeEach(() => {
   // survive the trip, so a marker stands in for the real build.
   writeFileSync(join(work, 'sqlite3-built'), 'BUILT-SQLITE3-MARKER\n');
   writeHost(finishedHost('staging'));
+
+  // The instance being replaced holds the three credential files, both
+  // environments' profiles in each so either target reads its own.
+  for (const [rel, body] of Object.entries(OLD_HOST_FILES)) {
+    mkdirSync(join(state, 'oldhost', rel, '..'), { recursive: true });
+    writeFileSync(join(state, 'oldhost', rel), body);
+  }
+  mkdirSync(join(state, 'newhost'), { recursive: true });
+  // The host tools the carry half calls. install copies and records the mode,
+  // owner and group it was asked for, since a test cannot chown; aws resolves
+  // the runtime role from the credentials file it is pointed at, refusing a
+  // file holding no key, as the real client would.
+  const tools = join(state, 'hosttools');
+  mkdirSync(tools);
+  sh(join(tools, 'install'), [
+    `STATE=${JSON.stringify(state)}`,
+    'printf "install %s\\n" "$*" >> "$STATE/hosttools.log"',
+    'mode=""; args=(); dir=0',
+    'while [[ $# -gt 0 ]]; do case "$1" in -d) dir=1; shift ;; -m) mode="$2"; shift 2 ;; -o|-g) shift 2 ;; *) args+=("$1"); shift ;; esac; done',
+    'if (( dir )); then mkdir -p "${args[0]}"; chmod "$mode" "${args[0]}"; exit 0; fi',
+    'cp "${args[0]}" "${args[1]}"; chmod "$mode" "${args[1]}"',
+  ]);
+  sh(join(tools, 'getent'), [
+    `STATE=${JSON.stringify(state)}`,
+    '[[ "$1 $2" == "group awscreds" ]] || exit 2',
+    '[[ -e "$STATE/awscreds-gid" ]] && { echo "awscreds:x:$(cat "$STATE/awscreds-gid"):"; exit 0; }',
+    '[[ -e "$STATE/awscreds-made" ]] && { echo "awscreds:x:1500:"; exit 0; }',
+    'exit 2',
+  ]);
+  sh(join(tools, 'groupadd'), [`STATE=${JSON.stringify(state)}`, 'touch "$STATE/awscreds-made"']);
+  sh(join(tools, 'id'), [`STATE=${JSON.stringify(state)}`, '[[ -e "$STATE/footbag-on-new-host" ]]']);
+  sh(join(tools, 'aws'), [
+    `STATE=${JSON.stringify(state)}`,
+    'profile=""; prev=""; for a in "$@"; do [[ "$prev" == --profile ]] && profile="$a"; prev="$a"; done',
+    '[[ -e "$STATE/chain-refused" ]] && { echo "An error occurred (AccessDenied) when calling the AssumeRole operation: stand-in refusal" >&2; exit 254; }',
+    'env="${profile#footbag-}"; env="${env%-runtime}"',
+    `case "$env" in staging) key=${KEYS.staging.src} ;; production) key=${KEYS.production.src} ;; *) key=none ;; esac`,
+    'grep -q "^aws_access_key_id = ${key}$" "$AWS_SHARED_CREDENTIALS_FILE" 2>/dev/null \\',
+    '  || { echo "Unable to locate credentials. You can configure credentials by running \\"aws configure\\"." >&2; exit 253; }',
+    'grep -q "^role_arn = .*footbag-${env}-app-runtime$" "$AWS_CONFIG_FILE" 2>/dev/null || { echo "The config profile ($profile) could not be found" >&2; exit 255; }',
+    'echo "arn:aws:sts::000000000000:assumed-role/footbag-${env}-app-runtime/botocore-session-1"',
+  ]);
 });
 
 afterEach(() => {
@@ -458,7 +581,7 @@ function iamStandIn(installer: string, user: string, hostFact: 'CRED_KEY_ID' | '
   hook(`${installer}--rotate`, [
     `held="$(tr -s '[:space:]' '\\n' < ${keys} 2>/dev/null | grep -c . || true)"`,
     '[[ "$held" -ge 2 ]] && { echo "iam stand-in: the user already holds two keys" >&2; exit 1; }',
-    `printf '%s\\n' ${HOST_KEY} >> ${keys}`,
+    `printf '%s\\n' ${MINTED_KEY} >> ${keys}`,
     `printf '%s\\n' ${rotateFix.map((l) => JSON.stringify(l)).join(' ')} > "$STATE/fix/$ev"`,
   ]);
   hook(`${installer}--upgrade`, []);
@@ -546,12 +669,10 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     { step: 'the environment record', title: 'Host environment record', next: /set-host-env\.sh --target staging/, take: () => writeHost({ ...finishedHost('staging'), FOOTBAG_ENV: '' }) },
     { step: 'the database directory owner', title: 'Database directory', next: /bootstrap-host\.sh/, take: () => writeHost({ ...finishedHost('staging'), DB_DIR: '0:0' }) },
     { step: 'the credential chain', title: 'Host credential chain', next: /install-host-credentials\.sh --target staging --rotate/, take: () => writeHost({ ...finishedHost('staging'), CRED_CHAIN: 'fail' }) },
-    { step: "the dead host's source key", title: 'Host credential chain', next: new RegExp(`--retire <id>.*${DEAD_KEY}`), take: () => writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${HOST_KEY}\t${DEAD_KEY}\n`) },
     // A version bump on a host already publishing with the publisher's key is an
     // upgrade that keeps the key; only a host holding none needs a rotation.
     { step: 'the pinned agent version, on a host holding the publisher key', title: 'CloudWatch agent', next: /install-cwagent-staging\.sh --upgrade/, take: () => writeHost({ ...finishedHost('staging'), CWAGENT_VERSION: '1.0.0' }) },
     { step: 'the pinned agent version, on a host holding no publisher key', title: 'CloudWatch agent', next: /install-cwagent-staging\.sh --rotate/, take: () => writeHost({ ...finishedHost('staging'), CWAGENT_VERSION: '1.0.0', CWAGENT_KEY_ID: DEAD_KEY }) },
-    { step: "the dead host's inactive source key", title: 'Host credential chain', next: new RegExp(`install-host-credentials\\.sh --target staging --delete <id>, for: ${DEAD_KEY}`), take: () => { writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${HOST_KEY}\t${DEAD_KEY}\n`); writeFileSync(join(state, 'inactive-footbag-staging-source-profile'), `${DEAD_KEY}\n`); } },
     { step: 'a backup object recent enough', title: 'Backup timer', next: /host-diagnostics\.sh --target staging/, take: () => writeFileSync(join(state, 'backup-age'), '3600') },
     { step: 'the queue addresses on the host', title: 'Notification feeds', next: /activate-notification-feeds\.sh --target staging --state on/, take: () => { writeFileSync(join(work, 'tfvars'), 'enable_feed_queues = true\n'); writeHost({ ...finishedHost('staging'), FEED_ALARM_QUEUE: 'unset' }); } },
     { step: 'the env file the verifier passes', title: 'Host environment record', next: /verify-host-env\.sh --target staging/, take: () => setExit('verify-host-env.sh', 1) },
@@ -616,6 +737,48 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     expect(row.next, row.line).toMatch(next);
     expect(row.next, row.line).not.toMatch(notNext);
     expect(r.stdout).toMatch(/1 step\(s\) pending or unread/);
+  });
+
+  // A key the user holds and the host does not use is the maintainer's to
+  // retire or delete, never a script's. Defect caught: such a key holds the
+  // step pending, so a rebuild that carried its keys can never pass its own
+  // status proof without a retirement nobody decided on; or the row stops
+  // naming the commands that would retire or delete it.
+  const extraKeys: Array<{ state: string; inactive: string; next: RegExp }> = [
+    { state: 'active', inactive: '', next: new RegExp(`install-host-credentials\\.sh --target staging --retire <id>, for: ${DEAD_KEY}`) },
+    { state: 'inactive', inactive: `${DEAD_KEY}\n`, next: new RegExp(`install-host-credentials\\.sh --target staging --delete <id>, for: ${DEAD_KEY}`) },
+  ];
+  it.each(extraKeys)('reads a source-profile key the host does not use, $state, as INFO naming its command, and exits 0', ({ inactive, next }) => {
+    writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${SRC_KEY}\t${DEAD_KEY}\n`);
+    writeFileSync(join(state, 'inactive-footbag-staging-source-profile'), inactive);
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const row = rowFor(r.stdout, 'Host credential chain');
+    expect(row.line, row.line).toMatch(/\sINFO\s/);
+    expect(row.line, row.line).toContain(DEAD_KEY);
+    expect(row.next, row.line).toMatch(next);
+  });
+
+  it('reads a publisher key the agent does not use as INFO, and exits 0', () => {
+    writeFileSync(join(state, 'keys-footbag-staging-cwagent-publisher'), `${CW_KEY}\t${DEAD_KEY}\n`);
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const row = rowFor(r.stdout, 'CloudWatch agent');
+    expect(row.line, row.line).toMatch(/\sINFO\s/);
+    expect(row.next, row.line).toMatch(new RegExp(`install-cwagent-staging\\.sh --retire <id>, for: ${DEAD_KEY}`));
+  });
+
+  it('fails the agent row when its key is deactivated, though metrics still read within their window, naming --rotate as the maintainer\'s call', () => {
+    // Defect caught: an agent whose key the publisher holds inactive reads
+    // done, or INFO, on the strength of datapoints it published before the
+    // deactivation, and the status proof passes on an agent that has stopped.
+    writeFileSync(join(state, 'inactive-footbag-staging-cwagent-publisher'), `${CW_KEY}\n`);
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status, r.stdout).not.toBe(0);
+    const row = rowFor(r.stdout, 'CloudWatch agent');
+    expect(row.line, row.line).toMatch(new RegExp(`\\sFAILED\\s.*${CW_KEY}, which is not one of the publisher's active keys`));
+    expect(row.next, row.line).toMatch(/install-cwagent-staging\.sh --rotate/);
+    expect(row.next, row.line).toMatch(/the maintainer's call/);
   });
 
   it('reports a missing recent snapshot pending, without counting it against a fresh host', () => {
@@ -964,65 +1127,49 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(sessions().some((s) => s.args.includes('footbag-bootstrap-provision'))).toBe(false);
   });
 
-  it('gives a rebuilt host its own key and retires the dead host\'s, deleting it only on a later run', () => {
-    // Defects caught: a rebuild ends with the dead host's key still active; the
-    // retirement reaches the installer without the target it requires; or the
-    // key is deleted in the same run that deactivated it, before anything that
-    // still held it had a chance to fail visibly while it could be switched back.
-    writeHost({ ...finishedHost('staging'), CRED_CHAIN: 'fail', CRED_KEY_ID: '' });
-    writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${DEAD_KEY}\n`);
-    iamStandIn('install-host-credentials.sh', 'footbag-staging-source-profile', 'CRED_KEY_ID', ['CRED_CHAIN=ok', `CRED_KEY_ID=${HOST_KEY}`]);
-    const first = runTty(['--target', 'staging']);
-    const creds = () => siblingCalls().filter((c) => c.startsWith('install-host-credentials.sh'));
-    expect(creds(), first.out).toEqual([
-      'install-host-credentials.sh --target staging --rotate | stdin=stub-sudo-pass',
-      `install-host-credentials.sh --target staging --retire ${DEAD_KEY} | stdin=stub-sudo-pass`,
-    ]);
-    // The retired key is still on the user, so the run ends pending, naming its delete.
-    expect(first.status).toBe(1);
-    expect(first.out).toMatch(new RegExp(`--delete <id>, for: ${DEAD_KEY}`));
-
-    rmSync(join(state, 'siblings.log'));
-    const second = runTty(['--target', 'staging']);
-    expect(second.status, second.out).toBe(0);
-    expect(creds()).toEqual([`install-host-credentials.sh --target staging --delete ${DEAD_KEY} | stdin=`]);
-    expect(readFileSync(join(state, 'keys-footbag-staging-source-profile'), 'utf-8').trim()).toBe(HOST_KEY);
+  // The bootstrap mints, retires and deletes no key, whatever the host and the
+  // user hold. Each row is a host the old code answered with a key call. Defect
+  // caught: the bootstrap rotates or retires a host access key on its own, which
+  // is the maintainer's decision, or goes on past a chain that does not work.
+  const chainNotOk: Array<{ held: string; keys: string; hostKey: string }> = [
+    { held: 'one key the host does not hold', keys: `${DEAD_KEY}\n`, hostKey: '' },
+    { held: 'two keys and the host neither', keys: `${DEAD_KEY}\t${OTHER_DEAD_KEY}\n`, hostKey: '' },
+    { held: 'the key the host holds, which no longer resolves the role', keys: `${SRC_KEY}\n`, hostKey: SRC_KEY },
+  ];
+  it.each(chainNotOk)('stops on a chain that does not resolve, the user holding $held, naming --rotate and minting nothing', ({ keys, hostKey }) => {
+    writeHost({ ...finishedHost('staging'), CRED_CHAIN: 'fail', CRED_KEY_ID: hostKey });
+    writeFileSync(join(state, 'keys-footbag-staging-source-profile'), keys);
+    iamStandIn('install-host-credentials.sh', 'footbag-staging-source-profile', 'CRED_KEY_ID', ['CRED_CHAIN=ok', `CRED_KEY_ID=${MINTED_KEY}`]);
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/does not resolve its runtime role/);
+    expect(r.out).toMatch(/< \S+ bash scripts\/install-host-credentials\.sh --target staging --rotate/);
+    expect(siblingCalls().filter((c) => /^install-(host-credentials|cwagent)/.test(c)), r.out).toEqual([]);
+    // Nothing after the chain ran: the run stopped there.
+    expect(siblingCalls().some((c) => c.startsWith('deploy'))).toBe(false);
   });
 
-  it('retires nothing while the host\'s own key id reads empty', () => {
+  it('retires nothing while the host\'s own key id reads empty, and ends unproved rather than done', () => {
     // Defect caught: with the host's key id empty every key on the user looks
-    // unused, so the run deactivates the key the host is running on.
+    // unused, so a run deactivates the key the host is running on; or the row
+    // reads done on a host whose key cannot be told apart.
     writeHost({ ...finishedHost('staging'), CRED_KEY_ID: '' });
-    writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${HOST_KEY}\t${DEAD_KEY}\n`);
+    writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${SRC_KEY}\t${DEAD_KEY}\n`);
     iamStandIn('install-host-credentials.sh', 'footbag-staging-source-profile', 'CRED_KEY_ID', []);
     const r = runTty(['--target', 'staging']);
     expect(r.status).toBe(1);
-    expect(r.out).toMatch(/own key id reads empty/);
-    expect(siblingCalls().some((c) => /install-host-credentials\.sh .*--(retire|delete)/.test(c))).toBe(false);
+    expect(rowFor(r.out, 'Host credential chain').line).toMatch(/\sUNKNOWN\s.*key id it holds reads empty/);
+    expect(siblingCalls().some((c) => /install-host-credentials\.sh/.test(c))).toBe(false);
   });
 
-  it('frees a key slot when the user holds two keys and the host neither, then rotates on the next run', () => {
-    // Defect caught: a user holding the two keys IAM allows while the host holds
-    // neither can never be rotated, and the retirement that would free a slot
-    // demands a proof from a host that has no working key; the bootstrap loops on
-    // a rotation IAM refuses.
-    writeHost({ ...finishedHost('staging'), CRED_CHAIN: 'fail', CRED_KEY_ID: '' });
-    writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${DEAD_KEY}\t${OTHER_DEAD_KEY}\n`);
-    iamStandIn('install-host-credentials.sh', 'footbag-staging-source-profile', 'CRED_KEY_ID', ['CRED_CHAIN=ok', `CRED_KEY_ID=${HOST_KEY}`]);
-    const creds = () => siblingCalls().filter((c) => c.startsWith('install-host-credentials.sh'));
-
-    const first = runTty(['--target', 'staging']);
-    expect(first.status).toBe(1);
-    expect(creds(), first.out).toEqual([`install-host-credentials.sh --target staging --retire ${DEAD_KEY} | stdin=stub-sudo-pass`]);
-    expect(first.out).toMatch(/Re-run this script/);
-
-    rmSync(join(state, 'siblings.log'));
-    const second = runTty(['--target', 'staging']);
-    expect(creds(), second.out).toEqual([
-      `install-host-credentials.sh --target staging --delete ${DEAD_KEY} | stdin=`,
-      'install-host-credentials.sh --target staging --rotate | stdin=stub-sudo-pass',
-      `install-host-credentials.sh --target staging --retire ${OTHER_DEAD_KEY} | stdin=stub-sudo-pass`,
-    ]);
+  it('stops when the agent holds none of the publisher\'s keys, naming its --rotate and minting nothing', () => {
+    // Defect caught: an agent left without a usable key is given a new one by
+    // the bootstrap, a rotation nobody decided on.
+    writeHost({ ...finishedHost('staging'), CWAGENT_ACTIVE: 'inactive', CWAGENT_KEY_ID: DEAD_KEY });
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/< \S+ bash scripts\/install-cwagent-staging\.sh --rotate/);
+    expect(siblingCalls().filter((c) => c.startsWith('install-cwagent')), r.out).toEqual([]);
   });
 
   it('upgrades the agent for a version bump, keeping its key rather than rotating it', () => {
@@ -1276,8 +1423,11 @@ describe('bootstrap-host.sh --replace-instance', () => {
     const created = lightsailCalls().find((c) => c.includes('create-instance-snapshot'));
     expect(created).toMatch(/--instance-name footbag-staging-web --instance-snapshot-name footbag-staging-web-pre-replace-\d{8}T\d{6}Z/);
     const snap = /--instance-snapshot-name (\S+)/.exec(created!)![1];
+    // The new instance's host key is pinned after the replacement, before
+    // anything connects to it.
     expect(siblingCalls()).toEqual([
       `terraform-apply.sh --target staging --replace aws_lightsail_instance.web --instance-snapshot ${snap} | stdin=`,
+      'install-known-hosts.sh --target staging | stdin=',
     ]);
     expect(r.out).toContain(snap);
   });
@@ -1358,6 +1508,7 @@ describe('bootstrap-host.sh --replace-instance', () => {
   it('on a live production refuses while the newest backup is older than one interval', () => {
     // Defect caught: a live host is replaced while its backups have stopped,
     // and the members' writes since the last backup go with it.
+    writeHost(finishedHost('production'));
     writeFileSync(join(state, 'marker'), 'true\n');
     writeFileSync(join(state, 'backup-age'), '3600');
     const r = runTty(['--target', 'production', '--replace-instance'], 'APPLY\\n');
@@ -1399,6 +1550,7 @@ describe('bootstrap-host.sh --replace-instance', () => {
   });
 
   it('on production refuses while the go-live marker cannot be read', () => {
+    writeHost(finishedHost('production'));
     rmSync(join(state, 'marker'));
     const r = runTty(['--target', 'production', '--replace-instance'], 'APPLY\\n');
     expect(r.status).toBe(1);
@@ -1413,11 +1565,567 @@ describe('bootstrap-host.sh --replace-instance', () => {
     expect(lightsailCalls()).toHaveLength(0);
   });
 
-  it('keeps the host facts untouched: replacement reaches no host', () => {
+  it('only reads the instance being replaced: its identity and its keys, changing nothing there', () => {
+    // Defect caught: the route reaches the old host for more than the key read,
+    // or changes something on it, before the snapshot that is the way back.
     const before = hostFacts();
-    runTty(['--target', 'staging', '--replace-instance'], 'APPLY\\n');
-    expect(sessions()).toHaveLength(0);
+    const r = runTty(['--target', 'staging', '--replace-instance'], 'APPLY\\n');
+    expect(r.status, r.out).toBe(0);
+    const onOld = sessions().filter((s) => !s.args.includes('-l ec2-user')).map((s) => /bash -s (\S+)'?$/.exec(s.args.trim())?.[1]);
+    expect(onOld.sort()).toEqual(['footbag-bootstrap-carry', 'footbag-host-identity']);
     expect(hostFacts()).toEqual(before);
+    for (const [rel, body] of Object.entries(OLD_HOST_FILES)) {
+      expect(readFileSync(join(state, 'oldhost', rel), 'utf-8'), rel).toBe(body);
+    }
+  });
+});
+
+describe('bootstrap-host.sh --replace-instance: the host AWS access keys are carried, never minted', () => {
+  const KEY_CALL = /^aws iam (create-access-key|update-access-key|delete-access-key)/m;
+  const SECRETS = [SRC_SECRET, AGENT_SECRET];
+
+  /** A replacement with its own temp directory, so what it leaves there can be seen. */
+  function replace(extra: NodeJS.ProcessEnv = {}, target: 'staging' | 'production' = 'staging') {
+    const tmp = join(work, 'tmp');
+    mkdirSync(tmp, { recursive: true });
+    return runTty(['--target', target, '--replace-instance'], 'APPLY\\n', { TMPDIR: tmp, ...extra });
+  }
+  const b64 = (rel: string) => Buffer.from(OLD_HOST_FILES[rel]).toString('base64');
+  /** The five lines an honest old host answers the key read with, for staging. */
+  const HONEST_READ = [
+    `CARRY_CREDS_B64=${b64('root/.aws/credentials')}`,
+    `CARRY_CONFIG_B64=${b64('root/.aws/config')}`,
+    `CARRY_AGENT_B64=${b64('etc/amazon-cloudwatch-agent.aws/credentials')}`,
+    `CARRY_SRC_KEY=${SRC_KEY}`,
+    `CARRY_CW_KEY=${CW_KEY}`,
+  ];
+  /** Everything a leak could be: the secrets, each file's base64, the assignment names. */
+  const LEAK_SHAPES: Array<string | RegExp> = [
+    SRC_SECRET, AGENT_SECRET, ...Object.keys(OLD_HOST_FILES).map(b64),
+    /CARRY_(CREDS|CONFIG|AGENT)_B64=/,
+  ];
+  function leaksIn(text: string): string[] {
+    return LEAK_SHAPES.filter((s) => (typeof s === 'string' ? text.includes(s) : s.test(text))).map(String);
+  }
+  function readIf(p: string): string {
+    return existsSync(p) ? readFileSync(p, 'utf-8') : '';
+  }
+  function leftInTmp(): string[] {
+    const tmp = join(work, 'tmp');
+    return existsSync(tmp) ? readdirSync(tmp, { recursive: true }).map(String) : [];
+  }
+  function callsLog(): string {
+    const p = join(state, 'calls.log');
+    return existsSync(p) ? readFileSync(p, 'utf-8') : '';
+  }
+  function carryShredded(): boolean {
+    const p = join(state, 'shred.log');
+    return existsSync(p) && /^-u \S*\/carry\.\w+$/m.test(readFileSync(p, 'utf-8'));
+  }
+  function applied(): boolean {
+    return siblingCalls().some((c) => c.startsWith('terraform-apply.sh'));
+  }
+  function snapshotTaken(): boolean {
+    return /lightsail create-instance-snapshot/.test(callsLog());
+  }
+  /** Every argument list a stand-in recorded: ssh sessions, the AWS CLI, siblings, host tools. */
+  function everyArgv(): string {
+    const tools = join(state, 'hosttools.log');
+    return [
+      ...sessions().map((s) => s.args), callsLog(), siblingCalls().join('\n'),
+      existsSync(tools) ? readFileSync(tools, 'utf-8') : '',
+    ].join('\n');
+  }
+
+  it('installs the three files on the new instance byte for byte, with the password never sent there, and shreds its copy', () => {
+    // Defects caught: the new instance gets different bytes, or the files at
+    // other modes than the installers write; the install stream leads with a
+    // password line, which ec2-user's sudo would leave for bash to run; the
+    // workstation copy is left for the directory sweep rather than shredded.
+    writeFileSync(join(state, 'snap-tmp'), '');
+    const r = replace();
+    expect(r.status, r.out).toBe(0);
+    for (const [rel, body] of Object.entries(OLD_HOST_FILES)) {
+      expect(readFileSync(join(state, 'newhost', rel), 'utf-8'), rel).toBe(body);
+    }
+    const modes = readFileSync(join(state, 'hosttools.log'), 'utf-8');
+    expect(modes).toMatch(/^install -d -m 0750 -o root -g awscreds \S+\/newhost\/root\/\.aws$/m);
+    expect(modes).toMatch(/^install -d -m 0700 -o root -g root \S+\/newhost\/etc\/amazon-cloudwatch-agent\.aws$/m);
+    expect(modes).toMatch(/^install -m 0640 -o root -g awscreds \S+ \S+\/newhost\/root\/\.aws\/credentials$/m);
+    expect(modes).toMatch(/^install -m 0640 -o root -g awscreds \S+ \S+\/newhost\/root\/\.aws\/config$/m);
+    expect(modes).toMatch(/^install -m 0600 -o root -g root \S+ \S+\/newhost\/etc\/amazon-cloudwatch-agent\.aws\/credentials$/m);
+
+    const install = sessions().find((s) => s.args.includes('-l ec2-user') && /^MODE=install$/m.test(s.stream))!;
+    expect(install, 'an install session on the new instance').toBeTruthy();
+    expect(install.args).toMatch(/-p 22 -l ec2-user footbag-staging sudo -n bash -s footbag-bootstrap-carry/);
+    expect(install.stream.split('\n')[0]).toBe('MODE=install');
+    expect(install.stream).not.toContain('stub-sudo-pass');
+    const sent = (name: string) => Buffer.from(new RegExp(`^${name}=(\\S+)$`, 'm').exec(install.stream)![1], 'base64').toString();
+    expect(sent('CARRY_CREDS_B64')).toBe(OLD_HOST_FILES['root/.aws/credentials']);
+    expect(sent('CARRY_AGENT_B64')).toBe(OLD_HOST_FILES['etc/amazon-cloudwatch-agent.aws/credentials']);
+
+    const read = sessions().find((s) => s.args.includes('footbag-bootstrap-carry') && !s.args.includes('-l ec2-user'))!;
+    expect(read.stream.split('\n').slice(0, 2)).toEqual(['stub-sudo-pass', 'MODE=read']);
+    expect(read.args).toMatch(/sudo -k -S -p "" bash -s footbag-bootstrap-carry/);
+
+    // The read and the proof precede the destroy and follow the pin.
+    const order = callsLog();
+    expect(order.indexOf('footbag-bootstrap-carry')).toBeLessThan(order.indexOf('lightsail create-instance-snapshot'));
+    expect(siblingCalls()).toEqual([
+      expect.stringMatching(/^terraform-apply\.sh /), 'install-known-hosts.sh --target staging | stdin=',
+    ]);
+
+    for (const secret of SECRETS) expect(everyArgv(), secret).not.toContain(secret);
+    expect(r.out, 'a secret on the terminal').not.toMatch(/secret-value-not-real/);
+    // Not the secrets alone: the files' base64 and the assignments carrying it
+    // are the secrets too, and a log or terminal holding them holds the keys.
+    const places: Record<string, string> = {
+      terminal: r.out, argv: everyArgv(), 'calls.log': callsLog(), 'siblings.log': siblingCalls().join('\n'),
+      'shred.log': readIf(join(state, 'shred.log')), 'hosttools.log': readIf(join(state, 'hosttools.log')),
+    };
+    for (const [where, text] of Object.entries(places)) expect(leaksIn(text), where).toEqual([]);
+    // While the keys were on their way to the new instance, the run's temp tree
+    // held them in exactly one file, the restricted carry file: no log of a
+    // session, no scratch copy.
+    const snap = join(state, 'tmpsnap');
+    const files = readdirSync(snap, { recursive: true }).map(String).filter((f) => statSync(join(snap, f)).isFile());
+    expect(files.length, 'the temp tree was copied mid-run').toBeGreaterThan(0);
+    const holding = files.filter((f) => leaksIn(readFileSync(join(snap, f), 'utf-8')).length > 0)
+      .map((f) => ({ name: f.split('/').at(-1)!.replace(/\.\w+$/, ''), mode: statSync(join(snap, f)).mode & 0o777 }));
+    expect(holding).toEqual([{ name: 'carry', mode: 0o600 }]);
+    expect(carryShredded(), 'the carried copy shredded').toBe(true);
+    expect(leftInTmp()).toEqual([]);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+  });
+
+  it('carries production\'s own two keys on a production replacement, never staging\'s', () => {
+    // Defects caught: the read is sent with another environment than the
+    // target, or a profile's key is taken for the other's, so the new host is
+    // given keys that belong elsewhere or are checked against the wrong user.
+    writeHost(finishedHost('production'));
+    const r = replace({}, 'production');
+    expect(r.status, r.out).toBe(0);
+    for (const [rel, body] of Object.entries(OLD_HOST_FILES)) {
+      expect(readFileSync(join(state, 'newhost', rel), 'utf-8'), rel).toBe(body);
+    }
+    const read = sessions().find((s) => s.args.includes('footbag-bootstrap-carry') && !s.args.includes('-l ec2-user'))!;
+    expect(read.stream).toMatch(/^TARGET_ENV=production$/m);
+    const install = sessions().find((s) => /^MODE=install$/m.test(s.stream))!;
+    expect(install.stream).toMatch(new RegExp(`^CARRY_SRC_KEY=${KEYS.production.src}$`, 'm'));
+    expect(install.stream).toMatch(new RegExp(`^CARRY_CW_KEY=${KEYS.production.cw}$`, 'm'));
+    expect(install.stream).toMatch(/^TARGET_ENV=production$/m);
+    expect(callsLog()).toMatch(new RegExp(`^aws iam list-access-keys --user-name footbag-production-source-profile .*Active`, 'm'));
+    expect(callsLog()).toMatch(new RegExp(`^aws iam list-access-keys --user-name footbag-production-cwagent-publisher .*Active`, 'm'));
+    expect(closingReport(r.out)).toMatch(new RegExp(`holds ${KEYS.production.src} and ${KEYS.production.cw}, carried from the old host`));
+    expect(callsLog()).not.toMatch(KEY_CALL);
+  });
+
+  it('pins the new instance again when its first pin fails, and installs once it answers', () => {
+    // Defect caught: a pin tried once, while the new instance is still booting
+    // and Lightsail reports no host key for it, ends the replacement there with
+    // the keys on no host, when a minute later both would have answered.
+    hook('install-known-hosts.sh', [
+      'n=$(( $(cat "$STATE/pin-tries" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STATE/pin-tries"',
+      '(( n > 1 )) || { echo "install-known-hosts stand-in: Lightsail reports no host key for the instance yet" >&2; exit 1; }',
+    ]);
+    const r = replace();
+    expect(r.status, r.out).toBe(0);
+    expect(siblingCalls().filter((c) => c.startsWith('install-known-hosts.sh'))).toHaveLength(2);
+    expect(readFileSync(join(state, 'newhost/root/.aws/credentials'), 'utf-8')).toBe(OLD_HOST_FILES['root/.aws/credentials']);
+    // The login is never tried before a pin has gone through.
+    expect(sessions().filter((s) => s.args.includes('FOOTBAG-FRESH-LOGIN-OK'))).toHaveLength(1);
+  });
+
+  it('a re-run whose pin is still the destroyed instance\'s pins afresh, then finds the carried keys', () => {
+    // Defect caught: a run stopped between the destroy and the pin leaves the
+    // old instance's host key on file; the re-run's check is refused by that
+    // pin and reads the carry as lost, sending the maintainer to rotate keys
+    // that are in fact on the new instance.
+    writeFileSync(join(state, 'chain-refused'), '');
+    expect(replace().status).toBe(1);
+    rmSync(join(state, 'chain-refused'));
+    writeFileSync(join(state, 'unreachable'), '');
+    writeFileSync(join(state, 'pin-stale'), '');
+    rmSync(join(state, 'calls.log'));
+    rmSync(join(state, 'siblings.log'));
+    const again = replace();
+    expect(again.status, again.out).toBe(0);
+    expect(again.out).toMatch(/already holding the carried keys/);
+    expect(siblingCalls()).toEqual(['install-known-hosts.sh --target staging | stdin=']);
+    expect(snapshotTaken()).toBe(false);
+    expect(applied()).toBe(false);
+  });
+
+  it('a re-run after a live production\'s replacement finds the carried keys, past the backup gate its old host can no longer meet', () => {
+    // Defect caught: the backup-freshness gate, meant for a live host about to
+    // be destroyed, refuses the re-run after the destroy, when the old host and
+    // its backup timer are gone and the backups have rightly stopped.
+    writeHost(finishedHost('production'));
+    writeFileSync(join(state, 'marker'), 'true\n');
+    writeFileSync(join(state, 'chain-refused'), '');
+    expect(replace({}, 'production').status).toBe(1);
+    rmSync(join(state, 'chain-refused'));
+    writeFileSync(join(state, 'unreachable'), '');
+    writeFileSync(join(state, 'backup-age'), '7200');
+    rmSync(join(state, 'calls.log'));
+    rmSync(join(state, 'siblings.log'));
+    const again = replace({}, 'production');
+    expect(again.status, again.out).toBe(0);
+    expect(again.out).toMatch(/already holding the carried keys/);
+    expect(snapshotTaken()).toBe(false);
+    expect(applied()).toBe(false);
+  });
+
+  it('checks each carried key is active in IAM with list-access-keys before anything is destroyed', () => {
+    // Defect caught: a key IAM no longer holds active is carried to the new
+    // host, which then cannot work, after the old one is gone.
+    const ok = replace();
+    expect(ok.status, ok.out).toBe(0);
+    for (const user of ['footbag-staging-source-profile', 'footbag-staging-cwagent-publisher']) {
+      expect(callsLog(), user).toMatch(new RegExp(`^aws iam list-access-keys --user-name ${user} .*Status==\`Active\``, 'm'));
+    }
+
+    rmSync(join(state, 'calls.log'));
+    rmSync(join(state, 'siblings.log'));
+    writeFileSync(join(state, 'keys-footbag-staging-cwagent-publisher'), `${DEAD_KEY}\n`);
+    const r = replace();
+    expect(r.status).toBe(1);
+    expect(closingReport(r.out)).toMatch(new RegExp(`${CW_KEY}, the key the host holds for footbag-staging-cwagent-publisher, is not one of that user's active keys`));
+    expect(snapshotTaken()).toBe(false);
+    expect(applied()).toBe(false);
+  });
+
+  const refusals: Array<{ why: string; take: () => void; says: RegExp }> = [
+    { why: 'the old host does not answer', take: () => writeFileSync(join(state, 'unreachable'), ''), says: /did not answer as the staging host, so its AWS access keys could not be read/ },
+    { why: 'the old host holds no agent credentials', take: () => rmSync(join(state, 'oldhost/etc/amazon-cloudwatch-agent.aws/credentials')), says: /amazon-cloudwatch-agent\.aws\/credentials is not on this host/ },
+    { why: 'the old host holds no config', take: () => rmSync(join(state, 'oldhost/root/.aws/config')), says: /root\/\.aws\/config is not on this host/ },
+    { why: 'the old host answers with lines other than the files', take: () => writeFileSync(join(state, 'old-host-says'), `CARRY_CREDS_B64=AAAA\nrm -rf /srv/footbag\n`), says: /answered the key read with something other than the credential files/ },
+    // The five honest lines, then a command on a last line with no newline,
+    // which a line-by-line check skips and a replay of the file would run as
+    // root on the new instance.
+    { why: 'the old host appends a command on a last line with no newline', take: () => writeFileSync(join(state, 'old-host-says'), `${HONEST_READ.join('\n')}\ntouch ${join(state, 'ran-on-new-host')} >&2`), says: /answered the key read with something other than the credential files/ },
+    { why: 'a base64 value has a length base64 never writes', take: () => writeFileSync(join(state, 'old-host-says'), `${['CARRY_CREDS_B64=AAAAA', ...HONEST_READ.slice(1)].join('\n')}\n`), says: /answered the key read with something other than the credential files/ },
+    { why: 'a key id is a temporary session key, not a long-term user key', take: () => writeFileSync(join(state, 'old-host-says'), `${[...HONEST_READ.slice(0, 3), 'CARRY_SRC_KEY=ASIAEXAMPLEEXAMPLE11', HONEST_READ[4]].join('\n')}\n`), says: /answered the key read with something other than the credential files/ },
+  ];
+  it.each(refusals)('refuses before the snapshot and the destroy when $why', ({ take, says }) => {
+    // Defect caught: the instance is destroyed with keys that were never read,
+    // leaving them on no host; or a line the old host sent is replayed into a
+    // root shell on the new one.
+    take();
+    const r = replace();
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(says);
+    expect(r.out).toMatch(/Nothing was changed/);
+    expect(snapshotTaken()).toBe(false);
+    expect(applied()).toBe(false);
+    expect(sessions().some((s) => /^MODE=install$/m.test(s.stream))).toBe(false);
+    expect(existsSync(join(state, 'ran-on-new-host')), 'a line the old host sent ran on the new one').toBe(false);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    expect(leftInTmp()).toEqual([]);
+  });
+
+  it('accepts the five honest lines the old host answers with, the control for the refusals above', () => {
+    // The same stand-in answer the refusals tamper with, untampered, carries.
+    writeFileSync(join(state, 'old-host-says'), `${HONEST_READ.join('\n')}\n`);
+    const r = replace();
+    expect(r.status, r.out).toBe(0);
+    expect(readFileSync(join(state, 'newhost/root/.aws/credentials'), 'utf-8')).toBe(OLD_HOST_FILES['root/.aws/credentials']);
+  });
+
+  it('waits for the new instance to answer its first login, then installs', () => {
+    // Defect caught: the install is tried once on an instance still booting,
+    // and a replacement that would have succeeded a minute later ends with the
+    // keys on no host.
+    writeFileSync(join(state, 'fresh-down'), '3');
+    const r = replace();
+    expect(r.status, r.out).toBe(0);
+    expect(sessions().filter((s) => s.args.includes('FOOTBAG-FRESH-LOGIN-OK')).length).toBe(4);
+    expect(readFileSync(join(state, 'newhost/root/.aws/credentials'), 'utf-8')).toBe(OLD_HOST_FILES['root/.aws/credentials']);
+  });
+
+  // A failure after the apply, each way it can come: the new instance never
+  // answers, the install lands and its proof fails, or the run is interrupted.
+  // Defects caught: the run withdraws or rotates a key on its way out, which
+  // is the maintainer's decision; the closing report leaves the operator to
+  // work out where the keys are; the carried copy outlives the run.
+  const ROTATE_BOTH = [
+    /< \S+ bash scripts\/install-host-credentials\.sh --target staging --rotate/,
+    /< \S+ bash scripts\/install-cwagent-staging\.sh --rotate/,
+  ];
+  it('reports the keys live in IAM and on no host when the new instance never answers, naming both rotations', () => {
+    writeFileSync(join(state, 'fresh-down'), 'forever');
+    // The wait is shortened only here, where running out is the verdict.
+    const r = replace({ BOOTSTRAP_HOST_FRESH_LOGIN_WAIT_SECS: '1' });
+    expect(r.status).toBe(1);
+    const report = closingReport(r.out);
+    expect(report).toMatch(new RegExp(`${SRC_KEY} \\(footbag-staging-source-profile\\) and ${CW_KEY} \\(footbag-staging-cwagent-publisher\\) are live in IAM and on no host`));
+    for (const cmd of ROTATE_BOTH) expect(report).toMatch(cmd);
+    expect(report).toMatch(/Nothing was deleted, deactivated or withdrawn/);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    expect(carryShredded()).toBe(true);
+    expect(leftInTmp()).toEqual([]);
+  });
+
+  it('reports the keys installed but unproved when the chain does not resolve on the new instance', () => {
+    writeFileSync(join(state, 'chain-refused'), '');
+    const r = replace();
+    expect(r.status).toBe(1);
+    const report = closingReport(r.out);
+    expect(report).toMatch(/are installed on the new instance, but its credential chain was not proved there/);
+    expect(report).toMatch(/stand-in refusal/);
+    expect(report).not.toMatch(/on no host/);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    expect(carryShredded()).toBe(true);
+    expect(leftInTmp()).toEqual([]);
+  });
+
+  it('on an interrupt after the apply reports the keys on no host, naming both rotations, and shreds its copy', () => {
+    hook('install-known-hosts.sh', ['[[ -e "$STATE/interrupt-at-pin" ]] && kill -INT "$PPID"', 'true']);
+    writeFileSync(join(state, 'interrupt-at-pin'), '');
+    const r = replace();
+    expect(r.status).toBe(130);
+    const report = closingReport(r.out);
+    expect(report).toMatch(/interrupted/);
+    expect(report).toMatch(/are live in IAM and on no host/);
+    for (const cmd of ROTATE_BOTH) expect(report).toMatch(cmd);
+    expect(sessions().some((s) => /^MODE=install$/m.test(s.stream))).toBe(false);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    expect(carryShredded()).toBe(true);
+    expect(leftInTmp()).toEqual([]);
+  });
+
+  it('when the apply wrapper fails, says the old instance may be gone with the keys on no host, naming both rotations', () => {
+    // Defect caught: a failed apply, which may have destroyed the instance,
+    // ends with the report silent on where the host's keys are, or claiming
+    // they are safe on a host that may no longer stand.
+    setExit('terraform-apply.sh', 1);
+    const r = replace();
+    expect(r.status).toBe(1);
+    const report = closingReport(r.out);
+    expect(report).toMatch(/the replacement apply did not finish, so whether footbag-staging-web still stands is not known here/);
+    expect(report).toMatch(new RegExp(`If it was destroyed, the host AWS access keys ${SRC_KEY} \\(footbag-staging-source-profile\\) and ${CW_KEY} \\(footbag-staging-cwagent-publisher\\) are live in IAM and on no host`));
+    for (const cmd of ROTATE_BOTH) expect(report).toMatch(cmd);
+    expect(report).toMatch(/Nothing was deleted, deactivated or withdrawn/);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    expect(carryShredded()).toBe(true);
+  });
+
+  it('when the install session drops mid-way, says whether the keys landed is not known, never that they are on no host', () => {
+    // Defect caught: a session that dropped after the files may have been
+    // promoted is reported as keys on no host, and the maintainer is sent to
+    // rotate keys that are in fact on the new instance.
+    writeFileSync(join(state, 'install-dies'), '');
+    const r = replace();
+    expect(r.status).toBe(1);
+    const report = closingReport(r.out);
+    expect(report).toMatch(new RegExp(`the run stopped while installing the host AWS access keys ${SRC_KEY} \\(footbag-staging-source-profile\\) and ${CW_KEY} \\(footbag-staging-cwagent-publisher\\) on the new instance, so whether they reached it is not known here`));
+    expect(report).toMatch(/A re-run of this route proves them there if they did/);
+    expect(report).not.toMatch(/were not installed on the new instance/);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    expect(carryShredded()).toBe(true);
+  });
+
+  it('a re-run after a stop finds the carried keys on the new instance, says so, and replaces nothing again', () => {
+    // Defect caught: a re-run after a stop part way either replaces the new
+    // instance again, or refuses a carry that in fact landed.
+    writeFileSync(join(state, 'chain-refused'), '');
+    expect(replace().status).toBe(1);
+    rmSync(join(state, 'chain-refused'));
+    // The alias now reaches the new instance, where footbag has no account yet.
+    writeFileSync(join(state, 'unreachable'), '');
+    rmSync(join(state, 'calls.log'));
+    rmSync(join(state, 'siblings.log'));
+    const again = replace();
+    expect(again.status, again.out).toBe(0);
+    expect(again.out).toMatch(/already holding the carried keys/);
+    expect(snapshotTaken()).toBe(false);
+    expect(applied()).toBe(false);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+  });
+
+  it('on an image with no aws CLI yet installs the keys, proves their ids, and leaves the chain to the bootstrap', () => {
+    // Defect caught: a fresh image that has no aws CLI until the bootstrap
+    // installs one fails the replacement after the keys landed, so the drill
+    // stops there and its resume can never pass; or the run claims a chain it
+    // never asked about.
+    writeFileSync(join(state, 'new-host-no-cli'), '');
+    const r = replace();
+    expect(r.status, r.out).toBe(0);
+    for (const [rel, body] of Object.entries(OLD_HOST_FILES)) {
+      expect(readFileSync(join(state, 'newhost', rel), 'utf-8'), rel).toBe(body);
+    }
+    const report = closingReport(r.out);
+    expect(report).toMatch(/Not proven:[\s\S]*credential chain: its image has no aws CLI yet, so the bootstrap's credential step proves it/);
+    expect(report).not.toMatch(/resolves the runtime role/);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    expect(carryShredded()).toBe(true);
+    expect(leftInTmp()).toEqual([]);
+  });
+
+  it('a re-run on an image with no aws CLI yet finds the carried keys and replaces nothing again', () => {
+    // Defect caught: a re-run after the keys landed on such an image reads
+    // them as not carried, refuses, and leaves the drill unable to resume.
+    writeFileSync(join(state, 'new-host-no-cli'), '');
+    expect(replace().status).toBe(0);
+    writeFileSync(join(state, 'unreachable'), '');
+    rmSync(join(state, 'calls.log'));
+    rmSync(join(state, 'siblings.log'));
+    const again = replace();
+    expect(again.status, again.out).toBe(0);
+    expect(again.out).toMatch(/already holding the carried keys/);
+    expect(closingReport(again.out)).toMatch(/credential chain: its image has no aws CLI yet/);
+    expect(snapshotTaken()).toBe(false);
+    expect(applied()).toBe(false);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+  });
+
+  it('installs nothing on a new instance whose awscreds group has another id, and says the keys are on no host', () => {
+    // Defect caught: the files land readable by a group the containers are not
+    // in, and the failure reads later as unreadable credentials.
+    writeFileSync(join(state, 'awscreds-gid'), '1001');
+    const r = replace();
+    expect(r.status).toBe(1);
+    expect(closingReport(r.out)).toMatch(/group awscreds has gid 1001, expected 1500; nothing installed/);
+    expect(closingReport(r.out)).toMatch(/live in IAM and on no host/);
+    expect(existsSync(join(state, 'newhost/root/.aws/credentials'))).toBe(false);
+  });
+
+  it('never takes a host that has the shared account for its own carried instance', () => {
+    // Defect caught: a re-run against an already bootstrapped host whose account
+    // stopped answering reads its keys as "already carried", ending green with
+    // nothing replaced and nothing proved about the instance it meant.
+    writeFileSync(join(state, 'chain-refused'), '');
+    expect(replace().status).toBe(1);
+    rmSync(join(state, 'chain-refused'));
+    writeFileSync(join(state, 'unreachable'), '');
+    writeFileSync(join(state, 'footbag-on-new-host'), '');
+    const again = replace();
+    expect(again.status).toBe(1);
+    expect(again.out).not.toMatch(/already holding the carried keys/);
+    expect(again.out).toMatch(/could not be read\. Nothing was changed/);
+  });
+
+  it('a re-run after a stop that installed nothing refuses, naming the vault and the rotations', () => {
+    writeFileSync(join(state, 'fresh-down'), 'forever');
+    expect(replace({ BOOTSTRAP_HOST_FRESH_LOGIN_WAIT_SECS: '1' }).status).toBe(1);
+    rmSync(join(state, 'fresh-down'));
+    writeFileSync(join(state, 'unreachable'), '');
+    rmSync(join(state, 'siblings.log'));
+    const again = replace();
+    expect(again.status).toBe(1);
+    expect(again.out).toMatch(/reinstalled from the vault/);
+    for (const cmd of ROTATE_BOTH) expect(again.out).toMatch(cmd);
+    expect(applied()).toBe(false);
+  });
+
+  it('replace, then bootstrap through the real agent installer: no key is created, deactivated or deleted', () => {
+    // The real installers run, against the same recording AWS stand-in for
+    // their own key library. Defect caught: anything on the rebuild path mints,
+    // retires or deletes a host access key.
+    const r = replace();
+    expect(r.status, r.out).toBe(0);
+    const repo = process.cwd();
+    for (const name of ['install-cwagent-staging.sh', 'install-host-credentials.sh']) {
+      sh(join(work, 'siblings', name), [`printf '%s %s\\n' ${JSON.stringify(name)} "$*" >> ${JSON.stringify(join(state, 'siblings.log'))}`, `exec bash ${JSON.stringify(join(repo, 'scripts', name))} "$@"`]);
+    }
+    // The new instance as the bootstrap finds it: the keys the carry installed
+    // there, read back from its files, and no agent running yet.
+    const keyIn = (rel: string, profile: string) =>
+      new RegExp(`\\[${profile}\\]\\naws_access_key_id = (\\S+)`).exec(readFileSync(join(state, 'newhost', rel), 'utf-8'))![1];
+    writeHost({
+      ...finishedHost('staging'),
+      CRED_KEY_ID: keyIn('root/.aws/credentials', 'footbag-staging-source-profile'),
+      CWAGENT_KEY_ID: keyIn('etc/amazon-cloudwatch-agent.aws/credentials', 'footbag-staging-cwagent'),
+      CWAGENT_ACTIVE: 'inactive', CWAGENT_ENABLED: 'disabled', CWAGENT_VERSION: '',
+    });
+    onEvent('cwagent-upgrade', { CWAGENT_ACTIVE: 'active', CWAGENT_ENABLED: 'enabled', CWAGENT_VERSION: CWAGENT });
+    const boot = runTty(['--target', 'staging'], '', { IAM_KEY_AWS_BIN: join(work, 'bin', 'aws') });
+    expect(boot.status, boot.out).toBe(0);
+    expect(existsSync(join(state, 'agent-installed')), 'the real installer reached the host').toBe(true);
+    expect(siblingCalls().filter((c) => /^install-(cwagent|host-credentials)/.test(c)), boot.out).toEqual(['install-cwagent-staging.sh --upgrade']);
+    expect(callsLog()).toMatch(/^aws iam list-access-keys --user-name footbag-staging-cwagent-publisher/m);
+    expect(callsLog()).not.toMatch(KEY_CALL);
+    const st = run(['--target', 'staging', '--status']);
+    expect(st.status, st.stdout).toBe(0);
+  });
+});
+
+describe('bootstrap-host.sh: the agent\'s metrics after an install', () => {
+  // Metrics take minutes to arrive after an agent install. Defect caught: the
+  // bootstrap ends at once with the agent row pending, so a status proof run
+  // straight after reads PENDING for metrics still on their way; or it waits
+  // without bound, or passes without them.
+  function agentToInstall(): void {
+    writeHost({ ...finishedHost('staging'), CWAGENT_ACTIVE: 'inactive', CWAGENT_ENABLED: 'disabled', CWAGENT_VERSION: '' });
+    hook('install-cwagent-staging.sh--upgrade', ['touch "$STATE/agent-installed"']);
+    onEvent('install-cwagent-staging.sh--upgrade', { CWAGENT_ACTIVE: 'active', CWAGENT_ENABLED: 'enabled', CWAGENT_VERSION: CWAGENT });
+    setExit('verify-cwagent-metrics.sh', 1);
+  }
+
+  // The verifier as CloudWatch answers it: state/metrics-at holds the newest
+  // datapoint's time, and a read passes when there is one, at or after its
+  // --since when it is given one.
+  const METRICS_BY_TIME = [
+    'since=""; prev=""; for a in "$@"; do [[ "$prev" == --since ]] && since="$a"; prev="$a"; done',
+    '[[ -e "$STATE/metrics-at" ]] || { echo "  FAIL  cpu_usage_active     cpu=cpu-total            no datapoints"; exit 1; }',
+    '[[ -z "$since" ]] && exit 0',
+    '(( $(date -u -d "$(cat "$STATE/metrics-at")" +%s) >= $(date -u -d "$since" +%s) )) && exit 0',
+    'echo "  FAIL  cpu_usage_active     cpu=cpu-total            no datapoints"; exit 1',
+  ];
+
+  it('waits for metrics that arrive late, then passes', () => {
+    agentToInstall();
+    // The new agent's first datapoint arrives on the third read after the install.
+    hook('verify-cwagent-metrics.sh', [
+      'if [[ -e "$STATE/agent-installed" ]]; then',
+      '  n=$(( $(cat "$STATE/metric-reads" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$STATE/metric-reads"',
+      '  (( n < 3 )) || date -u +%Y-%m-%dT%H:%M:%SZ > "$STATE/metrics-at"',
+      'fi',
+      ...METRICS_BY_TIME,
+    ]);
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(Number(readFileSync(join(state, 'metric-reads'), 'utf-8'))).toBeGreaterThanOrEqual(3);
+    // The run polled the metrics alone, straight after the install, rather than
+    // passing because a later step's reads happened to see them arrive.
+    const after = siblingCalls().slice(siblingCalls().findIndex((c) => c.startsWith('install-cwagent-staging.sh --upgrade')) + 1)
+      .map((c) => c.split(' ')[0]);
+    const polled = after.findIndex((c, i) => c === 'verify-cwagent-metrics.sh' && after[i + 1] === 'verify-cwagent-metrics.sh');
+    expect(polled, after.join('\n')).toBeGreaterThanOrEqual(0);
+    expect(after.slice(0, polled).filter((c) => c !== 'verify-cwagent-metrics.sh' && c !== 'verify-host-snapshots.sh'), 'nothing between the install and the wait').toEqual([]);
+    expect(closingReport(r.out)).toMatch(/the agent's metrics arrive where the alarms read them/);
+  });
+
+  it('is not satisfied by datapoints published before the install, which the replaced host left in the series', () => {
+    // Defect caught: the metrics carry no instance dimension, so a wait that
+    // counts any datapoint in the window passes on the old host's last
+    // minutes, and the bootstrap proves an agent that has published nothing.
+    agentToInstall();
+    writeFileSync(join(state, 'metrics-at'), new Date(Date.now() - 5 * 60 * 1000).toISOString().replace(/\.\d+Z$/, 'Z'));
+    hook('verify-cwagent-metrics.sh', METRICS_BY_TIME);
+    // Shortened only here, where running out is the verdict.
+    const r = runTty(['--target', 'staging'], '', { BOOTSTRAP_HOST_METRICS_WAIT_SECS: '1' });
+    expect(r.status).toBe(1);
+    expect(closingReport(r.out)).toMatch(/metrics did not arrive within 1s of its install/);
+    // Every read after the install asked only for datapoints from the install on.
+    const after = siblingCalls().slice(siblingCalls().findIndex((c) => c.startsWith('install-cwagent-staging.sh --upgrade')) + 1);
+    const waits = after.filter((c) => /^verify-cwagent-metrics\.sh .*--since \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ /.test(c));
+    expect(waits.length, after.join('\n')).toBeGreaterThan(0);
+  });
+
+  it('fails past its bound, naming the metrics check', () => {
+    agentToInstall();
+    // Shortened only here, where running out is the verdict.
+    const r = runTty(['--target', 'staging'], '', { BOOTSTRAP_HOST_METRICS_WAIT_SECS: '1' });
+    expect(r.status).toBe(1);
+    expect(closingReport(r.out)).toMatch(/metrics did not arrive within 1s .*bash scripts\/verify-cwagent-metrics\.sh --target staging/);
+  });
+
+  it('does not wait on a host whose agent it did not install', () => {
+    // The passing control: an agent already running is judged on one read.
+    setExit('verify-cwagent-metrics.sh', 1);
+    const r = runTty(['--target', 'staging'], '', { BOOTSTRAP_HOST_METRICS_WAIT_SECS: '1' });
+    expect(r.out).not.toMatch(/Waiting up to/);
   });
 });
 
@@ -1645,6 +2353,7 @@ describe('bootstrap-host.sh --replace-instance: problems the old code swallowed'
   it('refuses a newest backup whose time cannot be read, rather than calling it decades old', () => {
     // Defect caught: an unreadable time parsed as epoch 0, so the operator was
     // told the backups had stopped and sent to find out why.
+    writeHost(finishedHost('production'));
     writeFileSync(join(state, 'marker'), 'true\n');
     writeFileSync(join(state, 'backup-time'), 'stand-in-not-a-time\n');
     const r = runTty(['--target', 'production', '--replace-instance'], 'APPLY\\n');
@@ -2065,6 +2774,60 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
     });
   });
 
+  describe('the carry body installing on the new instance', () => {
+    const CARRY_HALF = join(process.cwd(), 'scripts/internal/bootstrap-host-carry-remote.sh');
+    const enc = (rel: string) => Buffer.from(OLD_HOST_FILES[rel]).toString('base64');
+    function install(over: Record<string, string> = {}) {
+      const values: Record<string, string> = {
+        CARRY_CREDS_B64: enc('root/.aws/credentials'),
+        CARRY_CONFIG_B64: enc('root/.aws/config'),
+        CARRY_AGENT_B64: enc('etc/amazon-cloudwatch-agent.aws/credentials'),
+        CARRY_SRC_KEY: SRC_KEY,
+        CARRY_CW_KEY: CW_KEY,
+        ...over,
+      };
+      const stream = ['MODE=install', 'TARGET_ENV=staging', ...Object.entries(values).map(([k, v]) => `${k}=${v}`)].join('\n') + '\n';
+      return runHalf(CARRY_HALF, stream, {
+        CARRY_ROOT_DIR: join(state, 'newhost'),
+        PATH: `${join(state, 'hosttools')}:${process.env.PATH ?? ''}`,
+      });
+    }
+    const installed = () => ['root/.aws/credentials', 'root/.aws/config', 'etc/amazon-cloudwatch-agent.aws/credentials']
+      .filter((rel) => existsSync(join(state, 'newhost', rel)));
+
+    it('installs all three and proves the chain when every value decodes, the control for the refusals below', () => {
+      const r = install();
+      expect(r.status, r.out).toBe(0);
+      expect(installed()).toHaveLength(3);
+      expect(r.out).toMatch(/^---FOOTBAG-CARRY-INSTALLED---$/m);
+      expect(r.out).toMatch(/^---FOOTBAG-CARRY-PROVED---$/m);
+    });
+
+    it('installs none of the three when the third value does not decode, and says nothing was installed', () => {
+      // Defect caught: the first two files are promoted before the third is
+      // found bad, leaving the new instance a credentials file and a config
+      // with no agent key, and a caller told nothing landed.
+      const r = install({ CARRY_AGENT_B64: '!!!!not-base64' });
+      expect(r.status).toBe(1);
+      expect(installed()).toEqual([]);
+      const tools = join(state, 'hosttools.log');
+      expect(existsSync(tools) ? readFileSync(tools, 'utf-8') : '').not.toMatch(/^install -m /m);
+      expect(r.out).toMatch(/^---FOOTBAG-CARRY-NOTHING-INSTALLED---$/m);
+      expect(r.out).toMatch(/^---FOOTBAG-PROBLEM--- ERROR the content carried for \S+amazon-cloudwatch-agent\.aws\/credentials is not base64; nothing installed$/m);
+      expect(r.out).not.toMatch(/---FOOTBAG-CARRY-INSTALLED---/);
+    });
+
+    it('refuses files whose key id, read back after the install, is not the one the old host held', () => {
+      // Defect caught: the files that land hold another key than the one the
+      // run checked live in IAM and reported carried, and the run says carried.
+      const r = install({ CARRY_SRC_KEY: DEAD_KEY });
+      expect(r.status).toBe(1);
+      expect(r.out).toMatch(new RegExp(`^---FOOTBAG-PROBLEM--- ERROR \\S+/root/\\.aws/credentials holds '${SRC_KEY}' under \\[footbag-staging-source-profile\\] after the install, not ${DEAD_KEY}$`, 'm'));
+      expect(r.out).not.toMatch(/---FOOTBAG-CARRY-INSTALLED---/);
+      expect(r.out).not.toMatch(/---FOOTBAG-CARRY-PROVED---/);
+    });
+  });
+
   describe('the status body', () => {
     it('reads the ports the running sshd is bound to, and only sshd\'s', () => {
       // Defect caught: the port rows read sshd -T, the configuration a fresh
@@ -2212,10 +2975,10 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
 
     it('answers the key id the profile holds, and an empty one for a file that is not there', () => {
       const creds = join(work, 'credentials');
-      writeFileSync(creds, `[footbag-staging-source-profile]\naws_access_key_id = ${HOST_KEY}\naws_secret_access_key = stub\n`);
+      writeFileSync(creds, `[footbag-staging-source-profile]\naws_access_key_id = ${SRC_KEY}\naws_secret_access_key = stub\n`);
       const r = runHalf(KEYID_HALF, ask(creds));
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(new RegExp(`^---FOOTBAG-KEY-ID---\\n${HOST_KEY}\\n---FOOTBAG-END---$`, 'm'));
+      expect(r.out).toMatch(new RegExp(`^---FOOTBAG-KEY-ID---\\n${SRC_KEY}\\n---FOOTBAG-END---$`, 'm'));
       const none = runHalf(KEYID_HALF, ask(join(work, 'absent')));
       expect(none.status, none.out).toBe(0);
       expect(none.out).toMatch(/^---FOOTBAG-KEY-ID---\n\n---FOOTBAG-END---$/m);

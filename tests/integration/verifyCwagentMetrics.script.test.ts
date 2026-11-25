@@ -160,6 +160,34 @@ describe('verify-cwagent-metrics.sh queries', () => {
     expect(metricQueries().every((c) => c.includes('--namespace CWAgent/production'))).toBe(true);
   });
 
+  it('with --since, asks only from the next whole minute after it, and never further back than the window', () => {
+    // Defect caught: a bootstrap that just installed the agent is satisfied by
+    // datapoints the replaced host published minutes earlier, since no metric
+    // carries an instance dimension; or the one-minute datapoint holding the
+    // install's own minute, partly from before it, counts.
+    const startTimes = () => calls().filter((c) => c.includes('get-metric-statistics'))
+      .map((c) => /--start-time (\S+)/.exec(c)![1]);
+    const at = new Date(Date.now() - 5 * 60 * 1000);
+    at.setUTCSeconds(30, 0);
+    const since = at.toISOString().replace(/\.\d+Z$/, 'Z');
+    const nextMinute = new Date(at.getTime() + 30 * 1000).toISOString().replace(/\.\d+Z$/, 'Z');
+    const r = run(['--target', 'staging', '--since', since], ALL_PUBLISHING);
+    expect(r.status, r.stderr).toBe(0);
+    expect(startTimes()).toEqual([nextMinute, nextMinute, nextMinute]);
+
+    // A moment older than the window leaves the window's own start in place.
+    rmSync(join(stubDir, 'calls.log'), { force: true });
+    run(['--target', 'staging', '--since', '2000-01-01T00:00:00Z'], ALL_PUBLISHING);
+    expect(startTimes().every((s) => s > '2000-01-02'), startTimes().join(' ')).toBe(true);
+  });
+
+  it('refuses a --since it cannot read as a time', () => {
+    const r = run(['--target', 'staging', '--since', 'after-the-install'], ALL_PUBLISHING);
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain('--since must be a time');
+    expect(calls()).toEqual([]);
+  });
+
   it('pins the region, because these metrics are region-scoped and an operator default elsewhere would fail a healthy host', () => {
     run(['--target', 'staging'], ALL_PUBLISHING);
     expect(calls().every((c) => c.includes('--region us-east-1'))).toBe(true);

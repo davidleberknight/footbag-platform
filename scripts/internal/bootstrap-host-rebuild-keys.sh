@@ -8,10 +8,11 @@
 # Without it the shared key library refuses with only the count of keys the user
 # holds, which on a rebuilt host reads as "nothing to do": the operator's first
 # reading is that the credential is already in service, and it is not, because
-# the host that held it is gone. The way forward from there is a rotation that
-# mints the new host its own key and then retires the dead host's, and this
-# message names it with the key ids to retire, so nothing about it has to be
-# remembered.
+# the host that held it is gone. A replacement through bootstrap-host.sh carries
+# the keys over and a lost host is reinstalled from the vault, so this host
+# should not exist; if the maintainer decides to give it a new key instead, the
+# message names the rotation with the key ids to retire, so nothing about it has
+# to be remembered.
 #
 # The caller has sourced scripts/lib/host-env-remote.sh and
 # scripts/lib/iam-access-key.sh, read the sudo password into SUDO_PASS, and
@@ -123,9 +124,12 @@ rebuild_key_check() {
     echo "          The host holds ${host_key}, which is not a key of ${user}." >&2
   fi
   echo "" >&2
-  echo "          That is a host rebuilt from nothing: the key the user holds belongs" >&2
-  echo "          to the host that was replaced, and nothing still uses it. Give this" >&2
-  echo "          host its own key with a rotation, prove it, then retire the old one:" >&2
+  echo "          That is a host built without the key the user holds. A host replaced" >&2
+  echo "          with scripts/bootstrap-host.sh --target ${target} --replace-instance" >&2
+  echo "          carries its keys over, and a lost host is reinstalled from the vault;" >&2
+  echo "          no script mints one on its own. Whether to give this host a new key" >&2
+  echo "          instead is the maintainer's call: a rotation, proved, then the old" >&2
+  echo "          key retired and deleted:" >&2
   echo "" >&2
   echo "            < ${cred} bash ${installer} --rotate" >&2
   while IFS= read -r id; do
@@ -134,7 +138,6 @@ rebuild_key_check() {
     echo "            bash ${installer} --delete ${id}" >&2
   done <<< "$ids"
   echo "" >&2
-  echo "          scripts/bootstrap-host.sh --target ${target} runs that sequence itself." >&2
   echo "          Nothing has been created." >&2
   return 1
 }

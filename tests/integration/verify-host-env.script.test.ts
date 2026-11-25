@@ -215,6 +215,26 @@ describe('verify-host-env.sh — critical invariant FAIL boundaries', () => {
     expect(result.stdout).toMatch(/FAIL +NODE_ENV cross-invariant/);
   });
 
+  it('no NODE_ENV line → PASS (the image and compose set it), and NODE_ENV=production → PASS', () => {
+    // Defect caught: a host built from scratch, which never gets a NODE_ENV
+    // line because the containers set it themselves, failing verification and
+    // so every bootstrap and readiness proof that runs this check.
+    const absent = runScript({ envFilePath: writeEnvFile(mutate(/^NODE_ENV=.*\n/m, '')) });
+    expect(absent.exitCode, absent.stdout).toBe(0);
+    expect(absent.stdout).toMatch(/PASS +NODE_ENV cross-invariant: NODE_ENV not held on the host/);
+
+    const production = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(production.exitCode, production.stdout).toBe(0);
+    expect(production.stdout).toMatch(/PASS +NODE_ENV cross-invariant: NODE_ENV=production/);
+  });
+
+  it('an empty NODE_ENV line → FAIL, as a present line that is not production', () => {
+    // Defect caught: a present but blank host value read as absent and passed.
+    const result = runScript({ envFilePath: writeEnvFile(mutate(/NODE_ENV=production/, 'NODE_ENV=')) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +NODE_ENV cross-invariant: NODE_ENV is unset/);
+  });
+
   it('SESSION_SECRET shorter than 32 chars → FAIL', () => {
     const env = mutate(/SESSION_SECRET=.+/, 'SESSION_SECRET=tooshort');
     const result = runScript({ envFilePath: writeEnvFile(env) });

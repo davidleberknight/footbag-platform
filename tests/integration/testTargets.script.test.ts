@@ -84,6 +84,19 @@ describe('test-targets.sh — operator scripts', () => {
     expect(notNaming, 'companion tests of the sourcing scripts listed').toEqual([]);
   });
 
+  it('reaches a remote half or step library through the scripts that send or source it', () => {
+    // Defect caught: an edit to a host half or the bootstrap's step library
+    // prints no vitest line, so it is verified with no test run at all. No
+    // suite names either file; bootstrap-host.sh sends the carry half and
+    // sources the step library, which bringup-status.sh sources too.
+    const carry = run(['scripts/internal/bootstrap-host-carry-remote.sh']);
+    expect(carry.tests).toContain('tests/integration/bootstrapHost.script.test.ts');
+    expect(carry.checks).toContain('bash scripts/ci/assert_conventions.sh');
+    const steps = run(['scripts/internal/bootstrap-host-steps.sh']);
+    expect(steps.tests).toContain('tests/integration/bootstrapHost.script.test.ts');
+    expect(steps.tests).toContain('tests/integration/bringupStatus.script.test.ts');
+  });
+
   it('reaches a library through a repository-root script that sources it', () => {
     // run_all_tests.sh sources the verdict banner from outside scripts/, and
     // its mode tests are what prove the banner still reads right there.
