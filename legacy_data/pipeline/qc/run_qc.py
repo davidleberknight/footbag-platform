@@ -534,19 +534,36 @@ def check_event_result_participants(
         _marked = participants[participants["notes"].astype(str).str.contains("additional_team_member", na=False)]
         for (_ek, _dk, _pl), _n in _marked.groupby(["event_key", "discipline_key", "placement"]).size().items():
             marked_additional[(str(_ek).strip(), str(_dk).strip(), str(_pl).strip())] = int(_n)
-        # A doubles place teams are tied at: each further team's players are marked
-        # "tied_team:N". They are counted apart from the first team, and each
-        # marked group must itself be exactly two players.
+        # A place several competitors are tied at: each further competitor's players
+        # are marked "tied_team:N". They are counted apart from the first, and each
+        # marked group must itself be one competitor: one player in a singles
+        # contest, two in a doubles contest. A tie in any other contest, or in one
+        # the disciplines table does not describe, has no known competitor size and
+        # fails rather than being judged by either.
         _tied_group = participants["notes"].astype(str).str.extract(r"\btied_team:(\d+)\b")[0]
         _tied = participants.assign(_tied_group=_tied_group).dropna(subset=["_tied_group"])
         for (_ek, _dk, _pl, _g), _n in _tied.groupby(
                 ["event_key", "discipline_key", "placement", "_tied_group"]).size().items():
             _slot = (str(_ek).strip(), str(_dk).strip(), str(_pl).strip())
             marked_additional[_slot] = marked_additional.get(_slot, 0) + int(_n)
-            if int(_n) != 2:
+            _entry_size = discipline_meta.get(_slot[:2])
+            if _entry_size == "singles":
+                _expected = 1
+            elif _entry_size == "doubles":
+                _expected = 2
+            else:
                 collector.hard(
                     "invalid_tied_doubles_team",
-                    f"Tied doubles team {_g} has {int(_n)} participants; expected 2",
+                    f"Tied group {_g} is in a contest whose entry size is {_entry_size!r}; "
+                    "only singles and doubles ties have a known competitor size",
+                    table=table,
+                    context=f"event_key={_ek} discipline_key={_dk} placement={_pl}",
+                )
+                continue
+            if int(_n) != _expected:
+                collector.hard(
+                    "invalid_tied_doubles_team",
+                    f"Tied group {_g} has {int(_n)} participants; expected {_expected}",
                     table=table,
                     context=f"event_key={_ek} discipline_key={_dk} placement={_pl}",
                 )

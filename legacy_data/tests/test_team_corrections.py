@@ -125,8 +125,11 @@ def test_each_single_player_correction_is_one_competitor_in_the_delivered_data()
     # results still carry the repeated names, because the output was not regenerated.
     csv.field_size_limit(sys.maxsize)
     with _CORRECTIONS.open(newline="", encoding="utf-8") as f:
+        # A tied singles row names its players in original_display and leaves both
+        # corrected players blank; it marks a tie rather than naming one player.
         corrections = [r for r in csv.DictReader(f)
-                       if r["active"].strip() == "1" and not r["corrected_player_b"].strip()]
+                       if r["active"].strip() == "1" and not r["corrected_player_b"].strip()
+                       and r["correction_type"].strip() != "TIED_SINGLES"]
     assert corrections, "no single-player correction left to check"
 
     with (_CANON / "event_result_participants.csv").open(newline="", encoding="utf-8") as f:

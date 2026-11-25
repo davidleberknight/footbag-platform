@@ -870,6 +870,11 @@ if TEAM_CORRECTIONS.exists():
         pb = rule["corrected_player_b"].strip()
         ctype = rule.get("correction_type", "").strip()
 
+        # A tied singles placing is marked after every other fix, by the tied
+        # singles block before the save; it never replaces the players here.
+        if ctype == "TIED_SINGLES":
+            continue
+
         # Find matching participant rows
         matching = [
             p for p in participants
@@ -3230,6 +3235,45 @@ try:
     _f15_total = _f15_events_pair_marker_added + _f15_result_notes_compressed
 except NameError:
     _f15_total = 0
+
+# ── Tied singles ──────────────────────────────────────────────────────────────
+# A singles placing the source page lists as several players tied at one place
+# arrives as one placing holding them all, which loads as one entry drawn like a
+# team. A TIED_SINGLES row in team_corrections.csv names those players in
+# original_display, separated by " | ". Every player after the first is marked as
+# its own tied group ("tied_team:2", ":3" and so on), and the loader gives each
+# group its own entry at the same place. It runs after every other fix, so it
+# sees the names the delivered data carries. Only a listed placing is touched,
+# and only when it holds exactly the listed players: anything else stops the
+# build, because a placing that changed since it was checked against its page
+# must be checked again, never split on trust.
+_tied_singles_applied = 0
+_tied_singles_path = ROOT / "inputs" / "team_corrections.csv"
+if _tied_singles_path.exists():
+    with open(_tied_singles_path, newline="", encoding="utf-8") as f:
+        _tied_singles_rules = [
+            r for r in csv.DictReader(f)
+            if r.get("active", "").strip() == "1"
+            and r.get("correction_type", "").strip() == "TIED_SINGLES"
+        ]
+    _by_place: dict = {}
+    for _p in participants:
+        _by_place.setdefault((_p["event_key"], _p["discipline_key"], _p["placement"]), []).append(_p)
+    for _rule in _tied_singles_rules:
+        _key = (_rule["event_key"].strip(), _rule["discipline_key"].strip(),
+                _rule["placement"].strip())
+        _listed = [n.strip() for n in _rule["original_display"].split("|") if n.strip()]
+        _rows = sorted(_by_place.get(_key, []), key=lambda r: int(r["participant_order"]))
+        _found = [r["display_name"] for r in _rows]
+        if len(_listed) < 2 or sorted(_found) != sorted(_listed):
+            raise SystemExit(
+                f"05p5 aborted: team_corrections.csv TIED_SINGLES row {_key} lists "
+                f"{_listed} but the placing holds {_found}. Read the placing against its "
+                "source page again and correct or remove the row.")
+        for _group, _row in enumerate(_rows[1:], start=2):
+            _row["notes"] = f"tied_team:{_group}"
+        _tied_singles_applied += 1
+    print(f"\n[Tied singles] Placings split into tied entries: {_tied_singles_applied}")
 
 # ── Save ──────────────────────────────────────────────────────────────────────
 
