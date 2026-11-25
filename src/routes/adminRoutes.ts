@@ -282,7 +282,7 @@ adminRouter.post('/freestyle/tricks/:slug/sources/:sourceId/delete',   adminFree
 adminRouter.post('/freestyle/tricks/:slug/modifiers',                                    adminFreestyleController.attachModifier);
 adminRouter.post('/freestyle/tricks/:slug/modifiers/:modifierSlug/:applyOrder/delete',   adminFreestyleController.detachModifier);
 // Emerging Vocabulary workbench (decision packet + full-dimension row table).
-// Read-only curator surface; adjudications land through the ruling ledger.
+// Read-only curator surface; a ruling is resolved by publishing its trick.
 adminRouter.get('/freestyle/emerging-vocabulary', emergingVocabController.workbenchPage);
 // Dictionary provenance-source registry: list the existing sources and create one
 // (the trick-dictionary provenance registry, distinct from the media-source registry).

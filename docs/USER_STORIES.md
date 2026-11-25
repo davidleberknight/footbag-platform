@@ -3412,7 +3412,8 @@ Success Criteria:
 - Alongside the packet, the full observed vocabulary lists as a table, filterable by one dimension at a time: object type, evidence state, blocking decision, owner, publication state, public section, and source. An unrecognized dimension shows the unfiltered table.
 - Curation diagnostics appear only here: parser confidence, failure class, and the provenance of a prior ruling. The public observational page shows none of them.
 - A name already published to the public observational page is excluded from the packet, so the workbench shows only what still needs a decision.
-- This surface is read-only. It performs no writes and records no audit entry; a ruling is recorded through the freestyle ruling ledger, not here.
+- This surface is read-only. It performs no writes and records no audit entry. A ruling is resolved by publishing its trick (A_Publish_Freestyle_Trick_From_Draft), not here.
+- << V2 SCOPE >> An admin records any other Emerging Vocabulary ruling in the app, with an audit entry.
 
 ### A_Author_Freestyle_Notation_Draft
 
