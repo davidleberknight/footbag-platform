@@ -1757,8 +1757,6 @@ export interface FreestyleTrickIndexRow {
   notation: string | null;      // Jobs notation, opaque text; rendered monospace
   aliases: string[];
   detailHref: string;           // always /freestyle/tricks/:slug for all dict entries
-  hasRecords: boolean;          // true when passback records exist (shows record indicator)
-  recordHref: string | null;    // kept for backwards compatibility — same as detailHref when hasRecords
   hasMedia: boolean;            // back-compat boolean; equals (mediaCoverage !== 'none')
   mediaCoverage: TrickMediaCoverage;  // tier-aware coverage classification
   isExternalOnly: boolean;      // true when row is is_active=0 + review_status='pending' (external placeholder)
@@ -3834,7 +3832,6 @@ function extractModifierSlugs(canonicalName: string, baseTrick: string): string[
 // Shaping context bundled per request to keep shapeTrickIndexRow's signature
 // stable across the index, family, and ADD views.
 interface TrickIndexShapingContext {
-  slugsWithRecords: Set<string>;
   aliasesByTrickSlug: Map<string, string[]>;
   /** Trick slugs the alias table holds any row for, display-gated or not, so
    *  the deprecated aliases_json fallback fires only for tricks the table does
@@ -4032,7 +4029,6 @@ function shapeTrickIndexRow(
   const isExternalOnly = isActive === 0 && reviewStatus === 'pending';
 
   const detailHref = `/freestyle/tricks/${row.slug}`;
-  const hasRecords = ctx.slugsWithRecords.has(row.slug);
   const mediaCoverage: TrickMediaCoverage = ctx.mediaCoverageBySlug.get(row.slug) ?? 'none';
   const hasMedia = mediaCoverage !== 'none';
 
@@ -4054,8 +4050,6 @@ function shapeTrickIndexRow(
     notation:        row.notation,
     aliases,
     detailHref,
-    hasRecords,
-    recordHref:      hasRecords ? detailHref : null,  // backwards compat
     hasMedia,
     mediaCoverage,
     isExternalOnly,
@@ -4122,14 +4116,8 @@ function buildTrickIndexShapingContext(
     }
   }
 
-  // Slugs with passback records (record-indicator on rows).
   const publicRows = runSqliteRead('freestyleRecords.listPublic', () =>
     freestyleRecords.listPublic.all() as FreestyleRecordRow[],
-  );
-  const slugsWithRecords = new Set(
-    publicRows
-      .filter(r => r.trick_name)
-      .map(r => recordTrickNameToSlug(r.trick_name!)),
   );
 
   // A freestyle record's own video_url is a third coverage lane, ranked below
@@ -4177,7 +4165,6 @@ function buildTrickIndexShapingContext(
 
   return {
     ctx: {
-      slugsWithRecords,
       aliasesByTrickSlug,
       slugsWithAnyAlias,
       mediaCoverageBySlug,
