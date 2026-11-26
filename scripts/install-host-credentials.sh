@@ -292,11 +292,11 @@ if [[ "$ACTION" != "install" ]]; then
         # Two keys on the user, neither on this host: nothing here uses either,
         # and no rotation can mint this host its own until one is gone. The chain
         # proof could only fail, since the host has no working key to prove with.
-        echo "==> ${SOURCE_PROFILE_USER} holds two keys and ${TARGET}'s host holds neither;"
+        echo "== ${SOURCE_PROFILE_USER} holds two keys and ${TARGET}'s host holds neither;"
         echo "    retiring ${OLD_KEY} frees the slot a rotation needs. No chain proof is"
         echo "    possible or needed: neither key is in service on this host."
       else
-      echo "==> Proving ${TARGET}'s HOST resolves its chain, before retiring ${OLD_KEY}"
+      echo "== Proving ${TARGET}'s HOST resolves its chain, before retiring ${OLD_KEY}"
       # The proof body marks its own failures, with the client's reason, on the
       # stream, so they are listed in this run's closing report. The report
       # helper goes ahead of it on the same stream, since the body cannot source.
@@ -357,7 +357,7 @@ PROOF
       cr_finish
       ;;
     delete)
-      echo "==> Deleting ${OLD_KEY} on ${SOURCE_PROFILE_USER}"
+      echo "== Deleting ${OLD_KEY} on ${SOURCE_PROFILE_USER}"
       echo "Not reversible, and the key id is never reissued."
       if ! confirm_from_tty "Type 'APPLY' to delete it: " "APPLY"; then
         cr_die "Not confirmed; the key is untouched."

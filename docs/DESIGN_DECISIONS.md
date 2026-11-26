@@ -4930,7 +4930,7 @@ Requirements:
 
 - Dependency versions are reviewed and bumped by hand. No bot opens or merges a version bump.
 
-- A new version is taken only once it has been published for at least seven days, so a faulty release has been found and withdrawn before it reaches the project. A fix for a flaw known to be exploited on a publicly exposed system is the one exception, taken as soon as it is published and reviewed. `scripts/pin-npm-package.sh` and `scripts/bump-tool.sh` refuse a younger npm version or Amazon Linux release unless told the exception applies.
+- A new version is taken only once it has been published for at least seven days, so a faulty release has been found and withdrawn before it reaches the project. The maintainer may take a younger one: a fix for a flaw known to be exploited on a publicly exposed system, taken as soon as it is published and reviewed, or any release the maintainer chooses to take early. `scripts/pin-npm-package.sh` and `scripts/bump-tool.sh` refuse a younger npm version or Amazon Linux release unless told to take it early.
 
 - Patching happens when the maintainer decides. Repository vulnerability alerts are on and email the maintainers when a pinned package gains a critical or high advisory; Dependabot security-update pull requests are off. The advisory and staleness reports over the pinned versions run on request.
 

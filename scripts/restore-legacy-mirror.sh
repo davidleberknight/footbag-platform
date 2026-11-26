@@ -299,7 +299,7 @@ report() {
   return 0
 }
 
-echo "==> Restore status of the listed files"
+echo "== Restore status of the listed files"
 classify
 report
 
@@ -364,7 +364,7 @@ if [[ "$MODE" == "request" ]]; then
   echo "  ${requested} requested, ${raced} already in flight from elsewhere, ${failed} failed"
 
   # The outcome is read back from the bucket, not taken from the answers.
-  echo "==> Reading the restore status back"
+  echo "== Reading the restore status back"
   classify
   report
   if (( N_NONE > 0 )); then
@@ -418,7 +418,7 @@ while IFS= read -r extra; do
 done < "${WORK}/extras.txt"
 (( N_EXTRAS > 0 )) && echo "  ${N_EXTRAS} object(s) in the bucket are not on the list and are left out."
 
-echo "==> Downloading ${FILE_COUNT} files (${TOTAL_BYTES} bytes) into ${DEST_ABS}"
+echo "== Downloading ${FILE_COUNT} files (${TOTAL_BYTES} bytes) into ${DEST_ABS}"
 # A failed copy is already an error with the tool's last line; the run goes on
 # to check what landed, so the report says how far it got.
 copy_status=0
@@ -429,7 +429,7 @@ cr_run "download of the crawl" -- "$AWS_BIN" "${COPY[@]}" </dev/null || copy_sta
 
 # The same list the backup writes, built the same way from what landed, and
 # compared line for line: path, size and SHA-256.
-echo "==> Checking every listed file in ${DEST_ABS}"
+echo "== Checking every listed file in ${DEST_ABS}"
 find "$DEST_ABS" -type f -printf '%P\t%s\n' | LC_ALL=C sort -t $'\t' -k1,1 > "${WORK}/got_sizes.tsv"
 find "$DEST_ABS" -type f -printf '%P\0' | LC_ALL=C sort -z > "${WORK}/got_names.bin"
 ( cd "$DEST_ABS" && xargs -0 -r sha256sum -- < "${WORK}/got_names.bin" ) > "${WORK}/got_sums.txt" 2> "${WORK}/sha.err" \

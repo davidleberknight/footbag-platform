@@ -152,9 +152,10 @@ _send_into() { local log="$1"; shift; send "$@" | cr_keep_marked "$log"; return 
 marked() { grep -m1 -e "^---FOOTBAG-$1--- " -- "$LAST_LOG" | cut -d' ' -f2-; }
 
 if [[ "$MODE" == status ]]; then
-  echo "==> status of Amazon Linux on ${ALIAS} (pinned ${PIN})"
-  # The verdict line is a report, not a check: staging may run a release newer
-  # than the pin. A read that fails is the run's error, and nothing is claimed.
+  echo "== status of Amazon Linux on ${ALIAS} (pinned ${PIN})"
+  # The verdict line is a report, not a check: status reads a host off its pin
+  # without refusing, so the operator can see where it stands. A read that
+  # fails is the run's error, and nothing is claimed.
   send_reported "status" status || cr_die "could not read the status of ${ALIAS}; nothing was changed"
   cr_proved "status read from ${ALIAS}; nothing was changed"
   cr_finish
@@ -162,14 +163,14 @@ fi
 
 # ── 1. The release gate ──────────────────────────────────────────────────────
 if [[ "$TARGET" == production ]]; then
-  echo "==> The production release gate"
+  echo "== The production release gate"
   production_release_gate_deploy "$REPO_ROOT" \
     || cr_die "the release gate refuses this tree; nothing was changed"
   cr_proved "the release gate passed: the pin ${PIN} is on a CI-proven main"
 fi
 
 # ── 2. What the step changes, and the confirmation ───────────────────────────
-echo "==> What stepping ${ALIAS} to ${PIN} changes"
+echo "== What stepping ${ALIAS} to ${PIN} changes"
 send_reported "preview" preview || cr_die "could not read what the step would change; nothing was changed"
 PACKAGES="$(marked PREVIEW)"
 [[ "$PACKAGES" =~ ^[0-9]+$ ]] || cr_die "the host reported no package count; nothing was changed"
@@ -208,7 +209,7 @@ tf_output_read "${REPO_ROOT}/terraform/${TARGET}" snapshots_bucket_name \
 BUCKET="$TF_OUTPUT_VALUE"
 
 SNAP="${INSTANCE}-pre-step-$(date -u +%Y%m%dT%H%M%SZ)"
-echo "==> Snapshotting ${INSTANCE} as ${SNAP}"
+echo "== Snapshotting ${INSTANCE} as ${SNAP}"
 host_snapshot_create "$AWS_BIN" "$INSTANCE" "$SNAP" || cr_die "${HS_ERROR}; nothing was changed"
 # Four hours: a snapshot still pending after that is a Lightsail problem to look
 # at before anything moves, not one to wait out.
@@ -227,7 +228,7 @@ cr_cleanup left_stopped
 
 quiesce_from="$(date -u +%s)"
 STOPPED=1
-echo "==> Stopping footbag.service and taking its last backup"
+echo "== Stopping footbag.service and taking its last backup"
 quiesce_log="$(mktemp "$(_cr_tmp)/quiesce.XXXXXX")"
 _quiesce_send() {
   {
@@ -274,7 +275,7 @@ if [[ "$TARGET" == production ]]; then
 fi
 
 # ── 6. The step ──────────────────────────────────────────────────────────────
-echo "==> Stepping ${ALIAS} to ${PIN}"
+echo "== Stepping ${ALIAS} to ${PIN}"
 send_reported "step" step || cr_die "the step on ${ALIAS} did not complete"
 REBOOT="$(marked REBOOT)"
 [[ "$REBOOT" == needed || "$REBOOT" == not-needed ]] || cr_die "the host did not say whether a reboot is needed"
@@ -282,7 +283,7 @@ cr_proved "${ALIAS} reports Amazon Linux ${PIN}, with nothing at that release le
 
 # ── 7. The reboot ────────────────────────────────────────────────────────────
 if [[ "$REBOOT" == needed ]]; then
-  echo "==> Rebooting ${ALIAS}: the new kernel or core libraries need it"
+  echo "== Rebooting ${ALIAS}: the new kernel or core libraries need it"
   host_reboot_and_wait "$ALIAS" "$REBOOT_HALF" "$POLL_SECS" 60 || cr_die "$HR_ERROR"
   cr_proved "${ALIAS} rebooted (boot id ${HR_BOOT_ID})"
 else
@@ -290,7 +291,7 @@ else
 fi
 
 # ── 8. Back in service, and proved ───────────────────────────────────────────
-echo "==> Starting the backup timer and the service"
+echo "== Starting the backup timer and the service"
 send_reported "resume" resume || cr_die "could not start the backup timer"
 _restart() {
   {

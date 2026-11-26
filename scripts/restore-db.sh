@@ -598,7 +598,7 @@ confirm_newest_by_content() {
 }
 
 if [[ -z "$SNAPSHOT_KEY" ]]; then
-  echo "==> Finding the most recent snapshot in s3://${BUCKET}/ (${SEARCH_PREFIX})"
+  echo "== Finding the most recent snapshot in s3://${BUCKET}/ (${SEARCH_PREFIX})"
   if [[ "$PRE_FLIP" -eq 1 ]]; then
     newest_under "pre-flip/"
     SNAPSHOT_KEY="$NEWEST"
@@ -634,7 +634,7 @@ if [[ -n "$TO_LOCAL" ]]; then
   work="$(mktemp -d)"
   cr_cleanup rm -rf -- "$work"
 
-  echo "==> Downloading"
+  echo "== Downloading"
   "$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 cp "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
     || die "could not download the snapshot"
   # Detect compression rather than assume it. Every artifact this project writes

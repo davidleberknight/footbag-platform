@@ -1704,7 +1704,7 @@ if (( FW_INPLACE )); then
     echo "       Re-run this script: the next plan starts from the live firewall." >&2
     exit 1
   }
-  echo "==> Writing the firewall's port list in place on ${FW_INSTANCE}"
+  echo "== Writing the firewall's port list in place on ${FW_INSTANCE}"
   FW_OP="$("$AWS_FW_BIN" lightsail put-instance-public-ports --instance-name "$FW_INSTANCE" --region "$FW_REGION" \
       --port-infos "$FW_PLANNED" --query 'operation.id' --output text </dev/null)" \
     || fw_stop "put-instance-public-ports was refused"
@@ -1727,7 +1727,7 @@ if (( FW_INPLACE )); then
 
   # Plan again. The firewall must now be a no-op, and every other change must be
   # the one that was reviewed; anything different is a plan nobody has read.
-  echo "==> Planning again against the live firewall"
+  echo "== Planning again against the live firewall"
   shred -u "$TF_PLAN" 2>/dev/null || rm -f "$TF_PLAN"
   : > "$TF_PLAN"
   chmod 600 "$TF_PLAN"

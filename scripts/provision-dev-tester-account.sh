@@ -541,9 +541,9 @@ fi
 require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 
-echo "==> Target host: $REMOTE  (${TARGET})"
-echo "==> Account:     $ACCOUNT${FULL_NAME:+  for ${FULL_NAME}}"
-[[ -n "$KEY_FINGERPRINT" ]] && echo "==> Key:         $KEY_FINGERPRINT"
+echo "== Target host: $REMOTE  (${TARGET})"
+echo "== Account:     $ACCOUNT${FULL_NAME:+  for ${FULL_NAME}}"
+[[ -n "$KEY_FINGERPRINT" ]] && echo "== Key:         $KEY_FINGERPRINT"
 
 # Reachability, and that the host is the target, are proved before a credential
 # exists, so an unreachable or wrong host costs nothing more than a wasted trip.
@@ -902,7 +902,7 @@ if [[ -z "$NEW_PASS" ]]; then
   exit 1
 fi
 
-echo "==> Creating the account via cat-pipe (mode: ${MODE})..."
+echo "== Creating the account via cat-pipe (mode: ${MODE})..."
 
 # The state advances BEFORE the pipe, not after it, and the difference is not
 # theoretical. The remote half creates the account and then verifies it, so a

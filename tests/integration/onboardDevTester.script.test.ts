@@ -202,7 +202,7 @@ if [[ " $* " == *" --inspect "* ]]; then
   printf '%s\\n' "$sudo_line" > ${JSON.stringify(join(dir, 'inspect.stdin'))}
   [[ -e ${D}/host-unreadable ]] && { echo "ERROR: could not read the account." >&2; exit 1; }
   [[ -e ${D}/host-absent ]] && { echo "ACCOUNT absent"; exit 0; }
-  echo "==> Account:     ${ACCOUNT}  for "
+  echo "== Account:     ${ACCOUNT}  for "
   echo "ACCOUNT present"
   if [[ -e ${D}/host-locked ]]; then echo "LOCKED yes"; else echo "LOCKED no"; fi
   mine="$(ssh-keygen -l -f ${JSON.stringify(join(dir, 'id_ed25519_james.pub'))})"

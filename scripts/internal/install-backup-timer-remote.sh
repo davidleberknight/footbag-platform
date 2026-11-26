@@ -62,17 +62,17 @@ fi
 SYSTEMD_ERRORS='[Ff]ailed'
 SYSTEMD_WARNINGS='^Warning'
 
-echo "==> installing unit files"
+echo "== installing unit files"
 install -m 0644 -o root -g root "$tmpdir/footbag-backup.service" /etc/systemd/system/footbag-backup.service
 install -m 0644 -o root -g root "$tmpdir/footbag-backup.timer"   /etc/systemd/system/footbag-backup.timer
 
-echo "==> reloading systemd and enabling the timer"
+echo "== reloading systemd and enabling the timer"
 crr_run --errors "$SYSTEMD_ERRORS" --warnings "$SYSTEMD_WARNINGS" "systemctl daemon-reload" -- \
   systemctl daemon-reload || crr_finish
 crr_run --errors "$SYSTEMD_ERRORS" --warnings "$SYSTEMD_WARNINGS" "enabling footbag-backup.timer" -- \
   systemctl enable --now footbag-backup.timer || crr_finish
 
-echo "==> running the first snapshot now"
+echo "== running the first snapshot now"
 # The journal is read from this moment on, so the lines judged below are this
 # run's and not an older failure the host already recovered from.
 run_started="$(date '+%Y-%m-%d %H:%M:%S')"

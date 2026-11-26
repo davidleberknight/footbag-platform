@@ -245,7 +245,7 @@ iam_dev_tester_ensure() {
   IAM_DEV_TESTER_TARGET="$name"
 
   if (( ! exists )); then
-    echo "==> Creating the IAM user"
+    echo "== Creating the IAM user"
     "$IAM_DEV_TESTER_AWS_BIN" iam create-user --user-name "$name" --path "$IAM_DEV_TESTER_PATH" \
       --tags "Key=Project,Value=${IAM_DEV_TESTER_TAG_PROJECT}" \
              "Key=ManagedBy,Value=${IAM_DEV_TESTER_TAG_MANAGED_BY}" \
@@ -257,7 +257,7 @@ iam_dev_tester_ensure() {
     echo "    created under ${IAM_DEV_TESTER_PATH}"
   fi
 
-  echo "==> Granting the one statement this identity carries"
+  echo "== Granting the one statement this identity carries"
   # Read first, so the undo removes the grant only when this run added it. A
   # re-run over a live identity rewrites a grant that already existed, and a
   # failure after that must leave the person holding what they held before.
@@ -298,10 +298,10 @@ iam_dev_tester_ensure() {
   while IFS=$'\t' read -r _id _status _rest; do
     [[ -z "$_id" ]] && continue
     if [[ "$_status" == "Active" ]]; then
-      echo "==> Retiring the key being replaced: ${_id}"
+      echo "== Retiring the key being replaced: ${_id}"
       IAM_KEY_ALLOW_LAST=1 iam_key_retire "$name" "$_id" deactivate || return 1
     else
-      echo "==> Clearing a retired key that is in the way: ${_id}"
+      echo "== Clearing a retired key that is in the way: ${_id}"
     fi
     IAM_KEY_ALLOW_LAST=1 iam_key_retire "$name" "$_id" delete || return 1
   done <<< "$_keys"

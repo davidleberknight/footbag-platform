@@ -30,8 +30,9 @@ management section in DEVOPS_GUIDE.md (private GitHub repo); read both first, th
    The Security Patching design decision's minimum release age is enforced by
    `pin-npm-package.sh` and `bump-tool.sh` (for `AMAZON_LINUX_RELEASE`); for every other tool,
    image digest and Python package, read the publisher's release date live, name it beside the
-   bump, and refuse a younger one yourself. Pass `--allow-fresh` only for a flaw known to be
-   exploited on a publicly exposed system, and only when the maintainer has picked it.
+   bump, and refuse a younger one yourself. Pass `--allow-fresh` only when the maintainer has picked an
+   early release: a flaw known to be exploited on a publicly exposed system, or the maintainer's
+   own choice.
 3. Prove it: `bash scripts/check-versions.sh` (full mode), then `bash scripts/check-vulnerabilities.sh`,
    showing every advisory of each moved package gone from it (one still listed means the target was
    short), then `bash scripts/test-targets.sh <changed paths>` and exactly what it prints, in the

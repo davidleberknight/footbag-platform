@@ -61,7 +61,12 @@ const NEW_INSTANCE = { createdAt: '2026-10-07T01:11:00.123000+00:00', addOn: 'En
  * [createdAt, status], or failing outright when `snapshots` is false (the
  * add-on is off or the instance is unknown), and `instance` for get-instance.
  */
-function run(target: string | null, snapshots: Array<[string, string]> | false, instance: Instance = OLD_INSTANCE) {
+function run(
+  target: string | null,
+  snapshots: Array<[string, string]> | false,
+  instance: Instance = OLD_INSTANCE,
+  extraArgs: string[] = [],
+) {
   const aws = join(workDir, 'aws');
   const rows = snapshots === false ? '' : snapshots.map(([c, s]) => `${c}\\t${s}`).join('\\n');
   writeFileSync(aws, [
@@ -89,7 +94,8 @@ function run(target: string | null, snapshots: Array<[string, string]> | false, 
   ].join('\n'));
   chmodSync(tf, 0o755);
 
-  const res = spawnSync('bash', target === null ? [SCRIPT] : [SCRIPT, '--target', target], {
+  const args = target === null ? [SCRIPT, ...extraArgs] : [SCRIPT, '--target', target, ...extraArgs];
+  const res = spawnSync('bash', args, {
     ...SPAWN_GUARD,
     encoding: 'utf8',
     env: {
@@ -228,6 +234,30 @@ describe('an instance too new for its first automatic snapshot', () => {
     expect(r.status, r.out).toBe(1);
     expect(r.out).toContain('has no automatic snapshots');
     expect(r.out).toContain('(AccessDeniedException) when calling the GetInstance operation: stand-in refusal');
+  });
+});
+
+describe('requiring a snapshot to have been taken', () => {
+  it('fails a new instance with no snapshot yet, naming when the first is due', () => {
+    // Defect caught: a caller that needs a snapshot to exist now (a restore
+    // drill, a pre-cutover proof) reads exit 3 as anything but a failure, or
+    // the flag is ignored, and the run goes ahead with no snapshot to rest on.
+    const r = run('staging', [], NEW_INSTANCE, ['--require-taken']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain('--require-taken');
+    expect(r.out).toContain('due by 2026-10-08T03:11Z');
+  });
+
+  it('still passes a current snapshot under the flag, so it does not refuse everything', () => {
+    const r = run('production', [['2026-10-06T15:01:40+00:00', 'Success']], OLD_INSTANCE, ['--require-taken']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toMatch(/^== host snapshots current on production/m);
+  });
+
+  it('still fails a stopped snapshot under the flag', () => {
+    const r = run('production', [['2026-10-05T15:01:40+00:00', 'Success']], OLD_INSTANCE, ['--require-taken']);
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toContain('the daily snapshot has stopped');
   });
 });
 

@@ -551,9 +551,10 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
   });
 });
 
-/** The closing report's list of errors or warnings, so a case asserts what it lists. */
-function listed(stderr: string, heading: 'Errors' | 'Warnings'): string {
-  const at = stderr.search(new RegExp(`^${heading} \\(\\d+\\):$`, 'm'));
+/** The closing report's list of errors, warnings or unproven outcomes, so a case asserts what it lists. */
+function listed(stderr: string, heading: 'Errors' | 'Warnings' | 'Not proven'): string {
+  const title = heading === 'Not proven' ? '^Not proven:$' : `^${heading} \\(\\d+\\):$`;
+  const at = stderr.search(new RegExp(title, 'm'));
   if (at === -1) return '';
   const rest = stderr.slice(at);
   const end = rest.slice(1).search(/^(Errors|Warnings|Proven:|Not proven:|No errors)/m);
@@ -589,14 +590,18 @@ describe('verify-account-baseline.sh — a read that does not answer is never ab
   });
 
   // Defect caught: the controls deliberately off are printed mid-stream and the
-  // closing report reads as though everything was in place.
-  it('lists each control deliberately off as a warning in the closing report, and still passes', () => {
+  // closing report reads as though everything was in place; or they are listed
+  // as warnings, so a clean run of a healthy account reads DONE WITH WARNINGS
+  // and teaches the operator to ignore the warnings list.
+  it('lists each control deliberately off as not proven, never as a warning, and still passes', () => {
     const r = run({ alternateContact: null });
     expect(r.status, r.stderr).toBe(0);
-    const warnings = listed(r.stderr, 'Warnings');
+    const unproved = listed(r.stderr, 'Not proven');
     for (const kind of ['OPERATIONS', 'SECURITY']) {
-      expect(warnings, kind).toMatch(new RegExp(`GATED alternate contact ${kind} is unset`));
+      expect(unproved, kind).toMatch(new RegExp(`GATED alternate contact ${kind} is unset`));
     }
+    expect(r.stderr).not.toMatch(/^Warnings \(\d+\):$/m);
+    expect(r.stderr).toMatch(/0 error\(s\), 0 warning\(s\)/);
   });
 });
 

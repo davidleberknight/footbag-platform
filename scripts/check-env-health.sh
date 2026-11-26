@@ -148,7 +148,7 @@ if (( ! ALARMS_ONLY )); then
   if awk -v v="$latest" -v m="$MIN_BURST" 'BEGIN { exit !(v + 0 < m + 0) }'; then
     cr_error "${INSTANCE} has ${latest}% of its CPU burst capacity, below the ${MIN_BURST}% a heavy step needs: it would run at baseline CPU. Let the host idle (take the stack down or cold-restart it if it is busy) and read again."
   else
-    echo "==> ${INSTANCE} burst capacity: ${latest}% (at least ${MIN_BURST}% needed)"
+    echo "== ${INSTANCE} burst capacity: ${latest}% (at least ${MIN_BURST}% needed)"
     cr_proved "${INSTANCE} burst capacity ${latest}%, at least ${MIN_BURST}%"
   fi
 fi

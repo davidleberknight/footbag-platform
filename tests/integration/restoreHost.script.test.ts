@@ -350,6 +350,35 @@ function writeTerraformStub(): void {
     'echo "== restore complete on staging =="',
     'exit 0',
   ]);
+  // scripts/harden-sshd.sh's stand-in: a host whose sshd is hardened once an
+  // apply has run on it, which a restored snapshot has not. It records how it
+  // was asked and the password line it was handed; HARDEN_APPLY_NOOP makes an
+  // apply that exits 0 and changes nothing.
+  exe(join(bin, 'harden-sshd'), [
+    `S=${JSON.stringify(st)}`,
+    'echo "harden-sshd $*" >> "$S/calls.log"',
+    'IFS= read -r line; printf "%s\\n" "$line" >> "$S/harden-sshd-stdin"',
+    'case "$3" in',
+    '  --apply)',
+    '    [[ -n "${FAIL_ON:-}" && "$FAIL_ON" == "harden-apply" ]] && { echo "harden-sshd stand-in: refused" >&2; exit 1; }',
+    '    [[ -n "${HARDEN_APPLY_NOOP:-}" ]] || : > "$S/sshd-hardened"',
+    '    exit 0 ;;',
+    '  --expect-hardened)',
+    '    [[ -e "$S/sshd-hardened" ]] && exit 0',
+    '    echo "harden-sshd stand-in: root login permitted" >&2; exit 1 ;;',
+    'esac',
+    'exit 64',
+  ]);
+  // scripts/bootstrap-host.sh's stand-in for --status: every step done unless
+  // BOOTSTRAP_PENDING says one is pending, as the real script exits non-zero.
+  exe(join(bin, 'bootstrap-host'), [
+    `S=${JSON.stringify(st)}`,
+    'echo "bootstrap-host $*" >> "$S/calls.log"',
+    'IFS= read -r line; printf "%s\\n" "$line" >> "$S/bootstrap-host-stdin"',
+    '[[ -n "${BOOTSTRAP_PENDING:-}" ]] && { echo "PENDING  ${BOOTSTRAP_PENDING}"; echo "1 step(s) pending or unread."; exit 1; }',
+    'echo "Every step is done."',
+    'exit 0',
+  ]);
   exe(join(bin, 'curl'), [
     `echo "curl $*" >> ${JSON.stringify(join(st, 'calls.log'))}`,
     'printf "%s" "${READY_CODE:-200}"',
@@ -429,6 +458,10 @@ afterEach(() => {
   rmSync(work, { recursive: true, force: true });
 });
 
+/** The private key the stand-in mint returns, which no output may carry. */
+const MINT_SENTINEL = 'FIXTURE-MINTED-PRIVATE-KEY-SENTINEL';
+const mints = () => read(p('mints.log')).split('\n').filter(Boolean);
+
 function env(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -440,6 +473,8 @@ function env(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     RESTORE_HOST_TF_APPLY: join(bin, 'terraform-apply'),
     RESTORE_HOST_PIN_INSTALLER: join(bin, 'pin-installer'),
     RESTORE_HOST_RESTORE_DB: join(bin, 'restore-db'),
+    RESTORE_HOST_HARDEN_SSHD: join(bin, 'harden-sshd'),
+    RESTORE_HOST_BOOTSTRAP_HOST: join(bin, 'bootstrap-host'),
     RESTORE_HOST_VALUES_FILE: valuesFile,
     RESTORE_HOST_NOW: String(NOW),
     RESTORE_HOST_POLL_TRIES: '3',
@@ -455,10 +490,6 @@ function env(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     ...extra,
   };
 }
-
-/** The private key the stand-in mint returns, which no output may carry. */
-const MINT_SENTINEL = 'FIXTURE-MINTED-PRIVATE-KEY-SENTINEL';
-const mints = () => read(p('mints.log')).split('\n').filter(Boolean);
 
 /** No terminal at all: the condition of a scheduled job or an agent session. */
 function runDetached(args: string[], extra: NodeJS.ProcessEnv = {}) {
@@ -484,7 +515,8 @@ const MUTATING = [
   'detach-static-ip', 'attach-static-ip', 'delete-instance', 'tag-resource', 'terraform-apply', 'hold', 'release',
 ];
 const mutatingCalls = () => callLines().filter((l) => MUTATING.includes(l.split(' ')[1]) || l.startsWith('terraform-apply')
-  || l.startsWith('terraform state rm') || l.startsWith('restore-db'));
+  || l.startsWith('terraform state rm') || l.startsWith('restore-db')
+  || (l.startsWith('harden-sshd ') && l.endsWith(' --apply')));
 
 describe.skipIf(!HAS_SETSID)('restore-host.sh refusals, each before anything changes', () => {
   it('requires a target rather than defaulting to one', () => {
@@ -1273,6 +1305,85 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the restored host proves itself',
     expect(r.out).toContain('did not report ready');
     expect(instanceState(OLD)).toBe('stopped');
     expect(countCalls('delete-instance')).toBe(0);
+  });
+});
+
+describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the host state the snapshot carried back', () => {
+  const hardenCalls = () => callLines().filter((l) => l.startsWith('harden-sshd '));
+  const FIXTURE_PASS = 'fixture-sudo-password';
+
+  // Defect caught: the restored host keeps the sshd posture its snapshot
+  // carried, root or password login among it, and the restore reports done
+  // with nothing having read it; or the bootstrap steps the snapshot predates
+  // stay pending with no run naming them.
+  it('applies the hardened sshd settings, proves them, reads every bootstrap step, and reports both proved', () => {
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(hardenCalls()).toEqual([
+      'harden-sshd --target staging --expect-hardened',
+      'harden-sshd --target staging --apply',
+      'harden-sshd --target staging --expect-hardened',
+    ]);
+    expect(callLines().filter((l) => l.startsWith('bootstrap-host '))).toEqual(['bootstrap-host --target staging --status']);
+    // After the host-key pin, which both children reach the host through.
+    const at = (needle: string) => callLines().findIndex((l) => l.startsWith(needle));
+    expect(at('harden-sshd --target staging --apply')).toBeGreaterThan(at('pin-installer'));
+    expect(at('bootstrap-host')).toBeGreaterThan(at('harden-sshd --target staging --apply'));
+    const proven = provenOf(r.out);
+    expect(proven).toContain(`sshd on ${NEW} is hardened`);
+    expect(proven).toContain(`every bootstrap step reads done on ${NEW}`);
+    // Defect caught: the password handed to a child in argv, where any reader
+    // of the process table can take it, rather than on stdin line 1.
+    expect(read(p('harden-sshd-stdin')).split('\n').filter(Boolean)).toEqual([FIXTURE_PASS, FIXTURE_PASS, FIXTURE_PASS]);
+    expect(read(p('bootstrap-host-stdin')).trim()).toBe(FIXTURE_PASS);
+    expect(calls()).not.toContain(FIXTURE_PASS);
+  });
+
+  it('applies nothing to a host already hardened, and still proves it', () => {
+    // Defect caught: every re-run re-applies, and on production asks for an
+    // APPLY that changes nothing.
+    writeFileSync(p('sshd-hardened'), '');
+    const r = runAtTerminal(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(hardenCalls()).toEqual(['harden-sshd --target staging --expect-hardened']);
+    expect(provenOf(r.out)).toContain(`sshd on ${NEW} is hardened`);
+  });
+
+  it('fails the restore, naming the fix, when the hardening apply does not complete', () => {
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { FAIL_ON: 'harden-apply' });
+    expect(r.status, r.out).toBe(1);
+    expect(errorsOf(r.out)).toContain('scripts/harden-sshd.sh --target staging --apply did not complete');
+    expect(errorsOf(r.out)).toContain('Fix with: < <credential file> bash scripts/harden-sshd.sh --target staging --apply');
+    expect(provenOf(r.out)).not.toContain('is hardened');
+    // Defect caught: the closing line announces a finished restore over a host
+    // whose sshd was never proved, and the operator reads no further.
+    expect(r.out).toContain(`== staging restored onto ${NEW}, but its host state is not proved`);
+    expect(r.out).not.toContain('== staging restored: ');
+    // The rest of the restore still stands and is still reported.
+    expect(staticIpOn()).toBe(NEW);
+    expect(instanceState(OLD)).toBe('stopped');
+  });
+
+  it('fails the restore when the apply exits 0 but the host still does not prove hardened', () => {
+    // Defect caught: the apply's exit status taken as the outcome, so a host
+    // whose drop-in changed nothing reads hardened.
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { HARDEN_APPLY_NOOP: '1' });
+    expect(r.status, r.out).toBe(1);
+    expect(errorsOf(r.out)).toContain(`sshd on ${NEW} is not proved hardened after the apply`);
+    expect(provenOf(r.out)).not.toContain('is hardened');
+    expect(r.out).toContain(`== staging restored onto ${NEW}, but its host state is not proved`);
+  });
+
+  it('fails the restore, naming the fix, while a bootstrap step reads pending', () => {
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { BOOTSTRAP_PENDING: 'cwagent' });
+    expect(r.status, r.out).toBe(1);
+    expect(errorsOf(r.out)).toContain('scripts/bootstrap-host.sh --target staging --status reports a step pending');
+    expect(errorsOf(r.out)).toContain('Finish them with: < <credential file> bash scripts/bootstrap-host.sh --target staging');
+    expect(provenOf(r.out)).not.toContain('every bootstrap step reads done');
+    expect(r.out).toContain(`== staging restored onto ${NEW}, but its host state is not proved`);
+    expect(r.out).not.toContain('== staging restored: ');
+    // The sshd proof is independent of it.
+    expect(provenOf(r.out)).toContain(`sshd on ${NEW} is hardened`);
   });
 });
 

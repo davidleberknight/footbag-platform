@@ -119,7 +119,7 @@ applies_everywhere() {
   done
 }
 
-echo "==> sshd posture on $(hostname) (configuration on disk)"
+echo "== sshd posture on $(hostname) (configuration on disk)"
 before="$(posture)" || before=""
 [[ -n "$before" ]] || { echo "ERROR: could not read the effective sshd configuration (sshd -T failed)." >&2; exit 1; }
 printf '%s\n' "$before" | sed 's/^/    /'
@@ -383,7 +383,7 @@ if ! systemd-run --quiet --collect --unit="$REVERT_UNIT" --on-active="${REVERT_A
 fi
 echo "    the change reverts itself in ${REVERT_AFTER} seconds unless the workstation confirms it"
 
-echo "==> systemctl reload ${unit}"
+echo "== systemctl reload ${unit}"
 reload_started=1
 if ! systemctl reload "$unit" </dev/null; then
   echo "ERROR: the reload of ${unit} failed. The running daemon may or may not have read the new file;" >&2
@@ -395,7 +395,7 @@ committed=1
 # The change is live from here; a failed report must not read as a failure of it.
 # A closed connection would otherwise end the run by SIGPIPE on the next write.
 trap '' PIPE
-echo "==> sshd posture on $(hostname) after the reload (configuration on disk)" || true
+echo "== sshd posture on $(hostname) after the reload (configuration on disk)" || true
 posture | sed 's/^/    /' || true
 echo "    root, password and keyboard-interactive login off for every account checked; nothing else" || true
 echo "    changed for ${LOGIN_USER}. The workstation now proves key login and the refusal, then confirms." || true

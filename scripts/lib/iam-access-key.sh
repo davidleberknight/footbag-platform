@@ -251,7 +251,7 @@ iam_key_provision() {
     return 1
   fi
 
-  echo "==> Minting an access key for ${user}"
+  echo "== Minting an access key for ${user}"
   local key_line
   key_line="$("$IAM_KEY_AWS_BIN" iam create-access-key --user-name "$user" \
     ${IAM_KEY_AWS_ARGS[@]+"${IAM_KEY_AWS_ARGS[@]}"} \
@@ -379,10 +379,10 @@ iam_key_retire() {
   case "$mode" in
     deactivate)
       if [[ "$status" == "Inactive" ]]; then
-        echo "==> ${akid} is already inactive; nothing to do."
+        echo "== ${akid} is already inactive; nothing to do."
         return 0
       fi
-      echo "==> Deactivating ${akid} on ${user}"
+      echo "== Deactivating ${akid} on ${user}"
       "$IAM_KEY_AWS_BIN" iam update-access-key --user-name "$user" \
         --access-key-id "$akid" --status Inactive \
         ${IAM_KEY_AWS_ARGS[@]+"${IAM_KEY_AWS_ARGS[@]}"} || {
@@ -398,7 +398,7 @@ iam_key_retire() {
         echo "       one cannot, and its id is never reissued. Nothing done." >&2
         return 1
       fi
-      echo "==> Deleting ${akid} on ${user}"
+      echo "== Deleting ${akid} on ${user}"
       "$IAM_KEY_AWS_BIN" iam delete-access-key --user-name "$user" \
         --access-key-id "$akid" \
         ${IAM_KEY_AWS_ARGS[@]+"${IAM_KEY_AWS_ARGS[@]}"} || {

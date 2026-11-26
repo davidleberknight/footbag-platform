@@ -65,7 +65,7 @@ if [[ "${1:-}" == "--install" ]]; then
     "${REPO_ROOT}/docker/image/Dockerfile" | head -1)"
   [[ -n "$BASE_IMAGE" ]] || { echo "ERROR: no digest-pinned runtime base found in docker/image/Dockerfile." >&2; exit 1; }
   if ! "$DOCKER" image inspect "$IMAGE" >/dev/null 2>&1; then
-    echo "==> Building ${IMAGE} on ${BASE_IMAGE%%@*} (apk add ffmpeg=${PIN})"
+    echo "== Building ${IMAGE} on ${BASE_IMAGE%%@*} (apk add ffmpeg=${PIN})"
     printf 'FROM %s\nRUN apk add --no-cache ffmpeg=%s\n' "$BASE_IMAGE" "$PIN" \
       | "$DOCKER" build -t "$IMAGE" - >&2
   fi

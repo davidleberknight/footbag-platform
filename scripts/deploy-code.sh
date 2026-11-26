@@ -340,8 +340,8 @@ HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}')
 # address gives away what that scoping withholds. Deploy stdout is what a wrapper,
 # a CI job or an agent session captures; the operator still sees this on a
 # terminal.
-echo "==> Deploy target: $REMOTE ($HOST_IP)" >&2
-echo "==> Confirming SSH connectivity..."
+echo "== Deploy target: $REMOTE ($HOST_IP)" >&2
+echo "== Confirming SSH connectivity..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 
 # ── Step 1: Prepare upload directory ─────────────────────────────────────────
@@ -357,7 +357,7 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # and reporting success. The release stamp below is what proves the promoted tree
 # is the one this run wrote. No script names an account's home, which a
 # conventions check enforces.
-echo "==> Preparing remote upload directory..."
+echo "== Preparing remote upload directory..."
 REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
 # Absolute, not merely non-empty. This captures the remote shell's whole stdout,
 # so a host whose profile prints a banner or a version-manager line for a
@@ -388,7 +388,7 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" \
 # it with `rsync -a --delete` -- deleting the live install before anything
 # noticed. The docker build below already anchored to $REPO_ROOT, so the two
 # halves of this script disagreed about what "here" meant.
-echo "==> Rsyncing source to host (code only, no database)..."
+echo "== Rsyncing source to host (code only, no database)..."
 
 # backup-db.sh is the one script that ships, because two systemd units invoke it
 # by the relative path scripts/backup-db.sh against WorkingDirectory=/srv/footbag:
@@ -464,7 +464,7 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" \
 # comfortable. On a machine running a desktop session and a browser, free
 # memory rather than installed memory is what decides it.
 
-echo "==> Building Docker images locally (workstation)..."
+echo "== Building Docker images locally (workstation)..."
 # Build with the base compose only. The prod overlay is runtime-only (mounts,
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
@@ -524,7 +524,7 @@ IMAGE_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}
 # rsync's checksum pass. When any layer differs, the shared helper sends only
 # the changed layers. Operator's footbag user
 # is in the host's docker group, so no sudo needed for `docker image inspect`.
-echo "==> Comparing local image RootFS DiffIDs against host..."
+echo "== Comparing local image RootFS DiffIDs against host..."
 REMOTE_WEB_LAYERS=$(ssh "${SSH_OPTS[@]}" "$REMOTE" \
   "docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-web 2>/dev/null" \
   </dev/null || true)
@@ -538,9 +538,9 @@ if [[ -n "$WEB_IMAGE_LAYERS" && -n "$WORKER_IMAGE_LAYERS" && -n "$IMAGE_IMAGE_LA
    && "$WEB_IMAGE_LAYERS"    == "$REMOTE_WEB_LAYERS" \
    && "$WORKER_IMAGE_LAYERS" == "$REMOTE_WORKER_LAYERS" \
    && "$IMAGE_IMAGE_LAYERS"  == "$REMOTE_IMAGE_LAYERS" ]]; then
-  echo "==> Image RootFS DiffIDs match host; skipping the Docker image transfer."
+  echo "== Image RootFS DiffIDs match host; skipping the Docker image transfer."
 else
-  echo "==> Transferring Docker images to host (only the changed parts are sent)..."
+  echo "== Transferring Docker images to host (only the changed parts are sent)..."
   # Reclaim host disk before the load. Each deploy loads a fresh :latest and
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".
@@ -558,7 +558,7 @@ else
   # removes a container. A failure is a warning in the closing report carrying
   # the tool's own message, so a host whose disk was not reclaimed is said so at
   # the end rather than once in the middle of the transfer.
-  echo "==> Reclaiming host disk (journal vacuum + dangling images + build cache)..."
+  echo "== Reclaiming host disk (journal vacuum + dangling images + build cache)..."
   # Each step runs under the remote report library's crr_run, so a failing one
   # is marked with the tool's own last line and reaches the report that way: the
   # session itself is privileged, so nothing else it prints is written down.
@@ -598,7 +598,7 @@ INITIAL_ADMIN_EMAILS_CSV="$(resolve_initial_admin_emails_csv "$REPO_ROOT" "$REMO
 INITIAL_ADMIN_MANAGED="no"
 initial_admin_list_managed "$REPO_ROOT" && INITIAL_ADMIN_MANAGED="yes"
 if [[ "$INITIAL_ADMIN_MANAGED" == "no" && "$REMOTE" != "footbag-production" ]]; then
-  echo "==> No private checkout here, so the host's initial-admin list is left as it is."
+  echo "== No private checkout here, so the host's initial-admin list is left as it is."
 fi
 
 # Deploy provenance. This deploy rsyncs the local working tree, not a tagged
@@ -627,12 +627,12 @@ fi
 # and no person, which is the design's accepted cost.
 DEPLOY_ACTOR="host=${OPERATOR_CREDENTIAL_ACCOUNT:-unknown}${FOOTBAG_ACTING_AS_PERSON:+ role-session=${FOOTBAG_ACTING_AS_PERSON}}"
 DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none} actor=${OPERATOR_CREDENTIAL_ACCOUNT:-unknown}${FOOTBAG_ACTING_AS_PERSON:+ actor_session=${FOOTBAG_ACTING_AS_PERSON}}"
-echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
+echo "== Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
 if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
   echo "    uncommitted: ${DEPLOY_DIRTY_PATHS}"
 fi
 
-echo "==> Running remote-as-root deploy (promote, restart)..."
+echo "== Running remote-as-root deploy (promote, restart)..."
 # The host half's problems are read into this run's closing report: every line it
 # marks through the report library sent first on the stream, and every line it
 # prints in the ERROR: or WARNING: form. Its exit status still stops this run.
@@ -723,7 +723,7 @@ require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
 smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "$SKIP_SMOKE" == "yes" ]]; then
-  echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
+  echo "== Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
   cr_warn "the post-deploy smoke checks were skipped (SKIP_SMOKE=yes)"
   cr_unproved "the site answering after this deploy: the smoke checks were skipped"
 elif [[ -z "$smoke_url" ]]; then
@@ -736,7 +736,7 @@ elif [[ -z "$smoke_url" ]]; then
   echo "       Terraform publishes once CloudFront is enabled; apply the tree and redeploy." >&2
   exit 1
 else
-  echo "==> Running smoke check against $smoke_url ..."
+  echo "== Running smoke check against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     cr_error "post-deploy smoke check failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
@@ -745,7 +745,7 @@ else
   # Blocking security probes (auth gates, anti-enumeration equivalence, the
   # dev-harness environment contract). Same fail-hard stance as the route
   # smoke above.
-  echo "==> Running security smoke probes against $smoke_url ..."
+  echo "== Running security smoke probes against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
     cr_error "security smoke probes failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
@@ -764,7 +764,7 @@ VERIFY_HOST_ENV_CMD="${DEPLOY_VERIFY_HOST_ENV_CMD:-$REPO_ROOT/scripts/verify-hos
 if [[ -n "${DEPLOY_VERIFY_HOST_ENV_CMD:-}" ]]; then
   echo "SYNTHETIC: host env verifier replaced by DEPLOY_VERIFY_HOST_ENV_CMD=$DEPLOY_VERIFY_HOST_ENV_CMD" >&2
 fi
-echo "==> Verifying $REMOTE's env file ..."
+echo "== Verifying $REMOTE's env file ..."
 if ! printf '%s\n' "$SUDO_PASS" | bash "$VERIFY_HOST_ENV_CMD" --target "$FOOTBAG_ENV"; then
   cr_error "$REMOTE's env file failed verification after the deploy; each FAIL above names its fix."
   echo "       The release is live, so fix what failed and deploy again." >&2

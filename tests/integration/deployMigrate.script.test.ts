@@ -83,7 +83,7 @@ function applyMigration(
     join(process.cwd(), 'scripts/internal/deploy-code-remote.sh'), 'utf8',
   );
   const start = remote.indexOf('if [[ -n "${MIGRATION_SQL:-}" ]]; then');
-  const end = remote.indexOf('echo "==> Restarting service');
+  const end = remote.indexOf('echo "== Restarting service');
   expect(start, 'migration block not found in the remote half').toBeGreaterThan(-1);
   expect(end).toBeGreaterThan(start);
   const block = remote.slice(start, end);
@@ -1170,6 +1170,67 @@ describe('admin-authored content across a data-preserving deploy, on the real sc
   });
 });
 
+describe('the StatsD listener check in both deploy halves', () => {
+  // Each half carries its own copy of the container monitor's first reading
+  // and the listener check after it, so each is run here from its own text.
+  const HALVES = ['scripts/internal/deploy-code-remote.sh', 'scripts/internal/deploy-rebuild-remote.sh'];
+  const START = 'if systemctl is-enabled --quiet footbag-container-monitor.timer; then';
+
+  function runCheck(half: string, emptyReads: number) {
+    const remote = readFileSync(join(process.cwd(), half), 'utf8');
+    const start = remote.indexOf(START);
+    expect(start, `monitor block not found in ${half}`).toBeGreaterThan(-1);
+    const end = remote.indexOf('\nfi\n', start);
+    expect(end, `monitor block end not found in ${half}`).toBeGreaterThan(start);
+    const log = join(workDir, 'statsd-calls.log');
+    rmSync(log, { force: true });
+    const harness = join(workDir, 'statsd-harness.sh');
+    writeFileSync(harness, [
+      'set -euo pipefail',
+      `source ${JSON.stringify(REMOTE_REPORT_LIB)}`,
+      `LOG=${JSON.stringify(log)}`,
+      'systemctl() { case "$1" in show) echo success ;; esac; }',
+      'ss() {',
+      '  echo "ss $*" >> "$LOG"',
+      `  (( $(grep -c "^ss " "$LOG") > ${emptyReads} )) || return 0`,
+      `  printf '%s\\n' 'UNCONN 0 0 127.0.0.1:8125 0.0.0.0:* users:(("amazon-cloudwatch",pid=1,fd=9))'`,
+      '}',
+      'sleep() { echo "pause $*" >> "$LOG"; }',
+      'FOOTBAG_ENV_VAL=staging',
+      remote.slice(start, end + '\nfi\n'.length),
+      'echo CHECK_DONE',
+    ].join('\n'));
+    const res = spawnSync('bash', [harness], {
+      env: { ...process.env, FOOTBAG_STATSD_POLL_LIMIT_S: '2', FOOTBAG_STATSD_POLL_INTERVAL_S: '1' },
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    return {
+      stdout: res.stdout ?? '',
+      stderr: res.stderr ?? '',
+      reads: (existsSync(log) ? readFileSync(log, 'utf8') : '').match(/^ss -Hulpn/gm)?.length ?? 0,
+    };
+  }
+
+  // Defect caught: one deploy path polls for the listener and fails on its
+  // absence while the other still reads once and only warns, so which path
+  // shipped decides whether the container alarms are watching anything.
+  it.each(HALVES)('%s: passes on a listener that appears on the second read', (half) => {
+    const r = runCheck(half, 1);
+    expect(r.stdout).toContain('CHECK_DONE');
+    expect(r.reads).toBe(2);
+    expect(r.stderr).not.toMatch(/(ERROR|WARN) nothing listens on UDP 8125/);
+  });
+
+  it.each(HALVES)('%s: fails on a listener that never appears within the bound', (half) => {
+    const r = runCheck(half, 99);
+    expect(r.stdout).toContain('CHECK_DONE');
+    expect(r.reads).toBe(3);
+    expect(r.stderr).toMatch(/ ERROR nothing listens on UDP 8125 after 2s/);
+    expect(r.stderr).toContain('scripts/install-cwagent-staging.sh --upgrade');
+  });
+});
+
 describe('pruning set-aside database copies after a code deploy', () => {
   const REMOTE = join(process.cwd(), 'scripts/internal/deploy-code-remote.sh');
   const PRUNE_LIB = join(process.cwd(), 'scripts/internal/prune-db-copies.sh');
@@ -1242,8 +1303,16 @@ describe('pruning set-aside database copies after a code deploy', () => {
       '    show) echo "${MONITOR_RESULT:-success}" ;;',
       '  esac',
       '}',
-      `ss() { echo "ss $*" >> "$LOG"; printf '%b' "\${STATSD-${STATSD_LOOPBACK}}"; }`,
-      'sleep() { :; }',
+      // The listener answers once STATSD_EMPTY_READS reads have found nothing,
+      // as an agent does once its restart has bound the input.
+      'ss() {',
+      '  echo "ss $*" >> "$LOG"',
+      '  (( $(grep -c "^ss " "$LOG") > ${STATSD_EMPTY_READS:-0} )) || return 0',
+      `  printf '%b' "\${STATSD-${STATSD_LOOPBACK}}"`,
+      '}',
+      // The stand-in pause records how long the script asked to wait and waits
+      // for nothing.
+      'sleep() { echo "pause $*" >> "$LOG"; }',
       'docker() {',
       '  echo "docker $*" >> "$LOG"',
       '  case "$*" in',
@@ -1412,14 +1481,43 @@ describe('pruning set-aside database copies after a code deploy', () => {
   });
 
   // Defect caught: readings sent by UDP into nothing, because the agent's StatsD
-  // input is off, with no sign of it anywhere; or an input bound on every
-  // interface, which the containers could reach as well.
-  it('warns when no agent listens for the readings and refuses one listening beyond loopback', () => {
-    const silent = runTail('prune_db_copies() { :; }', { STATSD: '' });
-    expect(silent.stderr).toMatch(/ WARN nothing listens on UDP 8125/);
+  // input is off, reported as a warning a deploy reads past while every
+  // container alarm watches nothing; or an input bound on every interface,
+  // which the containers could reach as well.
+  it('fails the deploy when no agent listens for the readings within the bound, and refuses one listening beyond loopback', () => {
+    const silent = runTail('prune_db_copies() { :; }', {
+      STATSD: '', FOOTBAG_STATSD_POLL_LIMIT_S: '3', FOOTBAG_STATSD_POLL_INTERVAL_S: '1',
+    });
+    expect(silent.stderr).toMatch(/ ERROR nothing listens on UDP 8125 after 3s/);
+    expect(silent.stderr).not.toMatch(/ WARN nothing listens on UDP 8125/);
+    // A limit of 3s at 1s apart is a read at 0, 1, 2 and 3 seconds, and no
+    // pause after the last read.
+    expect(silent.log.match(/^ss -Hulpn/gm)?.length, silent.log).toBe(4);
+    expect(silent.log.match(/^pause 1$/gm)?.length, silent.log).toBe(3);
+    expect(silent.stderr).toContain('SYNTHETIC: FOOTBAG_STATSD_POLL_LIMIT_S');
 
     const wide = runTail('prune_db_copies() { :; }', { STATSD: 'UNCONN 0 0 *:8125 *:* users:((\\"amazon-cloudwatch\\",pid=1,fd=9))\\n' });
     expect(wide.stderr).toMatch(/ ERROR the CloudWatch agent's StatsD input listens beyond the loopback address/);
+  });
+
+  // Defect caught: the listener is read once, straight after the agent re-apply
+  // restarted the agent and before its StatsD input has bound, so a healthy
+  // host fails the deploy.
+  it('waits for the listener the restarted agent binds, and passes once it appears', () => {
+    const res = runTail('prune_db_copies() { :; }', { STATSD_EMPTY_READS: '1' });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.log.match(/^ss -Hulpn/gm)?.length, res.log).toBe(2);
+    expect(res.stderr).not.toMatch(/(ERROR|WARN) nothing listens on UDP 8125/);
+    expect(res.stderr).not.toContain('SYNTHETIC: FOOTBAG_STATSD_POLL');
+  });
+
+  // Defect caught: the shipped bound is not 30 seconds, so a slow agent start
+  // fails a healthy deploy, or a dead input holds the deploy far longer.
+  it('reads for 30 seconds, one second apart, when no seam is set', () => {
+    const res = runTail('prune_db_copies() { :; }', { STATSD: '' });
+    expect(res.stderr).toMatch(/ ERROR nothing listens on UDP 8125 after 30s/);
+    expect(res.log.match(/^ss -Hulpn/gm)?.length, res.log).toBe(31);
+    expect(res.log.match(/^pause 1$/gm)?.length, res.log).toBe(30);
   });
 
   it('takes no reading where the monitor timer is not enabled', () => {

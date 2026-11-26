@@ -266,11 +266,11 @@ if [[ "$ACTION" != "install" ]]; then
         # Two keys on the publisher, neither on this host: no metrics can be
         # arriving from it, so the proof could only fail, and no rotation can
         # mint the host its own key until one of these is gone.
-        echo "==> ${PUBLISHER_USER} holds two keys and ${REMOTE} holds neither; retiring"
+        echo "== ${PUBLISHER_USER} holds two keys and ${REMOTE} holds neither; retiring"
         echo "    ${OLD_KEY} frees the slot a rotation needs. No metrics proof is possible"
         echo "    or needed: neither key publishes from this host."
       else
-      echo "==> Proving the metrics still bind and are live before retiring ${OLD_KEY}"
+      echo "== Proving the metrics still bind and are live before retiring ${OLD_KEY}"
       [[ -x "$VERIFY_METRICS" || -r "$VERIFY_METRICS" ]] || {
         echo "ERROR: missing ${VERIFY_METRICS}, which is the evidence this run" >&2
         echo "       requires. Nothing retired." >&2
@@ -301,7 +301,7 @@ if [[ "$ACTION" != "install" ]]; then
       cr_finish
       ;;
     delete)
-      echo "==> Deleting ${OLD_KEY} on ${PUBLISHER_USER}"
+      echo "== Deleting ${OLD_KEY} on ${PUBLISHER_USER}"
       echo "Not reversible, and the key id is never reissued. The library refuses"
       echo "this unless the key is already inactive."
       if ! confirm_from_tty "Type 'APPLY' to delete it: " "APPLY"; then
@@ -324,7 +324,7 @@ SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInt
 # Reachability, and that the host is staging, are proved before a credential
 # exists, so an unreachable or wrong host costs nothing more than a wasted trip.
 # The sudo password is the one line read from stdin, here, for both connections.
-echo "==> Deploy target: $REMOTE"
+echo "== Deploy target: $REMOTE"
 IFS= read -r SUDO_PASS
 require_host_is "$REMOTE" staging || exit 1
 
@@ -368,7 +368,7 @@ if (( UPGRADE )); then
     echo "            < ${_cred} bash scripts/install-cwagent-staging.sh --rotate" >&2
     exit 1
   fi
-  echo "==> Upgrading the agent to ${CWAGENT_VERSION}, keeping ${HOST_KEY_ID}"
+  echo "== Upgrading the agent to ${CWAGENT_VERSION}, keeping ${HOST_KEY_ID}"
   send_upgrade() {
     {
       printf '%s\n' "$SUDO_PASS"
@@ -403,7 +403,7 @@ cwagent_key_cleanup() {
 cr_cleanup cwagent_key_cleanup
 iam_key_provision "$PUBLISHER_USER" "$VAULT_ENTRY" "$ROTATE" || exit 1
 
-echo "==> Running remote-as-root cwagent install via cat-pipe..."
+echo "== Running remote-as-root cwagent install via cat-pipe..."
 # Exactly ONE line is read from stdin, not the whole file. `cat` here forwarded
 # every line the operator credential file held, and sudo consumes only the first:
 # any second line was inherited by the remote bash and executed as a root shell

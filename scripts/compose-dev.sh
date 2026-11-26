@@ -63,7 +63,7 @@ forward_signal() {
   local sig="$1"
   if [[ -n "$COMPOSE_PID" ]] && kill -0 "$COMPOSE_PID" 2>/dev/null; then
     echo
-    echo "==> Caught SIG$sig; forwarding to compose..."
+    echo "== Caught SIG$sig; forwarding to compose..."
     kill "-$sig" "$COMPOSE_PID" 2>/dev/null || true
   fi
 }
@@ -73,7 +73,7 @@ cleanup() {
   # the stack half-stopped.
   trap '' INT TERM EXIT
   echo
-  echo "==> Tearing down compose stack..."
+  echo "== Tearing down compose stack..."
   # --timeout bounds the graceful-stop wait; --remove-orphans cleans up
   # services renamed/removed since last up. `|| true` prevents a transient
   # compose error (already-gone container, race with the up child) from
@@ -85,7 +85,7 @@ trap 'forward_signal INT' INT
 trap 'forward_signal TERM' TERM
 trap cleanup EXIT
 
-echo "==> Bringing up four-container stack (Ctrl+C to stop and clean up)..."
+echo "== Bringing up four-container stack (Ctrl+C to stop and clean up)..."
 docker compose "${COMPOSE_ARGS[@]}" up --build &
 COMPOSE_PID=$!
 

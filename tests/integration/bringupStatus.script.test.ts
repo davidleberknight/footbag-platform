@@ -216,7 +216,7 @@ describe('bringup-status.sh — alarm gates, alarm subscriptions and GuardDuty',
    * proven line are parsed; the rest is kept as the tool printed it.
    */
   const SUBS_CAPTURED_STAGING = [
-    '==> AWS identity: taken from your environment, not from this script.',
+    '== AWS identity: taken from your environment, not from this script.',
     '    arn:aws:iam::111122223333:user/footbag-operator',
     'WARNING: footbag-staging-alarms: ops@example.test was confirmed by a click, so an unsubscribe link can remove it; recreate it with bash scripts/reconfirm-alarm-subscriptions.sh --target staging',
     '  footbag-staging-alarms-critical: no email subscriptions',
@@ -230,7 +230,7 @@ describe('bringup-status.sh — alarm gates, alarm subscriptions and GuardDuty',
     '  - read every email subscription on the staging alarm topics found',
   ].join('\n');
   const SUBS_CAPTURED_PENDING = [
-    '==> AWS identity: taken from your environment, not from this script.',
+    '== AWS identity: taken from your environment, not from this script.',
     '    arn:aws:iam::111122223333:user/footbag-operator',
     '  footbag-production-alarms-critical (us-east-1): no such topic',
     'WARNING: footbag-production-alarms-usw2: ops@example.test is pending confirmation; confirm its link with bash scripts/confirm-alarm-subscription.sh --target production',

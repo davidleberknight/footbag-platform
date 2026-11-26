@@ -66,6 +66,6 @@ fi
 PLAYWRIGHT_BIN="${FOOTBAG_PLAYWRIGHT_BIN:-${REPO_ROOT}/node_modules/.bin/playwright}"
 [[ -n "${FOOTBAG_PLAYWRIGHT_BIN:-}" ]] && echo "TEST SEAM: Playwright is ${FOOTBAG_PLAYWRIGHT_BIN}." >&2
 
-echo "==> Read-only browser check: ${TARGET} at ${BASE_URL}"
+echo "== Read-only browser check: ${TARGET} at ${BASE_URL}"
 DEPLOYED_BASE_URL="$BASE_URL" DEPLOYED_TARGET="$TARGET" \
   "$PLAYWRIGHT_BIN" test -c tests/playwright.deployed.config.ts

@@ -144,7 +144,7 @@ _prg_report() {
     printf '  - %s\n' "${PRG_WARNINGS[@]}" >&2
   fi
   (( ${#PRG_BLOCKERS[@]} > 0 )) && return 1
-  echo "==> Production release gate: clean, on main, CI green on every run for this commit." >&2
+  echo "== Production release gate: clean, on main, CI green on every run for this commit." >&2
   return 0
 }
 
@@ -170,7 +170,7 @@ _prg_collect() {
     fi
   fi
 
-  echo "==> Production release gate: checking this tree may ship to production ..." >&2
+  echo "== Production release gate: checking this tree may ship to production ..." >&2
   export GIT_TERMINAL_PROMPT=0
   export GIT_SSH_COMMAND="ssh -o BatchMode=yes"
 

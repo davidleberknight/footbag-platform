@@ -172,7 +172,7 @@ fi
 # A reload keeps established sessions, so only a new connection, opened with no
 # shared master and no prompt, shows the host is still reachable. A connection
 # landing while sshd re-executes can be refused for a moment, so it is retried.
-echo "==> Proving a fresh key-based connection to ${ALIAS}"
+echo "== Proving a fresh key-based connection to ${ALIAS}"
 fresh_ok=0
 for attempt in 1 2 3; do
   if ssh "${HOST_SSH_OPTS[@]}" -o BatchMode=yes -o ControlMaster=no -o ControlPath=none \
@@ -214,7 +214,7 @@ fi
 # Retried for the same reason as the key proof: an attempt landing while sshd
 # re-executes is refused before it is asked for methods. A daemon that really
 # still offers a password says so on every attempt, so retrying hides nothing.
-echo "==> Proving the running daemon refuses password login on ${ALIAS}"
+echo "== Proving the running daemon refuses password login on ${ALIAS}"
 methods=""
 for attempt in 1 2 3; do
   refusal="$(ssh "${HOST_SSH_OPTS[@]}" -o BatchMode=yes -o ControlMaster=no -o ControlPath=none \
@@ -240,7 +240,7 @@ echo "    refused, offering ${methods#Permission denied }"
 echo "    $(grep -m1 'Permission denied (' <<<"$refusal")"
 
 # Both proofs passed, so the change is kept: cancel the host's self-revert.
-echo "==> Confirming the change on ${ALIAS}"
+echo "== Confirming the change on ${ALIAS}"
 if ! run_remote confirm; then
   echo "harden-sshd: confirming the change on ${ALIAS} did not complete, and its state is not certain." >&2
   echo "             Either the self-revert already put the previous configuration back, or the" >&2

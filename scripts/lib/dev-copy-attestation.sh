@@ -67,7 +67,7 @@ dev_copy_attestation_require() {
   dir="${file%/*}"
 
   if dev_copy_attestation_present; then
-    echo "==> Encrypted-disk attestation for this machine: recorded in ${file}" >&2
+    echo "== Encrypted-disk attestation for this machine: recorded in ${file}" >&2
     return 0
   fi
 
@@ -98,6 +98,6 @@ dev_copy_attestation_require() {
     echo "ERROR: the attestation could not be recorded in ${file}." >&2
     return 1
   fi
-  echo "==> Encrypted-disk attestation recorded in ${file}" >&2
+  echo "== Encrypted-disk attestation recorded in ${file}" >&2
   return 0
 }

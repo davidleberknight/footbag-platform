@@ -26,7 +26,7 @@ import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 const REPO_ROOT = process.cwd();
 const LEAF = readFileSync(join(REPO_ROOT, 'scripts', 'deploy-rebuild.sh'), 'utf8').split('\n');
 const FIRST = '# Production ships only a database that passes every data-quality check and';
-const LAST = 'echo "==> Rsyncing source to host..."';
+const LAST = 'echo "== Rsyncing source to host..."';
 const scratch = createScratchDir('deploy-rebuild-shipped-db-checks');
 afterAll(() => removeScratch(scratch));
 let seq = 0;

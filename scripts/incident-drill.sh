@@ -178,7 +178,7 @@ alarm() {
   bash "$ALARM_SCRIPT" --target "$TARGET" --alarm "$ALARM" --status "$@" </dev/null
 }
 
-echo "==> Checking ${TARGET} is healthy before the drill"
+echo "== Checking ${TARGET} is healthy before the drill"
 for path in /health/live /health/ready; do
   code="$(edge_status "$path")"
   [[ "$code" == "200" ]] \
@@ -259,7 +259,7 @@ send_restart() {
 # restart, restart it, so an unfinished drill never leaves staging down.
 recover_on_exit() {
   (( STOPPED && ! RECOVERED )) || return 0
-  echo "==> The drill ended before recovery; restarting ${TARGET} so it is not left down" >&2
+  echo "== The drill ended before recovery; restarting ${TARGET} so it is not left down" >&2
   send_restart || cr_error "the restart on the way out failed; ${TARGET} may still be down. Run: < ~/AWS/AWS_OPERATOR.txt bash scripts/restart-host.sh --target ${TARGET}"
 }
 cr_cleanup recover_on_exit
@@ -271,7 +271,7 @@ send_stop() {
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
 }
 
-echo "==> Stopping the web container on ${ALIAS}"
+echo "== Stopping the web container on ${ALIAS}"
 STOPPED=1
 errors_before=${#CR_ERRORS[@]}
 if ! cr_run_marked "stop the web container on ${ALIAS}" -- send_stop \
@@ -284,7 +284,7 @@ cr_proved "the web container on ${ALIAS} was stopped and read back as not runnin
 
 # ── 3. Edge behaviour ────────────────────────────────────────────────────────
 
-echo "==> Reading https://${DOMAIN}/health/ready until the edge answers a 5xx"
+echo "== Reading https://${DOMAIN}/health/ready until the edge answers a 5xx"
 if edge_wait '^5[0-9][0-9]$'; then
   EDGE_DOWN="$EDGE_LAST"
   cr_proved "the edge answered ${EDGE_DOWN} on /health/ready while the origin was down"
@@ -295,7 +295,7 @@ fi
 
 # ── 4. The alarm: first signal ───────────────────────────────────────────────
 
-echo "==> Waiting up to ${WAIT_MINUTES} minutes for ${ALARM} to reach ALARM"
+echo "== Waiting up to ${WAIT_MINUTES} minutes for ${ALARM} to reach ALARM"
 T_SIGNAL=""
 if alarm --expect ALARM --wait-minutes "$WAIT_MINUTES"; then
   T_SIGNAL="$(now_utc)"
@@ -349,7 +349,7 @@ DIAG_RESULTS=()
 # diagnose <group> <when>: one group, its output kept for the write-up.
 diagnose() {
   local group="$1" when="$2" one rc=0
-  echo "==> scripts/host-diagnostics.sh --target ${TARGET} ${group}"
+  echo "== scripts/host-diagnostics.sh --target ${TARGET} ${group}"
   one="$(mktemp)"
   bash "$DIAGNOSTICS" --target "$TARGET" "$group" </dev/null >"$one" 2>&1 || rc=$?
   cat "$one"
@@ -378,7 +378,7 @@ T_NOTICE="$(now_utc)"
 
 # ── 8. Recovery ──────────────────────────────────────────────────────────────
 
-echo "==> Recovering with scripts/restart-host.sh --target ${TARGET}"
+echo "== Recovering with scripts/restart-host.sh --target ${TARGET}"
 T_RECOVERY="$(now_utc)"
 RESTART_RC=0
 cr_run_marked "restart ${TARGET}" -- send_restart || RESTART_RC=$?
@@ -393,10 +393,10 @@ fi
 
 T_GREEN=""
 if (( RECOVERED )); then
-  echo "==> Reading the edge until /health/ready answers 200"
+  echo "== Reading the edge until /health/ready answers 200"
   if edge_wait '^200$' && [[ "$(edge_status /health/live)" == "200" ]]; then
     cr_proved "the edge answers 200 on /health/live and /health/ready after recovery"
-    echo "==> Waiting up to ${WAIT_MINUTES} minutes for ${ALARM} to clear"
+    echo "== Waiting up to ${WAIT_MINUTES} minutes for ${ALARM} to clear"
     if alarm --expect OK --wait-minutes "$WAIT_MINUTES"; then
       T_GREEN="$(now_utc)"
       cr_proved "${ALARM} cleared to OK"

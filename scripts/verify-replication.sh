@@ -160,14 +160,14 @@ failures=0
 fail() { echo "  FAIL: $*" >&2; failures=$((failures + 1)); }
 
 if [[ -n "$skipped" ]]; then
-  echo "==> SKIP: archive bucket not checked: terraform/${TARGET} output archive_bucket_name is null, so the archive stack is off here"
+  echo "== SKIP: archive bucket not checked: terraform/${TARGET} output archive_bucket_name is null, so the archive stack is off here"
 fi
 
 lock_floor="$(date -u -d "${now} UTC + ${MIN_LOCK_DAYS} days" +%Y-%m-%dT%H:%M:%S)"
 
 for check in "${CHECKS[@]}"; do
   IFS='|' read -r src prefix lock want_dest <<<"$check"
-  echo "==> s3://${src}/${prefix}"
+  echo "== s3://${src}/${prefix}"
 
   # A bucket replicating through one rule per prefix is asked for the rule whose
   # filter names this prefix; a whole-bucket source has its one rule.
@@ -257,7 +257,7 @@ key_epoch() {
 
 check_delete_markers() {
   local bucket="$1" region rules markers key modified prefix days found best_prefix best_days born died count=0
-  echo "==> delete markers in s3://${bucket}"
+  echo "== delete markers in s3://${bucket}"
   region="$("$AWS_BIN" s3api get-bucket-location --bucket "$bucket" \
     --query LocationConstraint --output text </dev/null 2>"$AWS_ERR")" || region=""
   [[ "$region" == "None" ]] && region="us-east-1"
@@ -317,7 +317,7 @@ done
 # backup region, because S3 publishes the latency metric it watches there.
 if [[ "$TARGET" == "production" ]]; then
   stopped_alarm="footbag-production-snapshots-hourly-replication-stopped"
-  echo "==> alarm ${stopped_alarm} (us-west-2)"
+  echo "== alarm ${stopped_alarm} (us-west-2)"
   alarm_state="$("$AWS_BIN" cloudwatch describe-alarms --region us-west-2 --alarm-names "$stopped_alarm" \
     --query 'MetricAlarms[0].StateValue' --output text </dev/null 2>/dev/null)" || alarm_state=""
   case "$alarm_state" in

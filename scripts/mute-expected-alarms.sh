@@ -103,10 +103,10 @@ aws_profile_ensure || { cr_warn "no AWS identity is available, so nothing was mu
 if (( CLEAR )); then
   if "$AWS_BIN" cloudwatch delete-alarm-mute-rule --region "$REGION" \
        --alarm-mute-rule-name "$RULE" </dev/null >/dev/null 2>"$ERR_FILE"; then
-    echo "==> Lifted the mute ${RULE}"
+    echo "== Lifted the mute ${RULE}"
     cr_proved "mute ${RULE} lifted"
   elif grep -q 'ResourceNotFound' "$ERR_FILE"; then
-    echo "==> No mute ${RULE} was in place"
+    echo "== No mute ${RULE} was in place"
     cr_proved "no mute ${RULE} in place"
   else
     cr_error "could not lift the mute ${RULE}, so its alarms stay muted until it expires: $(aws_said)"
@@ -157,7 +157,7 @@ if "$AWS_BIN" cloudwatch put-alarm-mute-rule --region "$REGION" --name "$RULE" \
      --description "Muted by the readiness sitting for one heavy step on ${TARGET}" \
      --rule "Schedule={Expression=at(${NOW}),Duration=PT${MINUTES}M}" \
      --mute-targets "AlarmNames=${list}" </dev/null >/dev/null 2>"$ERR_FILE"; then
-  echo "==> Muted ${#targets[@]} expected ${TARGET} alarm(s) for ${MINUTES} minutes from ${NOW}Z: ${targets[*]}"
+  echo "== Muted ${#targets[@]} expected ${TARGET} alarm(s) for ${MINUTES} minutes from ${NOW}Z: ${targets[*]}"
   cr_proved "mute ${RULE} over ${#targets[@]} expected alarm(s), ${MINUTES} minutes from ${NOW}Z"
 else
   cr_warn "nothing was muted: the mute rule was refused: $(aws_said)"

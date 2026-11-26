@@ -25,8 +25,9 @@
 #     not move it, and scripts/check-versions.sh says whether it must.
 #     The release must have been out at least seven days, read from the date
 #     its name carries, so a broken release has been found and replaced before
-#     the hosts take it. --allow-fresh takes a younger one, and is only for a
-#     fix to a flaw known to be exploited on a publicly exposed system.
+#     the hosts take it. --allow-fresh takes a younger one: a fix to a flaw
+#     known to be exploited on a publicly exposed system, or whenever the
+#     maintainer chooses to take a release early.
 #
 # What it refuses to do:
 #   - Write without --apply. A run without it shows the scan, the diff, and
@@ -96,11 +97,11 @@ fi
 
 # A release is taken only once it has been out seven days: a broken or pulled
 # release is usually found and replaced within that time. The date is the one
-# the release name carries (2023.12.20261112 was released 2026-11-12).
+# the release name carries (2023.6.20230601 was released 2023-06-01).
 SOAK_DAYS=7
 if [[ "$KEY" == AMAZON_LINUX_RELEASE ]]; then
   [[ "$NEW" =~ ^[0-9]{4}\.[0-9]+\.([0-9]{4})([0-9]{2})([0-9]{2})(\.[0-9]+)?$ ]] \
-    || cr_die "'${NEW}' carries no release date (expected a name like 2023.12.20261112), so its age cannot be checked. Nothing changed."
+    || cr_die "'${NEW}' carries no release date (expected a name like 2023.6.20230601), so its age cannot be checked. Nothing changed."
   released="$(jq -rn --arg d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]}T00:00:00Z" '$d | fromdateiso8601')" \
     || cr_die "'${NEW}' carries no valid release date, so its age cannot be checked. Nothing changed."
   age_days=$(( ( $(date -u +%s) - released ) / 86400 ))
@@ -108,7 +109,7 @@ if [[ "$KEY" == AMAZON_LINUX_RELEASE ]]; then
     if (( ALLOW_FRESH )); then
       cr_proved "the release is ${age_days} days old, taken early with --allow-fresh"
     else
-      cr_die "${NEW} was released ${age_days} days ago; a release is taken only once it has been out ${SOAK_DAYS} days. Pass --allow-fresh only for a fix to a flaw known to be exploited on a publicly exposed system. Nothing changed."
+      cr_die "${NEW} was released ${age_days} days ago; a release is taken only once it has been out ${SOAK_DAYS} days. Pass --allow-fresh to take it early: a fix to a flaw known to be exploited on a publicly exposed system, or the maintainer's choice. Nothing changed."
     fi
   fi
 fi
@@ -216,7 +217,7 @@ if [[ "$OLD" == "$NEW" ]]; then
     cr_warn "no committed copy of the list to compare with ($(tail -n 1 "${WORK}/git.err")), so a half-done earlier bump of ${KEY} cannot be detected"
   fi
   if [[ -n "$committed" && "$committed" != "$NEW" ]]; then
-    echo "==> ${KEY} is ${NEW} in the list but ${committed} in the committed list; scanning for ${committed}"
+    echo "== ${KEY} is ${NEW} in the list but ${committed} in the committed list; scanning for ${committed}"
     if scan_for "$committed"; then
       show_scan "$committed" error
       if [[ -z "$STALE" ]]; then
@@ -240,7 +241,7 @@ fi
 
 # The scan comes first, against the old value, so nothing is fetched or
 # written for a bump that cannot finish.
-echo "==> Scanning for other copies of ${OLD}"
+echo "== Scanning for other copies of ${OLD}"
 scan_for "$OLD" || exit 1
 if (( APPLY )); then show_scan "$OLD" error; else show_scan "$OLD" warn; fi
 
@@ -329,6 +330,6 @@ if (( ! APPLY )); then
   cr_finish
 fi
 cat "$NEXT" > "$TOOL_VERSIONS"
-echo "==> ${KEY} moved from ${OLD} to ${NEW} in the list"
+echo "== ${KEY} moved from ${OLD} to ${NEW} in the list"
 cr_proved "${KEY} moved from ${OLD} to ${NEW} in ${TOOL_VERSIONS}"
 cr_finish

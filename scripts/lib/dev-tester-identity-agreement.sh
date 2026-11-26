@@ -100,7 +100,7 @@ dev_tester_identity_agreement_record() {
   _FOOTBAG_AGREEMENT_SETTLED="yes"
 
   if [[ "$person" == "$account" ]]; then
-    echo "==> identities agree: ${person} on AWS and on the host" >&2
+    echo "== identities agree: ${person} on AWS and on the host" >&2
     return 0
   fi
 

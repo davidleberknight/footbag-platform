@@ -344,7 +344,8 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
       '#!/usr/bin/env bash',
       'case "$*" in',
       `  *"-a status"*) echo '{"status": "running", "version": "${opts.runningVersion ?? PINS.CWAGENT_VERSION}"}' ;;`,
-      '  *fetch-config*) echo "E! please make sure the credentials and region set correctly on your hosts"',
+      `  *fetch-config*) touch ${JSON.stringify(join(agentDir, 'fetch-config-called'))}`,
+      '                  echo "E! please make sure the credentials and region set correctly on your hosts"',
       `                  exit ${opts.fetchRc ?? 0} ;;`,
       'esac',
     ].join('\n'));
@@ -413,28 +414,32 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     expect(r.stdout).toContain('VERDICT: translated and running');
   });
 
-  // Defect caught: fetch-config's failure was swallowed with a fixed message,
-  // so a real translation error behind it was never seen.
-  it('reports a failed fetch-config without letting it decide the run', () => {
+  // Defect caught: the agent's fetch-config, which in onPremise mode refuses a
+  // host whose region is only in the JSON, is run again, so every healthy
+  // install reports a warning the operator cannot act on, or a fetch-config
+  // that did succeed deletes the JSON and leaves a drop-in copy behind.
+  it('applies the config by restarting the agent, never through fetch-config, and a clean run reports no warning', () => {
     host('healthy', { fetchRc: 1 });
     const r = run();
     expect(r.status, r.stderr).toBe(0);
-    // Marked as a warning for the caller's report, so it is listed without
-    // failing the run.
-    expect(r.stderr).toContain(`${PROBLEM} WARN fetch-config exited 1 (not the verdict; the outcome check decides): E! please make sure`);
+    expect(existsSync(join(agentDir, 'fetch-config-called'))).toBe(false);
+    expect(r.stderr).not.toMatch(new RegExp(`${PROBLEM} WARN[^\\n]*fetch-config`));
+    expect(r.stdout).toContain('VERDICT: translated and running');
   });
 
-  // Defect caught: the installer's own earlier fetch-config copy, left in the
-  // drop-in directory, is merged with the config it just wrote, and one that
-  // disagrees stops the translator, so the agent never starts.
-  it("removes its own earlier fetch-config copy before the agent starts, and names it in the report", () => {
+  // Defect caught: a fetch-config copy a host still holds, left in the drop-in
+  // directory, is merged with the config just written, and one that disagrees
+  // stops the translator, so the agent never starts; or its removal is
+  // reported as a warning on a run with nothing for the operator to do.
+  it('removes a superseded fetch-config copy before the agent starts, saying so without a warning', () => {
     host('healthy');
     const stale = join(agentDir, 'etc', 'amazon-cloudwatch-agent.d', 'file_amazon-cloudwatch-agent.json');
     writeFileSync(stale, '{"metrics": {}}\n');
     const r = run();
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(stale)).toBe(false);
-    expect(r.stderr).toContain(`${PROBLEM} WARN removed this installer's earlier fetch-config copy ${stale}`);
+    expect(r.stdout).toContain(`Removed the superseded fetch-config copy ${stale}`);
+    expect(r.stderr).not.toMatch(new RegExp(`${PROBLEM} WARN[^\\n]*fetch-config`));
   });
 
   // Defect caught: a drop-in someone else put there is deleted, or merged into

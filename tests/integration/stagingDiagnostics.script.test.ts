@@ -83,9 +83,9 @@ function stubTools(): { path: string; argsFile: string } {
   return { path: `${binDir}:${process.env.PATH ?? ''}`, argsFile };
 }
 
-function runSubcommand(sub: string, hostEnv?: string) {
+function runSubcommand(sub: string, hostEnv?: string, args: string[] = []) {
   const { path, argsFile } = stubTools();
-  const res = spawnSync('bash', [SCRIPT, sub], {
+  const res = spawnSync('bash', [SCRIPT, sub, ...args], {
     encoding: 'utf-8',
     env: { PATH: path, HOME: workDir, ...(hostEnv === undefined ? {} : { STUB_HOST_ENV: hostEnv }) },
     ...SPAWN_GUARD,
@@ -116,9 +116,24 @@ describe('the diagnostics read the live install', () => {
 describe('systemd reads the backup service beside the application', () => {
   // Stand-ins that record the arguments they were given, one line per call;
   // the case asserts which units were asked about, not how either tool prints.
-  function runSystemd(): { status: number | null; calls: string } {
+  function runSystemd(): { status: number | null; calls: string; stdout: string } {
     const { path } = stubTools();
     const callsFile = join(workDir, 'systemd-calls.txt');
+    // The markers sit at a host path the suite cannot create, so `test`, which
+    // the script reaches through sudo, answers for them: the declared-restore
+    // marker exists and nothing else does.
+    const testBin = join(workDir, 'bin', 'test');
+    writeFileSync(
+      testBin,
+      [
+        '#!/usr/bin/env bash',
+        `printf 'test %s\\n' "$*" >> ${JSON.stringify(callsFile)}`,
+        '[[ "$1" == -e && "$2" == */.declared-restore ]]',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    chmodSync(testBin, 0o755);
     for (const tool of ['systemctl', 'journalctl']) {
       const bin = join(workDir, 'bin', tool);
       writeFileSync(
@@ -139,8 +154,30 @@ describe('systemd reads the backup service beside the application', () => {
     } catch {
       calls = '';
     }
-    return { status: res.status, calls };
+    return { status: res.status, calls, stdout: res.stdout ?? '' };
   }
+
+  // Defect caught: an operator diagnosing a site that will not start sees the
+  // truncated status summary only, and the refusing pre-start guard's own
+  // message, which only the service's journal holds, stays unread.
+  it('asks for the application service journal', () => {
+    const r = runSystemd();
+    expect(r.status).toBe(0);
+    expect(r.calls.trim().split('\n')).toContain('journalctl -u footbag.service --no-pager -n 40 --output=short-iso');
+  });
+
+  // Defect caught: a pending erasure replay keeps the site down and the backups
+  // refusing, or a declared restore waves the next backup past the lineage
+  // check, and the diagnostic an operator runs says nothing about either file.
+  it('reports each database-directory marker as present or absent, under the live database directory', () => {
+    const r = runSystemd();
+    expect(r.status).toBe(0);
+    const lines = r.calls.trim().split('\n');
+    expect(lines).toContain(`test -e ${LIVE_INSTALL}/db/.erasure-replay-pending`);
+    expect(lines).toContain(`test -e ${LIVE_INSTALL}/db/.declared-restore`);
+    expect(r.stdout).toMatch(/^\.erasure-replay-pending: absent$/m);
+    expect(r.stdout).toMatch(/^\.declared-restore: present$/m);
+  });
 
   // Defect caught: an operator diagnosing stopped backups runs `systemd` and
   // sees only the application, so the refused or failed backup's own reason,
@@ -489,6 +526,109 @@ describe('no path belongs to one particular connecting account', () => {
   it('uploads to the connecting account own home rather than a literal one', () => {
     const source = readFileSync(SCRIPT, 'utf-8');
     expect(source).toMatch(/scp scripts\/staging_diagnostics\.sh footbag-staging:~\//);
+  });
+});
+
+describe('containers lists every compose container with its state and error', () => {
+  // A docker that records its arguments and answers the two reads the
+  // subcommand makes: the project's container ids, and their inspection.
+  function runContainers(ids: string): { status: number | null; stdout: string; calls: string[] } {
+    const { path, argsFile } = stubTools();
+    writeFileSync(
+      join(workDir, 'bin', 'docker'),
+      [
+        '#!/usr/bin/env bash',
+        `printf '%s\\n' "$*" >> ${JSON.stringify(argsFile)}`,
+        `if [[ "$*" == *" ps -a -q" ]]; then printf ${JSON.stringify(ids)}; exit 0; fi`,
+        'if [[ "$1" == inspect ]]; then for id in "${@:4}"; do printf "/%s  state=exited  exit=1  error=stand-in\\n" "$id"; done; exit 0; fi',
+        'exit 0',
+        '',
+      ].join('\n'),
+      'utf-8',
+    );
+    const res = spawnSync('bash', [SCRIPT, 'containers'], {
+      encoding: 'utf-8',
+      env: { ...process.env, PATH: path, HOME: workDir },
+      ...SPAWN_GUARD,
+    });
+    let calls: string[] = [];
+    try {
+      calls = readFileSync(argsFile, 'utf-8').trim().split('\n');
+    } catch {
+      calls = [];
+    }
+    return { status: res.status, stdout: res.stdout ?? '', calls };
+  }
+
+  // Defect caught: the container that failed to start, the one being
+  // diagnosed, is missing from a listing of running containers, or is listed
+  // without the exit code and the engine's error that say why it stopped.
+  it('inspects every container in the project, exited ones included, for exit code and error', () => {
+    const r = runContainers('aaa111\\nbbb222\\n');
+    expect(r.status).toBe(0);
+    expect(r.calls.some((c) => c.startsWith(`compose --env-file ${LIVE_INSTALL}/env`) && c.endsWith(' ps -a -q')), r.calls.join('\n')).toBe(true);
+    const inspect = r.calls.find((c) => c.startsWith('inspect '));
+    expect(inspect, r.calls.join('\n')).toBeDefined();
+    expect(inspect).toMatch(/\{\{\.State\.Status\}\}/);
+    expect(inspect).toMatch(/\{\{\.State\.ExitCode\}\}/);
+    expect(inspect).toMatch(/\{\{\.State\.Error\}\}/);
+    expect(inspect).toMatch(/ aaa111 bbb222$/);
+    expect(r.stdout).toMatch(/^\/aaa111 {2}state=exited {2}exit=1/m);
+    expect(r.stdout).toMatch(/^\/bbb222 /m);
+  });
+
+  it('says so, and inspects nothing, when the project has no containers', () => {
+    const r = runContainers('');
+    expect(r.status).toBe(0);
+    expect(r.calls.some((c) => c.startsWith('inspect'))).toBe(false);
+    expect(r.stdout).toContain('no containers');
+  });
+
+  it('is listed in the help', () => {
+    const r = runSubcommand('help', '');
+    expect(r.stdout).toMatch(/^ {4}containers {2,}/m);
+  });
+});
+
+describe('split-wal-check opens the host database read-only', () => {
+  // Defect caught: the comparison opens the live database writable, so the
+  // read itself can checkpoint the WAL or leave a sidecar, changing the very
+  // views it was asked to compare.
+  it('passes -readonly on every sqlite3 call', () => {
+    const { path } = stubTools();
+    const callsFile = join(workDir, 'sqlite-calls.txt');
+    const bin = join(workDir, 'bin', 'sqlite3');
+    writeFileSync(bin, ['#!/usr/bin/env bash', `printf 'sqlite3 %s\\n' "$*" >> ${JSON.stringify(callsFile)}`, 'exit 0', ''].join('\n'), 'utf-8');
+    chmodSync(bin, 0o755);
+    const res = spawnSync('bash', [SCRIPT, 'split-wal-check'], {
+      encoding: 'utf-8',
+      env: { ...process.env, PATH: path, HOME: workDir },
+      ...SPAWN_GUARD,
+    });
+    expect(res.status, res.stderr).toBe(0);
+    const calls = readFileSync(callsFile, 'utf-8').trim().split('\n');
+    expect(calls.length).toBe(2);
+    for (const call of calls) {
+      expect(call, call).toMatch(new RegExp(`^sqlite3 -readonly ${LIVE_INSTALL}/db/footbag\\.db `));
+    }
+  });
+});
+
+describe('force-tick drains the outbox on staging only', () => {
+  // Defect caught: a confirmed force-tick on production sends real mail to
+  // real recipients outside the scheduler.
+  it('refuses on a host recording production, before touching docker', () => {
+    const r = runSubcommand('force-tick', 'production', ['-y']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('REFUSING');
+    expect(r.stderr).toContain("FOOTBAG_ENV='production'");
+    expect(r.dockerArgs).toBe('');
+  });
+
+  it('runs the drain on a host recording staging once confirmed', () => {
+    const r = runSubcommand('force-tick', 'staging', ['-y']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.dockerArgs.trim()).toMatch(/ exec -T web node$/);
   });
 });
 

@@ -320,16 +320,16 @@ fi
 REMOTE_RELEASE_DIR="${REMOTE_HOME}/footbag-release"
 echo "    staging directory: ${REMOTE_RELEASE_DIR}"
 
-echo "==> WARNING: this deploy will REPLACE the live host database from scratch."
+echo "== WARNING: this deploy will REPLACE the live host database from scratch."
 # The address goes to stderr, not stdout. ssh-known-hosts.sh records that the
 # production origin address is deliberately not public: the host's web port is
 # scoped to the CloudFront origin ranges rather than open, so publishing the
 # address gives away what that scoping withholds. Deploy stdout is what a wrapper,
 # a CI job or an agent session captures; the operator still sees this on a
 # terminal.
-echo "==> Deploy target: $REMOTE ($HOST_IP)" >&2
+echo "== Deploy target: $REMOTE ($HOST_IP)" >&2
 
-echo "==> Confirming SSH connectivity..."
+echo "== Confirming SSH connectivity..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 
 # No test suite runs here. A production deploy ships only a commit whose CI
@@ -339,13 +339,13 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # further below, and on a production ship they include every data-quality check.
 
 if [[ "$SKIP_DB_REBUILD" != "yes" ]]; then
-  echo "==> Rebuilding local database from scratch..."
+  echo "== Rebuilding local database from scratch..."
   # Built to be shipped, so the builder leaves out the affordances that only
   # make sense on a developer's own machine. They live in the file and would
   # otherwise travel to the host with it.
   FOOTBAG_DB_FOR_DEPLOY=1 FOOTBAG_DB_PATH="$LOCAL_DB" bash "$REPO_ROOT/scripts/reset-local-db.sh"
 else
-  echo "==> Skipping local DB rebuild (SKIP_DB_REBUILD=yes)"
+  echo "== Skipping local DB rebuild (SKIP_DB_REBUILD=yes)"
 fi
 
 command -v sqlite3 >/dev/null || {
@@ -356,7 +356,7 @@ if [[ ! -f "$LOCAL_DB" ]]; then
   cr_die "rebuilt DB not found: $LOCAL_DB"
 fi
 
-echo "==> Verifying rebuilt local DB..."
+echo "== Verifying rebuilt local DB..."
 grep -qx 'ok' <<< "$(sqlite3 "$LOCAL_DB" 'PRAGMA integrity_check;')" || {
   cr_die "local rebuilt DB failed integrity_check"
 }
@@ -404,7 +404,7 @@ unset _dev_only_rows
 # the remote half names the same path three times, including the --delete
 # exclude that protects the live tree.
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
-  echo "==> Building curator media from /curated → .curated-build (sidecars → media_items)..."
+  echo "== Building curator media from /curated → .curated-build (sidecars → media_items)..."
   # shellcheck source=lib/seeder-env.sh
   source "${REPO_ROOT}/scripts/lib/seeder-env.sh"
   seeder_env_ensure "$REPO_ROOT" || exit 1
@@ -412,14 +412,14 @@ if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   source "${REPO_ROOT}/scripts/lib/curated-media-build.sh"
   curated_media_build "$REPO_ROOT" "$LOCAL_DB" || exit 1
 else
-  echo "==> Skipping curator seed (CURATOR_SEED=no)"
+  echo "== Skipping curator seed (CURATOR_SEED=no)"
 fi
 
 # Email-template seed: reconcile email_templates against the committed
 # /curated/email_templates/ sidecars. Runs here as well as inside the DB
 # rebuild so a SKIP_DB_REBUILD=yes deploy still ships the latest template
 # wording. Idempotent (key-stable INSERT OR REPLACE + orphan cleanup).
-echo "==> Seeding email templates from /curated/email_templates..."
+echo "== Seeding email templates from /curated/email_templates..."
 _venv="${REPO_ROOT}/scripts/.venv"
 # shellcheck source=lib/seeder-env.sh
 source "${REPO_ROOT}/scripts/lib/seeder-env.sh"
@@ -443,7 +443,7 @@ fi
 # lands after the seal changes the fingerprint, which the host half refuses. The integrity check is repeated because the steps since
 # the first one wrote the file. The fingerprint goes to the host half, which
 # refuses an upload that does not match it before it stops the service.
-echo "==> Sealing the database for upload..."
+echo "== Sealing the database for upload..."
 _checkpoint="$(sqlite3 "$LOCAL_DB" 'PRAGMA wal_checkpoint(TRUNCATE);')" || {
   cr_die "could not checkpoint $LOCAL_DB before upload"
 }
@@ -455,11 +455,11 @@ grep -qx 'ok' <<< "$(sqlite3 "$LOCAL_DB" 'PRAGMA integrity_check;')" || {
 }
 SHIPPED_DB_SHA256="$(sha256sum "$LOCAL_DB" | cut -d' ' -f1)"
 
-echo "==> Preparing remote upload directory..."
+echo "== Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" \
   "rm -rf '$REMOTE_RELEASE_DIR' && mkdir -p '$REMOTE_RELEASE_DIR'" </dev/null
 
-echo "==> Rsyncing source to host..."
+echo "== Rsyncing source to host..."
 # /.curated-build/*** ships only when SYNC_MEDIA=yes, set by the -m/--sync-media
 # opt-in in deploy-to-aws.sh (default off). When off or unset (e.g. this script
 # invoked directly), RELEASE_DIR carries no /.curated-build and the remote-half
@@ -514,7 +514,7 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" \
 # ── Build images locally (workstation, where memory is plentiful) ──────────
 # The host (Lightsail nano_3_0, 512 MB) cannot fit a parallel npm ci build.
 
-echo "==> Building Docker images locally (workstation)..."
+echo "== Building Docker images locally (workstation)..."
 # Build with the base compose only. The prod overlay is runtime-only (mounts,
 # memory limits, env that lives in /srv/footbag/env on the host) and would
 # fail interpolation here on the workstation. Image content is identical.
@@ -566,7 +566,7 @@ IMAGE_IMAGE_LAYERS=$(docker image inspect --format='{{range .RootFS.Layers}}{{.}
 # Pre-transfer optimization (mirrors deploy-code.sh): skip the transfer when the
 # host already has images with identical RootFS DiffIDs. Operator's footbag
 # user is in the host's docker group; no sudo needed for `docker image inspect`.
-echo "==> Comparing local image RootFS DiffIDs against host..."
+echo "== Comparing local image RootFS DiffIDs against host..."
 REMOTE_WEB_LAYERS=$(ssh "${SSH_OPTS[@]}" "$REMOTE" \
   "docker image inspect --format='{{range .RootFS.Layers}}{{.}} {{end}}' docker-web 2>/dev/null" \
   </dev/null || true)
@@ -580,9 +580,9 @@ if [[ -n "$WEB_IMAGE_LAYERS" && -n "$WORKER_IMAGE_LAYERS" && -n "$IMAGE_IMAGE_LA
    && "$WEB_IMAGE_LAYERS"    == "$REMOTE_WEB_LAYERS" \
    && "$WORKER_IMAGE_LAYERS" == "$REMOTE_WORKER_LAYERS" \
    && "$IMAGE_IMAGE_LAYERS"  == "$REMOTE_IMAGE_LAYERS" ]]; then
-  echo "==> Image RootFS DiffIDs match host; skipping the Docker image transfer."
+  echo "== Image RootFS DiffIDs match host; skipping the Docker image transfer."
 else
-  echo "==> Transferring Docker images to host (only the changed parts are sent)..."
+  echo "== Transferring Docker images to host (only the changed parts are sent)..."
   # Reclaim host disk before the load. Each deploy loads a fresh :latest and
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".
@@ -600,7 +600,7 @@ else
   # takes the build cache. Neither removes a container. A failure is a warning in
   # the closing report carrying the tool's own message, so a host whose disk was
   # not reclaimed is said so at the end rather than once in the middle.
-  echo "==> Reclaiming host disk (journal vacuum + dangling images + build cache)..."
+  echo "== Reclaiming host disk (journal vacuum + dangling images + build cache)..."
   # Each step runs under the remote report library's crr_run, so a failing one
   # is marked with the tool's own last line and reaches the report that way: the
   # session itself is privileged, so nothing else it prints is written down.
@@ -631,7 +631,7 @@ INITIAL_ADMIN_EMAILS_CSV="$(resolve_initial_admin_emails_csv "$REPO_ROOT" "$REMO
 INITIAL_ADMIN_MANAGED="no"
 initial_admin_list_managed "$REPO_ROOT" && INITIAL_ADMIN_MANAGED="yes"
 if [[ "$INITIAL_ADMIN_MANAGED" == "no" && "$REMOTE" != "footbag-production" ]]; then
-  echo "==> No private checkout here, so the host's initial-admin list is left as it is."
+  echo "== No private checkout here, so the host's initial-admin list is left as it is."
 fi
 
 # Deploy provenance, same shape the code-only path records. This deploy rsyncs
@@ -665,12 +665,12 @@ EMAIL_TEMPLATE_DIGEST="$(email_template_digest "${REPO_ROOT}/curated/email_templ
 # name where this run acts as FootbagDevTester, as scripts/deploy-code.sh records.
 DEPLOY_ACTOR_ACCOUNT="$(ssh -G "$REMOTE" 2>/dev/null | awk '/^user / {print $2}' | tail -1)" || DEPLOY_ACTOR_ACCOUNT=""
 DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none} email_templates=$EMAIL_TEMPLATE_DIGEST actor=${DEPLOY_ACTOR_ACCOUNT:-unknown}${FOOTBAG_ACTING_AS_PERSON:+ actor_session=${FOOTBAG_ACTING_AS_PERSON}}"
-echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
+echo "== Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
 if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
   echo "    uncommitted: ${DEPLOY_DIRTY_PATHS}"
 fi
 
-echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
+echo "== Running remote-as-root rebuild deploy via cat-pipe..."
 # printf emits the password line; the EXPECTED_*_IMAGE_LAYERS assignments give
 # the remote-half the layer DiffIDs to verify against the docker-loaded images;
 # cat appends the remote-half script body. Layer DiffIDs are space-separated
@@ -726,7 +726,7 @@ require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
 smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "${SKIP_SMOKE:-no}" == "yes" ]]; then
-  echo "==> Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
+  echo "== Skipping post-deploy smoke check (SKIP_SMOKE=yes)"
   cr_warn "the post-deploy smoke checks were skipped (SKIP_SMOKE=yes)"
   cr_unproved "the site answering after this deploy: the smoke checks were skipped"
 elif [[ -z "$smoke_url" ]]; then
@@ -738,7 +738,7 @@ elif [[ -z "$smoke_url" ]]; then
   echo "       Terraform publishes once CloudFront is enabled; apply the tree and redeploy." >&2
   exit 1
 else
-  echo "==> Running smoke check against $smoke_url ..."
+  echo "== Running smoke check against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-local.sh"; then
     cr_error "post-deploy smoke check failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
@@ -747,7 +747,7 @@ else
   # Blocking security probes (auth gates, anti-enumeration equivalence, the
   # dev-harness environment contract). Same fail-hard stance as the route
   # smoke above. Mirrors deploy-code.sh.
-  echo "==> Running security smoke probes against $smoke_url ..."
+  echo "== Running security smoke probes against $smoke_url ..."
   if ! BASE_URL="$smoke_url" SMOKE_ENV="$FOOTBAG_ENV" bash "$REPO_ROOT/scripts/smoke-security.sh"; then
     cr_error "security smoke probes failed against $smoke_url"
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
@@ -776,7 +776,7 @@ MEDIA_CHECK_CMD="${DEPLOY_MEDIA_CHECK_CMD:-$REPO_ROOT/scripts/check-media-integr
 if [[ -n "${DEPLOY_MEDIA_CHECK_CMD:-}" ]]; then
   echo "SYNTHETIC: media integrity check replaced by DEPLOY_MEDIA_CHECK_CMD=$DEPLOY_MEDIA_CHECK_CMD" >&2
 fi
-echo "==> Verifying media integrity against the $FOOTBAG_ENV bucket ..."
+echo "== Verifying media integrity against the $FOOTBAG_ENV bucket ..."
 tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" media_bucket_name || true
 MEDIA_BUCKET="$TF_OUTPUT_VALUE"
 if [[ -z "$MEDIA_BUCKET" ]]; then
@@ -866,7 +866,7 @@ VERIFY_HOST_ENV_CMD="${DEPLOY_VERIFY_HOST_ENV_CMD:-$REPO_ROOT/scripts/verify-hos
 if [[ -n "${DEPLOY_VERIFY_HOST_ENV_CMD:-}" ]]; then
   echo "SYNTHETIC: host env verifier replaced by DEPLOY_VERIFY_HOST_ENV_CMD=$DEPLOY_VERIFY_HOST_ENV_CMD" >&2
 fi
-echo "==> Verifying $REMOTE's env file ..."
+echo "== Verifying $REMOTE's env file ..."
 if ! printf '%s\n' "$SUDO_PASS" | bash "$VERIFY_HOST_ENV_CMD" --target "$FOOTBAG_ENV"; then
   cr_error "$REMOTE's env file failed verification after the deploy; each FAIL above names its fix."
   echo "       The release is live, so fix what failed and deploy again." >&2

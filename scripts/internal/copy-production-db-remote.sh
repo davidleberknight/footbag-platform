@@ -86,7 +86,7 @@ if (( free_kb < need_kb )); then
   crr_finish
 fi
 
-echo "==> building the copy from ${LIVE_DB}"
+echo "== building the copy from ${LIVE_DB}"
 # At the lowest CPU and disk priority, so the site it shares the host with
 # keeps serving first; and from the deployed image only, never one built or
 # pulled here.

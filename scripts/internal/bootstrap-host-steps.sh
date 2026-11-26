@@ -387,6 +387,32 @@ bh_probe_cw_metrics() {
   bh_probe_report_done
 }
 
+# bh_blueprint_id <target>
+# Sets BH_BLUEPRINT_ID to the Lightsail blueprint the environment's tree boots
+# a new instance from: the values file's lightsail_blueprint_id where it sets
+# one, else the variable's default. Returns 1, with BH_BLUEPRINT_ERROR saying
+# why, when neither can be read, so a caller never judges a blueprint it did
+# not name.
+BH_BLUEPRINT_ID=""
+BH_BLUEPRINT_ERROR=""
+bh_blueprint_id() {
+  local tfvars="${BOOTSTRAP_HOST_TFVARS:-${BH_REPO_ROOT}/terraform/$1/terraform.tfvars}"
+  local vars="${BH_REPO_ROOT}/terraform/$1/variables.tf" id=""
+  BH_BLUEPRINT_ID=""
+  BH_BLUEPRINT_ERROR=""
+  [[ -r "$tfvars" ]] || { BH_BLUEPRINT_ERROR="the values file ${tfvars} cannot be read"; return 1; }
+  id="$(sed -nE 's/^[[:space:]]*lightsail_blueprint_id[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/p' "$tfvars" | tail -n 1)"
+  if [[ -z "$id" ]]; then
+    [[ -r "$vars" ]] || { BH_BLUEPRINT_ERROR="${vars} cannot be read"; return 1; }
+    id="$(awk '/^variable "lightsail_blueprint_id"/ { f = 1 }
+               f && /^[[:space:]]*default[[:space:]]*=/ { if (match($0, /"[^"]*"/)) print substr($0, RSTART + 1, RLENGTH - 2); exit }
+               f && /^}/ { exit }' "$vars")"
+  fi
+  [[ "$id" =~ ^[a-z0-9_]+$ ]] \
+    || { BH_BLUEPRINT_ERROR="no blueprint id could be read from ${tfvars} or ${vars}, which gave '${id}'"; return 1; }
+  BH_BLUEPRINT_ID="$id"
+}
+
 # bh_tfvars_flag <target> <name>
 # Prints true or false as the environment's values file declares the flag, false
 # when it does not mention it (every gate defaults off), unknown when the file
@@ -605,11 +631,10 @@ bh_verdict() {
       local want="${P[PIN_COMPOSE_VERSION]:-}" have="${P[COMPOSE_VERSION]:-none}"
       local pin_sqlite="${P[PIN_SQLITE_VERSION]:-}" pin_docker="${P[PIN_DOCKER_ENGINE_HOST]:-}" pin_al="${P[PIN_AMAZON_LINUX_RELEASE]:-}"
       # Every required package is pinned, and a tool at any other version than
-      # its pin holds the row pending, so the bootstrap brings it to its pin.
-      # The one difference nothing can fix is a release newer than the pin,
-      # which a fresh instance's image can have reached and dnf cannot step
-      # back: staging notes it on a done row, production holds the row pending.
-      local offpin="" al_have="${P[AL_RELEASE]:-}"
+      # its pin holds the row pending, on staging as on production. A release
+      # newer than the pin holds it pending too, though dnf cannot step it
+      # back: the bootstrap refuses that host rather than report it finished.
+      local al_have="${P[AL_RELEASE]:-}"
       pin_check() { # <label> <pin> <have, empty when absent>
         [[ -n "$2" && -n "$3" && "$3" == "$2" ]] || missing+="$1 ${2:-<unpinned>} (host has ${3:-none}); "
       }
@@ -617,17 +642,11 @@ bh_verdict() {
       pin_check "Compose plugin" "$want" "$have_compose"
       pin_check "sqlite3" "$pin_sqlite" "${P[SQLITE_VERSION]:-}"
       pin_check "docker" "$pin_docker" "${P[DOCKER_RPM]:-}"
-      if [[ "$t" == "staging" && -n "$pin_al" && -n "$al_have" && "$al_have" != "$pin_al" \
-            && "$(printf '%s\n%s\n' "$pin_al" "$al_have" | sort -V | tail -n 1)" == "$al_have" ]]; then
-        offpin="Amazon Linux ${al_have} (pinned ${pin_al}); "
-      else
-        pin_check "Amazon Linux" "$pin_al" "$al_have"
-      fi
+      pin_check "Amazon Linux" "$pin_al" "$al_have"
       [[ "${P[RSYNC]:-}" == "yes" ]] || missing+="rsync; "
       [[ "${P[AWSCLI]:-}" == "yes" ]] || missing+="the aws CLI; "
       if [[ -z "$missing" ]]; then
         BH_STATE=DONE; BH_DETAIL="docker ${P[DOCKER_RPM]:-$pin_docker} running, Compose ${have_compose:-$want}, sqlite3 ${P[SQLITE_VERSION]:-$pin_sqlite}, Amazon Linux ${al_have:-$pin_al}, rsync, aws"
-        [[ -n "$offpin" ]] && BH_DETAIL+="; off its pins, allowed on staging: ${offpin%; }"
       else
         BH_STATE=PENDING; BH_DETAIL="missing: ${missing%; }"
       fi
@@ -828,7 +847,7 @@ bh_verdict() {
       # loses at most one interval.
       local age="${P[BACKUP_AGE]:-unknown}" limit=""
       bh_backup_limit && limit="$BH_BACKUP_LIMIT"
-      local inspect="bash scripts/host-diagnostics.sh --target ${t} status   (the backup service's journal says why its runs fail)"
+      local inspect="bash scripts/host-diagnostics.sh --target ${t} systemd   (the backup service's journal says why its runs fail)"
       if [[ "$age" == "none" ]]; then
         BH_STATE=PENDING; BH_DETAIL="the timer is active and enabled, but the bucket holds no backup from today or yesterday"
         BH_NEXT="$inspect"

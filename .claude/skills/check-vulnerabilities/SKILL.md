@@ -44,7 +44,7 @@ maintainer weighs, never a limit.
    clears every one of its open advisories (never one advisory's fix) and has been published at
    least seven days, with its publish date; where the only clearing release is younger, give the
    date it becomes eligible, or recommend `--allow-fresh` when the flaw is known exploited on a
-   publicly exposed system. Then say how it moves (a direct pin,
+   publicly exposed system; the maintainer may also take any release early by choice. Then say how it moves (a direct pin,
    an override, a lockfile refresh within its parent's range, or a parent bump), a recommended
    time to move it, the owning script that moves it, and whether it moves a host pin (which means
    a host step on staging and then production). The maintainer picks.

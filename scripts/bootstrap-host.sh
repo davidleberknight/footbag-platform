@@ -110,19 +110,28 @@
 #     changes.
 #   - An alias whose HostName is not the address Terraform reports.
 #   - A host recording the other environment, at any step.
+#   - A host off any of its pins, staging as production, including a release
+#     newer than the pin, which dnf cannot step back.
+#   - A replacement whose blueprint boots past the pinned release, or whose
+#     blueprint cannot be read, before anything is stopped or snapshotted.
 #   - On production, a deploy step while the go-live marker cannot be read.
 #
 # --status reads every step's outcome and prints each as DONE, PENDING (with the
 # command that finishes it), UNKNOWN, N-A or INFO. It changes nothing and exits
-# non-zero while any step is pending or unread, the snapshot excepted, which
-# appears on its own a day after an instance is created. A reboot the host
-# reports needed is listed in its closing report.
+# non-zero while any step is pending or unread, the automatic snapshot among
+# them once it is due; a new instance's first snapshot, which appears on its own
+# a day after the instance is created, reads INFO until then and is not counted.
+# A reboot the host reports needed is listed in its closing report.
 #
 # --replace-instance is the only route that replaces aws_lightsail_instance.web,
-# the instance Terraform records, under whatever name a restore gave it. It asks
-# for its own typed APPLY naming the instance and the snapshot. On production
-# after go-live it first refuses unless the snapshots bucket holds a database
-# backup newer than one backup interval, and after the APPLY it stops
+# the instance Terraform records, under whatever name a restore gave it. Before
+# it asks or changes anything, on either environment, it reads the release the
+# tree's Lightsail blueprint boots a new instance at, and refuses one past the
+# pinned Amazon Linux release, naming bump-tool.sh, since dnf cannot step the
+# replacement back to its pin; a blueprint it cannot read is refused the same
+# way. It asks for its own typed APPLY naming the instance and the snapshot. On
+# production after go-live it first refuses unless the snapshots bucket holds a
+# database backup newer than one backup interval, and after the APPLY it stops
 # footbag.service and runs one backup to completion, proved by a new object in
 # the bucket, so no write the host took is lost with it. It then takes a manual
 # snapshot of the instance and waits until Lightsail reports it complete, and
@@ -282,7 +291,7 @@ aws_identity_require_direct_user footbag-operator \
 
 # ── Shared pieces ────────────────────────────────────────────────────────────
 
-say() { printf '\n==> %s\n' "$*"; }
+say() { printf '\n== %s\n' "$*"; }
 proved() {
   printf '    proved: %s\n' "$*"
   cr_proved "$*"
@@ -338,7 +347,7 @@ render_all() {
     i=$(( i + 1 ))
     render_row "$i" "$step"
     case "$BH_STATE" in
-      PENDING|UNKNOWN|FAILED) [[ "$step" == "snapshot" ]] || pending=$(( pending + 1 )) ;;
+      PENDING|UNKNOWN|FAILED) pending=$(( pending + 1 )) ;;
     esac
   done
   echo ""
@@ -361,16 +370,16 @@ report_reboot_need() {
   esac
 }
 
-# The automatic snapshot is left out of the pending count, so what its row reads
-# goes into the closing report instead, and the run never claims a snapshot it
-# did not see. A new instance's first snapshot not yet due is unproved; any other
-# row short of done is a warning naming what the check said.
+# The automatic snapshot's row says in the closing report what it saw, so the
+# run never claims a snapshot it did not see. A new instance's first snapshot
+# not yet due is an INFO row, outside the pending count, and unproved; a row
+# short of done otherwise is counted pending like any other step, and is
+# reported through that count rather than a second time here.
 report_snapshot_row() {
   bh_verdict snapshot
   case "$BH_STATE" in
     DONE) cr_proved "the automatic snapshot of ${ALIAS}: ${BH_DETAIL}" ;;
     INFO) cr_unproved "that the add-on takes the first automatic snapshot of ${P[SNAPSHOT_INSTANCE]}; due by ${P[SNAPSHOT_DUE]}" ;;
-    *) cr_warn "the automatic snapshot of ${ALIAS} reads ${BH_STATE}: ${BH_DETAIL}; check it with ${BH_NEXT%%   (*}" ;;
   esac
 }
 
@@ -425,6 +434,32 @@ if [[ "$MODE" == "replace" ]]; then
   echo "    ${INSTANCE}: ${inst_state}, created ${inst_created}"
   inst_epoch="$(date -u -d "$inst_created" +%s 2>/dev/null)" \
     || cr_die "${INSTANCE} reports no readable creation time ('${inst_row}'). Nothing was changed."
+
+  # ── The release the replacement boots ──
+  # A new instance boots whatever release its blueprint has reached, and dnf
+  # cannot step a host back to its pin, so a blueprint past the pin would leave
+  # the environment with the old instance gone and a replacement the bootstrap
+  # refuses. Judged before anything is asked, stopped or snapshotted, on both
+  # environments; a read that fails or answers nothing is an error, never
+  # "not past the pin".
+  say "The release the replacement boots"
+  tool_pin AMAZON_LINUX_RELEASE || cr_die "the tool-version list names no Amazon Linux release. Nothing was changed."
+  al_pin="$TOOL_PIN_VALUE"
+  bh_blueprint_id "$TARGET" \
+    || cr_die "could not read the Lightsail blueprint the ${TARGET} tree boots: ${BH_BLUEPRINT_ERROR}. Nothing was changed."
+  bp_version="$("$BH_AWS_BIN" lightsail get-blueprints --region us-east-1 \
+      --query "blueprints[?blueprintId=='${BH_BLUEPRINT_ID}'].version" --output text </dev/null 2>"${BH_WORK}/aws.err")" \
+    || cr_die "could not read the Lightsail blueprint ${BH_BLUEPRINT_ID} ($(tail -n 1 "${BH_WORK}/aws.err")). Nothing was changed."
+  # The version is the release with a build number after it, 2023.12.20261120.0.
+  [[ "$bp_version" =~ ^([0-9]+\.[0-9]+\.[0-9]+)\.[0-9]+$ ]] \
+    || cr_die "could not read the Lightsail blueprint ${BH_BLUEPRINT_ID}: Lightsail answered '${bp_version}', not a release. Nothing was changed."
+  bp_release="${BASH_REMATCH[1]}"
+  if [[ "$bp_release" != "$al_pin" \
+        && "$(printf '%s\n%s\n' "$al_pin" "$bp_release" | sort -V | tail -n 1)" == "$bp_release" ]]; then
+    cr_die "the Lightsail blueprint ${BH_BLUEPRINT_ID} boots Amazon Linux ${bp_release}, past the pinned ${al_pin}, and dnf cannot step a host back to its pin, so the replacement would be refused by its own bootstrap. The pin moves first: bash scripts/bump-tool.sh AMAZON_LINUX_RELEASE ${bp_release} --apply. Nothing was changed."
+  fi
+  echo "    ${BH_BLUEPRINT_ID} boots Amazon Linux ${bp_release}; the pin is ${al_pin}"
+  cr_proved "the blueprint ${BH_BLUEPRINT_ID} boots Amazon Linux ${bp_release}, not past the pinned ${al_pin}"
 
   # The host's AWS access keys are read off it below, and a live host is also
   # stopped and backed up, so the password is settled before anything is asked
@@ -739,7 +774,7 @@ if [[ "$MODE" == "replace" ]]; then
       if capture_send "start footbag.service again" quiesce_send resume; then
         echo "       footbag.service was started again." >&2
       else
-        cr_error "footbag.service could NOT be started again: the site is DOWN. Start it with: < ${BH_CRED} bash scripts/host-diagnostics.sh --target ${TARGET}"
+        cr_error "footbag.service could NOT be started again: the site is DOWN. Start it with: < ${BH_CRED} bash scripts/restart-host.sh --target ${TARGET}"
       fi
     fi
     exit 1

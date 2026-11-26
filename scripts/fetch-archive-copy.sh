@@ -122,7 +122,7 @@ chmod 700 "$copy_parent"
 aws_profile_ensure || cr_die "could not settle the AWS identity this run fetches as"
 aws_identity_require_assumed_role "$FOOTBAG_DEV_TESTER_ROLE" \
   || cr_die "a developer's archive copy is fetched as the ${FOOTBAG_DEV_TESTER_ROLE} role, through scripts/as-dev-tester.sh"
-echo "==> fetching as ${AWS_IDENTITY_SESSION_NAME}" >&2
+echo "== fetching as ${AWS_IDENTITY_SESSION_NAME}" >&2
 
 # ---- 3. The encrypted-disk attestation -----------------------------------------
 

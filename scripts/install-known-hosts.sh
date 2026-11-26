@@ -161,7 +161,7 @@ remove_staged_pin() {
 cr_cleanup known_hosts_mint_cleanup
 cr_cleanup remove_staged_pin
 
-echo "==> Checking the ${TARGET} pin in ${PIN}, minting nothing"
+echo "== Checking the ${TARGET} pin in ${PIN}, minting nothing"
 
 # ── Is the pin already current? ──────────────────────────────────────────────
 #
@@ -277,7 +277,7 @@ fi
 # One mint, through the shared library. The instance is the one Terraform names,
 # which a restore from snapshot changes.
 echo "    Not current: ${STALE_REASON}."
-echo "==> Reading ${INSTANCE}'s host keys from Lightsail. This mints a host-access"
+echo "== Reading ${INSTANCE}'s host keys from Lightsail. This mints a host-access"
 echo "    certificate, so the break-glass alarm fires; the mint is attributed to"
 echo "    footbag-install-known-hosts. The response is shredded once read."
 known_hosts_pin_lines "$TARGET" "$AWS_BIN" \

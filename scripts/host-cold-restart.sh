@@ -150,7 +150,7 @@ wait_for() {
 }
 
 read_state || cr_die "could not read ${INSTANCE}, the instance Terraform names for ${TARGET}: $(aws_said)"
-echo "==> ${INSTANCE} (${TARGET}) is ${STATE}"
+echo "== ${INSTANCE} (${TARGET}) is ${STATE}"
 
 # AWS documents the forced stop for an instance stuck stopping and warns against
 # it in any other state, so the flag is refused before anything is asked or sent.
@@ -177,11 +177,11 @@ case "$STATE" in
       || cr_die "not confirmed; ${INSTANCE} was not changed"
 
     if [[ "$STATE" == "running" ]]; then
-      echo "==> Stopping ${INSTANCE}"
+      echo "== Stopping ${INSTANCE}"
       aws_ls stop-instance --instance-name "$INSTANCE" >/dev/null \
         || cr_die "the stop of ${INSTANCE} was refused: $(aws_said)"
     elif (( FORCE_STOP )); then
-      echo "==> Forcing the stop of ${INSTANCE}"
+      echo "== Forcing the stop of ${INSTANCE}"
       aws_ls stop-instance --instance-name "$INSTANCE" --force >/dev/null \
         || cr_die "the forced stop of ${INSTANCE} was refused; it is still stopping: $(aws_said)"
     fi
@@ -189,7 +189,7 @@ case "$STATE" in
       wait_for stopped || cr_die "${INSTANCE} did not reach stopped within $(( POLL_TRIES * POLL_SECS ))s (last state: ${STATE}); it was not started. Run again to keep waiting, or with --force-stop if it stays stopping."
     fi
     echo "    ${INSTANCE} is stopped"
-    echo "==> Starting ${INSTANCE}"
+    echo "== Starting ${INSTANCE}"
     aws_ls start-instance --instance-name "$INSTANCE" >/dev/null \
       || cr_die "the start of ${INSTANCE} was refused; it is stopped and the ${TARGET} site is down. Run again to start it: $(aws_said)"
     ;;
@@ -205,7 +205,7 @@ wait_for running || cr_die "${INSTANCE} did not reach running within $(( POLL_TR
 echo "    ${INSTANCE} is running"
 cr_proved "Lightsail reports ${INSTANCE} running again after the cold restart"
 
-echo "==> Asking the host for its status through scripts/host-diagnostics.sh"
+echo "== Asking the host for its status through scripts/host-diagnostics.sh"
 # Lightsail reports running once the instance is up, not once the host has
 # booted: right after a start its ssh connection can time out for a minute or
 # two. So the status is first tried quietly until the host is reachable, for up

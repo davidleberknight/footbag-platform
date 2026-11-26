@@ -3,7 +3,8 @@
 # staging_diagnostics.sh: single-file diagnostic toolkit for a footbag host,
 # staging by hand or either environment through scripts/host-diagnostics.sh.
 # Read-only by default. The only state-changing operation is `force-tick`,
-# which must be invoked explicitly with `-y`. Every subcommand but `help`
+# which must be invoked explicitly with `-y` and refuses any host but staging.
+# Every subcommand but `help`
 # refuses a host whose recorded FOOTBAG_ENV is not staging or production.
 #
 # ----------------------------------------------------------------------------
@@ -79,7 +80,7 @@ compose() {
 
 node_run() { compose exec -T web node; }
 
-banner() { printf '\n==> %s\n' "$*"; }
+banner() { printf '\n== %s\n' "$*"; }
 
 confirm() {
   local prompt="$1"
@@ -97,6 +98,22 @@ confirm() {
 cmd_status() {
   banner "docker compose ps"
   compose ps
+}
+
+# Every container of the stack, exited ones included, with the exit code and
+# the engine's own error: `ps` lists only running containers, so a container
+# that failed to start, which is the one being diagnosed, would be missing.
+cmd_containers() {
+  banner "compose containers: name, state, exit code, error"
+  local ids
+  ids="$(compose ps -a -q)"
+  if [[ -z "$ids" ]]; then
+    echo "(no containers in this compose project)"
+    return 0
+  fi
+  # shellcheck disable=SC2086 # one container id per word
+  sudo docker inspect --format \
+    '{{.Name}}  state={{.State.Status}}  exit={{.State.ExitCode}}  error={{.State.Error}}' $ids
 }
 
 cmd_health() {
@@ -383,6 +400,25 @@ cmd_dnf_history() {
 
 cmd_systemd() {
   banner "systemctl status footbag.service"; sudo systemctl status footbag.service --no-pager -l || true
+  # The service's own journal holds why a start was refused or the stack
+  # stopped (a pre-start guard's message, a compose failure), which the status
+  # summary truncates.
+  banner "footbag.service journal, last 40 lines"
+  sudo journalctl -u footbag.service --no-pager -n 40 --output=short-iso || true
+  # Two files beside the database change what the services do: a pending
+  # erasure replay keeps the site from starting and the backup refusing, and a
+  # declared restore lets the next backup accept a database that does not
+  # continue the stored history. Neither shows anywhere else.
+  local db_dir marker
+  db_dir="$(dirname "$DB_HOST_PATH")"
+  banner "markers in ${db_dir}"
+  for marker in .erasure-replay-pending .declared-restore; do
+    if sudo test -e "${db_dir}/${marker}"; then
+      echo "${marker}: present"
+    else
+      echo "${marker}: absent"
+    fi
+  done
   # The backup service's own journal is the only place a refused or failed
   # backup says why (a database that does not continue the stored history, a
   # pending erasure replay, an unreadable lineage record), so it is read here
@@ -986,8 +1022,10 @@ cmd_split_wal_check() {
   banner "DB view comparison: host vs web vs worker"
   echo "--- HOST ---"
   sudo ls -lh "$DB_HOST_PATH"* 2>/dev/null || echo "(no host DB files)"
-  sudo sqlite3 "$DB_HOST_PATH" "SELECT status, COUNT(*) FROM outbox_emails GROUP BY status;" 2>&1 || true
-  sudo sqlite3 "$DB_HOST_PATH" "SELECT COUNT(*) AS members FROM members;" 2>&1 || true
+  # Read-only, so the comparison cannot itself checkpoint the WAL or create a
+  # sidecar on the live database it is comparing views of.
+  sudo sqlite3 -readonly "$DB_HOST_PATH" "SELECT status, COUNT(*) FROM outbox_emails GROUP BY status;" 2>&1 || true
+  sudo sqlite3 -readonly "$DB_HOST_PATH" "SELECT COUNT(*) AS members FROM members;" 2>&1 || true
 
   echo
   echo "--- WEB (inside container) ---"
@@ -1070,6 +1108,13 @@ cmd_previous_release() {
 # ---------------- State-change (force-tick only) ----------------
 
 cmd_force_tick() {
+  # Staging only: a forced drain sends real mail to real recipients, which on
+  # production is the scheduler's job alone. Anything but a host recording
+  # exactly staging is refused, so an unread environment never reads as safe.
+  if [[ "$HOST_ENV" != "staging" ]]; then
+    echo "REFUSING: force-tick runs only on staging; this host records FOOTBAG_ENV='${HOST_ENV}'. Nothing was run." >&2
+    exit 1
+  fi
   if [[ "${1:-}" != "-y" ]]; then
     echo "force-tick will trigger an immediate outbox drain inside the web container."
     echo "This performs real SES send attempts on pending rows and flips their status."
@@ -1094,6 +1139,8 @@ staging_diagnostics.sh — subcommands
 
   Runtime
     status                   docker compose ps
+    containers               every compose container, exited ones too, with
+                             its state, exit code and the engine's error
     health                   GET /health and /health/ready
     time                     host and container UTC
     git-sha                  release dir git SHA
@@ -1121,7 +1168,9 @@ staging_diagnostics.sh — subcommands
     memory-watch [seconds]   sample available memory across an upload and report
                              the minimum reached (default 300s)
     disk                     df -h plus DB file sizes
-    systemd                  footbag.service status; backup timer, service and journal
+    systemd                  footbag.service status and journal; backup timer,
+                             service and journal; the database directory's
+                             erasure-replay and declared-restore markers
     host-access              effective sshd settings, the provider default
                              account and agent, and every account that can log
                              in with its key fingerprints
@@ -1185,7 +1234,7 @@ staging_diagnostics.sh — subcommands
     previous-release         release + live dirs, sibling backups
 
   State-change (confirm-required)
-    force-tick -y            force immediate outbox drain
+    force-tick -y            force immediate outbox drain (staging only)
 
   help                       this message
 HELP
@@ -1206,7 +1255,12 @@ require_deployed_host() {
     echo "REFUSING: ${ENV_FILE} records FOOTBAG_ENV='${recorded}', not staging or production. Nothing was run." >&2
     exit 1
   fi
+  HOST_ENV="$recorded"
 }
+
+# The environment the host recorded, set only once require_deployed_host has
+# confirmed it; empty means unconfirmed.
+HOST_ENV=""
 
 main() {
   local sub="${1:-help}"; shift || true
@@ -1216,6 +1270,7 @@ main() {
   esac
   case "$sub" in
     status)               cmd_status ;;
+    containers)           cmd_containers ;;
     health)               cmd_health ;;
     time)                 cmd_time ;;
     git-sha)              cmd_git_sha ;;

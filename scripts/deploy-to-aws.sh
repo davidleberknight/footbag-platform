@@ -536,7 +536,7 @@ fi
 # Plan summary (always shown; doubles as dry-run output).
 # -----------------------------------------------------------------------------
 echo ""
-echo "==> Deploy plan"
+echo "== Deploy plan"
 echo "    target:           ${DEPLOY_TARGET:-footbag-staging}"
 echo "    mode:             ${MODE:-default}"
 echo "    rebuild local DB: ${REBUILD_LOCAL}"
@@ -710,12 +710,12 @@ fi
 #   3. Default rebuild + replace.                 → deploy-local-data.sh + deploy-rebuild.sh
 # -----------------------------------------------------------------------------
 if [[ "$REPLACE_STAGING" == "no" ]]; then
-  echo "==> Step: scripts/deploy-code.sh (code only; staging DB + media untouched)"
+  echo "== Step: scripts/deploy-code.sh (code only; staging DB + media untouched)"
   exec_step bash "${SCRIPT_DIR}/deploy-code.sh"
 fi
 
 if [[ "$REBUILD_LOCAL" == "no" ]]; then
-  echo "==> Step: scripts/deploy-rebuild.sh (ship current local DB; SKIP_DB_REBUILD=yes)"
+  echo "== Step: scripts/deploy-rebuild.sh (ship current local DB; SKIP_DB_REBUILD=yes)"
   export SKIP_DB_REBUILD="yes"
   exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"
 fi
@@ -742,7 +742,7 @@ export FOOTBAG_DB_FOR_DEPLOY=1
 export FOOTBAG_DATA_BUILD_ENTRY=deploy
 
 if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
-  echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --soup-to-nuts"
+  echo "== Step 1 (local DB rebuild): scripts/deploy-local-data.sh --soup-to-nuts"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --soup-to-nuts
   if [[ "$DRY_RUN" != "yes" ]]; then
     echo ""
@@ -757,23 +757,23 @@ elif [[ "$ALL_DATA" == "yes" ]]; then
   # so a production member load is the deliberate go-live cutover, not an
   # accidental deploy.
   if [[ "$FINAL_MEMBER_LOAD" == "yes" ]]; then
-    echo "==> Step 1 (local DB rebuild + FINAL member load applied): scripts/deploy-local-data.sh --all-data --apply-members --final-load"
+    echo "== Step 1 (local DB rebuild + FINAL member load applied): scripts/deploy-local-data.sh --all-data --apply-members --final-load"
     run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data --apply-members --final-load
   else
-    echo "==> Step 1 (local DB rebuild + member intake applied): scripts/deploy-local-data.sh --all-data --apply-members"
+    echo "== Step 1 (local DB rebuild + member intake applied): scripts/deploy-local-data.sh --all-data --apply-members"
     run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data --apply-members
   fi
 elif [[ "$PUBLIC_DATA" == "yes" ]]; then
   # The public-inputs build: committed seed and canonical CSVs, freestyle, net,
   # clubs and curated media, with no enrichment phase and no member intake, so
   # nothing here reads the private checkout, the roster or the dump.
-  echo "==> Step 1 (local DB rebuild, public inputs only): scripts/deploy-local-data.sh --db-only"
+  echo "== Step 1 (local DB rebuild, public inputs only): scripts/deploy-local-data.sh --db-only"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --db-only
 else
-  echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
+  echo "== Step 1 (local DB rebuild): scripts/deploy-local-data.sh --from-csv"
   run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --from-csv
 fi
 echo ""
-echo "==> Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh (SKIP_DB_REBUILD=yes)"
+echo "== Step 2 (AWS push + DB replace): scripts/deploy-rebuild.sh (SKIP_DB_REBUILD=yes)"
 export SKIP_DB_REBUILD="yes"
 exec_step bash "${SCRIPT_DIR}/deploy-rebuild.sh"

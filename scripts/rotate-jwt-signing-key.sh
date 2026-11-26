@@ -130,7 +130,7 @@ public_key_digest() {
 }
 
 if (( FROM_STEP <= 1 )); then
-  echo "==> step 1: replace the signing key"
+  echo "== step 1: replace the signing key"
   answers_through_cloudfront \
     || die "the site does not answer through CloudFront (${PROBE_URL}) before anything is changed; find out why first, or this run cannot tell its own breakage from that one"
   old_key="$(key_meta "$ALIAS" KeyMetadata.KeyId)" || die "could not read the key ${ALIAS} points at"
@@ -157,13 +157,13 @@ if (( FROM_STEP <= 1 )); then
 fi
 
 if (( FROM_STEP <= 2 )); then
-  echo "==> step 2: restart, so the stack loads the new public key"
+  echo "== step 2: restart, so the stack loads the new public key"
   # stdin passes through: it carries the host sudo password restart-host.sh reads.
   bash "$RESTART" --target "$TARGET" \
     || die "the restart failed. Until it succeeds the running stack still holds the old public key and refuses every new login: resume with --from-step 2."
 fi
 
-echo "==> step 3: prove the site answers through CloudFront"
+echo "== step 3: prove the site answers through CloudFront"
 ok=0
 for (( i = 1; i <= PROBE_TRIES; i++ )); do
   if answers_through_cloudfront; then ok=1; break; fi

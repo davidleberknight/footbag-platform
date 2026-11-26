@@ -253,10 +253,10 @@ cleanup() {
   fi
   if (( MARKER_SET_BY_THIS_RUN )); then
     echo "" >&2
-    echo "==> reversing the cutover marker this run recorded" >&2
+    echo "== reversing the cutover marker this run recorded" >&2
     if remote_action marker-reverse "$PHRASE_REVERSED" >&2; then
       MARKER_SET_BY_THIS_RUN=0
-      echo "==> marker reversed; the host is back to pre-cutover" >&2
+      echo "== marker reversed; the host is back to pre-cutover" >&2
     else
       echo "" >&2
       echo "ERROR: the marker could NOT be reversed and the host is still marked." >&2
@@ -274,7 +274,7 @@ trap cleanup EXIT INT TERM
 
 echo "== curation-cutover rehearsal on $TARGET (ssh alias: $SSH_ALIAS, trick: $TRICK_SLUG) =="
 echo ""
-echo "==> probing the host"
+echo "== probing the host"
 BEFORE="$(remote_action probe)"
 
 fail_precondition() {
@@ -339,7 +339,7 @@ echo ""
 # ── Leg one: the code-only deploy preserves the edit ─────────────────────────
 
 echo ""
-echo "==> leg 1: code-only deploy"
+echo "== leg 1: code-only deploy"
 # --no-refresh-personas is not optional here. A code-only staging deploy rebuilds
 # the test personas by default, and that rebuild deletes persona-owned rows. This
 # leg exists to show the live database untouched, so a run that let the deploy
@@ -347,7 +347,7 @@ echo "==> leg 1: code-only deploy"
 deploy_or_explain -k --no-refresh-personas
 
 echo ""
-echo "==> leg 1: re-probing"
+echo "== leg 1: re-probing"
 AFTER_CODE="$(remote_action probe)"
 
 assert_same() {
@@ -393,7 +393,7 @@ echo "    leg 1 holds: the in-app edit survived a code-only deploy"
 # ── Leg two: the destructive deploy is refused on a marked host ──────────────
 
 echo ""
-echo "==> leg 2: recording the cutover marker"
+echo "== leg 2: recording the cutover marker"
 remote_action marker-set "$PHRASE_COMPLETE"
 MARKER_SET_BY_THIS_RUN=1
 
@@ -407,7 +407,7 @@ fi
 echo "    both marker halves now read complete"
 
 echo ""
-echo "==> leg 2: attempting the database-replacing deploy, which must be refused"
+echo "== leg 2: attempting the database-replacing deploy, which must be refused"
 # Created with mktemp and owned by the trap that is already installed, which
 # removes it on a clean run and names it on a failed one.
 ATTEMPT_LOG="$(mktemp)"

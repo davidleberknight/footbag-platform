@@ -1842,10 +1842,35 @@ expect_h $'```\ndocker system df\naws sts get-caller-identity\n```' defer
 expect_h $'The log:\n```text\nsudo: a password is required\n```' defer
 expect_h 'It needs sudo, so run it in your own terminal; `sudo` prompts there.' defer
 expect_h 'The cleanup step lives in `scripts/deploy-rebuild.sh`.' defer
-# A hook-forced continuation is not blocked again.
-out="$(jq -cn '{stop_hook_active:true,last_assistant_message:"```\nsudo rm -rf /x\n```"}' | ".claude/hooks/$HC")"
-if grep -q '"block"' <<< "$out"; then
-  echo "[hooks] FAIL ($HC): continuation was blocked" >&2
+# The shell-mode prefix does not hide a command.
+expect_h $'Not done:\n- Run the proof: `! bash /tmp/claude-1000/x/scratchpad/tlsproof/run.sh /tmp/claude-1000/x/scratchpad/fp406`' block
+expect_h '- Run: `! aws s3 rm s3://bucket/key`' block
+expect_h '- Run: `! sudo apt-get install jq`' block
+expect_h $'```\n! terraform apply\n```' block
+expect_h '- ! bash /tmp/proof/run.sh' block
+# A script outside the repository tree blocks even when the file exists.
+expect_h 'Run `bash /etc/profile.d/no-such.sh`.' block
+expect_h 'Run `/tmp/proof/run.sh --apply`.' block
+expect_h 'Run `python3 /tmp/proof/check.py`.' block
+expect_h 'Run `source /tmp/proof/env.sh`.' block
+expect_h 'Run `bash footbag_private_repo/x.sh`.' block
+# A command string handed to a shell is judged; a flag before the verb does not hide it.
+expect_h 'Run `bash -c "aws s3 rm s3://bucket/key"`.' block
+expect_h 'Run `terraform -chdir=terraform/staging apply`.' block
+# Passed: a committed script with or without the prefix, a read through the prefix,
+# and an absolute path inside the repository.
+expect_h 'Then run `! bash scripts/setup-dev-workstation.sh`.' defer
+expect_h 'Then run `! bash scripts/bump-tool.sh DOCKER_ENGINE_WORKSTATION 1 --apply`.' defer
+expect_h "Then run \`bash $PWD/scripts/setup-dev-workstation.sh\`." defer
+expect_h 'Check with `! aws sts get-caller-identity`.' defer
+expect_h 'Check with `! git status`.' defer
+expect_h '- ! git status' defer
+expect_h 'Run `terraform -chdir=terraform/staging plan`.' defer
+expect_h 'This is important! It ships today.' defer
+# A hook-forced continuation is judged too: it is where a closing list is written.
+out="$(jq -cn '{stop_hook_active:true,last_assistant_message:"Not done:\n- `! bash /tmp/proof/run.sh`"}' | CLAUDE_PROJECT_DIR="$PWD" ".claude/hooks/$HC")"
+if ! grep -q '"block"' <<< "$out"; then
+  echo "[hooks] FAIL ($HC): continuation was not judged" >&2
   fail=1
 fi
 

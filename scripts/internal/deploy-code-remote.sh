@@ -229,7 +229,7 @@ seed_committed_host_config() {
   done
   if [[ "$mode" == "validate" ]]; then
     rm -f "$adds"
-    echo "==> Validated committed host config for '$FOOTBAG_ENV' from $cfg"
+    echo "== Validated committed host config for '$FOOTBAG_ENV' from $cfg"
     return 0
   fi
   local tmp
@@ -243,7 +243,7 @@ seed_committed_host_config() {
   cat "$adds" >> "$tmp"
   rm -f "$adds"
   mv "$tmp" "$ENV_PATH"
-  echo "==> Reconciled committed host config for '$FOOTBAG_ENV' from $cfg"
+  echo "== Reconciled committed host config for '$FOOTBAG_ENV' from $cfg"
 }
 
 # Tool-version preflight, before anything on the host changes: the host's
@@ -412,7 +412,7 @@ if [[ "$FIRST_INSTALL" == "1" ]]; then
     exit 1
   }
   unset _fi_db_dir
-  echo "==> First install: the release is installed and the service left stopped"
+  echo "== First install: the release is installed and the service left stopped"
 fi
 
 # MEDIA_STORAGE_ADAPTER, SECRETS_ADAPTER, JWT_SIGNER and CAPTCHA_ADAPTER are
@@ -431,7 +431,7 @@ fi
 # /srv/footbag/env and redeploy: this block regenerates and the worker picks
 # up the new value on its next restart.
 if ! grep -q '^INTERNAL_EVENT_SECRET=' "$ENV_PATH"; then
-  echo "==> Seeding INTERNAL_EVENT_SECRET into $ENV_PATH (random hex)..."
+  echo "== Seeding INTERNAL_EVENT_SECRET into $ENV_PATH (random hex)..."
   generated_secret=$(openssl rand -hex 32)
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
@@ -462,7 +462,7 @@ fi
 FOOTBAG_ENV_VAL=$(read_env FOOTBAG_ENV)
 [[ -n "$FOOTBAG_ENV_VAL" ]] || { echo "ERROR: FOOTBAG_ENV missing from $ENV_PATH" >&2; exit 1; }
 if [[ "$FOOTBAG_ENV_VAL" == "staging" || "$FOOTBAG_ENV_VAL" == "development" ]]; then
-  echo "==> Reconciling SES_ADAPTER=stub into $ENV_PATH (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production must not send real mail)..."
+  echo "== Reconciling SES_ADAPTER=stub into $ENV_PATH (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; non-production must not send real mail)..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
@@ -487,7 +487,7 @@ fi
 # sync later in this script writes PAYMENT_ADAPTER from the declared flag
 # (armed -> live, dark -> stub).
 if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
-  echo "==> Reconciling PAYMENT_ADAPTER=stub into $ENV_PATH (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; the live payment SDK is refused below production)..."
+  echo "== Reconciling PAYMENT_ADAPTER=stub into $ENV_PATH (FOOTBAG_ENV=$FOOTBAG_ENV_VAL; the live payment SDK is refused below production)..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
@@ -503,7 +503,7 @@ if [[ "$FOOTBAG_ENV_VAL" != "production" ]]; then
   # Each host gets its own generated stub webhook signing secret; the constant
   # in the repository is for development and test only.
   if ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
-    echo "==> Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into $ENV_PATH (preserved if already set)..."
+    echo "== Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into $ENV_PATH (preserved if already set)..."
     env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
     chmod 600 "$env_tmp"
     chown root:root "$env_tmp"
@@ -536,7 +536,7 @@ fi
 #
 # Existence only: the values themselves are fetched and validated below, at the
 # point each is written.
-echo "==> Preflighting the parameters this deploy requires..."
+echo "== Preflighting the parameters this deploy requires..."
 _pf_env=$(read_env FOOTBAG_ENV)
 _pf_profile=$(read_env AWS_PROFILE)
 _pf_region=$(read_env AWS_REGION)
@@ -558,7 +558,7 @@ for _pf_name in $(host_values_required_parameters); do
 done
 unset _pf_env _pf_profile _pf_region _pf_name
 
-echo "==> Promoting release (preserving env, DB, media)..."
+echo "== Promoting release (preserving env, DB, media)..."
 # deployed-from is excluded for a different reason than the three beside it.
 # Those are host state the release must not overwrite; this one is the record of
 # which release is running, and it is rewritten at the end of a successful run.
@@ -593,7 +593,7 @@ chown -R root:root "$LIVE_DIR"
 # Only the containers are in that group, and no operator account gains access
 # by being an operator. Group-read is the standard arrangement when a
 # root-managed file must be read by an unprivileged service.
-echo "==> Applying runtime-user ownership (containers run unprivileged)..."
+echo "== Applying runtime-user ownership (containers run unprivileged)..."
 readonly APP_UID=1000
 readonly AWSCREDS_GROUP=awscreds
 readonly AWSCREDS_GID=1500
@@ -661,7 +661,7 @@ esac
 # built host reaches this point with no directory at all.
 if [[ ! -d "$_db_dir_from_env" ]]; then
   install -d -o "$APP_UID" -g "$APP_UID" -m 750 "$_db_dir_from_env"
-  echo "==> Created the database directory $_db_dir_from_env for the container account"
+  echo "== Created the database directory $_db_dir_from_env for the container account"
 fi
 for _d in "$_db_dir_from_env" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}"; do
   if [[ -d "$_d" ]]; then
@@ -688,9 +688,9 @@ ensure_swapfile() {
     *)          size="1G"; size_mb=1024 ;;
   esac
   if grep -qx /swapfile <<< "$(swapon --show=NAME --noheadings)"; then
-    echo "==> Swapfile already active"
+    echo "== Swapfile already active"
   else
-    echo "==> Provisioning ${size} disk swapfile..."
+    echo "== Provisioning ${size} disk swapfile..."
     fallocate -l "$size" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$size_mb"
     chmod 600 /swapfile
     mkswap /swapfile
@@ -722,10 +722,10 @@ ensure_zram_disabled() {
     return 0
   fi
   if [[ -f /etc/systemd/zram-generator.conf && ! -s /etc/systemd/zram-generator.conf ]]; then
-    echo "==> Compressed in-RAM swap already suppressed for the next boot"
+    echo "== Compressed in-RAM swap already suppressed for the next boot"
     return 0
   fi
-  echo "==> Suppressing the compressed in-RAM swap device (takes effect at next boot)..."
+  echo "== Suppressing the compressed in-RAM swap device (takes effect at next boot)..."
   : > /etc/systemd/zram-generator.conf
   chmod 644 /etc/systemd/zram-generator.conf
 }
@@ -745,7 +745,7 @@ fi
 # in sync after a `terraform apply -replace=random_id.origin_verify_secret`.
 # IAM: AWS_PROFILE source-profile AssumeRoles into app_runtime which holds
 # ssm:GetParameter on /footbag/{env}/* and kms:Decrypt on the main key.
-echo "==> Syncing X_ORIGIN_VERIFY_SECRET from SSM to $ENV_PATH..."
+echo "== Syncing X_ORIGIN_VERIFY_SECRET from SSM to $ENV_PATH..."
 FOOTBAG_ENV_VAL=$(read_env FOOTBAG_ENV)
 AWS_PROFILE_VAL=$(read_env AWS_PROFILE)
 AWS_REGION_VAL=$(read_env AWS_REGION)
@@ -791,7 +791,7 @@ unset ORIGIN_VERIFY_SECRET_VAL
 # a fresh `store`.
 # A rotation signs no one out: it voids in-flight notices and outstanding
 # unsubscribe links and breaks claim-address matching across the rotation.
-echo "==> Syncing SESSION_SECRET from SSM to $ENV_PATH..."
+echo "== Syncing SESSION_SECRET from SSM to $ENV_PATH..."
 ssm_session_param="/footbag/${FOOTBAG_ENV_VAL}/secrets/session_secret"
 SESSION_SECRET_VAL=$(
   AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
@@ -843,7 +843,7 @@ unset SESSION_SECRET_VAL
 # String parameter (no --with-decryption); a missing parameter is a hard
 # error: the environment needs its terraform apply first.
 ssm_log_level_param="/footbag/${FOOTBAG_ENV_VAL}/app/log_level"
-echo "==> Syncing LOG_LEVEL from $ssm_log_level_param ..."
+echo "== Syncing LOG_LEVEL from $ssm_log_level_param ..."
 LOG_LEVEL_VAL=$(
   AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
     --region "$AWS_REGION_VAL" \
@@ -902,7 +902,7 @@ ssm_read_optional() {  # $1 = parameter name; prints its value, or nothing when 
   return 0
 }
 ssm_archive_url_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_url"
-echo "==> Syncing ARCHIVE_URL from $ssm_archive_url_param ..."
+echo "== Syncing ARCHIVE_URL from $ssm_archive_url_param ..."
 ARCHIVE_URL_VAL="$(ssm_read_optional "$ssm_archive_url_param")" || exit 1
 if [[ -n "$ARCHIVE_URL_VAL" && ! "$ARCHIVE_URL_VAL" =~ ^https:// ]]; then
   echo "ERROR: SSM $ssm_archive_url_param is '$ARCHIVE_URL_VAL'; expected an https:// base URL." >&2
@@ -929,7 +929,7 @@ chown root:root "$ENV_PATH"
 # archive-less environment) the variable is cleared and the application keeps
 # the direct-link default.
 ssm_archive_redirect_param="/footbag/${FOOTBAG_ENV_VAL}/app/archive_login_redirect"
-echo "==> Syncing ARCHIVE_LOGIN_REDIRECT from $ssm_archive_redirect_param ..."
+echo "== Syncing ARCHIVE_LOGIN_REDIRECT from $ssm_archive_redirect_param ..."
 ARCHIVE_LOGIN_REDIRECT_VAL="$(ssm_read_optional "$ssm_archive_redirect_param")" || exit 1
 if [[ -n "$ARCHIVE_LOGIN_REDIRECT_VAL" && ! "$ARCHIVE_LOGIN_REDIRECT_VAL" =~ ^(0|1|true|false)$ ]]; then
   echo "ERROR: SSM $ssm_archive_redirect_param is '$ARCHIVE_LOGIN_REDIRECT_VAL'; expected 0, 1, true, or false." >&2
@@ -956,7 +956,7 @@ chown root:root "$ENV_PATH"
 # running value. A missing parameter is a hard error: the environment needs
 # its terraform apply first.
 ssm_payments_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/payments_armed"
-echo "==> Syncing PAYMENTS_ARMED from $ssm_payments_armed_param ..."
+echo "== Syncing PAYMENTS_ARMED from $ssm_payments_armed_param ..."
 PAYMENTS_ARMED_VAL=$(
   AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
     --region "$AWS_REGION_VAL" \
@@ -983,7 +983,7 @@ chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 
 ssm_email_send_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/email_send_armed"
-echo "==> Syncing EMAIL_SEND_ARMED from $ssm_email_send_armed_param ..."
+echo "== Syncing EMAIL_SEND_ARMED from $ssm_email_send_armed_param ..."
 EMAIL_SEND_ARMED_VAL=$(
   AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
     --region "$AWS_REGION_VAL" \
@@ -1016,7 +1016,7 @@ chown root:root "$ENV_PATH"
 # withhold, so these decide in every deployed environment and their selectors
 # are derived here for staging exactly as for production.
 ssm_url_screening_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/url_screening_armed"
-echo "==> Syncing URL_SCREENING_ARMED from $ssm_url_screening_armed_param ..."
+echo "== Syncing URL_SCREENING_ARMED from $ssm_url_screening_armed_param ..."
 URL_SCREENING_ARMED_VAL=$(
   AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
     --region "$AWS_REGION_VAL" \
@@ -1043,7 +1043,7 @@ chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 
 ssm_reachability_armed_param="/footbag/${FOOTBAG_ENV_VAL}/app/reachability_armed"
-echo "==> Syncing REACHABILITY_ARMED from $ssm_reachability_armed_param ..."
+echo "== Syncing REACHABILITY_ARMED from $ssm_reachability_armed_param ..."
 REACHABILITY_ARMED_VAL=$(
   AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
     --region "$AWS_REGION_VAL" \
@@ -1077,7 +1077,7 @@ SAFE_BROWSING_ADAPTER_DERIVED='stub'
 [[ "$URL_SCREENING_ARMED_VAL" == "armed" ]] && SAFE_BROWSING_ADAPTER_DERIVED='live'
 HTTP_REACHABILITY_ADAPTER_DERIVED='disabled'
 [[ "$REACHABILITY_ARMED_VAL" == "armed" ]] && HTTP_REACHABILITY_ADAPTER_DERIVED='live'
-echo "==> Deriving link-protection adapters from arming switches: SAFE_BROWSING_ADAPTER=$SAFE_BROWSING_ADAPTER_DERIVED HTTP_REACHABILITY_ADAPTER=$HTTP_REACHABILITY_ADAPTER_DERIVED ..."
+echo "== Deriving link-protection adapters from arming switches: SAFE_BROWSING_ADAPTER=$SAFE_BROWSING_ADAPTER_DERIVED HTTP_REACHABILITY_ADAPTER=$HTTP_REACHABILITY_ADAPTER_DERIVED ..."
 env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
 chmod 600 "$env_tmp"
 chown root:root "$env_tmp"
@@ -1095,7 +1095,7 @@ chown root:root "$ENV_PATH"
 # declared shape, one atomic rename; a missing required parameter refuses with
 # the host unchanged. The catalogue travels ahead of this half on the same
 # stream, so this half and the rebuild half cannot sync different sets.
-echo "==> Syncing the Terraform-published host values..."
+echo "== Syncing the Terraform-published host values..."
 host_values_sync_params "$ENV_PATH" "$FOOTBAG_ENV_VAL" "$AWS_PROFILE_VAL" "$AWS_REGION_VAL" || exit 1
 
 # Assert the end state now that both writers have run: the committed host config
@@ -1145,7 +1145,7 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     echo "       each, and a hand edit is overwritten by the next deploy." >&2
     exit 1
   fi
-  echo "==> Deriving production adapters from arming switches: SES_ADAPTER=$SES_ADAPTER_DERIVED PAYMENT_ADAPTER=$PAYMENT_ADAPTER_DERIVED ..."
+  echo "== Deriving production adapters from arming switches: SES_ADAPTER=$SES_ADAPTER_DERIVED PAYMENT_ADAPTER=$PAYMENT_ADAPTER_DERIVED ..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
@@ -1156,7 +1156,7 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   chmod 600 "$ENV_PATH"
   chown root:root "$ENV_PATH"
   if [[ "$PAYMENT_ADAPTER_DERIVED" == "stub" ]] && ! grep -q '^STRIPE_WEBHOOK_SECRET_STUB=' "$ENV_PATH"; then
-    echo "==> Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
+    echo "== Seeding a generated STRIPE_WEBHOOK_SECRET_STUB into env file (dark payments; preserved if already set)..."
     # Generated first, for the reason given at the sibling seed above, and staged
     # through a temp file like every other rewrite in this script. Appending to the
     # live env file was the one exception, and a partial append there corrupts the
@@ -1192,7 +1192,7 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     local env_key="$1" param_suffix="$2"
     local param="/footbag/${FOOTBAG_ENV_VAL}/secrets/${param_suffix}"
     local value
-    echo "==> Syncing ${env_key} from ${param} ..."
+    echo "== Syncing ${env_key} from ${param} ..."
     # A failed read and a placeholder are different facts and must not share a
     # branch. Every other parameter read in this script aborts the deploy when
     # the call fails, and so does this one: swallowing the failure would let a
@@ -1287,9 +1287,9 @@ fi
 # Unset means a caller that predates the distinction, which always wrote it.
 : "${FOOTBAG_DEV_INITIAL_ADMIN_MANAGED:=yes}"
 if [[ "$FOOTBAG_DEV_INITIAL_ADMIN_MANAGED" != "yes" ]]; then
-  echo "==> FOOTBAG_DEV_INITIAL_ADMIN_EMAILS left as it is: this deploy carries no say in it."
+  echo "== FOOTBAG_DEV_INITIAL_ADMIN_EMAILS left as it is: this deploy carries no say in it."
 elif [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
-  echo "==> Updating FOOTBAG_DEV_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
+  echo "== Updating FOOTBAG_DEV_INITIAL_ADMIN_EMAILS in $ENV_PATH ..."
   env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
   chmod 600 "$env_tmp"
   chown root:root "$env_tmp"
@@ -1309,7 +1309,7 @@ elif [[ "$FOOTBAG_ENV" == "development" || "$FOOTBAG_ENV" == "staging" ]]; then
   chown root:root "$ENV_PATH"
 fi
 
-echo "==> Reinstalling systemd service units..."
+echo "== Reinstalling systemd service units..."
 cp "$LIVE_DIR/ops/systemd/footbag.service" /etc/systemd/system/
 # The backup unit and its timer ship in the same release tree and carry their
 # own sandboxing, so they are reinstalled here too. Previously only the main
@@ -1355,7 +1355,7 @@ if systemctl is-enabled --quiet footbag-backup.timer 2>/dev/null; then
   systemctl restart footbag-backup.timer
 elif [[ "${FIRST_INSTALL:-0}" != "1" ]]; then
   if [[ -n "$(awk -F= '$1=="BACKUP_S3_BUCKET" {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1)" ]]; then
-    echo "==> Enabling the backup timer and taking its first backup..."
+    echo "== Enabling the backup timer and taking its first backup..."
     systemctl enable --now footbag-backup.timer
     systemctl start footbag-backup.service || true
     _backup_result="$(systemctl show -p Result --value footbag-backup.service)"
@@ -1442,7 +1442,7 @@ rm -f "$awslogs_dropin_tmp"
 # applies to a host with no database: there is no migration, the readiness poll
 # could only fail, and the provenance record describes a deploy that served.
 if [[ "$FIRST_INSTALL" == "1" ]]; then
-  echo "==> First install complete: footbag.service installed, not enabled and not started."
+  echo "== First install complete: footbag.service installed, not enabled and not started."
   crr_finish
 fi
 
@@ -1462,7 +1462,7 @@ fi
 # the whole safety story: a migration is the one deploy step that can destroy
 # data that no rebuild can recreate.
 if [[ -n "${MIGRATION_SQL:-}" ]]; then
-  echo "==> Applying schema migration..."
+  echo "== Applying schema migration..."
   command -v sqlite3 >/dev/null 2>&1 || {
     echo "ERROR: sqlite3 CLI is not installed on this host (apt-get install -y sqlite3)." >&2
     echo "       Refusing to migrate; the service has not been stopped." >&2
@@ -1833,7 +1833,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   echo "---FOOTBAG-MIGRATION--- APPLIED ${MIGRATION_NAME:-(unnamed)}"
 fi
 
-echo "==> Restarting service (compose up via systemctl, --no-build)..."
+echo "== Restarting service (compose up via systemctl, --no-build)..."
 cd "$LIVE_DIR"
 systemctl restart footbag
 service_stopped_for_migration=0
@@ -1916,7 +1916,7 @@ if (( _stack_healthy == 0 )); then
   # stack ends the loop and leaves the site on the maintenance page; stop, not
   # down, keeps each container and its log for the operator to read. The
   # container monitor keeps reporting the stack unhealthy until it is fixed.
-  echo "==> Stopping the stack so a failing container is not restarted without limit" >&2
+  echo "== Stopping the stack so a failing container is not restarted without limit" >&2
   if ! _stop_out="$(docker compose --env-file /srv/footbag/env \
         -f docker/docker-compose.yml -f docker/docker-compose.prod.yml \
         stop --timeout 30 2>&1 </dev/null)"; then
@@ -1946,7 +1946,7 @@ _cwagent_want="$( { cat "$_cwagent_half"; grep -E '^CWAGENT_(VERSION|URL|SHA256)
 if ! grep -qE "^[[:space:]]*\[${_cwagent_profile}\][[:space:]]*$" "$_cwagent_creds" 2>/dev/null; then
   crr_warn "the CloudWatch agent holds no key on this host yet, so this deploy did not re-apply it; bootstrap-host.sh's agent step installs it"
 elif [[ "$(cat "$_cwagent_stamp" 2>/dev/null || true)" != "$_cwagent_want" ]]; then
-  echo "==> Re-applying the CloudWatch agent from this release (its pin or configuration changed)..."
+  echo "== Re-applying the CloudWatch agent from this release (its pin or configuration changed)..."
   if ( set -a
        # shellcheck source=/dev/null
        source "$LIVE_DIR/ops/tool-versions.env"
@@ -1971,9 +1971,27 @@ if systemctl is-enabled --quiet footbag-container-monitor.timer; then
   if [[ "$_monitor_result" != "success" ]]; then
     crr_error "the container monitor's first reading ended '${_monitor_result}', not success; see journalctl -u footbag-container-monitor.service"
   fi
-  _statsd="$(ss -Hulpn 'sport = :8125' 2>&1)" || _statsd=""
+  # The agent re-apply above restarts the agent, and its StatsD input binds only
+  # once the agent is up, so one read straight after the restart finds nothing
+  # on a healthy host. The read is polled, bounded, and the bound counts reads
+  # rather than the clock. FOOTBAG_STATSD_POLL_LIMIT_S and
+  # FOOTBAG_STATSD_POLL_INTERVAL_S are test seams only.
+  _statsd_limit="${FOOTBAG_STATSD_POLL_LIMIT_S:-30}"
+  _statsd_interval="${FOOTBAG_STATSD_POLL_INTERVAL_S:-1}"
+  [[ -n "${FOOTBAG_STATSD_POLL_LIMIT_S:-}${FOOTBAG_STATSD_POLL_INTERVAL_S:-}" ]] \
+    && echo "SYNTHETIC: FOOTBAG_STATSD_POLL_LIMIT_S or FOOTBAG_STATSD_POLL_INTERVAL_S set -- the StatsD listener check is not the shipped bound." >&2
+  [[ "$_statsd_limit" =~ ^[0-9]+$ ]] || _statsd_limit=30
+  [[ "$_statsd_interval" =~ ^[1-9][0-9]*$ ]] || _statsd_interval=1
+  _statsd_reads=$(( _statsd_limit / _statsd_interval + 1 ))
+  _statsd=""
+  while (( _statsd_reads > 0 )); do
+    _statsd="$(ss -Hulpn 'sport = :8125' 2>&1)" || _statsd=""
+    [[ -n "$_statsd" ]] && break
+    _statsd_reads=$(( _statsd_reads - 1 ))
+    if (( _statsd_reads > 0 )); then sleep "$_statsd_interval"; fi
+  done
   if [[ -z "$_statsd" ]]; then
-    crr_warn "nothing listens on UDP 8125, so the container readings are dropped: the CloudWatch agent's StatsD input is off on this host"
+    crr_error "nothing listens on UDP 8125 after ${_statsd_limit}s, so the container readings are dropped and the container alarms watch nothing: the CloudWatch agent's StatsD input is off on this host. Run scripts/diagnose-cwagent.sh --target ${FOOTBAG_ENV_VAL} to see why, then scripts/install-cwagent-${FOOTBAG_ENV_VAL}.sh --upgrade to re-apply it"
   elif grep -qvE '127\.0\.0\.1:8125' <<<"$_statsd"; then
     crr_error "the CloudWatch agent's StatsD input listens beyond the loopback address: ${_statsd//$'\n'/; }"
   fi
@@ -2016,7 +2034,7 @@ echo "    Container AWS identity verified: ${_expected_role}."
 _prune_db_dir="$(read_env FOOTBAG_DB_DIR)"
 [[ -n "$_prune_db_dir" ]] || _prune_db_dir="/srv/footbag/db"
 if declare -F prune_db_copies >/dev/null; then
-  echo "==> Pruning database copies older than seven days..."
+  echo "== Pruning database copies older than seven days..."
   prune_db_copies "$_prune_db_dir" \
     || crr_warn "pruning old database copies did not complete; some may remain in ${_prune_db_dir}. The deploy itself succeeded."
 else
@@ -2037,7 +2055,7 @@ systemctl status footbag --no-pager -l
 # import guard throws when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
 # also allowlists --seed-test-personas to --target staging only.
 if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
-  echo "==> Running persona-catalog seed..."
+  echo "== Running persona-catalog seed..."
   if ! docker compose \
       --env-file "$ENV_PATH" \
       -f "$LIVE_DIR/docker/docker-compose.yml" \
@@ -2062,7 +2080,7 @@ fi
 # container reads it from /srv/footbag/env per host, and the testkit import
 # guard throws when FOOTBAG_ENV='production'.
 if [[ "${REFRESH_TEST_PERSONAS:-no}" == "yes" ]]; then
-  echo "==> Rebuilding every persona from its deployed spec (persona-owned rows are deleted)..."
+  echo "== Rebuilding every persona from its deployed spec (persona-owned rows are deleted)..."
   if ! docker compose \
       --env-file "$ENV_PATH" \
       -f "$LIVE_DIR/docker/docker-compose.yml" \
@@ -2086,7 +2104,7 @@ if [[ -n "${DEPLOY_PROVENANCE:-}" ]]; then
   chmod 644 "$provenance_tmp"
   chown root:root "$provenance_tmp"
   mv "$provenance_tmp" /srv/footbag/deployed-from
-  echo "==> Recorded deploy provenance in /srv/footbag/deployed-from"
+  echo "== Recorded deploy provenance in /srv/footbag/deployed-from"
 fi
 
 crr_finish

@@ -41,7 +41,8 @@
 # What it refuses: a pin still holding its placeholder, a digest that does not
 # match, a machine that is not x86_64, since the pinned binary is built for
 # that and nothing else, and a release step that would not land on the pin:
-# a production host already past the pin, refused before anything changes, and
+# a host already past the pin, on any environment, refused before anything
+# changes, and
 # repositories that would carry the upgrade to any other release, refused
 # before any package moves.
 #
@@ -131,7 +132,7 @@ ensure_swapfile() {
     echo "    disk swap file already active"
     return 0
   fi
-  echo "==> Provisioning a ${size} disk swap file before the package work"
+  echo "== Provisioning a ${size} disk swap file before the package work"
   CHANGED+=("provisioned the ${size} ${swapfile}")
   crr_run "swap file" -- bash -c "fallocate -l ${size} ${swapfile} || dd if=/dev/zero of=${swapfile} bs=1M count=${size_mb}" \
     || refuse "the swap file could not be allocated"
@@ -175,20 +176,16 @@ case "$MODE" in
     # The release is judged before anything on the host changes. A fresh
     # instance boots whatever release its provider's image has reached, which
     # can be past the pin, and `dnf upgrade --releasever` only moves a host
-    # forward: it leaves a newer one where it is. Staging carries on with a
-    # warning; production refuses a host off its pin before the swap file or
-    # any package is touched.
+    # forward: it leaves a newer one where it is. A host past its pin is
+    # refused on every environment, staging as production, before the swap
+    # file or any package is touched.
     rel="$(release_now)"
     newest="$(printf '%s\n%s\n' "$AMAZON_LINUX_RELEASE" "${rel:-0}" | sort -V | tail -n 1)"
     step_release=0
     if [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]]; then
       echo "    Amazon Linux already at the pinned release ${AMAZON_LINUX_RELEASE}"
     elif [[ -n "$rel" && "$newest" == "$rel" ]]; then
-      if [[ "${FOOTBAG_ENV:-}" == "staging" ]]; then
-        crr_warn "staging runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; the release step was skipped, since dnf upgrade does not step a release back. Production refuses a host off its pin."
-      else
-        refuse "the host runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; dnf upgrade does not step a release back, so the host cannot be brought to the pin"
-      fi
+      refuse "the host runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; dnf upgrade does not step a release back, so the host cannot be brought to the pin"
     else
       step_release=1
       declare -F dnf_release_target >/dev/null || refuse "dnf-check-update-remote.sh was not sent ahead of this body"
@@ -199,7 +196,7 @@ case "$MODE" in
       # Asked after the swap file, since loading the release's metadata is
       # what runs a small host out of memory, and before any package moves.
       dnf_release_target "$AMAZON_LINUX_RELEASE" "$(changed_so_far)." || crr_finish
-      echo "==> Stepping Amazon Linux from ${rel:-an unknown release} to the pinned release ${AMAZON_LINUX_RELEASE}"
+      echo "== Stepping Amazon Linux from ${rel:-an unknown release} to the pinned release ${AMAZON_LINUX_RELEASE}"
       # Recorded before the transaction: a failure part way has still changed
       # packages, and the refusal must not say otherwise.
       CHANGED+=("ran dnf upgrade from Amazon Linux ${rel:-unknown} to ${AMAZON_LINUX_RELEASE}")
@@ -233,7 +230,7 @@ case "$MODE" in
       rpm -q "$p" >/dev/null 2>&1 || missing+=("$p")
     done
     if (( ${#missing[@]} > 0 )); then
-      echo "==> Installing ${missing[*]} from the distribution's repositories"
+      echo "== Installing ${missing[*]} from the distribution's repositories"
       CHANGED+=("ran dnf install ${missing[*]}")
       crr_run --errors "$DNF_ERRORS" --warnings "$DNF_WARNINGS" "dnf install" -- \
         dnf install -y "${missing[@]}" || refuse "installing ${missing[*]} failed"
@@ -307,7 +304,7 @@ case "$MODE" in
 
     if (( install_sqlite )); then
       if (( distro_sqlite )); then
-        echo "==> Removing the distribution sqlite package; the pinned build replaces it"
+        echo "== Removing the distribution sqlite package; the pinned build replaces it"
         CHANGED+=("ran dnf remove sqlite")
         crr_run --errors "$DNF_ERRORS" --warnings "$DNF_WARNINGS" "dnf remove" -- \
           dnf remove -y sqlite || refuse "removing the distribution sqlite package failed"
@@ -332,7 +329,7 @@ case "$MODE" in
     if [[ "v${have#v}" == "$COMPOSE_VERSION" ]]; then
       echo "    Compose plugin already at ${COMPOSE_VERSION}"
     else
-      echo "==> Installing the Compose plugin ${COMPOSE_VERSION}"
+      echo "== Installing the Compose plugin ${COMPOSE_VERSION}"
       work="$(mktemp -d)"
       curl -fsSL "$COMPOSE_URL" -o "${work}/docker-compose" \
         || refuse "the Compose plugin could not be downloaded from ${COMPOSE_URL}"

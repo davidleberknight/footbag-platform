@@ -111,7 +111,7 @@ trap 'exit 143' TERM
 
 sha3() { openssl dgst -sha3-256 "$1" | sed 's/^.*= //'; }
 
-echo "==> Downloading sqlite ${VERSION} source"
+echo "== Downloading sqlite ${VERSION} source"
 $FETCH "${PIN[SQLITE_SOURCE_URL]}" > "${WORK}/src.zip"
 got="$(sha3 "${WORK}/src.zip")"
 if [[ "$got" != "${PIN[SQLITE_SOURCE_SHA3_256]}" ]]; then
@@ -132,7 +132,7 @@ if [[ "$got" != "${PIN[SQLITE_AMALGAMATION_SHA3_256]}" ]]; then
   exit 1
 fi
 
-echo "==> Building a static sqlite3 ${VERSION} in ${BASE_IMAGE%%@*}"
+echo "== Building a static sqlite3 ${VERSION} in ${BASE_IMAGE%%@*}"
 mkdir -p "${WORK}/out"
 $DOCKER run --rm \
   -v "${SRC_DIR}:/src:ro" -v "${WORK}/out:/out" \

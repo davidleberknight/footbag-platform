@@ -30,7 +30,7 @@ compose() {
     "$@" </dev/null
 }
 
-echo "==> docker compose stop web"
+echo "== docker compose stop web"
 if ! compose stop web; then
   crr_error "docker compose stop web failed on the host; see its output above."
   crr_finish

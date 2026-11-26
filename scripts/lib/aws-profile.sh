@@ -108,10 +108,10 @@ FOOTBAG_DEV_TESTER_PROFILE="${FOOTBAG_DEV_TESTER_PROFILE:-FootbagDevTester}"
 # replaced name changes which local credential a run reaches for, so it is
 # said out loud rather than taken silently.
 if [[ "$FOOTBAG_OPERATOR_PROFILE" != "footbag-operator" ]]; then
-  echo "==> NOTE: the profile name '${FOOTBAG_OPERATOR_PROFILE}' comes from the environment, not the default." >&2
+  echo "== NOTE: the profile name '${FOOTBAG_OPERATOR_PROFILE}' comes from the environment, not the default." >&2
 fi
 if [[ "$FOOTBAG_DEV_TESTER_PROFILE" != "FootbagDevTester" ]]; then
-  echo "==> NOTE: the profile name '${FOOTBAG_DEV_TESTER_PROFILE}' comes from the environment, not the default." >&2
+  echo "== NOTE: the profile name '${FOOTBAG_DEV_TESTER_PROFILE}' comes from the environment, not the default." >&2
 fi
 
 # The IAM role itself, which is the fact a run acting as the job role has to
@@ -178,7 +178,7 @@ aws_profile_drop_half_key_pair() {
 
   unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
 
-  echo "==> NOTE: this shell carried half an AWS key pair: ${missing} was not" >&2
+  echo "== NOTE: this shell carried half an AWS key pair: ${missing} was not" >&2
   echo "    set beside it, so nothing could have authenticated with it, and it" >&2
   echo "    would have been preferred over your profile. This run has cleared" >&2
   echo "    it from its own environment and carries on; your shell is" >&2
@@ -195,10 +195,10 @@ aws_profile_note_stub() {
 
   if [[ "$AWS_PROFILE_BIN" != "aws" ]]; then
     _FOOTBAG_STUB_NOTED="yes"
-    echo "==> NOTE: the AWS binary is stubbed for this run (AWS_PROFILE_BIN)." >&2
+    echo "== NOTE: the AWS binary is stubbed for this run (AWS_PROFILE_BIN)." >&2
   elif [[ "$AWS_IDENTITY_BIN" != "aws" ]]; then
     _FOOTBAG_STUB_NOTED="yes"
-    echo "==> NOTE: the AWS binary is stubbed for this run (AWS_IDENTITY_BIN)." >&2
+    echo "== NOTE: the AWS binary is stubbed for this run (AWS_IDENTITY_BIN)." >&2
   fi
   return 0
 }
@@ -239,7 +239,7 @@ aws_profile_announce() {
   fi
 
   _FOOTBAG_PROFILE_ANNOUNCED="yes"
-  echo "==> AWS identity: ${origin}" >&2
+  echo "== AWS identity: ${origin}" >&2
   echo "    ${AWS_IDENTITY_ARN}" >&2
 
   # Who this run is acting as, where it is acting as a person at all. Only a

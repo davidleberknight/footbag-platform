@@ -284,7 +284,9 @@ beforeEach(() => {
     '      [[ -e "$STATE/exit/quiesce" ]] && exit "$(cat "$STATE/exit/quiesce")"',
     '      [[ -e "$STATE/backup-fails" ]] || echo 0 > "$STATE/backup-age"',
     '      echo "---FOOTBAG-QUIESCED---"',
-    '    fi ;;',
+    '    fi',
+    '    [[ "$mode" == resume && -e "$STATE/resume-fails" ]] && exit 1',
+    '    ;;',
     '  *boot_id*) echo new-boot ;;',
     // The real agent installer's install session: an upgrade keeps the key the
     // host holds and leaves the agent running at the pin.
@@ -358,6 +360,13 @@ beforeEach(() => {
     '    want="available"; [[ "$*" == *"\'pending\'"* ]] && want="available|pending"',
     '    grep -E "\\s(${want})$" "$STATE/snapshots" | { if [[ "$*" == *",state]"* ]]; then cat; else cut -f1,2; fi; }',
     '    exit 0 ;;',
+    // The blueprint a new instance boots from: its version names the release
+    // with a trailing build number. Asked about any other blueprint than the
+    // one the tree declares, the listing holds nothing.
+    '  "lightsail get-blueprints")',
+    '    [[ -e "$STATE/blueprints-fail" ]] && { echo "An error occurred (AccessDeniedException) when calling the GetBlueprints operation: stand-in refusal" >&2; exit 254; }',
+    '    [[ "$*" == *"--region us-east-1"* && "$*" == *"blueprintId==\'amazon_linux_2023\'"* ]] || exit 0',
+    `    if [[ -e "$STATE/blueprint-version" ]]; then cat "$STATE/blueprint-version"; else echo ${AL_PIN}.0; fi; exit 0 ;;`,
     '  "lightsail create-instance-snapshot") date -u -d "-${FAKE_SNAP_CREATED_AGO:-0} seconds" +%Y-%m-%dT%H:%M:%S+00:00 > "$STATE/snapcreated"; exit 0 ;;',
     '  "lightsail get-instance-snapshot") printf "%s\\t%s\\n" "$(cat "$STATE/snapstate" 2>/dev/null || echo available)" "$(cat "$STATE/snapcreated" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S+00:00)"; exit 0 ;;',
     '  "s3api list-objects-v2") if [[ -e "$STATE/backup-time" ]]; then cat "$STATE/backup-time"; elif [[ -e "$STATE/backup-age" ]]; then date -u -d "-$(cat "$STATE/backup-age") seconds" +%Y-%m-%dT%H:%M:%S+00:00; else echo None; fi; exit 0 ;;',
@@ -690,7 +699,7 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     // upgrade that keeps the key; only a host holding none needs a rotation.
     { step: 'the pinned agent version, on a host holding the publisher key', title: 'CloudWatch agent', next: /install-cwagent-staging\.sh --upgrade/, take: () => writeHost({ ...finishedHost('staging'), CWAGENT_VERSION: '1.0.0' }) },
     { step: 'the pinned agent version, on a host holding no publisher key', title: 'CloudWatch agent', next: /install-cwagent-staging\.sh --rotate/, take: () => writeHost({ ...finishedHost('staging'), CWAGENT_VERSION: '1.0.0', CWAGENT_KEY_ID: DEAD_KEY }) },
-    { step: 'a backup object recent enough', title: 'Backup timer', next: /host-diagnostics\.sh --target staging/, take: () => writeFileSync(join(state, 'backup-age'), '3600') },
+    { step: 'a backup object recent enough', title: 'Backup timer', next: /host-diagnostics\.sh --target staging systemd\s/, take: () => writeFileSync(join(state, 'backup-age'), '3600') },
     { step: 'the queue addresses on the host', title: 'Notification feeds', next: /activate-notification-feeds\.sh --target staging --state on/, take: () => { writeFileSync(join(work, 'tfvars'), 'enable_feed_queues = true\n'); writeHost({ ...finishedHost('staging'), FEED_ALARM_QUEUE: 'unset' }); } },
     { step: 'the env file the verifier passes', title: 'Host environment record', next: /verify-host-env\.sh --target staging/, take: () => setExit('verify-host-env.sh', 1) },
     { step: 'sshd listening on the port its configuration names', title: 'Shared account', next: /bootstrap-host\.sh --target staging/, take: () => writeHost({ ...finishedHost('staging'), SSHD_LISTEN: '22' }) },
@@ -798,15 +807,17 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     expect(row.next, row.line).toMatch(/the maintainer's call/);
   });
 
-  it('reports a missing recent snapshot pending, without counting it against a fresh host', () => {
-    // The automatic snapshot appears a day after an instance is created, so a
-    // just-built host is not failed for it; it is still shown, with its check.
+  it('counts a missing snapshot that is due as pending, so the status run exits non-zero', () => {
+    // Defect caught: a host whose daily automatic snapshot has stopped, or was
+    // never taken once due, ends its status run with exit 0, so a caller
+    // branching on the exit reads a host with no recent recovery point as done.
     setExit('verify-host-snapshots.sh', 1);
     const r = run(['--target', 'staging', '--status']);
     const row = rowFor(r.stdout, 'Recent host snapshot');
     expect(row.line).toMatch(/\sPENDING\s/);
     expect(row.next).toMatch(/verify-host-snapshots\.sh --target staging/);
-    expect(r.status).toBe(0);
+    expect(r.status, r.stdout + r.stderr).not.toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/1 step\(s\) pending or unread/);
   });
 
   // The verifier's not-yet-due answer for a new instance: exit 3 with the line
@@ -852,14 +863,16 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     expect(rowFor(r.stdout, 'Recent host snapshot').line).toMatch(/\sPENDING\s/);
   });
 
-  it('lists a pending snapshot as a warning in the closing report, and a current one as proved', () => {
-    // Defect caught: the pending snapshot is left out of the pending count and
-    // then out of the report too, so a host whose daily snapshot has stopped
-    // ends its status run with no warning at all.
+  it('reports a pending snapshot once, as the pending error, and a current one as proved', () => {
+    // Defect caught: a pending snapshot reported twice, as a warning beside the
+    // pending-count error, or a current snapshot left unproved, so the closing
+    // report does not say what the run saw.
     setExit('verify-host-snapshots.sh', 1);
     const pending = run(['--target', 'staging', '--status']);
-    expect(pending.status).toBe(0);
-    expect(closingReport(pending.stderr)).toMatch(/Warnings \(1\):[\s\S]*the automatic snapshot of \S+ reads PENDING/);
+    expect(pending.status).not.toBe(0);
+    const pendingReport = closingReport(pending.stderr);
+    expect(pendingReport).toMatch(/Errors \(\d+\):\n {2}- 1 step\(s\) pending or unread/);
+    expect(pendingReport).not.toMatch(/Warnings \(/);
 
     rmSync(join(state, 'exit', 'verify-host-snapshots.sh'));
     const current = run(['--target', 'staging', '--status']);
@@ -1170,20 +1183,24 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     }
     writeHost(finishedHost('staging'));
     const ok = run(['--target', 'staging', '--status']);
-    expect(rowFor(ok.stdout, 'Host tools').line).not.toMatch(/\sPENDING\s|off its pins/);
+    expect(rowFor(ok.stdout, 'Host tools').line).not.toMatch(/\sPENDING\s/);
   });
 
-  it('reads a release newer than the pin done with a note on staging, and pending on production', () => {
-    // Defect caught: a fresh staging instance whose image has reached a release
-    // past the pin, which dnf cannot step back, holding the rebuild drill at a
-    // step it can never finish; or a production host let through off its pin.
-    const newer = { AL_RELEASE: '2023.12.20261120' };
-    writeHost({ ...finishedHost('staging'), ...newer });
-    const stg = rowFor(run(['--target', 'staging', '--status']).stdout, 'Host tools').line;
-    expect(stg).not.toMatch(/\sPENDING\s/);
-    expect(stg).toContain('off its pins, allowed on staging: Amazon Linux 2023.12.20261120');
-    writeHost({ ...finishedHost('production'), ...newer });
-    expect(rowFor(run(['--target', 'production', '--status']).stdout, 'Host tools').line).toMatch(/\sPENDING\s/);
+  it('reads the tools step pending on a release newer than the pin, on staging as on production', () => {
+    // Defect caught: a staging host one release past its pin, or with a tool
+    // off its pin, reads as done, so the bootstrap reports a finished host that
+    // every deploy will then refuse.
+    const offPins: Array<Record<string, string>> = [
+      { AL_RELEASE: '2023.12.20261120' }, { DOCKER_RPM: '25.0.14-1.amzn2023.0.1' },
+    ];
+    for (const target of ['staging', 'production'] as const) {
+      for (const off of offPins) {
+        writeHost({ ...finishedHost(target), ...off });
+        const line = rowFor(run(['--target', target, '--status']).stdout, 'Host tools').line;
+        expect(line, `${target} ${JSON.stringify(off)}`).toMatch(/\sPENDING\s/);
+        expect(line, `${target} ${JSON.stringify(off)}`).toContain(`host has ${Object.values(off)[0]}`);
+      }
+    }
   });
 
   it('refuses when the tools still read missing after their install', () => {
@@ -1523,6 +1540,65 @@ describe('bootstrap-host.sh --replace-instance', () => {
     expect(r.out).toContain(snap);
   });
 
+  it('goes ahead when the blueprint a new instance boots from is at or before the pin', () => {
+    // Defect caught: a replacement refused while the image it boots is at the
+    // pin, or one the bootstrap can step forward to it, so no host can ever be
+    // replaced; or the blueprint check never asked Lightsail at all.
+    for (const version of [`${AL_PIN}.0`, '2023.11.20260901.2']) {
+      writeFileSync(join(state, 'blueprint-version'), `${version}\n`);
+      rmSync(join(state, 'calls.log'), { force: true });
+      const r = runTty(['--target', 'staging', '--replace-instance'], 'APPLY\\n');
+      expect(r.status, `${version}: ${r.out}`).toBe(0);
+      const calls = lightsailCalls();
+      const asked = calls.findIndex((c) => c.startsWith('aws lightsail get-blueprints'));
+      expect(asked, version).toBeGreaterThanOrEqual(0);
+      expect(asked, version).toBeLessThan(calls.findIndex((c) => c.includes('create-instance-snapshot')));
+    }
+  });
+
+  it('refuses, with nothing changed, when the blueprint has moved past the pin, naming the bump', () => {
+    // Defect caught: an instance is snapshotted and destroyed, and its
+    // replacement boots a release past the pin that dnf cannot step back, so
+    // the bootstrap refuses the new host and the environment is left with no
+    // host it will accept.
+    for (const target of ['staging', 'production'] as const) {
+      writeHost(finishedHost(target));
+      writeFileSync(join(state, 'marker'), 'true\n');
+      writeFileSync(join(state, 'backup-age'), '60');
+      writeFileSync(join(state, 'blueprint-version'), '2023.12.20261120.0\n');
+      rmSync(join(state, 'calls.log'), { force: true });
+      const r = runTty(['--target', target, '--replace-instance'], 'APPLY\\n');
+      expect(r.status, `${target}: ${r.out}`).toBe(1);
+      expect(r.out, target).toMatch(new RegExp(`2023\\.12\\.20261120, past the pinned ${AL_PIN.replace(/[.]/g, '\\.')}`));
+      expect(r.out, target).toContain('bash scripts/bump-tool.sh AMAZON_LINUX_RELEASE 2023.12.20261120 --apply');
+      expect(lightsailCalls().some((c) => c.includes('create-instance-snapshot')), target).toBe(false);
+      expect(sessions().some((s) => s.args.includes('footbag-bootstrap-quiesce')), target).toBe(false);
+      expect(siblingCalls(), target).toHaveLength(0);
+    }
+  });
+
+  it('refuses, with nothing changed, when the blueprint cannot be read', () => {
+    // Defect caught: a failed or empty blueprint read taken as "nothing past
+    // the pin", so the replacement goes ahead on an image nobody checked.
+    const cases: Array<{ label: string; take: () => void; said: RegExp }> = [
+      { label: 'the read fails', take: () => writeFileSync(join(state, 'blueprints-fail'), ''), said: /AccessDeniedException/ },
+      { label: 'the blueprint is not listed', take: () => writeFileSync(join(state, 'blueprint-version'), ''), said: /amazon_linux_2023/ },
+      { label: 'the version is not a release', take: () => writeFileSync(join(state, 'blueprint-version'), 'latest\n'), said: /'latest'/ },
+    ];
+    for (const c of cases) {
+      rmSync(join(state, 'blueprints-fail'), { force: true });
+      rmSync(join(state, 'blueprint-version'), { force: true });
+      rmSync(join(state, 'calls.log'), { force: true });
+      c.take();
+      const r = runTty(['--target', 'staging', '--replace-instance'], 'APPLY\\n');
+      expect(r.status, `${c.label}: ${r.out}`).toBe(1);
+      expect(r.out, c.label).toMatch(/could not read the Lightsail blueprint/);
+      expect(r.out, c.label).toMatch(c.said);
+      expect(lightsailCalls().some((l) => l.includes('create-instance-snapshot')), c.label).toBe(false);
+      expect(siblingCalls(), c.label).toHaveLength(0);
+    }
+  });
+
   it('takes no snapshot and replaces nothing without the typed word', () => {
     const r = runTty(['--target', 'staging', '--replace-instance'], 'no\\n');
     expect(r.status).toBe(1);
@@ -1638,6 +1714,21 @@ describe('bootstrap-host.sh --replace-instance', () => {
     const modes = sessions().filter((s) => s.args.includes('footbag-bootstrap-quiesce')).map((s) => /^MODE=(\w+)$/m.exec(s.stream)![1]);
     expect(modes.sort()).toEqual(['resume', 'stop']);
     expect(siblingCalls()).toHaveLength(0);
+  });
+
+  it('on a live production whose service cannot be started again names the script that starts it', () => {
+    // Defect caught: the site is left down and the operator is pointed at a
+    // diagnostics script that has no way to start it, so the outage lasts
+    // until someone works out the real command.
+    writeHost(finishedHost('production'));
+    writeFileSync(join(state, 'marker'), 'true\n');
+    writeFileSync(join(state, 'backup-age'), '60');
+    writeFileSync(join(state, 'backup-fails'), '');
+    writeFileSync(join(state, 'resume-fails'), '');
+    const r = runTty(['--target', 'production', '--replace-instance'], 'APPLY\\n');
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/the site is DOWN\. Start it with: < \S+ bash scripts\/restart-host\.sh --target production(\s|$)/);
+    expect(lightsailCalls().some((c) => c.includes('create-instance-snapshot'))).toBe(false);
   });
 
   it('on production refuses while the go-live marker cannot be read', () => {
@@ -2672,22 +2763,20 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       expect(readFileSync(fstabFile, 'utf-8')).toBe(`${swapFile} none swap sw 0 0\n`);
     });
 
-    it('on staging warns and carries on past a release newer than the pin, where production refuses it', () => {
-      // Defect caught: a fresh staging instance whose image has reached a
-      // release past the pin, which dnf cannot step back, stopping the rebuild
-      // drill for good; or a production host let through off its pin.
-      const newer = '2099.1.20990101';
+    it('refuses a staging host one release past its pin before the swap file or any package is touched', () => {
+      // Defect caught: a fresh staging instance whose image is one release past
+      // the pin is provisioned with a warning, so staging rehearses a release on
+      // an operating system production would refuse.
+      const newer = '2023.12.20261120';
       provisionTools({ engine: 'none', release: newer, distroSqlite: true });
-      const stg = runHalf(PROVISION_HALF, pins());
-      expect(stg.status, stg.out).toBe(0);
-      expect(stg.out).toMatch(new RegExp(`---FOOTBAG-PROBLEM--- WARN staging runs Amazon Linux ${newer.replace(/[.]/g, '\\.')}, newer than the pinned`));
-      expect(logged()).not.toMatch(/^dnf upgrade /m);
-
-      rmSync(log, { force: true });
-      provisionTools({ engine: 'none', release: newer, distroSqlite: true });
-      const prod = runHalf(PROVISION_HALF, pins().replace('FOOTBAG_ENV=staging', 'FOOTBAG_ENV=production'));
-      expect(prod.status).toBe(1);
-      expect(problems(prod.out).join('\n')).toContain(`runs Amazon Linux ${newer}, newer than the pinned ${AL_PIN}`);
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).not.toMatch(/---FOOTBAG-PROBLEM--- WARN/);
+      expect(problems(r.out)).toHaveLength(1);
+      expect(problems(r.out)[0]).toContain(`runs Amazon Linux ${newer}, newer than the pinned ${AL_PIN}`);
+      expect(problems(r.out)[0]).toContain('nothing was changed on the host');
+      expect(logged()).not.toMatch(/^(dnf|fallocate|mkswap) /m);
+      expect(existsSync(swapFile)).toBe(false);
     });
 
     it('refuses a production host past its pin before the swap file or any package is touched', () => {

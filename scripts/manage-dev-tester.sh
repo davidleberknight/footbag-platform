@@ -295,7 +295,7 @@ if [[ "$ROLE_READ_ERR" == *NoSuchEntity* ]]; then
   exit 1
 fi
 
-echo "==> ${ACTION}: ${DEV_TESTER}"
+echo "== ${ACTION}: ${DEV_TESTER}"
 echo "    account ${ACCOUNT_ID}, job role ${DEV_TESTER_ROLE_NAME}"
 
 # ── verify ───────────────────────────────────────────────────────────────────
@@ -465,7 +465,7 @@ fi
 # The grant goes first, and the order is not a preference. A key that outlives
 # the policy by a few seconds can reach nothing; a policy that outlives the keys
 # is a live grant waiting for a key that was never actually destroyed.
-echo "==> Removing the grant"
+echo "== Removing the grant"
 _policy="$(user_policy_state "$DEV_TESTER")" || exit 1
 if [[ "$_policy" == "present" ]]; then
   "$AWS_BIN" iam delete-user-policy --user-name "$DEV_TESTER" \
@@ -481,7 +481,7 @@ else
   echo "    ${USER_POLICY_NAME}: already absent"
 fi
 
-echo "==> Retiring the keys"
+echo "== Retiring the keys"
 # The ids IAM holds for them, read before any is deleted. The real-session proof
 # below needs to know whether this workstation's chain signs with one of them,
 # and after deletion IAM no longer says.
@@ -502,7 +502,7 @@ done <<< "$_keys"
 unset _id _status _rest _keys _policy
 (( RETIRED_ANY )) || echo "    no keys to retire"
 
-echo "==> Proving it"
+echo "== Proving it"
 REMAINING="$(user_keys "$DEV_TESTER")" || exit 1
 # The status field on its own, matched whole: "Inactive" contains "Active", so
 # a substring count would report a retired key as a live one.
@@ -603,7 +603,7 @@ else
       exit 1
     fi
     (( retire_try == 0 )) \
-      && echo "==> waiting for the retired key to stop working (up to $(( RETIRE_POLL * RETIRE_TRIES ))s)"
+      && echo "== waiting for the retired key to stop working (up to $(( RETIRE_POLL * RETIRE_TRIES ))s)"
     sleep "$RETIRE_POLL"
     retire_try=$(( retire_try + 1 ))
   done
@@ -637,7 +637,7 @@ echo "    login profile: none"
 # never make the room it needed. Removing a revocation that refuses nothing
 # denies nobody and exposes nothing, so this may run ahead of the write, and a
 # failure here is reported and stops nothing.
-echo "==> Clearing earlier revocations that can no longer refuse any session"
+echo "== Clearing earlier revocations that can no longer refuse any session"
 # What AWS said when a read here failed, kept for the warning: the failure stops
 # nothing, but it is listed at the end with its reason rather than read past.
 PRUNE_ERR="$(mktemp "$(_cr_tmp)/prune.XXXXXX")"
@@ -709,7 +709,7 @@ printf -v REVOKE_DOC '%s' \
   '"Effect":"Deny","Action":"*","Resource":"*","Condition":{' \
   '"DateLessThan":{"aws:TokenIssueTime":"'"$REVOKE_BEFORE"'"},' \
   '"StringLike":{"aws:userid":"'"$REVOKE_USERID"'"}}}]}'
-echo "==> Ending the sessions ${DEV_TESTER} already holds"
+echo "== Ending the sessions ${DEV_TESTER} already holds"
 if ! "$AWS_BIN" iam put-role-policy --role-name "$DEV_TESTER_ROLE_NAME" \
     --policy-name "$REVOKE_POLICY_NAME" --policy-document "$REVOKE_DOC" >/dev/null; then
   cr_error "could not write ${REVOKE_POLICY_NAME} onto ${DEV_TESTER_ROLE_NAME}."

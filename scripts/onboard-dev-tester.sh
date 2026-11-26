@@ -369,7 +369,7 @@ if (( ! VERIFY )); then
       _here=""
     fi
     _here="${_here//[[:space:]]/}"
-    [[ -n "$_here" ]] && echo "==> This machine connects from ${_here} (checkip)." >&2
+    [[ -n "$_here" ]] && echo "== This machine connects from ${_here} (checkip)." >&2
     ADDRESSES=("$_here")
   fi
   (( ${#ADDRESSES[@]} )) || ADDRESSES=("")
@@ -664,7 +664,7 @@ fi
 # when the person shares an administrator's address.
 onboard_address() {
   echo ""
-  echo "==> ${ACCOUNT}'s address on the ${TARGET} allow-list"
+  echo "== ${ACCOUNT}'s address on the ${TARGET} allow-list"
   local -a address_args=()
   local one
   for one in "${ADDRESSES[@]}"; do address_args+=(--address "$one"); done
@@ -688,7 +688,7 @@ onboard_address() {
 onboard_readback() {
   local want_key="${1:-}" policy keys active
   echo ""
-  echo "==> Reading ${ACCOUNT} back from IAM"
+  echo "== Reading ${ACCOUNT} back from IAM"
   if ! iam_dev_tester_state "$ACCOUNT"; then
     onboard_readback_failed "IAM could not be read."
   fi
@@ -731,7 +731,7 @@ onboard_readback_failed() {
 onboard_host_finished() {
   local out given held
   echo ""
-  echo "==> Reading ${ACCOUNT} on the ${TARGET} host"
+  echo "== Reading ${ACCOUNT} on the ${TARGET} host"
   if ! out="$(host_step --target "$TARGET" --account "$ACCOUNT" --inspect)"; then
     cr_error "IAM shows ${ACCOUNT} onboarded, but their host account could not be"
     echo "       read, so the onboarding is not proved finished. Nothing was changed." >&2
@@ -970,7 +970,7 @@ fi
 # placement that fails withdraws a key nobody could ever have fetched. No copy
 # stays on this machine: the temp file is shredded on every way out.
 echo ""
-echo "==> Placing the sealed file in ${ACCOUNT}'s home on the ${TARGET} host"
+echo "== Placing the sealed file in ${ACCOUNT}'s home on the ${TARGET} host"
 if ! host_step --target "$TARGET" --account "$ACCOUNT" --place-delivery "$SEAL_TMP"; then
   cr_error "the sealed file is not proved in place on the ${TARGET} host. The key"
   echo "       inside it is withdrawn; re-run the same command." >&2

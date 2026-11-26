@@ -159,7 +159,7 @@ else
   # release it was built from, so the newest docker package at that release is
   # what a host installs; asked inside the pinned image so no host is touched.
   if [[ -n "$al_image" && -n "$al_release" ]]; then
-    echo "==> Asking Amazon Linux ${al_release} which docker package it serves"
+    echo "== Asking Amazon Linux ${al_release} which docker package it serves"
     probe "docker package (release ${al_release})" "$DOCKER" run --rm "$al_image" \
       dnf repoquery --quiet "--releasever=${al_release}" --latest-limit=1 --qf '%{version}-%{release}' docker
     row "docker (host release)" "$(pin DOCKER_ENGINE_HOST)" "$(printf '%s\n' "$PROBE_OUT" | sed '/^[[:space:]]*$/d' | tail -n 1)"
@@ -169,7 +169,7 @@ else
 
   # Inside the built images. The Dockerfile row above says what was asked for;
   # these say what the build actually holds, which is what a host runs.
-  echo "==> Building the images to ask them from the inside"
+  echo "== Building the images to ask them from the inside"
   if cr_run "image build" -- compose_build_images "$DOCKER" web worker image >&2; then
     node_pin="$(tr -d '[:space:]v' < .nvmrc)"
     for img in docker-web docker-worker docker-image; do
@@ -183,7 +183,7 @@ else
     cr_unproved "what the built images hold: the images did not build"
   fi
 
-  echo "==> The tests where pinned things meet"
+  echo "== The tests where pinned things meet"
   # shellcheck disable=SC2086 # VITEST is a command and its arguments.
   cr_run "the tests where pinned things meet" -- $VITEST run --reporter=dot \
     tests/integration/backupDb.script.test.ts \

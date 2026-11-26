@@ -15,13 +15,17 @@
 # Here the order, the questions and the record are the script's: it stops at the
 # first step that does not finish, names every step that did not run, and prints
 # the one command that resumes from where it stopped. Every row names the commit
-# it ran at, how many paths differed from it, and a fingerprint of those
-# differences, so a row can be matched to the code that wrote it.
+# it ran at, how many of the paths its step runs differed from it, and a
+# fingerprint of those differences, so a row can be matched to the code that
+# wrote it.
 #
 # HOW A STEP RUNS. Each step's script runs as a child, at this terminal, with its
 # closing report collected privately so the step's outcome is read from it and
 # its warnings carried into this run's report. Every step is one of:
-#   read     a check; run every time, and its exit decides it.
+#   read     a check; run every time, and its exit decides it. One that must
+#            wait on an earlier step (after=) waits at the terminal when the
+#            time is within the hour; further off, it is recorded as deferred
+#            and the run carries on and ends pending.
 #   idem     an apply whose re-run is its own proof; run every time.
 #   once     an act that is not repeated; a log row never skips it.
 #   ask      a yes/no question at the terminal; only "yes" passes. One whose
@@ -93,7 +97,12 @@
 #               need one read UNKNOWN. A read proved by its own output
 #               (stdout=) is read from the log here, as it is not re-run. A
 #               row recorded ok reads LAPSED, and pending, when it names no
-#               commit or the code it ran has changed since.
+#               commit or the code it ran has changed since. The staging pass
+#               is not run again, so on staging a row whose code has changed
+#               since still stands, saying so; one naming no commit, or
+#               uncommitted code since gone, still reads LAPSED. A heavy
+#               step refused for the host's health does not hide an earlier
+#               ok row for it.
 #
 # Exit: 0 every step done; 1 a step failed or was declined, any error, or a
 # refusal; 2 usage error; 3 nothing failed but a step was blocked, skipped or
@@ -164,7 +173,9 @@ esac
 #   stdout=<ERE>[ && <ERE>...]  every pattern must match a line of the step's
 #                           output; no pattern may hold "|" or a quote
 #   save, match             (digest) save the digests, or compare with the saved
-#   after=<id>+<minutes>    (read) not before <id> finished plus the minutes
+#   after=<id>+<minutes>    (read) not before <id> finished plus the minutes;
+#                           more than an hour off, recorded as deferred
+#   exit=<codes>            (read) the step's own exits that count as done
 # Placeholders, each checked against a strict pattern before use:
 #   {SNAPSHOT}, {SNAPSHOT>id}  the newest routine backup key (newer than <id>)
 #   {SINCE<id>}                the UTC time step <id> started
@@ -240,6 +251,11 @@ STAGING_STEPS=(
   's12|read|tty|-|scripts/apply-snapshot-retention.sh --target staging --verify --profile footbag-operator'
   's13a|once|tty|log|scripts/restore-bucket.sh --target staging --bucket media --drill'
   's13b|once|tty|log|scripts/restore-bucket.sh --target staging --bucket archive --drill'
+  # The fresh instance's own automatic snapshot. The first one is taken at the
+  # next daily window, up to a day after the instance is created, so it is
+  # read 26 hours after the replacement: the day and the two-hour grace every
+  # daily job is allowed.
+  's13c|read|tty|after=s11j+1560|scripts/verify-host-snapshots.sh --target staging --require-taken'
   's95|once+mail|cred|log|scripts/verify-prelive-probes.sh --target staging'
   's98|ask+mail|-|log|Second-operator check. The next step, s99, runs the staging incident drill again and records whoever runs it as the second operator; the second operator runs it from their own workstation, with their own credential, in their remote session. Is the second operator the one at this keyboard now, on their own workstation? If not, answer no: this run stops here.'
   's99|once+mail|cred|log|scripts/incident-drill.sh --target staging'
@@ -299,6 +315,12 @@ PRODUCTION_STEPS=(
   'p12d|once|tty|log|deploy_to_aws.sh --target production'
   'p12d1|read|tty|-|npm run test:deployed -- --target production'
   'p12e|ask|-|log|Session check (2 of 2). Reload the tab where you signed in at p12a. You should now be signed out; sign in again with your password. Then, still signed in, open the browser developer tools (Application, then Cookies) and read the session cookie. Were you signed out, did signing in again work, and is the session cookie named with the __Host- prefix and marked HttpOnly, Secure, SameSite=Lax and Path=/? Answer yes only if all of that is true.'
+  # Every email subscription on production's alarm topics, main and critical
+  # (and the us-west-2 one), read and recorded with its warnings before the
+  # drills that raise them: 0 every one authenticated, 4 some confirmed by a
+  # click, which still receives mail. While any is pending it is deferred, as
+  # the drills are.
+  'p13b|read+mail|tty|exit=0,4|scripts/reconfirm-alarm-subscriptions.sh --target production --status'
   'p13c|once+mail|tty|log|scripts/send-test-alarm.sh --target production --region us-west-2 --alarm footbag-production-snapshots-hourly-replication-stopped'
   'p13d|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_container_alarms --state on'
   'p13e|once+mail|tty|log|scripts/send-test-alarm.sh --target production --alarm-prefix footbag-production-container- --alarm-prefix footbag-production-cf-function- --alarm footbag-production-high-cpu --alarm footbag-production-high-memory --alarm footbag-production-rate-limit-refusals --alarm footbag-production-site-unavailable'
@@ -407,6 +429,8 @@ PRODUCTION_STEPS=(
   'p90q3|read|tty|-|npm run test:deployed -- --target production'
   'p90r|once|tty|log|scripts/restore-bucket.sh --target production --bucket media --drill'
   'p90s|once|tty|log|scripts/restore-bucket.sh --target production --bucket archive --drill'
+  # As at s13c, the fresh instance's first automatic snapshot.
+  'p90t|read|tty|after=p90m+1560|scripts/verify-host-snapshots.sh --target production --require-taken'
   'p91|blocked|-|-|The migration case matrix on production: deploy-migrate.sh has no one-off production mode yet'
   'p92|blocked|-|-|The video-curation walk on production: it follows the curation walk on staging'
   'p93|blocked|-|-|The Stripe test-mode exercise of paid event registration: the flow is built, and its exercise is not yet written as steps'
@@ -708,31 +732,161 @@ ensure_section() {
 
 declare -A STARTED=() FINISHED=()
 
+# ── What a step runs ─────────────────────────────────────────────────────────
+# watched_paths <command>: fills WATCHED with the pathspecs holding the code a
+# step's command runs, read from the tree as it stands. For a script: the
+# script, its own halves (scripts/internal/<stem>*), and every script under
+# scripts, scripts/lib or scripts/internal, or deploy_to_aws.sh, that it
+# names, and so on through each file so named, so a script a step hands off
+# to (the bootstrap's restore, deploy and agent install) is watched as surely
+# as one it sources. A name counts whether it is sourced, sent to a host or shipped, so
+# a remote half a script sends is traced as surely as a library it sources.
+# Host configuration comes in only when a traced file refers to it:
+# ops/tool-versions.env for "tool-versions", ops/systemd for "ops/systemd",
+# all of ops for a shipped "ops/***". The trace fails closed: a traced file
+# that sources what no name in it spells (a variable, a glob), or a file that
+# cannot be read, brings in all of scripts/lib and ops. The deploy watches its
+# own scripts, their halves and the container build, and traces from each of
+# them. A command naming none of these watches nothing, and WATCHED is empty.
+declare -A TRACE_NAMES=() TRACE_FILE=()
+TRACE_LOADED=0
+trace_load() {
+  (( TRACE_LOADED )) && return 0
+  local f
+  for f in "${ROOT}"/scripts/*.sh "${ROOT}"/scripts/lib/*.sh "${ROOT}"/scripts/internal/* "${ROOT}"/deploy_to_aws.sh; do
+    [[ -f "$f" ]] || continue
+    TRACE_NAMES["${f##*/}"]+="${TRACE_NAMES[${f##*/}]:+ }${f#"${ROOT}"/}"
+  done
+  TRACE_LOADED=1
+}
+# trace_file <path>: sets TRACE_OUT, read once per file and then from memory,
+# to the words of the file that could be names, then a line per flag: F-all
+# for a source line that names no file, F-tool, F-systemd and F-ops for the
+# host configuration it refers to.
+TRACE_OUT=""
+trace_file() {
+  if [[ -z "${TRACE_FILE[$1]+set}" ]]; then
+    if [[ -f "${ROOT}/$1" && -r "${ROOT}/$1" ]]; then
+      TRACE_FILE["$1"]="$(awk '
+        index($0, "tool-versions") { f["F-tool"] = 1 }
+        index($0, "ops/systemd") { f["F-systemd"] = 1 }
+        index($0, "ops/***") { f["F-ops"] = 1 }
+        $0 !~ /^[[:space:]]*#/ {
+          # A source command, where a command starts, names its file when a
+          # word ending in .sh or .env follows it on the line and its first
+          # word holds no glob. The word "source" in prose or as an argument
+          # is not a command, and is not read as one.
+          line = $0
+          while (match(line, /(^|[;&|({]|(^|[^A-Za-z0-9_])(then|do|else))[[:space:]]*(source|\.)[[:space:]]+/)) {
+            rest = substr(line, RSTART + RLENGTH)
+            if (substr(line, RSTART, RLENGTH) ~ /\.[[:space:]]+$/ && rest !~ /^(["$~]|\/[^\/]|\.\.?\/)/) { line = rest; continue }
+            if (rest !~ /[A-Za-z0-9_-]\.(sh|env)/ || rest ~ /^[^[:space:]]*\*/) f["F-all"] = 1
+            line = rest
+          }
+        }
+        { n = split($0, a, /[^A-Za-z0-9_.-]+/); for (i = 1; i <= n; i++) if (a[i] ~ /\./) w[a[i]] = 1 }
+        END { for (k in w) print k; for (k in f) print k }' "${ROOT}/$1")" || TRACE_FILE["$1"]="F-all"
+    else
+      TRACE_FILE["$1"]="F-all"
+    fi
+  fi
+  TRACE_OUT="${TRACE_FILE[$1]}"
+}
+WATCHED=()
+watched_paths() {
+  local w stem f tok i=0 all=0 tool=0 systemd=0 ops=0
+  local -a queue=()
+  local -A seen=() listed=()
+  WATCHED=()
+  trace_load
+  for w in $1; do
+    case "$w" in
+      deploy_to_aws.sh)
+        WATCHED+=(deploy_to_aws.sh ':(glob)scripts/deploy-*.sh' ':(glob)scripts/internal/deploy-*' docker)
+        queue+=(deploy_to_aws.sh)
+        for f in "${ROOT}"/scripts/deploy-*.sh "${ROOT}"/scripts/internal/deploy-*; do
+          [[ -f "$f" ]] && queue+=("${f#"${ROOT}"/}")
+        done ;;
+      scripts/*.sh|legacy_data/*.sh)
+        stem="${w##*/}"; stem="${stem%.sh}"
+        WATCHED+=("$w" ":(glob)scripts/internal/${stem}*")
+        queue+=("$w")
+        for f in "${ROOT}/scripts/internal/${stem}"*; do
+          [[ -f "$f" ]] && queue+=("${f#"${ROOT}"/}")
+        done ;;
+      # npm run test:deployed runs scripts/test-deployed.sh over the suite.
+      test:deployed)
+        WATCHED+=(tests/e2e/deployed scripts/test-deployed.sh)
+        queue+=(scripts/test-deployed.sh) ;;
+    esac
+  done
+  while (( i < ${#queue[@]} )); do
+    f="${queue[$i]}"; i=$(( i + 1 ))
+    [[ -n "${seen[$f]:-}" ]] && continue
+    seen["$f"]=1
+    trace_file "$f"
+    while IFS= read -r tok; do
+      case "$tok" in
+        F-all) all=1 ;;
+        F-tool) tool=1 ;;
+        F-systemd) systemd=1 ;;
+        F-ops) ops=1 ;;
+        '') ;;
+        *)
+          [[ -n "${TRACE_NAMES[$tok]:-}" ]] || continue
+          for w in ${TRACE_NAMES[$tok]}; do
+            [[ -n "${listed[$w]:-}" ]] && continue
+            listed["$w"]=1
+            WATCHED+=("$w"); queue+=("$w")
+          done ;;
+      esac
+    done <<<"$TRACE_OUT"
+  done
+  (( ${#WATCHED[@]} )) || return 0
+  if (( all )); then WATCHED+=(scripts/lib ops); return 0; fi
+  if (( ops )); then WATCHED+=(ops)
+  else
+    (( tool )) && WATCHED+=(ops/tool-versions.env)
+    (( systemd )) && WATCHED+=(ops/systemd)
+  fi
+  return 0
+}
+
 # Which code a row was written by: the commit, how many paths differ from it,
 # and a fingerprint of those differences. The deploy ships the working tree, so
 # a commit alone does not name the code that ran; the fingerprint covers every
-# tracked change and every untracked, unignored file by content. Read with no
-# optional locks, so a row never contends with the operator's own git work.
-# Sets ROW_CODE; a read that fails says so in the row and in the report, and
-# never stops the run, since the row still records what happened.
+# tracked change and every untracked, unignored file by content. Both are taken
+# over what the step runs (WATCHED), so a stray file elsewhere in the tree
+# neither counts nor moves the fingerprint, and such a row says so with
+# "(what it runs)" after the fingerprint; a step that runs no traced code is
+# taken over the whole tree, as every row once was, and carries no mark. Read
+# with no optional locks, so a row never contends with the operator's own git
+# work. Sets ROW_CODE; a read that fails says so in the row and in the report,
+# and never stops the run, since the row still records what happened.
 ROW_CODE=""
+# tree_fingerprint [<pathspec>...]: over those paths, or the whole tree.
 tree_fingerprint() {
   local f
+  local -a scope=()
+  (( $# )) && scope=(-- "$@")
   {
-    git -C "$ROOT" --no-optional-locks diff HEAD --binary || return 1
-    git -C "$ROOT" --no-optional-locks ls-files --others --exclude-standard -z || return 1
+    git -C "$ROOT" --no-optional-locks diff HEAD --binary "${scope[@]}" || return 1
+    git -C "$ROOT" --no-optional-locks ls-files --others --exclude-standard -z "${scope[@]}" || return 1
     while IFS= read -r -d '' f; do
       printf '%s\n' "$f"
       sha256sum < "${ROOT}/${f}" || return 1
-    done < <(git -C "$ROOT" --no-optional-locks ls-files --others --exclude-standard -z)
+    done < <(git -C "$ROOT" --no-optional-locks ls-files --others --exclude-standard -z "${scope[@]}")
   } | sha256sum | cut -c1-12
 }
 row_code() {
-  local head changed fp
+  local head changed fp mark=""
+  local -a scope=()
+  watched_paths "$1"
+  if (( ${#WATCHED[@]} )); then scope=(-- "${WATCHED[@]}"); mark=" (what it runs)"; fi
   if head="$(git -C "$ROOT" --no-optional-locks rev-parse --verify -q HEAD 2>&1)" \
-     && changed="$(git -C "$ROOT" --no-optional-locks status --porcelain 2>&1)" \
-     && fp="$(tree_fingerprint 2>&1)" && [[ "$fp" =~ ^[0-9a-f]{12}$ ]]; then
-    ROW_CODE="at ${head}, $(grep -c . <<<"$changed" || [[ $? == 1 ]]) uncommitted, tree ${fp}"
+     && changed="$(git -C "$ROOT" --no-optional-locks status --porcelain "${scope[@]}" 2>&1)" \
+     && fp="$(tree_fingerprint "${WATCHED[@]}" 2>&1)" && [[ "$fp" =~ ^[0-9a-f]{12}$ ]]; then
+    ROW_CODE="at ${head}, $(grep -c . <<<"$changed" || [[ $? == 1 ]]) uncommitted, tree ${fp}${mark}"
   else
     ROW_CODE="commit unreadable"
     cr_warn "a log row could not record the commit it ran at, so that row names no code"
@@ -743,7 +897,7 @@ log_row() {
   local id="$1" started="$2" command="$3" result="$4" notes="${5:-}" finished row
   finished="$(now_utc)"
   FINISHED["$id"]="$finished"
-  row_code
+  row_code "$command"
   # The Target column is the sitting's own target, which every lookup of a row
   # keys on. A step whose command names another environment (the staging
   # archive stage, the staging break-glass drill, run from the production list)
@@ -775,54 +929,54 @@ log_row() {
 }
 
 # The last row of this pass's section for a step: started, finished, result,
-# command, notes.
+# command, notes. A heavy step refused for the host's health never started,
+# so its row does not stand in front of an earlier ok row for the step; a
+# step whose only rows are such refusals still reads failed.
 log_last() {
   local id="$1"
   awk -v sec="$SECTION" '$0 == sec { on = 1; next } /^## / { on = 0 } on' "$LOG" \
     | sed 's/\\|/\x01/g' \
     | awk -F'|' -v t="$TARGET" -v id="$1" '{ for (i = 1; i <= NF; i++) gsub(/^ +| +$/, "", $i) }
-        $4 == t && $5 == id { line = $2 "\t" $3 "\t" $7 "\t" $6 "\t" $8 } END { if (line != "") print line }'
+        $4 == t && $5 == id {
+          if ($7 == "failed (health)" && res ~ /^ok/) next
+          res = $7; line = $2 "\t" $3 "\t" $7 "\t" $6 "\t" $8
+        }
+        END { if (line != "") print line }'
 }
 
-# row_lapsed <notes> <command>: prints why an ok row no longer proves its step,
-# or nothing when it still does. A row proves the code it ran, so it lapses
-# when it names no commit, when its commit is not in this checkout, when what
-# the step runs (its script, that script's own remote halves, the shared
-# libraries and the host configuration they ship) changed since that commit,
-# or when it ran on uncommitted changes the tree no longer holds.
+# row_lapsed <notes> <command>: sets LAPSE to why an ok row no longer proves
+# its step, or to nothing when it still does. A row proves the code it ran,
+# so it lapses when it names no commit, when its commit is not in this
+# checkout, when what the step runs (WATCHED: its script, the halves and
+# libraries traced from it, and the host configuration they refer to)
+# changed since that commit, or when it ran on uncommitted changes the tree no
+# longer holds. Those changes are fingerprinted over the scope the row was
+# written with: what it runs for a row marked "(what it runs)", the whole
+# tree for an older row, so an older row is judged as it always was.
+LAPSE=""
 row_lapsed() {
-  local notes="$1" cmd="$2" sha count fp w stem now_head now_fp
-  local -a paths=()
-  if [[ ! "$notes" =~ ^at\ ([0-9a-f]{40}),\ ([0-9]+)\ uncommitted,\ tree\ ([0-9a-f]{12}) ]]; then
-    printf 'the row names no commit'
+  local notes="$1" cmd="$2" sha count fp scoped now_head now_fp
+  LAPSE=""
+  if [[ ! "$notes" =~ ^at\ ([0-9a-f]{40}),\ ([0-9]+)\ uncommitted,\ tree\ ([0-9a-f]{12})( \(what it runs\))? ]]; then
+    LAPSE='the row names no commit'
     return 0
   fi
-  sha="${BASH_REMATCH[1]}"; count="${BASH_REMATCH[2]}"; fp="${BASH_REMATCH[3]}"
+  sha="${BASH_REMATCH[1]}"; count="${BASH_REMATCH[2]}"; fp="${BASH_REMATCH[3]}"; scoped="${BASH_REMATCH[4]}"
   if ! git -C "$ROOT" --no-optional-locks cat-file -e "${sha}^{commit}" 2>/dev/null; then
-    printf 'its commit %s is not in this checkout' "${sha:0:8}"
+    LAPSE="its commit ${sha:0:8} is not in this checkout"
     return 0
   fi
-  for w in $cmd; do
-    case "$w" in
-      deploy_to_aws.sh)
-        paths+=(deploy_to_aws.sh ':(glob)scripts/deploy-*.sh' ':(glob)scripts/internal/deploy-*' docker) ;;
-      scripts/*.sh|legacy_data/*.sh)
-        stem="${w##*/}"; stem="${stem%.sh}"
-        paths+=("$w" ":(glob)scripts/internal/${stem}*") ;;
-      test:deployed)
-        paths+=(tests/e2e/deployed) ;;
-    esac
-  done
-  (( ${#paths[@]} )) && paths+=(scripts/lib ops)
-  if (( ${#paths[@]} )) && ! git -C "$ROOT" --no-optional-locks diff --quiet "$sha" -- "${paths[@]}"; then
-    printf 'what it runs changed since %s' "${sha:0:8}"
+  watched_paths "$cmd"
+  if (( ${#WATCHED[@]} )) && ! git -C "$ROOT" --no-optional-locks diff --quiet "$sha" -- "${WATCHED[@]}"; then
+    LAPSE="what it runs changed since ${sha:0:8}"
     return 0
   fi
   if (( count > 0 )); then
     now_head="$(git -C "$ROOT" --no-optional-locks rev-parse --verify -q HEAD)" || now_head=""
-    now_fp="$(tree_fingerprint)" || now_fp=""
+    if [[ -n "$scoped" ]]; then now_fp="$(tree_fingerprint "${WATCHED[@]}")" || now_fp=""
+    else now_fp="$(tree_fingerprint)" || now_fp=""; fi
     if [[ "$now_head" != "$sha" || "$now_fp" != "$fp" ]]; then
-      printf 'it ran on %s uncommitted change(s) the tree no longer holds' "$count"
+      LAPSE="it ran on ${count} uncommitted change(s) the tree no longer holds"
       return 0
     fi
   fi
@@ -1050,8 +1204,21 @@ if [[ "$MODE" == status ]]; then
       esac
     elif [[ -z "$row" ]]; then
       state="NOT RUN"; pending=1
-    elif [[ "$r_result" == ok* ]] && lapse="$(row_lapsed "$(cut -f5 <<<"$row")" "$(cut -f4 <<<"$row")")" && [[ -n "$lapse" ]]; then
-      state="LAPSED (${lapse}): recorded ok at ${r_start}, run it again"; pending=1
+    elif [[ "$r_result" == ok* ]] && row_lapsed "$(cut -f5 <<<"$row")" "$(cut -f4 <<<"$row")" && [[ -n "$LAPSE" ]]; then
+      # The staging pass is not run again: a staging row whose code has
+      # changed since, or that ran beside uncommitted changes since gone,
+      # still stands as the record of that pass, and says which. A row naming
+      # no commit, or a commit this checkout lacks, names no known code, so it
+      # does not.
+      if [[ "$TARGET" == staging && "$LAPSE" == "what it runs changed since "* ]]; then
+        state="RECORDED ok at ${r_start}; code changed since ${LAPSE##* }"
+      elif [[ "$TARGET" == staging && "$LAPSE" == "it ran on "* ]]; then
+        state="RECORDED ok at ${r_start}; ${LAPSE}"
+      else
+        state="LAPSED (${LAPSE}): recorded ok at ${r_start}, run it again"; pending=1
+      fi
+    elif [[ "$r_result" == "deferred (not due until "* ]]; then
+      state="DEFERRED (${r_result#deferred (}: run it with --from-step ${S_ID} once due"; pending=1
     elif [[ "$r_result" == ok* ]]; then
       if [[ "$S_KIND" == ask ]]; then state="ATTESTED at ${r_start} (log only)"
       elif [[ "$S_PROOF" == rerun ]]; then state="RE-RUN PROVES; recorded ok at ${r_start}"
@@ -1210,6 +1377,18 @@ for (( i = FIRST; i <= LAST; i++ )); do
     ref="${S_PROOF#after=}"; minutes="${ref#*+}"; ref="${ref%%+*}"
     if when="$(step_time finished "$ref")"; then
       not_before=$(( $(date -u -d "$when" +%s) + minutes * 60 ))
+      # More than an hour off, the step is not waited for at the terminal: it
+      # is recorded as deferred, as a step awaiting alarm mail is, and the run
+      # carries on and ends pending.
+      if (( not_before - $(date -u +%s) > 3600 )); then
+        due="$(date -u -d "@${not_before}" '+%H:%M:%SZ %Y-%m-%d')"
+        log_row "$S_ID" "$started" "$S_CMD" "deferred (not due until ${due})"
+        DEFERRED+=("$S_ID")
+        cr_unproved "deferred until ${due} (${minutes} minutes after ${ref}): ${S_ID}"
+        echo "Deferred: ${S_ID} runs no sooner than ${due}; run it then with --from-step ${S_ID}."
+        CURRENT=""
+        continue
+      fi
       while (( $(date -u +%s) < not_before )); do
         echo "  ${S_ID} runs no sooner than $(date -u -d "@${not_before}" +%H:%M:%SZ) (${minutes} minutes after ${ref}); Ctrl-C and --from-step ${S_ID} also work."
         sleep "$POLL_SECS"
@@ -1267,7 +1446,11 @@ for (( i = FIRST; i <= LAST; i++ )); do
       continue
     fi
   fi
-  (( rc == 0 )) || failed="exit ${rc}"
+  if [[ "$S_PROOF" == exit=* ]]; then
+    [[ ",${S_PROOF#exit=}," == *",${rc},"* ]] || failed="exit ${rc}"
+  else
+    (( rc == 0 )) || failed="exit ${rc}"
+  fi
 
   if [[ -z "$failed" ]]; then
     case "$S_PROOF" in

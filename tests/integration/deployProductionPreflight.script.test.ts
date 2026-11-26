@@ -292,15 +292,15 @@ describe('which version list the host is held to', () => {
   });
 
   // Defect caught: staging is held to main, so a pin change cannot be tried on
-  // staging before it reaches main; or a staging host off its pins stops the
-  // deploy, where staging warns and carries on.
-  it.each(LEAVES)('$leaf on staging holds the host to the working tree\'s pins, warning on any difference', ({ leaf, last }) => {
+  // staging before it reaches main; or a staging host off its pins takes the
+  // deploy, so staging proves a release on versions production would refuse.
+  it.each(LEAVES)('$leaf on staging holds the host to the working tree\'s pins, refusing any difference as production does', ({ leaf, last }) => {
     const atTree = drivePreflight({ leaf, last, remote: 'footbag-staging', host: TREE_PINS }).out;
     expect(atTree).toContain('HOST-CHECK-PASSED');
-    expect(atTree).not.toContain('staging is off its pins');
     const atMain = drivePreflight({ leaf, last, remote: 'footbag-staging', host: MAIN_PINS }).out;
-    expect(atMain).toContain('HOST-CHECK-PASSED');
-    expect(atMain).toContain(`staging is off its pins: the host's Compose plugin is ${MAIN_PINS.compose}; the version list pins ${TREE_PINS.compose}`);
+    expect(atMain).toContain('HOST-CHECK-REFUSED');
+    expect(atMain).not.toContain('HOST-CHECK-PASSED');
+    expect(atMain).toContain(`the host's Compose plugin is ${MAIN_PINS.compose}; the version list pins ${TREE_PINS.compose}`);
   });
 
   // Defect caught: a main whose list lacks a pin lets the deploy fall back to

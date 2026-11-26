@@ -85,7 +85,7 @@ require_pinned_known_hosts || exit 1
 SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInterval=30")
 require_host_is "$REMOTE" "$TARGET" || exit 1
 
-echo "==> Diagnosing the CloudWatch agent on $REMOTE"
+echo "== Diagnosing the CloudWatch agent on $REMOTE"
 # Exactly ONE line of the operator's stdin reaches the host, not the whole file,
 # and the guard above is where that line was read. sudo consumes it and the
 # remote bash inherits whatever follows, so forwarding the rest of a credential

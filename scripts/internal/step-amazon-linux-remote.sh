@@ -145,7 +145,7 @@ case "$MODE" in
 
   step)
     step_can_land || crr_finish
-    echo "==> Stopping the backup timer and footbag.service for the step"
+    echo "== Stopping the backup timer and footbag.service for the step"
     if ! systemctl stop footbag-backup.timer footbag-backup.service footbag.service; then
       crr_error "could not stop the service and the backup timer; nothing was stepped"
       crr_finish
@@ -170,7 +170,7 @@ case "$MODE" in
     if [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]]; then
       echo "    already at the pinned release ${AMAZON_LINUX_RELEASE}; checking nothing is left to install"
     else
-      echo "==> Stepping Amazon Linux from ${rel:-an unknown release} to ${AMAZON_LINUX_RELEASE}"
+      echo "== Stepping Amazon Linux from ${rel:-an unknown release} to ${AMAZON_LINUX_RELEASE}"
     fi
     # Run as a transient unit, so the transaction belongs to systemd rather than
     # to this ssh session: a dropped connection no longer kills dnf part way
@@ -198,7 +198,7 @@ case "$MODE" in
     ;;
 
   resume)
-    echo "==> Starting the backup timer again"
+    echo "== Starting the backup timer again"
     systemctl start footbag-backup.timer || crr_error "could not start footbag-backup.timer: backups are paused"
     ;;
 

@@ -37,7 +37,7 @@ compose() {
     "$@" </dev/null
 }
 
-echo "==> systemctl restart footbag"
+echo "== systemctl restart footbag"
 systemctl restart footbag
 
 # Every container running, and none unhealthy or still starting. A container

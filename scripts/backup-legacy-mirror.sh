@@ -214,7 +214,7 @@ fi
 # ── The file list ────────────────────────────────────────────────────────────
 
 # Hashed after the confirmation, because it reads every byte of the crawl.
-echo "==> Listing ${FILE_COUNT} files with their checksums"
+echo "== Listing ${FILE_COUNT} files with their checksums"
 SUMS="${WORK_DIR}/sums.txt"
 ( cd "$MIRROR_ROOT" && xargs -0 -r sha256sum -- < "$NAMES" ) > "$SUMS" 2> "${WORK_DIR}/sha.err" \
   || cr_die "could not checksum the crawl: $(tail -n 1 "${WORK_DIR}/sha.err"). Nothing was uploaded."
@@ -230,7 +230,7 @@ LISTED="$(grep -c '' "$FILE_LIST" || [[ $? == 1 ]])"
 
 # ── Upload ───────────────────────────────────────────────────────────────────
 
-echo "==> Uploading to ${DEST}"
+echo "== Uploading to ${DEST}"
 cr_run "upload of the crawl" -- "$AWS_BIN" s3 sync "$MIRROR_ROOT" "$DEST" \
   --storage-class DEEP_ARCHIVE --region "$BUCKET_REGION" --only-show-errors \
   || cr_die "the upload did not complete. What it copied stays; re-run to finish, since the copy is incremental."
@@ -243,7 +243,7 @@ cr_run "upload of the latest file list" -- "$AWS_BIN" s3 cp "$FILE_LIST" "s3://$
 
 # ── Prove it ─────────────────────────────────────────────────────────────────
 
-echo "==> Checking the bucket against the crawl"
+echo "== Checking the bucket against the crawl"
 if ! LEFT="$(pending_uploads "$PENDING_FILE")"; then
   cr_die "could not compare the crawl with ${DEST} after the upload: $(tail -n 1 "${PENDING_FILE}.err")"
 fi

@@ -3,9 +3,9 @@
 #
 # Read-only. Answers the one question the workstation cannot: the agent's
 # service can be running while the agent has no configuration to run, because
-# the control script's fetch-config step is what translates the JSON config into
-# the TOML the service actually reads, and that step fails on this stack. From
-# outside, "publishing nothing because it was denied" and "publishing nothing
+# the service's start wrapper translates the JSON config into the TOML the agent
+# reads, and a translation that fails leaves the wrapper restarting while the
+# unit reads active. From outside, "publishing nothing because it was denied" and "publishing nothing
 # because it was never configured" look identical, so this reports both.
 #
 # Never prints the secret access key. The credentials file is inspected for

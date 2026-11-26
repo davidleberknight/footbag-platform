@@ -17,7 +17,9 @@
 # instance with no successful snapshot that is younger than the limit, and whose
 # AutoSnapshot add-on reads exactly Enabled, is reported as not yet due, with
 # the time the first snapshot is due by, under its own exit status. That is not
-# a pass: nothing has yet proved the add-on takes snapshots of it.
+# a pass: nothing has yet proved the add-on takes snapshots of it. A caller
+# that needs a snapshot to exist now passes --require-taken, which turns that
+# case into a failure naming when the first snapshot is due.
 #
 # What it refuses or fails on:
 #   - a target it was not given; there is no default
@@ -34,10 +36,15 @@
 #   1  a failure or refusal above
 #   2  a usage error
 #   3  not yet due: a new instance, its add-on Enabled, no snapshot yet
+#      (1 instead under --require-taken)
 #
 # Usage:
 #   bash scripts/verify-host-snapshots.sh --target production
-#   bash scripts/verify-host-snapshots.sh --target staging
+#   bash scripts/verify-host-snapshots.sh --target staging [--require-taken]
+#
+# Flags:
+#   --target <env>    staging or production; required, no default
+#   --require-taken   fail, rather than exit 3, when no snapshot is due yet
 #
 # Test seams (CI only; operators never set these), announced on stderr when set:
 # VERIFY_HOST_SNAPSHOTS_AWS_BIN and VERIFY_HOST_SNAPSHOTS_TERRAFORM_BIN replace
@@ -50,6 +57,7 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$REPO_ROOT"
 
 TARGET=""
+REQUIRE_TAKEN=0
 # A day between snapshots plus the grace a daily job is allowed before it reads
 # as overdue.
 MAX_AGE_HOURS=26
@@ -59,6 +67,7 @@ die() { echo "verify-host-snapshots: $*" >&2; exit 1; }
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)  TARGET="${2:-}"; shift 2 || { echo "verify-host-snapshots: --target requires an argument" >&2; exit 2; } ;;
+    --require-taken) REQUIRE_TAKEN=1; shift ;;
     -h|--help) sed -n '2,/^set -eu/{/^set -eu/d;p;}' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "verify-host-snapshots: unknown argument '$1' (try --help)" >&2; exit 2 ;;
   esac
@@ -82,7 +91,7 @@ fi
 INSTANCE="$("$TF_BIN" -chdir="terraform/${TARGET}" output -raw lightsail_instance_name </dev/null 2>/dev/null)" \
   || die "could not read terraform/${TARGET} output lightsail_instance_name"
 [[ -n "$INSTANCE" ]] || die "terraform/${TARGET} output lightsail_instance_name is empty"
-echo "==> automatic snapshots of ${INSTANCE}"
+echo "== automatic snapshots of ${INSTANCE}"
 
 listing="$("$AWS_BIN" lightsail get-auto-snapshots --resource-name "$INSTANCE" \
   --query 'autoSnapshots[].[createdAt,status]' --output text </dev/null 2>/dev/null)" \
@@ -143,6 +152,8 @@ if [[ -z "$newest_epoch" ]]; then
     die "${lack}, so nothing proves the add-on is taking them; it was created ${inst_created}, $(( inst_age / 3600 )) hours ago, past the ${MAX_AGE_HOURS}-hour limit"
   fi
   due="$(date -u -d "@$(( inst_epoch + MAX_AGE_HOURS * 3600 ))" +%Y-%m-%dT%H:%MZ)"
+  (( REQUIRE_TAKEN == 0 )) \
+    || die "${lack}, and --require-taken needs one now; the first automatic snapshot is due by ${due}, since it was created ${inst_created} and the AutoSnapshot add-on is Enabled"
   echo ""
   echo "== first automatic snapshot of ${INSTANCE} is due by ${due}: not yet due on ${TARGET}, since it was created ${inst_created} and the AutoSnapshot add-on is Enabled =="
   exit 3

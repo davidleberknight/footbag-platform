@@ -29,7 +29,7 @@ deny() {
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "deny",
-      permissionDecisionReason: ("HARD BLOCK: Bash must never touch secret-bearing files (" + $what + "). If the human needs this, they run it themselves with the ! prefix.")
+      permissionDecisionReason: ("HARD BLOCK: Bash must never touch secret-bearing files (" + $what + "). Never hand the human a command or a scratchpad script instead. If the work needs key material, write a script under scripts/, with its companion test, that generates throwaway material itself in a mktemp directory and removes it on its trap; a step that needs a real secret is a run, by the human, of such a committed script, named with its flags.")
     }
   }'
   exit 0

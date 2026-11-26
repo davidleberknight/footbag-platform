@@ -250,7 +250,7 @@ PROBE="$(umask 077 && mktemp)"
   printf 'aws_secret_access_key = %s\n' "$SAK"
 } > "$PROBE"
 
-echo "==> Proving the pasted credential against AWS"
+echo "== Proving the pasted credential against AWS"
 PROBE_ARN=""
 # Every ambient credential source is cleared, not just the profile ones. The
 # SDK reads AWS_ACCESS_KEY_ID and friends BEFORE it reads any profile, so an
@@ -356,7 +356,7 @@ echo "    written, mode 0600"
 # a session duration somebody set deliberately and this script cannot tell the
 # difference between that and a mistake.
 echo ""
-echo "==> Ensuring the chained runtime profiles in ${CONFIG_FILE}"
+echo "== Ensuring the chained runtime profiles in ${CONFIG_FILE}"
 for _rt in $RUNTIME_PROFILES; do
   case "$_rt" in
     *staging*)    _role="$STAGING_ROLE_ARN" ;;
@@ -383,7 +383,7 @@ done
 unset _rt _role _rc
 
 echo ""
-echo "==> Proving the installed profile and both chained runtime profiles"
+echo "== Proving the installed profile and both chained runtime profiles"
 FAILED=0
 aws_identity_require_user "$PROFILE" "$USER_NAME" || FAILED=1
 # shellcheck disable=SC2086

@@ -277,7 +277,7 @@ stop_failed_stack() {
       fi
     done <<<"$listing"
   fi
-  echo "==> Stopping the stack so a failing container is not restarted without limit" >&2
+  echo "== Stopping the stack so a failing container is not restarted without limit" >&2
   if ! out="$(docker compose --env-file "${ENV_PATH}" \
         -f "${COMPOSE_DIR}/docker-compose.yml" -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
         stop --timeout 30 2>&1 </dev/null)"; then
@@ -298,7 +298,7 @@ if [[ "${RESUME_ERASURE_REPLAY:-0}" == "1" ]]; then
   # Raised before anything runs, so a failure from here on keeps the timer
   # stopped exactly as the interrupted restore left it.
   erasure_replay_pending=1
-  echo "==> Resuming the erasure replay on $(hostname)"
+  echo "== Resuming the erasure replay on $(hostname)"
   sed 's/^/    /' "$MARKER" || true
   # The timer is restarted on success unless the interrupted restore recorded
   # that it was not running before the restore began.
@@ -310,7 +310,7 @@ if [[ "${RESUME_ERASURE_REPLAY:-0}" == "1" ]]; then
   fi
   clear_replay_pending
   declare_restore || true
-  echo "==> Starting the service"
+  echo "== Starting the service"
   start_service || exit 1
   if ! wait_until_ready; then
     crr_error "the service did not report ready within ~20s. The erasures are re-applied and backups resume; inspect it with scripts/host-diagnostics.sh."
@@ -385,7 +385,7 @@ SECONDS=0
 umask 077
 work="$(mktemp -d)"
 
-echo "==> Fetching s3://${BUCKET}/${SNAPSHOT_KEY}"
+echo "== Fetching s3://${BUCKET}/${SNAPSHOT_KEY}"
 aws s3 cp "${S3_REGION_ARGS[@]+"${S3_REGION_ARGS[@]}"}" "s3://${BUCKET}/${SNAPSHOT_KEY}" "${work}/snapshot.fetched" >/dev/null \
   || { crr_error "could not download the snapshot; nothing was changed."; exit 1; }
 
@@ -509,7 +509,7 @@ restart_if_was_active() {
   fi
 }
 
-echo "==> Stopping the service"
+echo "== Stopping the service"
 systemctl stop footbag
 
 # Folded in before the copy is taken, for the same reason the migrating deploy
@@ -632,7 +632,7 @@ fi
 # here, and must read back paused; a restored copy that cannot be paused is not
 # served.
 if [[ "${PRE_FLIP:-0}" == "1" ]]; then
-  echo "==> Pausing payments and outbound mail on the restored database"
+  echo "== Pausing payments and outbound mail on the restored database"
   pause_failed=""
   if [[ -z "${PAUSE_BODY_B64:-}" ]]; then
     pause_failed="the pause body did not arrive with this restore"
@@ -669,7 +669,7 @@ fi
 # surface is not an acceptable state to come back up in. The restored database
 # stays in place, the pending marker keeps backups and the service refusing,
 # and the exit trap names the one command that finishes the job.
-echo "==> Re-applying erasures recorded in the restored snapshot"
+echo "== Re-applying erasures recorded in the restored snapshot"
 if ! run_erasure_replay; then
   echo "" >&2
   crr_error "the erasure replay did not complete, so the site has been left STOPPED. The restored database is in place and may carry personal data a member asked to have erased. The database it replaced is at ${superseded}."
@@ -678,7 +678,7 @@ fi
 clear_replay_pending
 declare_restore || true
 
-echo "==> Restarting the service"
+echo "== Restarting the service"
 start_service || exit 1
 
 # Old copies are pruned only once the restored database is being served: a
@@ -694,7 +694,7 @@ fi
 # A prune that fails costs disk, not data, so it warns and never fails a
 # restore that has already succeeded.
 if declare -F prune_db_copies >/dev/null; then
-  echo "==> Pruning database copies older than seven days"
+  echo "== Pruning database copies older than seven days"
   prune_db_copies "$DB_DIR" \
     || crr_warn "pruning old database copies did not complete; some may remain in ${DB_DIR}. The restore itself succeeded."
 else

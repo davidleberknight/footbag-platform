@@ -103,7 +103,7 @@ while (( $# )); do
 done
 
 if [[ "$AWS_BIN" != "aws" ]]; then
-  echo "==> NOTE: the AWS binary is stubbed for this run; it proves nothing" >&2
+  echo "== NOTE: the AWS binary is stubbed for this run; it proves nothing" >&2
   echo "    about the account." >&2
 fi
 
@@ -255,14 +255,14 @@ fi
 
 if [[ -n "$TFVARS_TMP" ]]; then
   cat "$TFVARS_TMP" > "$TFVARS_PATH"
-  echo "==> ${TFVAR_NAME} written"
+  echo "== ${TFVAR_NAME} written"
 fi
 
 # ── Apply ────────────────────────────────────────────────────────────────────
 
 # The identity is already settled and exported, so the apply inherits it rather
 # than resolving one of its own.
-echo "==> Applying the staging tree"
+echo "== Applying the staging tree"
 if ! bash "$APPLY_CMD" --target staging; then
   echo "ERROR: the staging apply did not complete, so the trust policy is" >&2
   echo "       whatever the apply left it as. The values file now carries the" >&2
@@ -276,7 +276,7 @@ fi
 # The outcome, not the invocation. An apply that exits zero says terraform was
 # satisfied with its own plan, which is a different claim from this role now
 # trusting that one.
-echo "==> Reading the trust policy back"
+echo "== Reading the trust policy back"
 if ! trust_names_the_role; then
   echo "ERROR: ${RUNTIME_ROLE} still does not trust ${DEV_TESTER_ROLE_ARN}." >&2
   echo "" >&2

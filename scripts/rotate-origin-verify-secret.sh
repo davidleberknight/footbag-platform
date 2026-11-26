@@ -124,7 +124,7 @@ answers_through_cloudfront() {
 }
 
 if (( FROM_STEP <= 1 )); then
-  echo "==> step 1: replace the secret"
+  echo "== step 1: replace the secret"
   answers_through_cloudfront \
     || die "the site does not answer through CloudFront (${PROBE_URL}) before anything is changed; find out why first, or this run cannot tell its own breakage from that one"
   before="$(secret_digest)" || die "could not read ${PARAM}"
@@ -144,12 +144,12 @@ if (( FROM_STEP <= 1 )); then
 fi
 
 if (( FROM_STEP <= 2 )); then
-  echo "==> step 2: deploy, so the host mirrors the new value"
+  echo "== step 2: deploy, so the host mirrors the new value"
   bash "$DEPLOY" --target "$TARGET" -k \
     || die "the deploy failed. The site refuses requests through CloudFront until it succeeds: resume with --from-step 2."
 fi
 
-echo "==> step 3: prove the site answers through CloudFront"
+echo "== step 3: prove the site answers through CloudFront"
 ok=0
 for (( i = 1; i <= PROBE_TRIES; i++ )); do
   if answers_through_cloudfront; then ok=1; break; fi

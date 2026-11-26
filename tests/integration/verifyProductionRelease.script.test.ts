@@ -451,7 +451,7 @@ describe('the release rules on a production deploy', () => {
   it('allows a clean tree at the tip of main with CI green', () => {
     const res = runDeploy(fixture());
     expect(res.rc, res.stderr).toBe('rc=0');
-    expect(res.stderr).toContain('==> Production release gate: clean, on main, CI green on every run for this commit.');
+    expect(res.stderr).toContain('== Production release gate: clean, on main, CI green on every run for this commit.');
   });
 
   // Defect caught: on a deploy, an exported fake gh is honoured, so the deploy

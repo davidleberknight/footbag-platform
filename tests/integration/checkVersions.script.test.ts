@@ -219,7 +219,7 @@ describe('asking the built images from the inside', () => {
   it('carries on past an image build that failed, runs the tests, and fails naming the build', () => {
     const r = check([], images({ buildFails: true }));
     expect(r.status).toBe(1);
-    expect(r.out).toContain('==> The tests where pinned things meet');
+    expect(r.out).toContain('== The tests where pinned things meet');
     expect(report(r.out)).toMatch(/image build: exit 17/);
     expect(report(r.out)).toMatch(/Not proven:[\s\S]*the images did not build/);
   });

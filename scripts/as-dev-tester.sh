@@ -160,9 +160,9 @@ if [[ "$AWS_IDENTITY_SESSION_NAME" != "$ACCOUNT" ]]; then
   exit 1
 fi
 
-echo "==> acting as ${FOOTBAG_DEV_TESTER_ROLE}, session ${AWS_IDENTITY_SESSION_NAME}" >&2
+echo "== acting as ${FOOTBAG_DEV_TESTER_ROLE}, session ${AWS_IDENTITY_SESSION_NAME}" >&2
 echo "    the trail will name that person rather than only the job" >&2
-echo "==> running: $*" >&2
+echo "== running: $*" >&2
 
 # exec rather than a call: the command inherits this process, so standard input
 # reaches it exactly as the caller redirected it, nothing here sits between the

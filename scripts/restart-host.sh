@@ -90,7 +90,7 @@ if [[ "$TARGET" == "production" ]]; then
     || die "not confirmed; nothing was restarted"
 fi
 
-echo "==> Restarting footbag on ${ALIAS}"
+echo "== Restarting footbag on ${ALIAS}"
 if ! {
     printf '%s\n' "$SUDO_PASS"
     cat "$REMOTE_HALF"

@@ -244,7 +244,7 @@ replace_role() {
   if ! confirm_from_tty "Type 'APPLY' to replace ${role}: " "APPLY"; then
     cr_die "the replacement of ${role} was not confirmed, so its trust is still broken. Nothing more was changed."
   fi
-  echo "==> Replacing ${TRUST_ADDRESS} in ${tree}"
+  echo "== Replacing ${TRUST_ADDRESS} in ${tree}"
   if ! bash "$APPLY_CMD" --target "$tree" --replace "$TRUST_ADDRESS"; then
     cr_die "the ${tree} replacement did not complete, so ${role} is as that apply left it. Re-run this to finish."
   fi
@@ -260,7 +260,7 @@ replace_role() {
 # library, so its own problems reach this report.
 for tree in "${BROKEN[@]+"${BROKEN[@]}"}"; do
   role="footbag-${tree}-app-runtime"
-  echo "==> Applying ${tree}"
+  echo "== Applying ${tree}"
   if ! bash "$APPLY_CMD" --target "$tree"; then
     cr_die "the ${tree} apply did not complete, so ${role} is as that apply left it. Re-run this to finish: it applies only a tree whose trust is still broken."
   fi
@@ -273,7 +273,7 @@ for tree in "${BROKEN[@]+"${BROKEN[@]}"}"; do
   fi
 done
 
-echo "==> Checking the account baseline"
+echo "== Checking the account baseline"
 if bash "$BASELINE_CMD"; then
   cr_proved "the account baseline passes, both runtime trusts included"
 else

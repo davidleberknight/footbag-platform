@@ -154,7 +154,7 @@ describe.skipIf(!HAVE_SQLITE3)('the workstation seals the database it uploads', 
   const block = () =>
     sliceBetween(
       CALLER,
-      (l) => l === 'echo "==> Sealing the database for upload..."',
+      (l) => l === 'echo "== Sealing the database for upload..."',
       (l) => l.startsWith('SHIPPED_DB_SHA256='),
     );
 
@@ -254,10 +254,10 @@ describe('the seal and the check sit where they protect the live site (static-te
   // fingerprint never reaches the host half.
   it('the caller seals after its last local write, before the upload, and sends the fingerprint', () => {
     const text = readFileSync(CALLER, 'utf8');
-    const seal = text.indexOf('echo "==> Sealing the database for upload..."');
+    const seal = text.indexOf('echo "== Sealing the database for upload..."');
     expect(seal).toBeGreaterThan(text.indexOf('seed_email_templates.py'));
     expect(seal).toBeGreaterThan(text.indexOf('shipped_db_checks "$REPO_ROOT" "$LOCAL_DB"'));
-    expect(seal).toBeLessThan(text.indexOf('echo "==> Rsyncing source to host..."'));
+    expect(seal).toBeLessThan(text.indexOf('echo "== Rsyncing source to host..."'));
     expect(text).toMatch(/printf 'EXPECTED_DB_SHA256=%q\\n' +"\$SHIPPED_DB_SHA256"/);
   });
 });

@@ -80,13 +80,20 @@
 #      proved against the new instance's keys from the Lightsail API.
 #  10. The restored host asked which environment it is (require_host_is), and
 #      the site asked for readiness through the public base address it records.
+#      Then its sshd posture, which the snapshot carried back with everything
+#      else, proved hardened through scripts/harden-sshd.sh --expect-hardened,
+#      applying the hardened settings first (--apply, which on production asks
+#      for its own APPLY) when it is not.
 #  11. The snapshot's database proved never to have reached the bucket: every
 #      backup under routine/, hourly/ and daily/ written since the new
 #      instance was created records an audit row no older than the restored
 #      one's (read from its hourly/ or daily/ copy once it has aged out of
 #      routine/), at least one was
 #      written (waiting on the backup timer's next run), and the host's journal
-#      since boot shows the backup refusing the snapshot's database.
+#      since boot shows the backup refusing the snapshot's database. Then every
+#      bootstrap step read through scripts/bootstrap-host.sh --status, after
+#      that wait so the backup it reads has run; a pending row fails the
+#      restore and names the command that finishes it.
 #  12. The elapsed time printed against the four-hour objective, taken before
 #      step 11's wait.
 #
@@ -170,6 +177,8 @@
 # replace the three tools; RESTORE_HOST_TF_APPLY, RESTORE_HOST_PIN_INSTALLER and
 # RESTORE_HOST_RESTORE_DB replace scripts/terraform-apply.sh,
 # scripts/install-known-hosts.sh and scripts/restore-db.sh;
+# RESTORE_HOST_HARDEN_SSHD and RESTORE_HOST_BOOTSTRAP_HOST replace
+# scripts/harden-sshd.sh and scripts/bootstrap-host.sh;
 # RESTORE_HOST_VALUES_FILE names the values file written in step 8;
 # RESTORE_HOST_NOW fixes the clock (epoch seconds); RESTORE_HOST_POLL_TRIES and
 # RESTORE_HOST_POLL_SECS bound every wait. The identity check uses
@@ -298,9 +307,11 @@ A restore run would, deciding each step from what AWS and Terraform report:
      old instance and its firewall from Terraform state, and apply the import
      through scripts/terraform-apply.sh, which opens port ${ORIGIN_PORT}
   9. re-take the host-key pin with scripts/install-known-hosts.sh
- 10. check the host records FOOTBAG_ENV=${TARGET} and the site reports ready
+ 10. check the host records FOOTBAG_ENV=${TARGET} and the site reports ready, then prove
+     its sshd hardened with scripts/harden-sshd.sh, applying the settings first if not
  11. prove no backup written since ${CANON}-r<YYYYMMDDHHMM> was created holds the snapshot's
-     database, that backups resumed, and that the host's backup refused it
+     database, that backups resumed, and that the host's backup refused it; then read
+     every bootstrap step with scripts/bootstrap-host.sh --status
  12. print the elapsed time against the four-hour objective
 
 --delete-old would then delete the stopped old instance, after its own APPLY.
@@ -314,11 +325,14 @@ CURL_BIN="${RESTORE_HOST_CURL_BIN:-curl}"
 TF_APPLY="${RESTORE_HOST_TF_APPLY:-${SCRIPT_DIR}/terraform-apply.sh}"
 PIN_INSTALLER="${RESTORE_HOST_PIN_INSTALLER:-${SCRIPT_DIR}/install-known-hosts.sh}"
 RESTORE_DB="${RESTORE_HOST_RESTORE_DB:-${SCRIPT_DIR}/restore-db.sh}"
+HARDEN_SSHD="${RESTORE_HOST_HARDEN_SSHD:-${SCRIPT_DIR}/harden-sshd.sh}"
+BOOTSTRAP_HOST="${RESTORE_HOST_BOOTSTRAP_HOST:-${SCRIPT_DIR}/bootstrap-host.sh}"
 VALUES_FILE="${RESTORE_HOST_VALUES_FILE:-${TF_DIR}/terraform.tfvars}"
 POLL_TRIES="${RESTORE_HOST_POLL_TRIES:-120}"
 POLL_SECS="${RESTORE_HOST_POLL_SECS:-10}"
 for seam in RESTORE_HOST_AWS_BIN RESTORE_HOST_TERRAFORM_BIN RESTORE_HOST_CURL_BIN \
             RESTORE_HOST_TF_APPLY RESTORE_HOST_PIN_INSTALLER RESTORE_HOST_RESTORE_DB \
+            RESTORE_HOST_HARDEN_SSHD RESTORE_HOST_BOOTSTRAP_HOST \
             RESTORE_HOST_VALUES_FILE RESTORE_HOST_NOW RESTORE_HOST_POLL_TRIES RESTORE_HOST_POLL_SECS; do
   [[ -n "${!seam:-}" ]] && echo "restore-host: TEST SEAM ${seam} is set; this run proves nothing about the estate." >&2
 done
@@ -783,7 +797,7 @@ host_proves() {
   require_host_is "$ALIAS" "$TARGET" || { PROOF_FAILURE="identity"; return 1; }
   [[ -n "$HOST_PUBLIC_BASE_URL" ]] || { PROOF_FAILURE="address"; return 1; }
   local url="${HOST_PUBLIC_BASE_URL%/}/health/ready" code="" i
-  echo "==> Readiness through ${url}"
+  echo "== Readiness through ${url}"
   for (( i = 1; i <= POLL_TRIES; i++ )); do
     code="$("$CURL_BIN" -sS -o /dev/null -w '%{http_code}' --max-time 10 "$url" </dev/null 2>/dev/null)" || code=""
     [[ "$code" == "200" ]] && break
@@ -797,7 +811,7 @@ host_proves() {
 }
 
 verify_restored_host() {
-  echo "==> Asking the host behind ${ALIAS} which environment it is"
+  echo "== Asking the host behind ${ALIAS} which environment it is"
   host_proves && return 0
   case "$PROOF_FAILURE" in
     identity) die "the restored host did not confirm it is ${TARGET}" ;;
@@ -875,7 +889,7 @@ LINEAGE_TS_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$'
 
 prove_lineage() {
   local bucket meta ref_id ref_at prefix keys key id at uploaded=0 stale=0 failed=0
-  echo "==> The snapshot's database never reached the bucket"
+  echo "== The snapshot's database never reached the bucket"
   if [[ -z "$REC_DB" ]]; then
     cr_unproved "that the snapshot's database never reached the bucket: this restore records no database restored onto ${NEW}"
     return 0
@@ -1026,7 +1040,7 @@ if find_record; then
     # its new one is the host now lost. The proof uses a pin built from the
     # API, so a stale operator pin is not mistaken for a lost host.
     NEW="$REC_TO"
-    echo "==> The open restore ${REC_FROM} -> ${REC_TO} is complete; asking ${REC_TO} to prove itself"
+    echo "== The open restore ${REC_FROM} -> ${REC_TO} is complete; asking ${REC_TO} to prove itself"
     if ! { build_api_pin && on_api_pin host_proves; }; then
       echo "    ${REC_TO} does not prove itself, so it is treated as lost and restored in its turn."
       SUPERSEDED_REC="$REC_NAME"
@@ -1049,7 +1063,7 @@ if (( RESUMING )); then
   # from the snapshot the first run chose and not from today's newest.
   SOURCE_DATE="$REC_SOURCE"
   STARTED="$REC_STARTED"
-  echo "==> Resuming the open restore of ${TARGET}: ${OLD} -> ${NEW}, from $(source_label "$SOURCE_DATE")"
+  echo "== Resuming the open restore of ${TARGET}: ${OLD} -> ${NEW}, from $(source_label "$SOURCE_DATE")"
   echo "    $(elapsed_line "$STARTED")"
   echo ""
   echo "About to continue the restore of ${TARGET}. Whatever is not yet done of:"
@@ -1165,7 +1179,7 @@ else
       || die "the record ${SUPERSEDED_REC} could not be marked superseded; nothing else was changed"
     echo "    ${SUPERSEDED_REC} marked superseded"
   fi
-  echo "==> Step 2: manual snapshot ${REC_NAME} of ${OLD}"
+  echo "== Step 2: manual snapshot ${REC_NAME} of ${OLD}"
   aws_ls create-instance-snapshot --instance-name "$OLD" --instance-snapshot-name "$REC_NAME" \
     --tags "key=${TAG_STATE},value=open" "key=${TAG_TO},value=${NEW}" \
            "key=${TAG_SOURCE},value=${SOURCE_DATE}" "key=${TAG_STARTED},value=${STARTED}" >/dev/null \
@@ -1183,7 +1197,7 @@ esac
 
 # ── Step 3: the old instance stopped, its last backup recorded ──────────────
 
-echo "==> Step 3: stop ${OLD}"
+echo "== Step 3: stop ${OLD}"
 new_exists=0
 instance_row "$NEW" && new_exists=1
 if ! instance_row "$OLD"; then
@@ -1248,7 +1262,7 @@ ADOPTED=0
 
 # ── Step 4: the new instance, from the recorded source ──────────────────────
 
-echo "==> Step 4: create ${NEW} from $(source_label "$SOURCE_DATE")"
+echo "== Step 4: create ${NEW} from $(source_label "$SOURCE_DATE")"
 if instance_row "$NEW"; then
   echo "    ${NEW} already exists (${I_STATE})"
 else
@@ -1278,7 +1292,7 @@ fi
 
 # ── Step 5: the firewall, without the origin port ────────────────────────────
 
-echo "==> Step 5: firewall of ${OLD} onto ${NEW}, without port ${ORIGIN_PORT}"
+echo "== Step 5: firewall of ${OLD} onto ${NEW}, without port ${ORIGIN_PORT}"
 if (( ADOPTED )); then
   echo "    Terraform manages the firewall of ${NEW}"
 else
@@ -1309,7 +1323,7 @@ echo "    ${NEW} running"
 
 # ── Step 6: the static IP ────────────────────────────────────────────────────
 
-echo "==> Step 6: move ${STATIC_IP_NAME} to ${NEW}"
+echo "== Step 6: move ${STATIC_IP_NAME} to ${NEW}"
 static_ip_row
 if [[ "$SIP_TO" == "$NEW" ]]; then
   echo "    already on ${NEW}"
@@ -1328,7 +1342,7 @@ echo "    ${STATIC_IP_NAME} (${SIP_ADDR}) is on ${NEW}"
 
 # ── Step 7: the real database, before the origin port opens ─────────────────
 
-echo "==> Step 7: the real database onto ${NEW}, before port ${ORIGIN_PORT} opens"
+echo "== Step 7: the real database onto ${NEW}, before port ${ORIGIN_PORT} opens"
 if (( ADOPTED )); then
   if [[ -n "$REC_DB" ]]; then
     echo "    restored earlier: ${REC_DB}"
@@ -1347,7 +1361,7 @@ else
     on_api_pin host_hold \
       || die "the service or the backup timer on ${NEW} did not stop, so the snapshot's database may still be serving or uploading. Nothing was restored and port ${ORIGIN_PORT} stays closed"
     echo "    footbag.service and footbag-backup.timer stopped on ${NEW}"
-    echo "==> Restoring ${REC_BACKUP} onto ${NEW} through scripts/restore-db.sh (it asks for its own APPLY)"
+    echo "== Restoring ${REC_BACKUP} onto ${NEW} through scripts/restore-db.sh (it asks for its own APPLY)"
     printf '%s\n' "$SUDO_PASS" \
       | FOOTBAG_KNOWN_HOSTS="$API_PIN" bash "$RESTORE_DB" --target "$TARGET" --snapshot "$REC_BACKUP" \
       || die "the database restore onto ${NEW} did not complete; its own output above says why. ${NEW} stays off the public path (port ${ORIGIN_PORT} closed) with its backups stopped. Run again to retry"
@@ -1364,7 +1378,7 @@ fi
 
 # ── Step 8: adoption into Terraform ──────────────────────────────────────────
 
-echo "==> Step 8: adopt ${NEW} into Terraform"
+echo "== Step 8: adopt ${NEW} into Terraform"
 tf_now="$(tf_output lightsail_instance_name)"
 if [[ "$tf_now" == "$NEW" ]]; then
   echo "    Terraform already names ${NEW}"
@@ -1408,7 +1422,7 @@ else
   json="$(plan_json)"
   check_adoption_plan "$json" || die "stopped before applying. Run again once the plan shows only the adoption."
   echo "    the plan imports ${NEW}, creates its firewall, and changes nothing else"
-  echo "==> Applying through scripts/terraform-apply.sh"
+  echo "== Applying through scripts/terraform-apply.sh"
   bash "$TF_APPLY" --target "$TARGET" </dev/null || die "the Terraform apply did not complete; run again to resume"
   tf_now="$(tf_output lightsail_instance_name)"
   [[ "$tf_now" == "$NEW" ]] || die "after the apply Terraform still names ${tf_now}, not ${NEW}"
@@ -1440,7 +1454,7 @@ echo "    port ${ORIGIN_PORT} is open on ${NEW} to the declared ranges"
 
 # ── Step 9: the host-key pin ─────────────────────────────────────────────────
 
-echo "==> Step 9: host-key pin for ${NEW}"
+echo "== Step 9: host-key pin for ${NEW}"
 # The keys are the ones this run already read for NEW, so this step mints only
 # when no earlier step did. The installer writes each line with the
 # environment's tag after the key, which a match must allow for.
@@ -1467,7 +1481,51 @@ echo "    pinned and proved against ${NEW}'s keys"
 
 # ── Step 10: the host and the site ───────────────────────────────────────────
 
+# A host restored from a snapshot comes back with the snapshot's host state,
+# sshd's configuration included, so a snapshot taken before the hardening
+# restores the weaker posture with nothing to say so. Each child takes the sudo
+# password on stdin, line 1, by a pipe; harden-sshd's production APPLY reads
+# the terminal itself, so both run directly rather than under cr_run. A failure
+# is listed as an error naming the command that fixes it, and the run goes on
+# to prove what it still can, so the closing report states all of it.
+HOST_STATE_FAILED=0
+FIX_HARDEN="< <credential file> bash scripts/harden-sshd.sh --target ${TARGET} --apply"
+harden_restored_sshd() {
+  echo "== Proving sshd on ${NEW} is hardened"
+  # The first read only decides whether the settings need applying, so its
+  # output is not shown: a host already hardened needs no APPLY, and one that
+  # is not is judged by the read after the apply, whose output is shown.
+  local probe_out
+  if probe_out="$(printf '%s\n' "$SUDO_PASS" | bash "$HARDEN_SSHD" --target "$TARGET" --expect-hardened 2>&1)"; then
+    echo "    already hardened; nothing applied"
+  else
+    echo "    not proved hardened; applying the hardened settings through scripts/harden-sshd.sh --apply"
+    if ! printf '%s\n' "$SUDO_PASS" | bash "$HARDEN_SSHD" --target "$TARGET" --apply; then
+      cr_error "scripts/harden-sshd.sh --target ${TARGET} --apply did not complete on ${NEW}, so it keeps the sshd settings its snapshot carried; its output above says why. Fix with: ${FIX_HARDEN}"
+      HOST_STATE_FAILED=1
+      return 0
+    fi
+    if ! printf '%s\n' "$SUDO_PASS" | bash "$HARDEN_SSHD" --target "$TARGET" --expect-hardened; then
+      cr_error "sshd on ${NEW} is not proved hardened after the apply (scripts/harden-sshd.sh --target ${TARGET} --expect-hardened failed; its output above says why). Fix with: ${FIX_HARDEN}"
+      HOST_STATE_FAILED=1
+      return 0
+    fi
+  fi
+  cr_proved "sshd on ${NEW} is hardened, as scripts/harden-sshd.sh --expect-hardened judges it, with no self-revert pending"
+}
+
+bootstrap_status_restored() {
+  echo "== Reading every bootstrap step on ${NEW} through scripts/bootstrap-host.sh --status"
+  if printf '%s\n' "$SUDO_PASS" | bash "$BOOTSTRAP_HOST" --target "$TARGET" --status; then
+    cr_proved "every bootstrap step reads done on ${NEW}, as scripts/bootstrap-host.sh --status reports"
+  else
+    cr_error "scripts/bootstrap-host.sh --target ${TARGET} --status reports a step pending or unread on ${NEW}; each row above names its command. Finish them with: < <credential file> bash scripts/bootstrap-host.sh --target ${TARGET}"
+    HOST_STATE_FAILED=1
+  fi
+}
+
 verify_restored_host
+harden_restored_sshd
 # The restore is complete here; the lineage proof below waits on the backup
 # timer, so the elapsed time is taken before it.
 ELAPSED="$(elapsed_line "$STARTED")"
@@ -1475,17 +1533,23 @@ ELAPSED="$(elapsed_line "$STARTED")"
 # ── Step 11: the snapshot's database never reached the bucket ──────────────
 
 prove_lineage
+bootstrap_status_restored
 
 # ── Step 12: the report ──────────────────────────────────────────────────────
 
 instance_is "$OLD" stopped || die "${OLD} is not stopped; a restore leaves it stopped until --delete-old"
 echo ""
-if [[ -n "$REC_DB" ]]; then
+if (( HOST_STATE_FAILED )); then
+  echo "== ${TARGET} restored onto ${NEW}, but its host state is not proved: the errors below name the fix =="
+elif [[ -n "$REC_DB" ]]; then
   echo "== ${TARGET} restored: ${NEW} answers as ${TARGET} and is ready, on the database"
   echo "   ${REC_DB}; ${OLD} is stopped =="
-  cr_proved "the database ${REC_DB} was restored onto ${NEW} through scripts/restore-db.sh before port ${ORIGIN_PORT} opened"
 else
   echo "== ${TARGET} restored: ${NEW} answers as ${TARGET} and is ready; ${OLD} is stopped =="
+fi
+if [[ -n "$REC_DB" ]]; then
+  cr_proved "the database ${REC_DB} was restored onto ${NEW} through scripts/restore-db.sh before port ${ORIGIN_PORT} opened"
+else
   cr_unproved "which database ${NEW} serves: this restore records no database restored onto it"
 fi
 cr_proved "${NEW} holds ${STATIC_IP_NAME}, is the instance Terraform manages, and a plan changes nothing about it"

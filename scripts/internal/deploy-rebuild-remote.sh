@@ -1341,9 +1341,9 @@ ensure_swapfile() {
     *)          size="1G"; size_mb=1024 ;;
   esac
   if grep -qx /swapfile <<< "$(swapon --show=NAME --noheadings)"; then
-    echo "==> Swapfile already active"
+    echo "== Swapfile already active"
   else
-    echo "==> Provisioning ${size} disk swapfile..."
+    echo "== Provisioning ${size} disk swapfile..."
     fallocate -l "$size" /swapfile || dd if=/dev/zero of=/swapfile bs=1M count="$size_mb"
     chmod 600 /swapfile
     mkswap /swapfile
@@ -1375,10 +1375,10 @@ ensure_zram_disabled() {
     return 0
   fi
   if [[ -f /etc/systemd/zram-generator.conf && ! -s /etc/systemd/zram-generator.conf ]]; then
-    echo "==> Compressed in-RAM swap already suppressed for the next boot"
+    echo "== Compressed in-RAM swap already suppressed for the next boot"
     return 0
   fi
-  echo "==> Suppressing the compressed in-RAM swap device (takes effect at next boot)..."
+  echo "== Suppressing the compressed in-RAM swap device (takes effect at next boot)..."
   : > /etc/systemd/zram-generator.conf
   chmod 644 /etc/systemd/zram-generator.conf
 }
@@ -1449,7 +1449,7 @@ if systemctl is-enabled --quiet footbag-backup.timer 2>/dev/null; then
   systemctl restart footbag-backup.timer
 elif [[ "${FIRST_INSTALL:-0}" != "1" ]]; then
   if [[ -n "$(awk -F= '$1=="BACKUP_S3_BUCKET" {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1)" ]]; then
-    echo "==> Enabling the backup timer and taking its first backup..."
+    echo "== Enabling the backup timer and taking its first backup..."
     systemctl enable --now footbag-backup.timer
     systemctl start footbag-backup.service || true
     _backup_result="$(systemctl show -p Result --value footbag-backup.service)"
@@ -1600,7 +1600,7 @@ _cwagent_want="$( { cat "$_cwagent_half"; grep -E '^CWAGENT_(VERSION|URL|SHA256)
 if ! grep -qE "^[[:space:]]*\[${_cwagent_profile}\][[:space:]]*$" "$_cwagent_creds" 2>/dev/null; then
   crr_warn "the CloudWatch agent holds no key on this host yet, so this deploy did not re-apply it; bootstrap-host.sh's agent step installs it"
 elif [[ "$(cat "$_cwagent_stamp" 2>/dev/null || true)" != "$_cwagent_want" ]]; then
-  echo "==> Re-applying the CloudWatch agent from this release (its pin or configuration changed)..."
+  echo "== Re-applying the CloudWatch agent from this release (its pin or configuration changed)..."
   if ( set -a
        # shellcheck source=/dev/null
        source "$LIVE_DIR/ops/tool-versions.env"
@@ -1625,9 +1625,27 @@ if systemctl is-enabled --quiet footbag-container-monitor.timer; then
   if [[ "$_monitor_result" != "success" ]]; then
     crr_error "the container monitor's first reading ended '${_monitor_result}', not success; see journalctl -u footbag-container-monitor.service"
   fi
-  _statsd="$(ss -Hulpn 'sport = :8125' 2>&1)" || _statsd=""
+  # The agent re-apply above restarts the agent, and its StatsD input binds only
+  # once the agent is up, so one read straight after the restart finds nothing
+  # on a healthy host. The read is polled, bounded, and the bound counts reads
+  # rather than the clock. FOOTBAG_STATSD_POLL_LIMIT_S and
+  # FOOTBAG_STATSD_POLL_INTERVAL_S are test seams only.
+  _statsd_limit="${FOOTBAG_STATSD_POLL_LIMIT_S:-30}"
+  _statsd_interval="${FOOTBAG_STATSD_POLL_INTERVAL_S:-1}"
+  [[ -n "${FOOTBAG_STATSD_POLL_LIMIT_S:-}${FOOTBAG_STATSD_POLL_INTERVAL_S:-}" ]] \
+    && echo "SYNTHETIC: FOOTBAG_STATSD_POLL_LIMIT_S or FOOTBAG_STATSD_POLL_INTERVAL_S set -- the StatsD listener check is not the shipped bound." >&2
+  [[ "$_statsd_limit" =~ ^[0-9]+$ ]] || _statsd_limit=30
+  [[ "$_statsd_interval" =~ ^[1-9][0-9]*$ ]] || _statsd_interval=1
+  _statsd_reads=$(( _statsd_limit / _statsd_interval + 1 ))
+  _statsd=""
+  while (( _statsd_reads > 0 )); do
+    _statsd="$(ss -Hulpn 'sport = :8125' 2>&1)" || _statsd=""
+    [[ -n "$_statsd" ]] && break
+    _statsd_reads=$(( _statsd_reads - 1 ))
+    if (( _statsd_reads > 0 )); then sleep "$_statsd_interval"; fi
+  done
   if [[ -z "$_statsd" ]]; then
-    crr_warn "nothing listens on UDP 8125, so the container readings are dropped: the CloudWatch agent's StatsD input is off on this host"
+    crr_error "nothing listens on UDP 8125 after ${_statsd_limit}s, so the container readings are dropped and the container alarms watch nothing: the CloudWatch agent's StatsD input is off on this host. Run scripts/diagnose-cwagent.sh --target ${FOOTBAG_ENV_VAL} to see why, then scripts/install-cwagent-${FOOTBAG_ENV_VAL}.sh --upgrade to re-apply it"
   elif grep -qvE '127\.0\.0\.1:8125' <<<"$_statsd"; then
     crr_error "the CloudWatch agent's StatsD input listens beyond the loopback address: ${_statsd//$'\n'/; }"
   fi
@@ -1696,7 +1714,7 @@ if [[ -n "${DEPLOY_PROVENANCE:-}" ]]; then
   chmod 644 "$provenance_tmp"
   chown root:root "$provenance_tmp"
   mv "$provenance_tmp" /srv/footbag/deployed-from
-  echo "==> Recorded deploy provenance in /srv/footbag/deployed-from"
+  echo "== Recorded deploy provenance in /srv/footbag/deployed-from"
 fi
 
 crr_finish

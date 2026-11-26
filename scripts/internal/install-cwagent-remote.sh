@@ -301,9 +301,10 @@ echo "=== Step 3c: the drop-in directory holds nothing but this config ==="
 # The service's start wrapper translates the JSON above together with every file
 # in the drop-in directory, and a drop-in that disagrees with it stops the
 # translator outright ("Different values are specified for cpu"), so the agent
-# never starts. The one drop-in this installer creates is the copy its own
-# fetch-config writes from the JSON above, named after it; an older copy is
-# superseded by the JSON just written, so it is removed and named. Any other
+# never starts. The one drop-in this installer recognises is the copy the
+# agent's fetch-config writes from the JSON above, named after it, which a host
+# may still hold from a fetch-config that once succeeded; it is superseded by
+# the JSON just written, so it is removed, and the run says so. Any other
 # drop-in was put there by something else, so it is not deleted: the run stops
 # before the restart and names it, leaving the running agent as it was.
 DROPIN_DIR="${AGENT_DIR}/etc/amazon-cloudwatch-agent.d"
@@ -313,7 +314,7 @@ for dropin in "${DROPIN_DIR}"/*; do
   [[ -e "$dropin" ]] || continue
   if [[ "$dropin" == "$OWN_DROPIN" ]]; then
     rm -f "$dropin"
-    crr_warn "removed this installer's earlier fetch-config copy ${dropin}; the JSON just written supersedes it."
+    echo "  Removed the superseded fetch-config copy ${dropin}; the JSON just written replaces it."
   else
     foreign_dropins+=("$dropin")
     crr_error "${dropin} was not written by this installer, and the agent merges every drop-in with this config."
@@ -326,22 +327,15 @@ if (( ${#foreign_dropins[@]} )); then
 fi
 
 echo
-echo "=== Step 4: fetch-config and start agent (onPremise mode) ==="
-# fetch-config is the documented way to load a config, and on this stack it
-# exits nonzero even when the config is good: the agent's own control script
-# fails its validation step and reports a credentials or region complaint. Its
-# exit is therefore not the verdict, but what it printed goes into the closing
-# report, and the outcome check below is what decides the run.
-fetch_rc=0
-fetch_out="$("${AGENT_DIR}/bin/amazon-cloudwatch-agent-ctl" \
-  -a fetch-config \
-  -m onPremise \
-  -c "file:${AGENT_DIR}/etc/amazon-cloudwatch-agent.json" \
-  -s 2>&1)" || fetch_rc=$?
-printf '%s\n' "$fetch_out" | sed 's/^/  /'
-if (( fetch_rc != 0 )); then
-  crr_warn "fetch-config exited ${fetch_rc} (not the verdict; the outcome check decides): $(printf '%s\n' "$fetch_out" | grep -E 'E!|ERROR' | tail -1)"
-fi
+echo "=== Step 4: start the agent on the config just written ==="
+# The service's start wrapper translates etc/amazon-cloudwatch-agent.json, the
+# file written above, on every start, taking the region from the JSON and the
+# credentials from the common-config profile, so a restart is what applies the
+# config. The agent's fetch-config is not used: in onPremise mode its config
+# downloader reads the region only from AWS_REGION or the credentials profile,
+# never from the JSON, so it would refuse this host before translating anything,
+# and a fetch-config that did succeed would delete the JSON and leave a drop-in
+# copy for the next start to merge. The outcome check below decides the run.
 
 # The outcome check reads only what this start produces: the log from here on,
 # and a translated config newer than this marker.

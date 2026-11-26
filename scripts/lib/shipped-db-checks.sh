@@ -91,7 +91,7 @@ shipped_db_checks() {
     return 1
   fi
   local scripts="${root}/scripts" mds="${root}/legacy_data/member_data_scripts"
-  echo "==> Data-quality checks on the database to ship (${db}):" >&2
+  echo "== Data-quality checks on the database to ship (${db}):" >&2
   _sdc_run "member load present" "$root" "$db" _sdc_member_load "$db"
   _sdc_run "legacy import gates" "$root" "$db" bash "${scripts}/validate-legacy-import-gates.sh"
   _sdc_run "real-data invariants" "$root" "$db" bash "${scripts}/validate-realdata-ri.sh"
@@ -116,6 +116,6 @@ shipped_db_checks() {
     printf '  - %s\n' "${SDC_FAILED[@]}" >&2
     return 1
   fi
-  echo "==> Data-quality checks: every check passed on the database to ship." >&2
+  echo "== Data-quality checks: every check passed on the database to ship." >&2
   return 0
 }

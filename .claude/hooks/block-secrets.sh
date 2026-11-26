@@ -17,7 +17,7 @@ case "${FILE_PATH##*/}" in
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: ("HARD BLOCK: Claude must never edit secret-bearing or private-local files.\nFile: " + $file)
+        permissionDecisionReason: ("HARD BLOCK: Claude must never edit secret-bearing or private-local files. Throwaway key material for a proof is made inside a script under scripts/, in a mktemp directory it removes on its trap, never handed to the human.\nFile: " + $file)
       }
     }'
     exit 0 ;;
@@ -41,7 +41,7 @@ case "$RELATIVE_PATH" in
       hookSpecificOutput: {
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
-        permissionDecisionReason: ("HARD BLOCK: Claude must never edit secret-bearing or private-local files.\nFile: " + $file)
+        permissionDecisionReason: ("HARD BLOCK: Claude must never edit secret-bearing or private-local files. Throwaway key material for a proof is made inside a script under scripts/, in a mktemp directory it removes on its trap, never handed to the human.\nFile: " + $file)
       }
     }'
     ;;

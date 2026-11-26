@@ -6,24 +6,28 @@
 # report. Backstop for root CLAUDE.md rule 6.
 #
 # What counts as handed over: a line inside a fenced block (unless the fence is
-# marked text, output or log, which is quoted output), a line starting "$ ", and
-# an inline code span. A trailing backslash joins a line to the next. Each piece
-# of a compound command (split at &&, ||, ; and |) is judged on its own.
+# marked text, output or log, which is quoted output), a line starting "$ " or
+# "! " (after any list marker), and an inline code span. A leading "!" (Claude
+# Code's shell-mode prefix) is stripped before judging. A trailing backslash joins
+# a line to the next. Each piece of a compound command (split at &&, ||, ; and |)
+# is judged on its own, and a bash -c or sh -c string is judged in turn.
 #
 # What blocks: a sudo; a package install or removal (apt, apt-get, dpkg, snap,
-# npm -g, pip); a Docker prune, removal, stop or Compose up/down; a systemctl
+# npm -g, pip); a Docker prune, removal, stop, run or Compose up/down; a systemctl
 # state change; an AWS mutating verb; a Terraform apply, destroy, import, taint or
-# state change; an ssh carrying a remote command; a recursive rm; and a script
-# invocation whose path does not exist in the repository.
-# What passes: an invocation of a script that exists in the repository, every
-# read-only command, and prose.
+# state change; an ssh carrying a remote command; a recursive rm; and a script run
+# (by bash, sh, source, an interpreter, or by its path) whose file is not in the
+# repository's working tree: missing, outside the checkout (the session
+# scratchpad, /tmp, a companion checkout) or gitignored.
+# What passes: a script in the repository tree, every read-only command, and prose.
+#
+# A hook-forced continuation is judged too, since it is where a closing list is
+# written; Claude Code's consecutive-continuation cap bounds any loop.
 #
 # Fail-open: any parse problem or missing tool lets the turn through untouched,
 # because this is a reply-quality backstop and the rule text is the primary control.
 set -euo pipefail
 input="$(cat)"
-
-[ "$(printf '%s' "$input" | jq -r '.stop_hook_active // false' 2>/dev/null)" = true ] && exit 0
 
 msg="$(printf '%s' "$input" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("last_assistant_message") or "")' 2>/dev/null || true)"
 if [ -z "$msg" ]; then
@@ -90,29 +94,42 @@ for raw in lines:
             continue
         line = buf + line
         buf = ""
-        line = re.sub(r"^\$\s+", "", line)
+        line = re.sub(r"^(?:\$\s+|!\s*)", "", line)
         if line and not line.startswith("#"):
             cands.append((line, False))
         continue
-    if re.match(r"^\s*\$\s+\S", raw):
-        cands.append((re.sub(r"^\s*\$\s+", "", raw).strip(), False))
+    m = re.match(r"^\s*(?:[-*]\s+|\d+\.\s+)?[$!]\s+(\S.*)$", raw)
+    if m:
+        cands.append((m.group(1).strip(), False))
     for span in re.findall(r"`([^`\n]+)`", raw):
-        cands.append((span.strip(), True))
+        cands.append((re.sub(r"^!\s*", "", span.strip()), True))
 
-SCRIPT_RUNNERS = ("bash", "sh")
+SCRIPT_RUNNERS = ("bash", "sh", "zsh", "source", ".", "python", "python3", "node", "tsx")
 
 def script_path(tok):
-    t = tok
-    if t.startswith("./"):
-        t = t[2:]
-    return t
+    return os.path.expanduser(tok)
 
 def script_exists(path):
+    # In the repository tree, after resolving links, and not gitignored: a file in the
+    # session scratchpad, /tmp or a companion checkout is not a committed script.
     p = path if os.path.isabs(path) else os.path.join(root, path)
-    return os.path.isfile(p)
+    if not os.path.isfile(p):
+        return False
+    real = os.path.realpath(p)
+    top = os.path.realpath(root)
+    if os.path.commonpath([real, top]) != top:
+        return False
+    rel = os.path.relpath(real, top)
+    import subprocess
+    try:
+        ignored = subprocess.run(["git", "-C", top, "check-ignore", "-q", "--", rel],
+                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+    except Exception:
+        ignored = False
+    return not ignored
 
 def looks_like_script(tok):
-    return bool(re.match(r"^(\./)?([\w.-]+/)*[\w.-]+\.(sh|py|ts)$", tok))
+    return bool(re.match(r"^(\./|/|~/)?([\w.-]+/)*[\w.-]+\.(sh|bash|py|ts|js|mjs)$", tok))
 
 AWS_VERB = re.compile(r"^(create|delete|put|update|modify|attach|detach|terminate|start|stop|reboot|run|send|set|tag|untag|remove|add|associate|disassociate|enable|disable|invoke|publish|restore|copy|import|register|deregister|revoke|authorize|reset|rotate|cancel)-")
 
@@ -137,15 +154,24 @@ def judge(piece, inline):
     # A bare `sudo` in inline code names the tool in prose; with arguments it is a command.
     if head == "sudo" and (args or not inline):
         return "a sudo"
-    # A script invocation passes when the script exists in the repository.
-    if head in SCRIPT_RUNNERS and args and looks_like_script(args[0]):
-        return None if script_exists(script_path(args[0])) else "a script that does not exist in the repository"
-    # A direct invocation (./x.sh, scripts/x.sh). A bare path in inline code with no
-    # arguments is a reference to the file, not a command, and is left alone.
-    if looks_like_script(toks[0]) and (toks[0].startswith("./") or toks[0].startswith("scripts/")):
+    # A shell given a command string: judge the string.
+    if head in ("bash", "sh", "zsh") and len(args) >= 2 and args[0] == "-c":
+        for sub in re.split(r"\s*(?:&&|\|\||;|\|)\s*", args[1]):
+            why = judge(sub.strip(), False) if sub.strip() else None
+            if why:
+                return why
+        return None
+    # A script invocation passes only when the script is in the repository tree.
+    NOT_IN_TREE = "a script that is not in the repository (scratchpad, /tmp, a companion checkout or missing)"
+    sargs = [x for x in args if not x.startswith("-")]
+    if head in SCRIPT_RUNNERS and sargs and looks_like_script(sargs[0]):
+        return None if script_exists(script_path(sargs[0])) else NOT_IN_TREE
+    # A direct invocation (./x.sh, scripts/x.sh, /tmp/x.sh). A bare path in inline code
+    # with no arguments is a reference to the file, not a command, and is left alone.
+    if looks_like_script(toks[0]) and "/" in toks[0]:
         if inline and not args and not toks[0].startswith("./"):
             return None
-        return None if script_exists(script_path(toks[0])) else "a script that does not exist in the repository"
+        return None if script_exists(script_path(toks[0])) else NOT_IN_TREE
     a = args
     first = a[0] if a else ""
     second = a[1] if len(a) > 1 else ""
@@ -196,7 +222,8 @@ def judge(piece, inline):
             if AWS_VERB.match(pos[1]):
                 return "an AWS change"
         return None
-    if head == "terraform" and first in ("apply", "destroy", "import", "taint", "untaint", "state", "force-unlock"):
+    tfirst = next((x for x in a if not x.startswith("-")), "")
+    if head == "terraform" and tfirst in ("apply", "destroy", "import", "taint", "untaint", "state", "force-unlock"):
         return "a Terraform change"
     if head == "ssh":
         pos = []
@@ -231,6 +258,6 @@ PY
 )"
 
 [ -n "$offending" ] || exit 0
-reason="Your message hands the human a state-changing command to type (${offending}). Rule 8: name the scripts/ script that owns the change, with its flags (search scripts/ first; workstation tools and pins are scripts/setup-dev-workstation.sh and scripts/bump-tool.sh), or write and test one. Quote a command only as output, in a fence marked text."
+reason="Your message hands the human a state-changing command to type (${offending}). Root CLAUDE.md rule 6: name the scripts/ script that owns the change, with its flags (search scripts/ first; workstation tools and pins are scripts/setup-dev-workstation.sh and scripts/bump-tool.sh), or write one under scripts/ with its companion test and runbook entry, and name that. A script in the scratchpad or /tmp is never handed over, with or without the ! prefix, and a hook that blocked you is not a reason to. Quote a command only as output, in a fence marked text."
 printf '{"decision":"block","reason":%s}\n' "$(python3 -c 'import json,sys;print(json.dumps(sys.argv[1]))' "$reason")"
 exit 0

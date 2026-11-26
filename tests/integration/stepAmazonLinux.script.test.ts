@@ -462,8 +462,8 @@ describe('the operator half', () => {
   });
 
   it('reports the status of a host newer than the pin as a clean read, changing nothing', () => {
-    // Defect caught: staging, which may run a release newer than the pin, read
-    // as a failure, or the status mode changing the host.
+    // Defect caught: a host off its pin read as a failed status run, so the
+    // operator cannot see where it stands, or the status mode changing the host.
     const { env, sessions } = standInHost();
     const r = runOperator(['--target', 'staging', '--status'], env);
     expect(r.status, r.out).toBe(0);

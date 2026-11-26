@@ -38,10 +38,10 @@ SYSTEMCTL_WARNINGS='^Warning:'
 
 case "${MODE:-}" in
   stop)
-    echo "==> Stopping footbag.service, so nothing more is written"
+    echo "== Stopping footbag.service, so nothing more is written"
     crr_run --errors "$SYSTEMCTL_ERRORS" --warnings "$SYSTEMCTL_WARNINGS" "stop footbag.service" -- \
       systemctl stop footbag || crr_finish
-    echo "==> Running one backup to completion"
+    echo "== Running one backup to completion"
     if ! crr_run --errors "$SYSTEMCTL_ERRORS" --warnings "$SYSTEMCTL_WARNINGS" "the last backup" -- \
         systemctl start footbag-backup.service; then
       crr_error "the backup run failed (journalctl -u footbag-backup.service says why)."
@@ -50,7 +50,7 @@ case "${MODE:-}" in
     echo "---FOOTBAG-QUIESCED---"
     ;;
   resume)
-    echo "==> Starting footbag.service again"
+    echo "== Starting footbag.service again"
     crr_run --errors "$SYSTEMCTL_ERRORS" --warnings "$SYSTEMCTL_WARNINGS" "start footbag.service" -- \
       systemctl start footbag || crr_finish
     ;;

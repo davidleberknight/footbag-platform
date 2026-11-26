@@ -241,7 +241,7 @@ accept_cleanup() {
 # ends the run on an interrupt rather than carrying on with the secrets blanked.
 cr_cleanup accept_cleanup
 
-step() { printf '\n==> %s\n' "$1"; }
+step() { printf '\n== %s\n' "$1"; }
 
 NAMED_KEY="${HOME}/.ssh/id_ed25519_${ACCOUNT}"
 DELIVERY_NAME="$(delivery_file_name "$ACCOUNT" "$TARGET")"

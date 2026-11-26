@@ -3599,7 +3599,7 @@ describe('deploy-code --first-install: the release installed without starting it
     // so a reboot or the install itself starts the site on an empty database
     // before the restore's erasure replay has run.
     const from = 'if [[ "$FIRST_INSTALL" != "1" ]]; then\n  systemctl is-enabled';
-    const to = 'echo "==> Restarting service (compose up via systemctl, --no-build)..."';
+    const to = 'echo "== Restarting service (compose up via systemctl, --no-build)..."';
     // The slice spans the log-driver setup, which reaches AWS; it is cut out and
     // the enable block and the early exit are run on their own.
     const enable = content.slice(content.indexOf(from), content.indexOf('fi', content.indexOf(from)) + 2);

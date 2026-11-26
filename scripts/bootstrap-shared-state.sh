@@ -260,7 +260,7 @@ if (( RESTORE )); then
     echo "       before any apply of the ${TREE_NAME} tree." >&2
     exit 1
   fi
-  echo "==> Restored. Planning the ${TREE_NAME} tree against it."
+  echo "== Restored. Planning the ${TREE_NAME} tree against it."
   VAR_ARGS=(-var-file="${REPO_ROOT}/${TREE}/terraform.tfvars")
   [[ -e "${TREE}/secrets.auto.tfvars" ]] && VAR_ARGS+=(-var-file="${REPO_ROOT}/${TREE}/secrets.auto.tfvars")
   "$TF_BIN" -chdir="$TREE" init -input=false >/dev/null
@@ -323,9 +323,9 @@ done
 [[ -f "${TREE}/.terraform.lock.hcl" ]] && cp "${TREE}/.terraform.lock.hcl" "${WORK}/"
 
 if (( APPLY_STEP )); then
-  echo "==> terraform init (local state)"
+  echo "== terraform init (local state)"
   "$TF_BIN" -chdir="$WORK" init -input=false
-  echo "==> terraform plan"
+  echo "== terraform plan"
   "$TF_BIN" -chdir="$WORK" plan -input=false -out="$PLAN_FILE" "${VAR_ARGS[@]}"
   if ! confirm_from_tty "Type 'APPLY' to create the shared resources shown above on local state: " "APPLY"; then
     echo "Not confirmed; nothing has been applied." >&2
@@ -339,7 +339,7 @@ if (( APPLY_STEP )); then
   fi
 fi
 
-echo "==> Moving the state into s3://${BUCKET}/${KEY}"
+echo "== Moving the state into s3://${BUCKET}/${KEY}"
 cp "${TREE}/backend.tf" "${WORK}/"
 "$TF_BIN" -chdir="$WORK" init -input=false -migrate-state -force-copy
 

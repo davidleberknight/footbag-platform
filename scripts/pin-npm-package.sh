@@ -23,8 +23,9 @@
 #   - Refuses a version published less than seven days ago, or one whose
 #     publish time the registry does not give, unless --allow-fresh: a faulty
 #     release is usually found and withdrawn within that time.
-#     --allow-fresh is only for a fix to a flaw known to be exploited on a
-#     publicly exposed system.
+#     --allow-fresh takes a younger one: a fix to a flaw known to be exploited
+#     on a publicly exposed system, or whenever the maintainer chooses to take
+#     a release early.
 #   - Refuses a package.json and lockfile that are out of step before it starts:
 #     a lock-only install of the untouched pair must change nothing.
 #   - Finds where the name is declared and changes it there. A direct dependency
@@ -59,7 +60,8 @@
 #   --allow-downgrade     permit a version lower than the one pinned now
 #   --accept-collateral   permit other lockfile entries to move, listed first
 #   --allow-fresh         permit a version under seven days old (an exploited
-#                         flaw on a publicly exposed system only)
+#                         flaw on a publicly exposed system, or the maintainer's
+#                         choice)
 #
 # Test seam (announced on stderr): FOOTBAG_NPM_BIN replaces npm.
 set -euo pipefail
@@ -133,7 +135,7 @@ if (( REMOVE_OVERRIDE == 0 )); then
   age_days=$(( ( $(date -u +%s) - published_at ) / 86400 ))
   if (( age_days < SOAK_DAYS )); then
     (( ALLOW_FRESH == 1 )) \
-      || die "${NAME}@${VERSION} was published ${age_days} days ago; a version is taken only once it has been out ${SOAK_DAYS} days. Pass --allow-fresh only for a fix to a flaw known to be exploited on a publicly exposed system."
+      || die "${NAME}@${VERSION} was published ${age_days} days ago; a version is taken only once it has been out ${SOAK_DAYS} days. Pass --allow-fresh to take it early: a fix to a flaw known to be exploited on a publicly exposed system, or the maintainer's choice."
     echo "NOTE: ${NAME}@${VERSION} is ${age_days} days old, taken early with --allow-fresh." >&2
   fi
 fi

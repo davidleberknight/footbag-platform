@@ -76,7 +76,7 @@ infra_sync_require() {
     return 0
   fi
 
-  echo "==> Checking that ${env}'s infrastructure matches this tree's Terraform (plan must be empty)" >&2
+  echo "== Checking that ${env}'s infrastructure matches this tree's Terraform (plan must be empty)" >&2
   if ! bash "$apply_cmd" --target "$env" --require-empty-plan < /dev/null; then
     echo "" >&2
     echo "ERROR: ${env}'s infrastructure does not match this tree's Terraform, or the" >&2

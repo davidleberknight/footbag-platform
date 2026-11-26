@@ -175,7 +175,7 @@ fetch_feed() {
 }
 
 # ── The ranking feeds ────────────────────────────────────────────────────────
-echo "==> Reading the CISA Known Exploited Vulnerabilities catalog" >&2
+echo "== Reading the CISA Known Exploited Vulnerabilities catalog" >&2
 KEV_OK=0
 echo '{}' > "${WORK}/kev.json"
 if fetch_feed "the CISA KEV catalog" "${WORK}/kev.raw" "whether any finding is known to be exploited" \
@@ -251,7 +251,7 @@ trivy_findings() {
 if [[ -n "$TRIVY" ]]; then
   # The dependency locks, copied alone so the scan reads them and nothing else in
   # the tree (the legacy data trees are large and are not dependencies).
-  echo "==> Scanning the dependency locks (Trivy)" >&2
+  echo "== Scanning the dependency locks (Trivy)" >&2
   LOCKS="${WORK}/locks"
   mkdir -p "${LOCKS}/scripts" "${LOCKS}/legacy_data"
   lock_list=(package-lock.json scripts/requirements*.txt legacy_data/requirements.txt)
@@ -278,11 +278,11 @@ if [[ -n "$TRIVY" ]]; then
     fi
   fi
 
-  echo "==> Building the images to scan them" >&2
+  echo "== Building the images to scan them" >&2
   TRIVY_MOUNTS=(-v /var/run/docker.sock:/var/run/docker.sock)
   if cr_run "image build" -- compose_build_images "$DOCKER" web worker image >&2; then
     for img in docker-web docker-worker docker-image; do
-      echo "==> Scanning ${img} (Trivy)" >&2
+      echo "== Scanning ${img} (Trivy)" >&2
       if trivy_run "${img}" "${WORK}/${img}.json" image "$img"; then
         trivy_findings "${WORK}/${img}.json" "image ${img}" origin-only >> "$FINDINGS"
         CHECKED+=("${img}")
@@ -297,7 +297,7 @@ if [[ -n "$TRIVY" ]]; then
     cr_error "docker/docker-compose.yml names no nginx image, so the public container was not scanned"
     cr_unproved "the nginx container: no pinned image found"
   else
-    echo "==> Scanning ${nginx_ref} (Trivy)" >&2
+    echo "== Scanning ${nginx_ref} (Trivy)" >&2
     if trivy_run "nginx" "${WORK}/nginx.json" image "$nginx_ref"; then
       trivy_findings "${WORK}/nginx.json" "image nginx" public >> "$FINDINGS"
       CHECKED+=("the nginx image")
@@ -309,7 +309,7 @@ if [[ -n "$TRIVY" ]]; then
   # release the hosts are pinned to.
   if tool_pins_ok AMAZONLINUX_IMAGE; then
     tool_pin AMAZONLINUX_IMAGE
-    echo "==> Scanning the hosts' pinned release image (Trivy)" >&2
+    echo "== Scanning the hosts' pinned release image (Trivy)" >&2
     if trivy_run "Amazon Linux release image" "${WORK}/amazonlinux.json" image "$TOOL_PIN_VALUE"; then
       trivy_findings "${WORK}/amazonlinux.json" "image amazonlinux (hosts' release)" origin-only >> "$FINDINGS"
       CHECKED+=("the hosts' pinned release image")
@@ -321,7 +321,7 @@ if [[ -n "$TRIVY" ]]; then
 
   # The standalone downloads, each verified against its digest, then unpacked
   # into a directory named for its pin, which is how a finding finds its pin.
-  echo "==> Fetching the pinned standalone downloads" >&2
+  echo "== Fetching the pinned standalone downloads" >&2
   ROOTFS="${WORK}/rootfs"
   mkdir -p "$ROOTFS"
   rootfs_pins=()
@@ -369,7 +369,7 @@ if [[ -n "$TRIVY" ]]; then
     ROOTFS_EXPOSURE="$(jq -n '[$ARGS.positional | _nwise(2) | {key: .[0], value: .[1]}] | from_entries' --args "${exp_args[@]}")"
   fi
   if (( ${#rootfs_pins[@]} )); then
-    echo "==> Scanning the standalone downloads (Trivy)" >&2
+    echo "== Scanning the standalone downloads (Trivy)" >&2
     TRIVY_MOUNTS=(-v "${ROOTFS}:/rootfs:ro")
     if trivy_run "standalone downloads" "${WORK}/rootfs.json" rootfs /rootfs; then
       trivy_findings "${WORK}/rootfs.json" "download" rootfs >> "$FINDINGS"
@@ -379,7 +379,7 @@ if [[ -n "$TRIVY" ]]; then
 fi
 
 # ── OSV, for each standalone tool's own package ──────────────────────────────
-echo "==> Asking OSV about each standalone tool" >&2
+echo "== Asking OSV about each standalone tool" >&2
 osv_keys=() osv_names=() osv_ecos=() osv_versions=()
 while read -r key exposure checks; do
   for c in $checks; do
@@ -476,7 +476,7 @@ NODE_SEMVER='
   def sat($v): any(alts[]; all(.[]; sat1($v)));
   def lows: alts | map(.[0] // "0" | sub("^[<>=~^]+"; "") | check | pv | pad);
 '
-echo "==> Reading the Node.js core security list" >&2
+echo "== Reading the Node.js core security list" >&2
 node_pin="$(tr -d '[:space:]v' < .nvmrc 2>/dev/null || true)"
 if [[ ! "$node_pin" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   cr_error ".nvmrc holds no exact Node version ('${node_pin}'), so Node core was not checked"
@@ -517,7 +517,7 @@ else
   require_operator_stdin "scripts/check-vulnerabilities.sh --target ${TARGET}" "$ALIAS" "$TARGET" \
     || cr_die "no operator credential on standard input"
   require_host_is "$ALIAS" "$TARGET" || cr_die "${ALIAS} is not the ${TARGET} host"
-  echo "==> Reading ${ALIAS}'s package advisories (dnf updateinfo, latest release)" >&2
+  echo "== Reading ${ALIAS}'s package advisories (dnf updateinfo, latest release)" >&2
   HOST_LOG="${WORK}/host.log"
   _host_send() {
     {
@@ -566,7 +566,7 @@ EPSS_OK=1
 : > "${WORK}/epss.jsonl"
 mapfile -t cves < <(jq -r '.cves[]' "$FINDINGS" | sort -u)
 if (( ${#cves[@]} )); then
-  echo "==> Reading EPSS scores for ${#cves[@]} CVE(s)" >&2
+  echo "== Reading EPSS scores for ${#cves[@]} CVE(s)" >&2
   # FIRST serves at most 100 CVEs per call.
   for (( i = 0; i < ${#cves[@]}; i += 100 )); do
     batch="$(IFS=,; echo "${cves[*]:i:100}")"

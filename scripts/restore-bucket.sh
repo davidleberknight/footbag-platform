@@ -324,7 +324,7 @@ bucket_region() {
 
 bucket_region "$MAIN"
 MAIN_REGION="$REGION"
-echo "==> main bucket s3://${MAIN} (${MAIN_REGION})"
+echo "== main bucket s3://${MAIN} (${MAIN_REGION})"
 
 confirm_or_stop() {
   local what="$1"
@@ -359,7 +359,7 @@ if (( DRILL )); then
   done
   bucket_region "$DR"
   DR_REGION="$REGION"
-  echo "==> backup copy s3://${DR} (${DR_REGION})"
+  echo "== backup copy s3://${DR} (${DR_REGION})"
   DRILL_PREFIX="drill/restore-drill-$(date -u +%Y%m%dT%H%M%SZ)-${RANDOM}${RANDOM}/"
   DRILL_KEY="${DRILL_PREFIX}probe.txt"
   TOKEN="$(od -An -tx1 -N16 /dev/urandom | tr -d ' \n')"
@@ -447,11 +447,11 @@ if (( DRILL )); then
   CHILD=(--target "$TARGET" --bucket "$BUCKET" --prefix "$DRILL_PREFIX")
   [[ "$TARGET" == "staging" ]] && CHILD+=(--yes)
 
-  echo "==> writing ${DRILL_KEY}"
+  echo "== writing ${DRILL_KEY}"
   "$AWS_BIN" s3api put-object --bucket "$MAIN" --region "$MAIN_REGION" --key "$DRILL_KEY" --body "${WORK}/probe.txt" \
     </dev/null >/dev/null 2>"${WORK}/put.err" || cr_die "the drill could not write ${DRILL_KEY} into s3://${MAIN}: $(tail -n 1 "${WORK}/put.err")"
 
-  echo "==> waiting for its copy in s3://${DR}"
+  echo "== waiting for its copy in s3://${DR}"
   replicated=0
   for (( i = 1; i <= POLL_TRIES; i++ )); do
     if "$AWS_BIN" s3api head-object --bucket "$DR" --region "$DR_REGION" --key "$DRILL_KEY" </dev/null >/dev/null 2>&1; then
@@ -463,13 +463,13 @@ if (( DRILL )); then
   (( replicated )) || cr_die "${DRILL_KEY} did not reach s3://${DR} within $(( POLL_TRIES * POLL_SECS )) seconds, so replication is not carrying new objects; the backup copy cannot be drilled"
   cr_proved "${DRILL_KEY} replicated to s3://${DR}"
 
-  echo "==> from the backup copy: ${DRILL_KEY} removed outright from s3://${MAIN}"
+  echo "== from the backup copy: ${DRILL_KEY} removed outright from s3://${MAIN}"
   [[ "$(purge "$MAIN" "$MAIN_REGION")" == "0" ]] || cr_die "${DRILL_KEY} could not be removed from s3://${MAIN}: $(tail -n 1 "${WORK}/purge.err")"
   absent "its removal"
   bash "$DRILL_CHILD" "${CHILD[@]}" || cr_die "the restore from the backup copy did not complete; its report above says why"
   read_back "the restore from the backup copy"
 
-  echo "==> from earlier versions: ${DRILL_KEY} deleted in s3://${MAIN}"
+  echo "== from earlier versions: ${DRILL_KEY} deleted in s3://${MAIN}"
   # The point to restore to is read from S3's own clock: the copied-back
   # version's time plus a second, with the delete made seconds after it. The
   # workstation's clock can differ from S3's by more than the pause.
@@ -485,7 +485,7 @@ if (( DRILL )); then
   bash "$DRILL_CHILD" "${CHILD[@]}" --from-versions --as-of "$as_of" \
     || cr_die "the restore from earlier versions did not complete; its report above says why"
   read_back "the restore from earlier versions"
-  echo "==> waiting for s3://${DR} to catch up before removing the drill's folder"
+  echo "== waiting for s3://${DR} to catch up before removing the drill's folder"
   settle
   cr_finish
 fi
@@ -494,7 +494,7 @@ fi
 # From earlier versions.
 # --------------------------------------------------------------------------
 if (( FROM_VERSIONS )); then
-  echo "==> changes in s3://${MAIN} after ${AS_OF_UTC} UTC"
+  echo "== changes in s3://${MAIN} after ${AS_OF_UTC} UTC"
   VPREFIX=()
   [[ -n "$PREFIX" ]] && VPREFIX=(--prefix "$PREFIX")
   if ! "$AWS_BIN" s3api list-object-versions --bucket "$MAIN" --region "$MAIN_REGION" "${VPREFIX[@]}" --output json \
@@ -676,7 +676,7 @@ fi
 # --------------------------------------------------------------------------
 bucket_region "$DR"
 DR_REGION="$REGION"
-echo "==> backup copy s3://${DR} (${DR_REGION})"
+echo "== backup copy s3://${DR} (${DR_REGION})"
 
 first_key=""
 LPREFIX=()

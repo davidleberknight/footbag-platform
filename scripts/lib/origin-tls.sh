@@ -50,7 +50,7 @@ origin_hop_encrypted() {
   ORIGIN_TLS_REASON=""
 
   if [[ "$ORIGIN_TLS_AWS_BIN" != "aws" ]]; then
-    echo "==> NOTE: the CloudFront read is stubbed for this run (ORIGIN_TLS_AWS_BIN)." >&2
+    echo "== NOTE: the CloudFront read is stubbed for this run (ORIGIN_TLS_AWS_BIN)." >&2
   fi
 
   if ! tf_output_read "$dir" cloudfront_distribution_id || [[ -z "$TF_OUTPUT_VALUE" ]]; then

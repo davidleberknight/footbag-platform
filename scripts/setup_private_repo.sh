@@ -357,7 +357,7 @@ done
 
 # ── Verify the outcome, not the invocation ───────────────────────────────────
 echo ""
-echo "==> Verifying every link resolves"
+echo "== Verifying every link resolves"
 FAILED=0
 verify_one() {
   local path="$1"

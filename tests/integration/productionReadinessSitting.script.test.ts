@@ -217,6 +217,13 @@ function git(...args: string[]): string {
 }
 afterEach(() => removeScratch(dir));
 
+/** Appends a line to a committed file in the stand-in tree, and commits it. */
+function append(rel: string, message: string): void {
+  const path = join(root, rel);
+  writeFileSync(path, `${readFileSync(path, 'utf-8')}# changed\n`);
+  git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qam', message);
+}
+
 function env(extra: Record<string, string> = {}, arn?: string): NodeJS.ProcessEnv {
   return {
     ...process.env,
@@ -323,7 +330,10 @@ describe('a full staging run', () => {
   // twice, or a step skipped silently.
   it('runs every step once, in order, to the end', () => {
     const r = sit(['--target', 'staging'], YES(10));
-    expect(r.status, r.out).toBe(0);
+    // The fresh instance's first snapshot is due a day after the replacement
+    // this run made, so the run defers that one read and ends pending on it.
+    expect(r.status, r.out).toBe(3);
+    expect(r.out).toMatch(/VERDICT: PENDING: deferred s13c +\(exit 3\)/);
     const ids = rows().map((c) => c[3]);
     const dryIds = [...spawnSync('bash', [SCRIPT, '--target', 'staging', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD })
       .stdout.matchAll(/^ {2}(s\d+[a-z]?) /gm)].map((m) => m[1]);
@@ -746,15 +756,26 @@ describe('the cutover log', () => {
     const changed = once();
     expect(changed).toMatchObject({ commit: head, count: 1 });
     expect(changed.tree).not.toBe(clean.tree);
-    // A new file the commit does not hold is code the run may have used too,
-    // and its content counts, not only its name.
-    writeFileSync(join(root, 'scripts', 'new-helper.sh'), 'echo one\n');
+    // A new file the commit does not hold, among what the step runs (its own
+    // halves), is code the run may have used too, and its content counts, not
+    // only its name.
+    const half = join(root, 'scripts', 'internal', 'apply-account-baseline-remote.sh');
+    mkdirSync(dirname(half), { recursive: true });
+    writeFileSync(half, 'echo one\n');
     const added = once();
     expect(added).toMatchObject({ commit: head, count: 2 });
     expect(added.tree).not.toBe(changed.tree);
-    writeFileSync(join(root, 'scripts', 'new-helper.sh'), 'echo two\n');
+    writeFileSync(half, 'echo two\n');
     const changedAgain = once();
     expect(changedAgain.tree).not.toBe(added.tree);
+    // Defect caught: a stray file outside what the step runs (an operator's
+    // scratch folder) counted in the row, so the row lapses whenever that
+    // file changes or goes, though the code the step ran has not moved.
+    writeFileSync(join(root, 'scripts', 'new-helper.sh'), 'echo one\n');
+    const stray = once();
+    expect(stray).toMatchObject({ commit: head, count: 2, tree: changedAgain.tree });
+    writeFileSync(join(root, 'scripts', 'new-helper.sh'), 'echo two\n');
+    expect(once()).toMatchObject({ count: 2, tree: changedAgain.tree });
     // A file the checkout ignores is not code the run used: changing it moves
     // neither the count nor the fingerprint.
     writeFileSync(join(root, '.gitignore'), 'footbag_private_repo/\nlocal-notes.txt\n');
@@ -1565,7 +1586,7 @@ describe('the production steps around email, the zero-logins gate and the archiv
       const [, kind, stdin, proof, cmd, fallback] = f;
       expect(kind, row).toMatch(/^(read|idem|once|ask|digest|blocked|mailwalk)(\+heavy(\+fresh)?)?(\+mail)?$/);
       expect(stdin, row).toMatch(/^(cred|tty|-)$/);
-      expect(proof, row).toMatch(/^(-|log|rerun|save|match|fact=\S+|after=\S+|stdout=.+|(cred|tty):[0-9,]+=.+)$/);
+      expect(proof, row).toMatch(/^(-|log|rerun|save|match|fact=\S+|after=\S+|exit=[0-9,]+|stdout=.+|(cred|tty):[0-9,]+=.+)$/);
       if (!/^(ask|blocked)/.test(kind)) expect(cmd, row).toMatch(runnable);
       if (/^(cred|tty):/.test(proof)) expect(proof.replace(/^\w+:[0-9,]+=/, ''), row).toMatch(runnable);
       if (fallback !== undefined) expect(fallback, row).toMatch(runnable);
@@ -1677,17 +1698,183 @@ describe('the run lock, the mute on any exit, and lapsed rows', () => {
   // Defect caught: a row recorded by code that has since changed, or by no
   // known code at all, read as proof the step is done.
   it('reads a row as lapsed when it names no commit or what it ran has changed, and not otherwise', () => {
-    sit(['--target', 'staging', '--to-step', 's01a']);
-    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +RECORDED ok/);
-    writeFileSync(join(root, 'scripts', 'arming.sh'), readFileSync(join(root, 'scripts', 'arming.sh'), 'utf-8') + '# changed\n');
-    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qam', 'unrelated change');
-    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +RECORDED ok/);
-    const baseline = join(root, 'scripts', 'apply-account-baseline.sh');
-    writeFileSync(baseline, readFileSync(baseline, 'utf-8') + '# changed\n');
-    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-qam', 'the step\'s own script changed');
-    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +LAPSED \(what it runs changed since [0-9a-f]{8}\)/);
+    const p02a = ['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a'];
+    sit(p02a);
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +RECORDED ok/);
+    append('scripts/arming.sh', 'unrelated change');
+    const unrelated = sit([...p02a, '--status']);
+    expect(unrelated.out).toMatch(/p02a +RECORDED ok/);
+    expect(unrelated.status).toBe(0);
+    append('scripts/check-versions.sh', 'the step\'s own script changed');
+    const changed = sit([...p02a, '--status']);
+    expect(changed.out).toMatch(/p02a +LAPSED \(what it runs changed since [0-9a-f]{8}\)/);
+    expect(changed.status).toBe(3);
     writeFileSync(logReal, log().replace(/\| at [0-9a-f]{40}, \d+ uncommitted, tree [0-9a-f]{12}[^|]*\|/, '|  |'));
-    expect(sit(['--target', 'staging', '--to-step', 's01a', '--status']).out).toMatch(/s01a +LAPSED \(the row names no commit\)/);
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +LAPSED \(the row names no commit\)/);
+  });
+
+  // Defect caught: the staging pass, which is never run again, read as pending
+  // for ever once any code it ran changes; or a staging row that names no
+  // known code read as standing.
+  it('keeps a staging row standing when its code has changed since, saying so, but not one naming no commit', () => {
+    const s01a = ['--target', 'staging', '--to-step', 's01a'];
+    sit(s01a);
+    const head = git('rev-parse', 'HEAD');
+    append('scripts/apply-account-baseline.sh', 'the step\'s own script changed');
+    const changed = sit([...s01a, '--status']);
+    expect(changed.out).toMatch(new RegExp(`s01a +RECORDED ok at \\S+; code changed since ${head.slice(0, 8)}`));
+    expect(changed.status, changed.out).toBe(0);
+    writeFileSync(logReal, log().replace(/\| at [0-9a-f]{40}, \d+ uncommitted, tree [0-9a-f]{12}[^|]*\|/, '|  |'));
+    const unknown = sit([...s01a, '--status']);
+    expect(unknown.out).toMatch(/s01a +LAPSED \(the row names no commit\)/);
+    expect(unknown.status).toBe(3);
+  });
+
+  // Defect caught: a staging row written in the whole-tree form beside an
+  // uncommitted change since gone (a stray file a pasted line created) reads
+  // as pending for ever, though the pass is never run again; or the same row
+  // on production stands, where the strict rule must hold.
+  it('keeps a staging row standing when the uncommitted change it ran beside is gone, saying so, and lapses it on production', () => {
+    const asWholeTree = (step: string) => writeFileSync(logReal, log().replace(
+      new RegExp(`(\\| ${step} \\|[^\\n]*\\| at [0-9a-f]{40}, )\\d+ uncommitted, tree [0-9a-f]{12}( \\(what it runs\\))?`),
+      '$11 uncommitted, tree 000000000000'));
+    const s01a = ['--target', 'staging', '--to-step', 's01a'];
+    sit(s01a);
+    asWholeTree('s01a');
+    const staging = sit([...s01a, '--status']);
+    expect(staging.out).toMatch(/s01a +RECORDED ok at \S+; it ran on 1 uncommitted change\(s\) the tree no longer holds/);
+    expect(staging.status, staging.out).toBe(0);
+    const p02a = ['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a'];
+    sit(p02a);
+    asWholeTree('p02a');
+    const production = sit([...p02a, '--status']);
+    expect(production.out).toMatch(/p02a +LAPSED \(it ran on 1 uncommitted change\(s\) the tree no longer holds\)/);
+    expect(production.status).toBe(3);
+  });
+
+  // Defect caught: a row lapsed by a stray file outside what its step runs
+  // (an operator's scratch folder changing), or one still standing once the
+  // uncommitted code it ran inside what the step runs has changed.
+  it('judges a row on the uncommitted changes in what its step runs, not on a stray file elsewhere', () => {
+    const p02a = ['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a'];
+    writeFileSync(join(root, 'stray.txt'), 'one\n');
+    sit(p02a);
+    expect(rows().at(-1)![6]).toMatch(/^at [0-9a-f]{40}, 0 uncommitted, tree [0-9a-f]{12} \(what it runs\)/);
+    writeFileSync(join(root, 'stray.txt'), 'two\n');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +RECORDED ok/);
+    // An untracked half of the step's own script, present when it ran.
+    const half = join(root, 'scripts', 'internal', 'check-versions-remote.sh');
+    mkdirSync(dirname(half), { recursive: true });
+    writeFileSync(half, 'echo one\n');
+    sit(p02a);
+    expect(rows().at(-1)![6]).toMatch(/^at [0-9a-f]{40}, 1 uncommitted, /);
+    writeFileSync(join(root, 'stray.txt'), 'three\n');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +RECORDED ok/);
+    writeFileSync(half, 'echo two\n');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +LAPSED \(it ran on 1 uncommitted change\(s\) the tree no longer holds\)/);
+    // A row written before rows were scoped was fingerprinted over the whole
+    // tree, and is still judged over the whole tree.
+    writeFileSync(half, 'echo one\n');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +RECORDED ok/);
+    writeFileSync(logReal, log().replace(/ \(what it runs\)/g, ''));
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +LAPSED \(it ran on 1 uncommitted change\(s\)/);
+  });
+
+  // Defect caught: a row lapsed by a change to a library its script never
+  // uses, so every lib edit sends the whole pass back to be run again; or a
+  // row standing after a change to a library its script sources, directly or
+  // through another, or to a remote half the deploy ships.
+  it('lapses a row for a change to what its script uses, traced through the libraries, and not for any other', () => {
+    mkdirSync(join(root, 'scripts', 'lib'), { recursive: true });
+    mkdirSync(join(root, 'scripts', 'internal'), { recursive: true });
+    writeFileSync(join(root, 'scripts', 'lib', 'used.sh'), 'source "$(dirname "${BASH_SOURCE[0]}")/nested.sh"\n');
+    writeFileSync(join(root, 'scripts', 'lib', 'nested.sh'), 'nested=1\n');
+    writeFileSync(join(root, 'scripts', 'lib', 'unused.sh'), 'unused=1\n');
+    // Scripts that source only what they name: the stand-in sources its
+    // report library through a variable, which the trace rightly cannot follow.
+    writeFileSync(join(root, 'scripts', 'check-versions.sh'), '#!/usr/bin/env bash\n# shellcheck source=lib/used.sh\nexit 0\n');
+    writeFileSync(join(root, 'deploy_to_aws.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    writeFileSync(join(root, 'scripts', 'deploy-migrate.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    // The deploy hands its host half's tool-version reader to the host.
+    writeFileSync(join(root, 'scripts', 'deploy-code.sh'), 'HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"\n');
+    writeFileSync(join(root, 'scripts', 'internal', 'host-tool-versions-remote.sh'), 'v=1\n');
+    git('add', '-A');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'libraries');
+    const p02a = ['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a'];
+    const p12d = ['--target', 'production', '--from-step', 'p12d', '--to-step', 'p12d'];
+    sit(p02a);
+    sit(p12d);
+    append('scripts/lib/unused.sh', 'a library nothing uses changed');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +RECORDED ok/);
+    expect(sit([...p12d, '--status']).out).toMatch(/p12d +RECORDED ok/);
+    append('scripts/internal/host-tool-versions-remote.sh', 'the shipped half changed');
+    expect(sit([...p12d, '--status']).out).toMatch(/p12d +LAPSED \(what it runs changed since/);
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +RECORDED ok/);
+    append('scripts/lib/nested.sh', 'a library the used one sources changed');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +LAPSED \(what it runs changed since/);
+  });
+
+  // Defect caught: a production row standing after a change to a script its
+  // own script hands the work to (the bootstrap's restore, deploy or agent
+  // install), so the production sitting reads as proved code it never ran;
+  // or a row lapsed by a change to a script nothing it runs names.
+  it('lapses a row for a change to a script its script hands off to, and not for an unrelated one', () => {
+    writeFileSync(join(root, 'scripts', 'check-versions.sh'), '#!/usr/bin/env bash\nbash "$(dirname "$0")/handed-off.sh"\nexit 0\n');
+    writeFileSync(join(root, 'scripts', 'handed-off.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    writeFileSync(join(root, 'scripts', 'unrelated.sh'), '#!/usr/bin/env bash\nexit 0\n');
+    git('add', '-A');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'a hand-off');
+    const p02a = ['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a'];
+    sit(p02a);
+    append('scripts/unrelated.sh', 'a script nothing p02a runs names changed');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +RECORDED ok/);
+    append('scripts/handed-off.sh', 'the script p02a hands off to changed');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +LAPSED \(what it runs changed since/);
+  });
+
+  // Defect caught: a library that sources what no name in it spells, so the
+  // trace cannot follow it, read as using nothing more, and a row standing
+  // over a change to a library it may well load.
+  it('watches every library when a traced file sources what it does not name', () => {
+    mkdirSync(join(root, 'scripts', 'lib'), { recursive: true });
+    writeFileSync(join(root, 'scripts', 'lib', 'used.sh'), 'for f in "$LIBS"; do\n  source "$f"\ndone\n');
+    writeFileSync(join(root, 'scripts', 'lib', 'unnamed.sh'), 'unnamed=1\n');
+    writeFileSync(join(root, 'scripts', 'check-versions.sh'), '#!/usr/bin/env bash\n# shellcheck source=lib/used.sh\nexit 0\n');
+    git('add', '-A');
+    git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'libraries');
+    const p02a = ['--target', 'production', '--from-step', 'p02a', '--to-step', 'p02a'];
+    sit(p02a);
+    append('scripts/lib/unnamed.sh', 'a library no file names changed');
+    expect(sit([...p02a, '--status']).out).toMatch(/p02a +LAPSED \(what it runs changed since/);
+  });
+
+  // Defect caught: a heavy step refused for the host's health, which never
+  // started, hiding the ok row of the run that did it, so the drill reads as
+  // failed and what stands on it is skipped; or a step that only ever met
+  // refusals read as done.
+  it('keeps an earlier ok row in front of a later health refusal, and reads a refusal alone as failed', () => {
+    const s11c = ['--target', 'staging', '--from-step', 's11c', '--to-step', 's11c'];
+    expect(sit(s11c).status).toBe(0);
+    writeRules([{ match: 'scripts/check-env-health.sh --target staging --allow-site-down*', codes: [1] }]);
+    expect(sit(s11c).status).toBe(1);
+    expect(rows().map((c) => [c[3], c[5]])).toEqual([['s11c', 'ok'], ['s11c', 'failed (health)']]);
+    const s = sit([...s11c, '--status']);
+    expect(s.out).toMatch(/s11c +RECORDED ok at /);
+    expect(s.status, s.out).toBe(0);
+    writeFileSync(logReal, LOG_HEAD);
+    expect(sit(s11c).status).toBe(1);
+    const alone = sit([...s11c, '--status']);
+    expect(alone.out).toMatch(/s11c +FAILED \(HEALTH\) at /);
+    expect(alone.status).toBe(3);
+    // A step standing on one whose latest row is such a refusal still runs.
+    const t = '2026-11-24T00:00:00Z';
+    writeFileSync(logReal, `${LOG_HEAD}\n## 9. Production-readiness sitting\n\n| Started (UTC) | Finished (UTC) | Target | Step | Command | Result | Notes |\n|---|---|---|---|---|---|---|\n`
+      + `| ${t} | ${t} | production | p90m | scripts/bootstrap-host.sh --target production --replace-instance | ok |  |\n`
+      + `| ${t} | ${t} | production | p90m | scripts/check-env-health.sh --target production --allow-site-down | failed (health) |  |\n`);
+    writeRules([]);
+    const r = sit(['--target', 'production', '--from-step', 'p90n', '--to-step', 'p90n']);
+    expect(r.status, r.out).toBe(0);
+    expect(rows().at(-1)!.slice(3, 6)).toEqual(['p90n', expect.any(String), 'ok']);
   });
 
   // Defect caught: a switch read that passes whichever way the switch reads.
@@ -1771,5 +1958,77 @@ describe('the run lock, the mute on any exit, and lapsed rows', () => {
       'npm run test:deployed -- --target staging',
       'scripts/verify-captcha-outage-alarm.sh --target staging',
     ]) expect(staging, cmd).toContain(cmd);
+  });
+});
+
+describe('the fresh instance\'s first snapshot, and the alarm subscriptions before the drills', () => {
+  const iso = (ms: number) => new Date(ms).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  /** A log whose section holds one ok row for `id`, finished `minutesAgo` ago; returns that finish. */
+  const finishedAgo = (target: string, id: string, minutesAgo: number): number => {
+    const at = Math.floor((Date.now() - minutesAgo * 60_000) / 1000) * 1000;
+    writeFileSync(logReal, `${LOG_HEAD}\n## 9. Production-readiness sitting\n\n| Started (UTC) | Finished (UTC) | Target | Step | Command | Result | Notes |\n|---|---|---|---|---|---|---|\n`
+      + `| ${iso(at)} | ${iso(at)} | ${target} | ${id} | scripts/bootstrap-host.sh --target ${target} --replace-instance | ok |  |\n`);
+    return at;
+  };
+  const dry = (target: string) => spawnSync('bash', [SCRIPT, '--target', target, '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout;
+  const ids = (out: string) => [...out.matchAll(/^ {2}([ps]\d+[a-z0-9]*) /gm)].map((m) => m[1]);
+
+  // Defect caught: the fresh instance's own snapshot never read, so a host
+  // whose automatic snapshot is off passes the drills.
+  it('reads the fresh instance\'s first snapshot after each environment\'s bucket drills', () => {
+    for (const [target, before, id] of [['staging', 's13b', 's13c'], ['production', 'p90s', 'p90t']] as const) {
+      const out = dry(target);
+      expect(ids(out)[ids(out).indexOf(before) + 1], target).toBe(id);
+      expect(out).toMatch(new RegExp(`^ {2}${id} +read +scripts/verify-host-snapshots\\.sh --target ${target} --require-taken$`, 'm'));
+    }
+  });
+
+  // Defect caught: a step a day off held at the terminal for that day, or run
+  // before its snapshot can exist; or the deferral read as done.
+  it('defers a read due more than an hour off, recording when it is due, and ends pending', () => {
+    const done = finishedAgo('staging', 's11j', 1560 - 70);
+    const r = sit(['--target', 'staging', '--from-step', 's13c', '--to-step', 's13c']);
+    expect(r.status, r.out).toBe(3);
+    expect(r.out).toMatch(/VERDICT: PENDING: deferred s13c/);
+    expect(firstCall(/verify-host-snapshots/)).toBe(-1);
+    const due = new Date(done + 1560 * 60_000).toISOString();
+    expect(rows().at(-1)!.slice(3, 6)).toEqual(['s13c', 'scripts/verify-host-snapshots.sh --target staging --require-taken', `deferred (not due until ${due.slice(11, 19)}Z ${due.slice(0, 10)})`]);
+    const s = sit(['--target', 'staging', '--from-step', 's13c', '--to-step', 's13c', '--status']);
+    expect(s.out).toMatch(/s13c +DEFERRED \(not due until /);
+    expect(s.status).toBe(3);
+  });
+
+  // Defect caught: a read due within the hour deferred, so the operator
+  // leaves and resumes for a wait the terminal could have held.
+  it('waits at the terminal for a read due within the hour', () => {
+    finishedAgo('staging', 's11j', 1560 - 50);
+    const r = sit(['--target', 'staging', '--from-step', 's13c', '--to-step', 's13c'], [], { wrap: 'timeout --preserve-status -s INT 3', env: { SITTING_POLL_SECS: '30' } });
+    expect(r.out).toMatch(/s13c runs no sooner than \d{2}:\d{2}:\d{2}Z \(1560 minutes after s11j\)/);
+    expect(r.status).toBe(130);
+    expect(firstCall(/verify-host-snapshots/)).toBe(-1);
+  });
+
+  it('runs the read once it is due', () => {
+    finishedAgo('production', 'p90m', 1561);
+    const r = sit(['--target', 'production', '--from-step', 'p90t', '--to-step', 'p90t']);
+    expect(r.status, r.out).toBe(0);
+    expect(firstCall(/^scripts\/verify-host-snapshots\.sh --target production --require-taken$/)).toBeGreaterThan(-1);
+  });
+
+  // Defect caught: the production drills run without the subscriptions on
+  // both alarm topics read first; or a click-confirmed subscription, which
+  // receives mail, failing that read.
+  it('reads the production alarm subscriptions before the drills, passing when they are confirmed by a click', () => {
+    const out = dry('production');
+    expect(ids(out)[ids(out).indexOf('p13c') - 1]).toBe('p13b');
+    expect(out).toMatch(/^ {2}p13b +read\+mail +scripts\/reconfirm-alarm-subscriptions\.sh --target production --status$/m);
+    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target production --status', codes: [4] }]);
+    const clicked = sit(['--target', 'production', '--from-step', 'p13b', '--to-step', 'p13b']);
+    expect(clicked.status, clicked.out).toBe(0);
+    expect(rows().at(-1)!.slice(3, 6)).toEqual(['p13b', 'scripts/reconfirm-alarm-subscriptions.sh --target production --status', 'ok']);
+    writeRules([{ match: 'scripts/reconfirm-alarm-subscriptions.sh --target production --status', codes: [4, 1] }]);
+    const failed = sit(['--target', 'production', '--from-step', 'p13b', '--to-step', 'p13b']);
+    expect(failed.status).toBe(1);
+    expect(failed.out).toMatch(/VERDICT: STOPPED AT p13b/);
   });
 });

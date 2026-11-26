@@ -357,16 +357,16 @@ fi
 # ── Seams, said out loud ─────────────────────────────────────────────────────
 
 [[ "$AWS_BIN" != "aws" ]] && \
-  echo "==> NOTE: the AWS binary is stubbed for this run; it proves nothing about the firewall." >&2
+  echo "== NOTE: the AWS binary is stubbed for this run; it proves nothing about the firewall." >&2
 [[ -n "${AUTHORIZE_ADDRESS_APPLY_CMD:-}" ]] && \
-  echo "==> NOTE: the apply is replaced for this run (${APPLY_CMD})." >&2
+  echo "== NOTE: the apply is replaced for this run (${APPLY_CMD})." >&2
 [[ -n "${AUTHORIZE_ADDRESS_TERRAFORM_BIN:-}" ]] && \
-  echo "==> NOTE: the terraform syntax check is replaced for this run (${TERRAFORM_BIN})." >&2
+  echo "== NOTE: the terraform syntax check is replaced for this run (${TERRAFORM_BIN})." >&2
 [[ -n "${TFVARS_OVERRIDE:-}" ]] && \
-  echo "==> NOTE: the values file is replaced for this run (${TFVARS_OVERRIDE})." >&2
+  echo "== NOTE: the values file is replaced for this run (${TFVARS_OVERRIDE})." >&2
 FETCH_CMD="${AUTHORIZE_ADDRESS_FETCH:-}"
 [[ -n "$FETCH_CMD" ]] && \
-  echo "==> NOTE: this machine's address is a stand-in for this run (${FETCH_CMD})." >&2
+  echo "== NOTE: this machine's address is a stand-in for this run (${FETCH_CMD})." >&2
 
 # ── The live firewall ────────────────────────────────────────────────────────
 #
@@ -624,7 +624,7 @@ if (( CHECK )); then
   COVER_22="$(covering "$LIVE_22")" || check_unknown "a live range on port 22 cannot be read"
 
   if [[ -n "$COVER_2222" ]]; then
-    echo "==> this machine's address ${HERE} reaches ${INSTANCE} (${STATE}): port 2222 admits it through ${COVER_2222}." >&2
+    echo "== this machine's address ${HERE} reaches ${INSTANCE} (${STATE}): port 2222 admits it through ${COVER_2222}." >&2
     cr_proved "this machine's address ${HERE} is on the ${TARGET} SSH allow-list (port 2222, through ${COVER_2222})"
     cr_finish
   fi
@@ -798,13 +798,13 @@ if [[ -n "$DEV_TESTER" ]]; then
       [[ -n "$CURRENT_DESC" ]] && restore_desc=(--description "$CURRENT_DESC")
       if out="$("$AWS_BIN" ssm put-parameter --region us-east-1 --name "$PARAM" --type String \
           --value "$CURRENT" --overwrite ${restore_desc[@]+"${restore_desc[@]}"} 2>&1 >/dev/null)"; then
-        echo "==> ${PARAM} restored to ${CURRENT}." >&2
+        echo "== ${PARAM} restored to ${CURRENT}." >&2
       else
         cr_error "could not restore ${PARAM} to ${CURRENT}; set it back before the next staging apply: $(tail -n 1 <<<"$out")"
       fi
     else
       if out="$("$AWS_BIN" ssm delete-parameter --region us-east-1 --name "$PARAM" 2>&1 >/dev/null)"; then
-        echo "==> ${PARAM} removed again." >&2
+        echo "== ${PARAM} removed again." >&2
       else
         cr_error "could not remove ${PARAM}; delete it before the next staging apply: $(tail -n 1 <<<"$out")"
       fi
@@ -844,7 +844,7 @@ if [[ -n "$DEV_TESTER" ]]; then
       [[ " ${ADDRESSES[*]} " == *" ${one} "* ]] || FIREWALL_NAMES+=(--firewall-remove "$one")
     done
   fi
-  echo "==> Applying staging's firewall"
+  echo "== Applying staging's firewall"
   # Run directly, not through cr_run, because the apply may ask on the terminal;
   # its own problems reach this run's report through the library's nested mode.
   if ! bash "$APPLY_CMD" --target "$TARGET" --firewall-only "${FIREWALL_NAMES[@]}"; then
@@ -852,7 +852,7 @@ if [[ -n "$DEV_TESTER" ]]; then
   fi
   RESTORE_PENDING=0
 
-  echo "==> Reading the firewall back"
+  echo "== Reading the firewall back"
   live_or_die "The apply ran, so the firewall may or may not carry the change."
   if (( REMOVE )); then
     echo "    ${PARAM} is gone."
@@ -1312,10 +1312,10 @@ if (( EDIT )); then
     TFVARS_TMP=""
     cr_die "${TFVARS_PATH} does not hold what was written. The intended content is kept at ${KEPT} so nothing is lost; compare the two."
   fi
-  echo "==> ${TFVAR_NAME} written"
+  echo "== ${TFVAR_NAME} written"
 fi
 
-echo "==> Applying ${TARGET}'s firewall"
+echo "== Applying ${TARGET}'s firewall"
 # Held to the firewall and this one address: the values file changes only this
 # entry, so the only SSH change the plan may carry is this address going in or
 # out, and anything else pending in the tree is refused by name rather than
@@ -1333,7 +1333,7 @@ fi
 
 # ── Prove it ─────────────────────────────────────────────────────────────────
 
-echo "==> Reading the firewall back"
+echo "== Reading the firewall back"
 live_or_die "The apply ran, so the firewall may or may not carry the change."
 if (( REMOVE )); then
   if present_anywhere; then

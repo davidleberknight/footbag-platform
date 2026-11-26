@@ -230,7 +230,7 @@ REPORT_BUCKET="$(jq -er '.bucket | strings' <<<"$report_json" 2>/dev/null)" \
 REPORT_PREFIX="$(jq -er '.prefix | strings' <<<"$report_json" 2>/dev/null)" \
   || die "output ${OUT_REPORT} names no prefix: ${report_json}"
 
-echo "==> ${SRC} -> ${DEST} (${TARGET})"
+echo "== ${SRC} -> ${DEST} (${TARGET})"
 
 # ── 2. The live rule, and the role it runs under ───────────────────────────
 
@@ -268,11 +268,11 @@ verify_sample() {
   done
   total="${#keys[@]}"
   if (( total == 0 )); then
-    echo "==> ${SRC} holds no objects, so there was nothing to backfill and nothing to sample."
+    echo "== ${SRC} holds no objects, so there was nothing to backfill and nothing to sample."
     return 0
   fi
   step=$(( total > SAMPLE_SIZE ? total / SAMPLE_SIZE : 1 ))
-  echo "==> sampling ${SRC} (every ${step} of the first ${total} keys)"
+  echo "== sampling ${SRC} (every ${step} of the first ${total} keys)"
   for (( i = 0; i < total && checked < SAMPLE_SIZE; i += step )); do
     key="${keys[i]}"
     checked=$((checked + 1))
@@ -297,7 +297,7 @@ verify_sample() {
 # watch_job <job-id>: poll to a terminal status, then judge it.
 watch_job() {
   local job="$1" row status total ok bad reasons
-  echo "==> watching job ${job} (interrupting stops the watch, never the job; resume with --status ${job})"
+  echo "== watching job ${job} (interrupting stops the watch, never the job; resume with --status ${job})"
   while :; do
     row="$(aws_call s3control describe-job --region "$REGION" --account-id "$ACCOUNT" --job-id "$job" \
       --query 'Job.[Status,ProgressSummary.TotalNumberOfTasks,ProgressSummary.NumberOfTasksSucceeded,ProgressSummary.NumberOfTasksFailed]' \
@@ -356,7 +356,7 @@ unfinished="$(aws_call s3control list-jobs --region "$REGION" --account-id "$ACC
   --output json 2>/dev/null)" || die "could not list this account's batch jobs. Nothing done."
 existing="$(jq -r --arg d "$DESCRIPTION" '[.Jobs[]? | select(.Description == $d) | .JobId] | first // ""' <<<"$unfinished")"
 if [[ -n "$existing" ]]; then
-  echo "==> an earlier run's job ${existing} is still running; watching it instead of starting another"
+  echo "== an earlier run's job ${existing} is still running; watching it instead of starting another"
   if (( DRY_RUN )); then
     echo "Dry run: nothing created."
     exit 0
@@ -423,7 +423,7 @@ JOB_ID="$(aws_call s3control create-job --region "$REGION" --account-id "$ACCOUN
 
 # From here the job is S3's. An interrupt reports it and leaves it running.
 trap 'echo "" >&2; echo "backfill-replication: interrupted; job ${JOB_ID} keeps running. Resume with --status ${JOB_ID}." >&2; exit 130' INT TERM
-echo "==> created job ${JOB_ID}"
+echo "== created job ${JOB_ID}"
 
 # ── 7 and 8. Wait, then prove ──────────────────────────────────────────────
 

@@ -249,10 +249,10 @@ require_host_is "$REMOTE" "$TARGET" || exit 1
 MODE="add"
 [[ "$REMOVE" -eq 1 ]] && MODE="remove"
 
-echo "==> Target host: ${REMOTE}  (${TARGET})"
-echo "==> Account:     ${ACCOUNT}"
-echo "==> Key:         ${KEY_INFO}"
-echo "==> Operator:    ${OPERATOR}"
+echo "== Target host: ${REMOTE}  (${TARGET})"
+echo "== Account:     ${ACCOUNT}"
+echo "== Key:         ${KEY_INFO}"
+echo "== Operator:    ${OPERATOR}"
 echo
 
 if [[ "$MODE" == "add" ]]; then
@@ -280,7 +280,7 @@ if ! confirm_from_tty "Type 'APPLY' to continue: " "APPLY"; then
   exit 1
 fi
 
-echo "==> Applying via cat-pipe (mode: ${MODE})..."
+echo "== Applying via cat-pipe (mode: ${MODE})..."
 {
   printf '%s\n' "$SUDO_PASS"
   printf 'AUTHKEY_MODE=%q\n' "$MODE"

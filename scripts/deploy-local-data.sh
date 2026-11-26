@@ -191,7 +191,7 @@ if [[ "$CUTOVER_CLUBS" == "yes" || "$MODE" == "--all-data" ]]; then
   # Assigning unconditionally also means an exported CLUBS_SEED cannot reach the
   # loader through this path: the value a caller set is overwritten, never read.
   export CLUBS_SEED=no
-  echo "==> cutover clubs: CLUBS_SEED=no (dev clubs seed skipped; cutover pre-populated clubs only)"
+  echo "== cutover clubs: CLUBS_SEED=no (dev clubs seed skipped; cutover pre-populated clubs only)"
 fi
 
 run_or_print() {
@@ -229,7 +229,7 @@ ROSTER_INPUT="legacy_data/membership/inputs/membership_input_normalized.csv"
 PUBLISHED_MEMBERS_INPUT="footbag_private_repo/legacy-publish/legacy_members.csv"
 
 run_soup_to_nuts() {
-  echo "==> deploy-local-data: --soup-to-nuts"
+  echo "== deploy-local-data: --soup-to-nuts"
   require_private_inputs "$ROSTER_INPUT"
   local mirror_dir="${REPO_ROOT}/footbag_legacy_mirror"
   if [[ ! -d "$mirror_dir" ]]; then
@@ -259,7 +259,7 @@ run_soup_to_nuts() {
 }
 
 run_from_csv() {
-  echo "==> deploy-local-data: --from-csv"
+  echo "== deploy-local-data: --from-csv"
   require_private_inputs "$ROSTER_INPUT"
   local missing=()
   local ci="${REPO_ROOT}/legacy_data/event_results/canonical_input"
@@ -296,7 +296,7 @@ run_from_csv() {
 }
 
 run_db_only() {
-  echo "==> deploy-local-data: --db-only"
+  echo "== deploy-local-data: --db-only"
   # The skip is what --db-only asks for, so it is listed among what the run did
   # not build rather than as a warning, which would make every such build read
   # as having met a problem.
@@ -310,7 +310,7 @@ run_db_only() {
 }
 
 run_all_data() {
-  echo "==> deploy-local-data: --all-data"
+  echo "== deploy-local-data: --all-data"
   require_private_inputs "$ROSTER_INPUT" "$PUBLISHED_MEMBERS_INPUT"
   local py="${REPO_ROOT}/legacy_data/footbag_venv/bin/python"
   [[ -x "$py" ]] || py="python3"
@@ -326,7 +326,7 @@ run_all_data() {
   # Figures not re-audited for this export only warn, except on the final
   # cutover load, which ships the export production keeps.
   [[ "$FINAL_LOAD" == "yes" ]] && chain_args+=(--final-load)
-  echo "==> legacy chain: one delivery throughout"
+  echo "== legacy chain: one delivery throughout"
   # Its output is read, so a warning a local rebuild only prints is listed in
   # the closing report rather than left above the rest of the build.
   if ! cr_run "legacy chain" -- "$py" "${REPO_ROOT}/legacy_data/scripts/check_legacy_chain.py" \
@@ -349,7 +349,7 @@ run_all_data() {
   # a local database.
   local runner="${REPO_ROOT}/legacy_data/member_data_scripts/run_legacy_members.sh"
   if [[ "$APPLY_MEMBERS" == "yes" ]]; then
-    echo "==> member intake: reconcile + apply (writes member data to the local DB)"
+    echo "== member intake: reconcile + apply (writes member data to the local DB)"
     if [[ "$FINAL_LOAD" == "yes" ]]; then
       cr_run "member intake" -- run_or_print bash "$runner" --load --apply --final-load
     else
@@ -362,7 +362,7 @@ run_all_data() {
     echo "      written, with a rollback snapshot under"
     echo "      legacy_data/member_data_scripts/out/."
   else
-    echo "==> member intake: validate + preview (no write)"
+    echo "== member intake: validate + preview (no write)"
     cr_run "member intake preview" -- run_or_print bash "$runner" --load --dry-run
 
     echo ""
@@ -379,7 +379,7 @@ run_all_data() {
   # feed the human data-review pass. The reports directory is gitignored: the
   # worklists carry real names and must never be committed.
   local mds="${REPO_ROOT}/legacy_data/member_data_scripts"
-  echo "==> data-review reports (read-only)"
+  echo "== data-review reports (read-only)"
   cr_run "member profile crosscheck" -- run_or_print "$py" "${mds}/crosscheck_member_profile_ids.py"
   cr_run "member honors report" -- run_or_print "$py" "${mds}/report_legacy_member_honors.py"
   echo "    Reports written:"

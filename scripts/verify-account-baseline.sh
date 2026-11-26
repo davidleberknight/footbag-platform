@@ -187,9 +187,10 @@ GATED=0
 
 pass() { (( QUIET )) || printf '  PASS  %s\n' "$1"; }
 fail() { cr_error "$1"; FINDINGS=$(( FINDINGS + 1 )); }
-# Listed as a warning beside the findings, because an operator reading for
-# problems should see it, and counted separately, because it is not one.
-gated() { cr_warn "GATED $1"; GATED=$(( GATED + 1 )); }
+# Listed as not proven in the closing report, so it is named and never reads as
+# a pass, and never as a warning: a control off by design is nothing for the
+# operator to act on, and a clean run reads no warnings.
+gated() { cr_unproved "GATED $1"; GATED=$(( GATED + 1 )); }
 note() { (( QUIET )) || printf '        %s\n' "$1"; }
 
 # AWS's own message from the last read is kept, so a read that failed is

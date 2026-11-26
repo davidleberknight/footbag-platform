@@ -816,7 +816,7 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
     expect(r.status, r.out).toBe(0);
     // The terminal echoes the answers typed ahead before the script turns echo
     // off, so what is judged is the script's own output, from its first step.
-    const own = r.out.slice(r.out.indexOf('==> Fetching your delivery'));
+    const own = r.out.slice(r.out.indexOf('== Fetching your delivery'));
     expect(own.length).toBeGreaterThan(0);
     expect(own).not.toContain(ONE_TIME);
     expect(own).not.toContain(SECRET);

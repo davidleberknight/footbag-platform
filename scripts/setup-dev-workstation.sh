@@ -378,7 +378,7 @@ if [[ -n "$ACCOUNT" ]]; then
           *InvalidClientTokenId*|*"security token included in the request is invalid"*)
             KEY_ACTION="replace"
             REPLACE_KEY="$current_sha"
-            echo "==> AWS refuses the ${DEAD_PROFILE} key as invalid: that identity is retired."
+            echo "== AWS refuses the ${DEAD_PROFILE} key as invalid: that identity is retired."
             ;;
           *"arn:aws:"*)
             cr_error "the ${DEAD_PROFILE} identity still works, so the pair at ${NAMED_KEY_TILDE}"
@@ -560,7 +560,7 @@ mkdir -p "$BIN_DIR"
 # ── 0. The system python3 ────────────────────────────────────────────────────
 if ! system_python_ok; then
   distro_py="$(dirname "$SYSTEM_PYTHON3")/$(distro_python)"
-  echo "==> system python3 -> ${distro_py}"
+  echo "== system python3 -> ${distro_py}"
   if [[ ! -x "$distro_py" ]]; then
     cr_error "apt's module is built for ${distro_py}, which is not installed. Reinstall Ubuntu's python3 package, then re-run. Nothing changed."
     exit 1
@@ -584,13 +584,13 @@ fi
 # verdict. What the two leave behind is.
 if dpkg_interrupted || [[ -n "$(dpkg_unfinished)" ]]; then
   if dpkg_interrupted; then
-    echo "==> dpkg --configure -a (finishing an interrupted run)"
+    echo "== dpkg --configure -a (finishing an interrupted run)"
     if ! $DPKG --configure -a; then
       echo "    dpkg left packages unconfigured (above); apt's repair is next."
     fi
   fi
   if [[ -n "$(dpkg_unfinished)" ]]; then
-    echo "==> apt's repair for $(dpkg_unfinished)"
+    echo "== apt's repair for $(dpkg_unfinished)"
     if ! $APT install -f -y; then
       echo "    apt's repair reported errors (above); what it left is checked next."
     fi
@@ -607,7 +607,7 @@ fi
 
 # ── 1. apt baseline ──────────────────────────────────────────────────────────
 if (( ${#MISSING_APT[@]} )); then
-  echo "==> apt: ${MISSING_APT[*]}"
+  echo "== apt: ${MISSING_APT[*]}"
   # An update can report an error while still refreshing the lists: an extra
   # repository with a stale signing key, or a post-update hook that crashes.
   # It is not the verdict; the install below and the final check are.
@@ -621,7 +621,7 @@ fi
 # Before the sqlite3 and ffmpeg builds, which run in containers. A hold set at
 # an earlier pin is lifted by the install and set again at this one.
 if [[ "$DOCKER_ACTION" == "install" ]]; then
-  echo "==> Docker engine ${DOCKER_ENGINE_WANT} (${DOCKER_PACKAGE_WANT})"
+  echo "== Docker engine ${DOCKER_ENGINE_WANT} (${DOCKER_PACKAGE_WANT})"
   $APT install -y --allow-downgrades --allow-change-held-packages \
     "docker-ce=${DOCKER_PACKAGE_WANT}" "docker-ce-cli=${DOCKER_PACKAGE_WANT}"
   $APT_MARK hold docker-ce docker-ce-cli
@@ -629,7 +629,7 @@ fi
 
 # ── 2. Python ────────────────────────────────────────────────────────────────
 if ! python_ok; then
-  echo "==> CPython ${PYTHON_VERSION}"
+  echo "== CPython ${PYTHON_VERSION}"
   fetch_verified "$PYTHON_URL" "$PYTHON_SHA256" "$WORK/python.tar.gz"
   rm -rf "${PYTHON_ROOT}/${PYTHON_VERSION}"
   mkdir -p "${PYTHON_ROOT}/${PYTHON_VERSION}"
@@ -639,7 +639,7 @@ fi
 
 # ── 3. Node ──────────────────────────────────────────────────────────────────
 if ! node_ok; then
-  echo "==> Node ${want_node}"
+  echo "== Node ${want_node}"
   if [[ ! -s "${NVM_DIR}/nvm.sh" ]]; then
     fetch_verified "$NVM_URL" "$NVM_SHA256" "$WORK/nvm-install.sh"
     NVM_DIR="$NVM_DIR" bash "$WORK/nvm-install.sh"
@@ -650,7 +650,7 @@ fi
 
 # ── 4. gitleaks ──────────────────────────────────────────────────────────────
 if ! tool_ok gitleaks; then
-  echo "==> gitleaks ${GITLEAKS_VERSION}"
+  echo "== gitleaks ${GITLEAKS_VERSION}"
   fetch_verified "$GITLEAKS_URL" "$GITLEAKS_SHA256" "$WORK/gitleaks.tar.gz"
   tar -xzf "$WORK/gitleaks.tar.gz" -C "$WORK" gitleaks
   install -m 0755 "$WORK/gitleaks" "${BIN_DIR}/gitleaks"
@@ -658,7 +658,7 @@ fi
 
 # ── 5. Terraform ─────────────────────────────────────────────────────────────
 if ! tool_ok terraform; then
-  echo "==> Terraform ${TERRAFORM_VERSION}"
+  echo "== Terraform ${TERRAFORM_VERSION}"
   fetch_verified "$TERRAFORM_URL" "$TERRAFORM_SHA256" "$WORK/terraform.zip"
   unzip -o -q "$WORK/terraform.zip" terraform -d "$WORK"
   install -m 0755 "$WORK/terraform" "${BIN_DIR}/terraform"
@@ -666,40 +666,40 @@ fi
 
 # ── 5a. jq, age and sqlite3, each at its pinned version ──────────────────────
 if ! tool_ok jq; then
-  echo "==> jq ${JQ_VERSION}"
+  echo "== jq ${JQ_VERSION}"
   fetch_verified "$JQ_URL" "$JQ_SHA256" "$WORK/jq"
   install -m 0755 "$WORK/jq" "${BIN_DIR}/jq"
 fi
 if ! tool_ok age; then
-  echo "==> age ${AGE_VERSION}"
+  echo "== age ${AGE_VERSION}"
   fetch_verified "$AGE_URL" "$AGE_SHA256" "$WORK/age.tar.gz"
   tar -xzf "$WORK/age.tar.gz" -C "$WORK" age/age age/age-keygen
   install -m 0755 "$WORK/age/age" "${BIN_DIR}/age"
   install -m 0755 "$WORK/age/age-keygen" "${BIN_DIR}/age-keygen"
 fi
 if ! tool_ok sqlite3; then
-  echo "==> sqlite3 ${SQLITE_VERSION}"
+  echo "== sqlite3 ${SQLITE_VERSION}"
   bash "${REPO_ROOT}/scripts/build-sqlite3.sh" --install-dir "$BIN_DIR"
 fi
 if ! { tool_ok ffmpeg && tool_ok ffprobe; }; then
-  echo "==> ffmpeg ${FFMPEG_VERSION}"
+  echo "== ffmpeg ${FFMPEG_VERSION}"
   bash "${REPO_ROOT}/scripts/ffmpeg-pinned.sh" --install "$BIN_DIR"
 fi
 
 # ── 6. npm dependencies ──────────────────────────────────────────────────────
 if ! npm_deps_current "$REPO_ROOT"; then
-  echo "==> npm ci"
+  echo "== npm ci"
   npm ci
 fi
 
 # ── 7. Playwright Chromium ───────────────────────────────────────────────────
 if ! chromium_ok; then
-  echo "==> Playwright Chromium"
+  echo "== Playwright Chromium"
   npx playwright install --with-deps chromium
 fi
 
 # ── 8. Python environments, each through its own builder ─────────────────────
-echo "==> Python environments"
+echo "== Python environments"
 bash legacy_data/run_pipeline.sh venv
 seeder_env_ensure "$REPO_ROOT"
 
@@ -708,7 +708,7 @@ bash scripts/install-git-hooks.sh
 
 # ── 10. AWS CLI, with --aws only ─────────────────────────────────────────────
 if (( WITH_AWS )) && ! aws_ok; then
-  echo "==> AWS CLI ${AWS_CLI_VERSION}"
+  echo "== AWS CLI ${AWS_CLI_VERSION}"
   fetch_verified "$AWS_CLI_URL" "$AWS_CLI_SHA256" "$WORK/awscli.zip"
   unzip -o -q "$WORK/awscli.zip" -d "$WORK"
   "$WORK/aws/install" --install-dir "${HOME}/.local/aws-cli" --bin-dir "$BIN_DIR" --update
@@ -727,10 +727,10 @@ if [[ "$KEY_ACTION" == "replace" ]]; then
     cr_error "could not move ${NAMED_KEY_TILDE} aside. Nothing was created."
     exit 1
   fi
-  echo "==> ${REPLACE_KEY} set aside as ${retired}"
+  echo "== ${REPLACE_KEY} set aside as ${retired}"
 fi
 if [[ -n "$KEY_ACTION" ]]; then
-  echo "==> ssh key ${NAMED_KEY_TILDE}"
+  echo "== ssh key ${NAMED_KEY_TILDE}"
   mkdir -p -m 700 "${HOME}/.ssh"
   # No passphrase: the pair opens only a staging-only identity that offboarding
   # retires, and a prompt on every connection of a deploy buys nothing more.
@@ -739,11 +739,11 @@ fi
 
 # ── 12. The dev-tester repository link ───────────────────────────────────────
 if [[ "$DEVTESTER_ACTION" == "clone" ]]; then
-  echo "==> clone ${DEVTESTER_URL}"
+  echo "== clone ${DEVTESTER_URL}"
   GIT_SSH_COMMAND="ssh -o BatchMode=yes" "$GITHUB_GIT" clone -q "$DEVTESTER_URL" "$DEVTESTER_DIR"
 fi
 if [[ -n "$DEVTESTER_ACTION" ]]; then
-  echo "==> link ${DEVTESTER_LINK} -> ${DEVTESTER_TARGET}"
+  echo "== link ${DEVTESTER_LINK} -> ${DEVTESTER_TARGET}"
   ln -sfn "$DEVTESTER_TARGET" "$DEVTESTER_LINK"
 fi
 

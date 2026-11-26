@@ -544,10 +544,10 @@ fi
 _addr_target="${DEPLOY_TARGET#footbag-}"
 _addr_check=(bash "${SCRIPT_DIR}/scripts/authorize-operator-address.sh")
 if [[ -n "${FOOTBAG_ADDRESS_CHECK_CMD:-}" ]]; then
-  echo "==> NOTE: the SSH allow-list check is a stand-in for this run (${FOOTBAG_ADDRESS_CHECK_CMD}); it proves nothing about the firewall." >&2
+  echo "== NOTE: the SSH allow-list check is a stand-in for this run (${FOOTBAG_ADDRESS_CHECK_CMD}); it proves nothing about the firewall." >&2
   _addr_check=("$FOOTBAG_ADDRESS_CHECK_CMD")
 fi
-echo "==> Preflight: checking this machine's address against the ${_addr_target} SSH allow-list" >&2
+echo "== Preflight: checking this machine's address against the ${_addr_target} SSH allow-list" >&2
 echo "    (reads this machine's address and the live firewall; a few seconds)" >&2
 _addr_report="$(mktemp)"
 _addr_rc=0

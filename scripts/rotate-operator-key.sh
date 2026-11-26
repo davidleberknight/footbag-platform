@@ -198,7 +198,7 @@ times."
     ;;
 
   retire)
-    echo "==> Proving the key now in use before retiring ${OLD_KEY}"
+    echo "== Proving the key now in use before retiring ${OLD_KEY}"
     if ! aws_identity_require_user "$PROFILE" "$USER_NAME"; then
       echo "       If the replacement key has just been installed, check it was" >&2
       echo "       written under the right profile name. Nothing retired." >&2
@@ -224,7 +224,7 @@ times."
     ;;
 
   delete)
-    echo "==> Deleting ${OLD_KEY} on ${USER_NAME}"
+    echo "== Deleting ${OLD_KEY} on ${USER_NAME}"
     echo "Not reversible, and the key id is never reissued. The library refuses"
     echo "this unless the key is already inactive."
     if ! confirm_from_tty "Type 'APPLY' to delete it: " "APPLY"; then

@@ -231,7 +231,7 @@ fi
 if [[ "$TARGET" == "complete" ]]; then DB_VALUE="1"; else DB_VALUE="0"; fi
 
 echo ""
-echo "==> Moving both markers to: $TARGET"
+echo "== Moving both markers to: $TARGET"
 if [[ "$DRY_RUN" == "yes" ]]; then
   echo "    (dry run: nothing is written)"
   echo "    env file:  $([[ "$TARGET" == "complete" ]] && echo "append FOOTBAG_CUTOVER_COMPLETE=1" || echo "remove the FOOTBAG_CUTOVER_COMPLETE line")"

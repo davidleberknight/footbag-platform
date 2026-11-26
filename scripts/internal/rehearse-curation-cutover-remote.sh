@@ -153,7 +153,7 @@ do_marker() {
     return 1
   fi
 
-  echo "==> moving the cutover marker to '${direction}' via ${MARKER_SCRIPT}" >&2
+  echo "== moving the cutover marker to '${direction}' via ${MARKER_SCRIPT}" >&2
   printf '%s\n' "$MARKER_PHRASE" \
     | script -qec "bash ${MARKER_SCRIPT} --set ${direction}" /dev/null
 }
