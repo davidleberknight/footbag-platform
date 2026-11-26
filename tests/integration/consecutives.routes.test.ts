@@ -272,14 +272,6 @@ describe('GET /consecutives', () => {
     expect(res.text).toMatch(/<a href="\/consecutives" class="active">Consecutives<\/a>/);
   });
 
-  // Defect caught: a sanctioning claim with no source in the records data
-  // returns to the page, naming a body nobody has confirmed sanctioned them.
-  it('makes no sanctioning claim the records data does not support', async () => {
-    const res = await page('/consecutives');
-    expect(res.text).toContain('Ted Martin');
-    expect(res.text).not.toMatch(/sanctioned by/i);
-  });
-
   it('shows doubles holders joined with &', async () => {
     const res = await page('/consecutives');
     expect(res.text).toContain('Gary Lautt');

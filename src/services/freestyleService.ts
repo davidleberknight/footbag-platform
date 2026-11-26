@@ -5147,7 +5147,7 @@ export const freestyleService = {
       },
       content: {
         introSegments: [
-          { text: 'These are freestyle trick records. The official IFPA records are on the ' },
+          { text: 'These are freestyle trick records. The official records are on the ' },
           { text: 'Consecutives page', href: '/consecutives' },
           { text: '.' },
         ],

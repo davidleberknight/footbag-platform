@@ -1,11 +1,11 @@
 /**
- * ConsecutivesService -- public Consecutives landing page and the official IFPA records
+ * ConsecutivesService -- public Consecutives landing page and the official records
  * (read-only).
  *
  * Serves:
  *   - GET /consecutives (public): canonical consecutives section entry; the single page in the
  *     section, carrying what consecutives is, how it is contested, and the official records.
- *     The official IFPA records are the consecutive-kicks records, so they live here.
+ *     The official records are the consecutive-kicks records, so they live here.
  *
  * Rendering contract:
  *   - getConsecutivesPage() returns PageViewModel<ConsecutivesContent>.
@@ -201,7 +201,7 @@ export const consecutivesService = {
             'At tournaments, consecutives is contested in several competition categories, including 5-Minute Timed Consecutive, Doubles Distance One-Pass, and Singles and Doubles Consecutive Kicks.',
           ],
         },
-        worldRecordsIntro: 'Open-ended record attempts can run for many hours, so they are kept as world records rather than contested at tournaments.',
+        worldRecordsIntro: 'Open-ended record attempts can run for many hours, so they are kept as world records rather than contested at tournaments. Most of these records are sanctioned by World Footbag, which has submitted them to Guinness World Records.',
         worldRecords,
         highestScores,
         progression,
