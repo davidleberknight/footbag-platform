@@ -61,6 +61,7 @@ const VALUES = [
   'enable_legacy_mirror_records = true',
   'legacy_apex_ipv4             = "198.51.100.10"',
   'legacy_apex_spf              = "v=spf1 a mx ~all"',
+  'legacy_dmarc_txt             = ""',
   'legacy_mx_records            = ["10 rimu3.footbag.org.", "20 mail2.example.net."]',
   '',
   '# The names riding the apex or www.',
@@ -218,6 +219,36 @@ describe('write-zone-mirror-values.sh: the rewrite', () => {
     expect(r.stdout).not.toMatch(/--with-removals/);
   });
 
+  it('carries a signing key the zone serves as several strings, keeping its split points', () => {
+    // Defect caught: a long signing key the legacy host publishes is refused, so
+    // the re-sync before the move stops; or it is joined into one string longer
+    // than DNS allows, or split somewhere else, so Route 53 serves a different
+    // key and every message the host signs fails its signature check.
+    withCapture([
+      ...BASE_RECORDS,
+      'rimu3._domainkey.footbag.org.\t86400\tIN\tTXT\t"v=DKIM1; k=rsa; " "p=PARTONE" "PARTTWO"',
+    ]);
+    const r = run(VALID());
+    expect(r.exitCode, r.stdout + r.stderr).toBe(0);
+    expect(mapBody(values(), 'legacy_mirror_txt_records')).toContain(
+      '"rimu3._domainkey" = ["v=DKIM1; k=rsa; \\"\\"p=PARTONE\\"\\"PARTTWO"]',
+    );
+    // The single-string record beside it is untouched by the split handling.
+    expect(mapBody(values(), 'legacy_mirror_txt_records')).toMatch(/"rimu3"\s+= \["v=spf1 a ~all"\]/);
+  });
+
+  it('carries a reporting policy at _dmarc in its own assignment, never in the mirror map', () => {
+    // Defect caught: the policy lands in the mirror map, and the mail-day apply
+    // then creates its own record at the same name and fails inside the cutover
+    // window; or it is dropped, and the legacy zone's policy stops being served
+    // the moment delegation moves.
+    withCapture([...BASE_RECORDS, '_dmarc.footbag.org.\t86400\tIN\tTXT\t"v=DMARC1; p=none; rua=mailto:r@example.net"']);
+    const r = run(VALID());
+    expect(r.exitCode, r.stdout + r.stderr).toBe(0);
+    expect(values()).toContain('legacy_dmarc_txt             = "v=DMARC1; p=none; rua=mailto:r@example.net"');
+    expect(mapBody(values(), 'legacy_mirror_txt_records')).not.toMatch(/_dmarc|DMARC1/);
+  });
+
   it('leaves comments, unrelated values, the owned records and the symlink exactly as they were', () => {
     // Defect caught: a rewrite that regenerates the whole file loses the
     // operator's comments or the Workspace tenant's records, or replaces the
@@ -272,9 +303,14 @@ describe('write-zone-mirror-values.sh: refusals write nothing', () => {
       records: [...BASE_RECORDS, 'ipv6.footbag.org.\t86400\tIN\tAAAA\t2001:db8::1'], expect: /AAAA record at ipv6/ },
     { why: 'two addresses at one name',
       records: [...BASE_RECORDS, 'brat.footbag.org.\t86400\tIN\tA\t198.51.100.21'], expect: /brat carries more than one A/ },
-    { why: 'a TXT split into several strings at a mirrored name',
-      records: [...without('rimu3.footbag.org.\t86400\tIN\tTXT'), 'rimu3.footbag.org.\t86400\tIN\tTXT\t"v=spf1" " a ~all"'],
-      expect: /split into several strings at rimu3/ },
+    { why: 'an apex sender policy split into several strings, which its one-string assignment cannot hold',
+      records: [...without('footbag.org.\t86400\tIN\tTXT\t"v=spf1'), 'footbag.org.\t86400\tIN\tTXT\t"v=spf1 a" " mx ~all"'],
+      expect: /apex sender policy split into several strings/ },
+    { why: 'two reporting policies at once, which no receiver can read',
+      records: [...BASE_RECORDS,
+        '_dmarc.footbag.org.\t86400\tIN\tTXT\t"v=DMARC1; p=none"',
+        '_dmarc.footbag.org.\t86400\tIN\tTXT\t"v=DMARC1; p=reject"'],
+      expect: /_dmarc carries more than one DMARC/ },
     { why: 'www no longer a CNAME onto the apex',
       records: [...without('www.'), 'www.footbag.org.\t86400\tIN\tA\t198.51.100.10'], expect: /www is now A/ },
     { why: 'a Workspace record gone from the legacy zone',

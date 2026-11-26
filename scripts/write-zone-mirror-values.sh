@@ -16,11 +16,16 @@
 #        apex A                          legacy_apex_ipv4
 #        apex MX                         legacy_mx_records
 #        apex sender-policy TXT          legacy_apex_spf
+#        reporting-policy TXT at _dmarc  legacy_dmarc_txt
 #        CNAME onto the apex or www      legacy_apex_cname_records
 #        any other CNAME                 legacy_mirror_cname_records
 #        A                               legacy_mirror_a_records
 #        MX                              legacy_mirror_mx_records
 #        TXT                             legacy_mirror_txt_records
+#      A TXT value the zone serves split into several character strings, as a
+#      signing key longer than 255 bytes must be, is carried as one entry with
+#      the provider's split marker (an escaped empty quote pair) at each of the
+#      zone's own split points, so Route 53 serves the same strings.
 #   2. Leaves alone every record another assignment owns: the zone's SOA and NS,
 #      www (an alias onto the apex by design, so it must stay a CNAME onto the
 #      apex here), the apex's other TXT strings (apex_txt_records), the Google
@@ -34,8 +39,9 @@
 #   - Run against anything but production, the only tree holding the zone.
 #   - Read a capture that is not a complete transfer.
 #   - Carry a record no declared resource can hold (an AAAA, an SRV, a delegated
-#     child zone, two addresses at one name, a TXT split into several strings),
-#     or a name outside the zone: each needs a Terraform change first.
+#     child zone, two addresses at one name, an apex sender policy split into
+#     several strings, two reporting policies), or a name outside the zone:
+#     each needs a Terraform change first.
 #   - Write when a record another assignment owns has gone from the capture, or
 #     www has changed shape: those are decisions for a person, not a transcription.
 #   - Write a values file in which an assignment it owns is missing or repeated.
@@ -123,8 +129,8 @@ if ! VALUES_FILE="$(resolve_tfvars_target "$VALUES_LINK" "$REPO_ROOT")"; then
   cr_die "the values file at $VALUES_LINK cannot be written safely. Nothing has changed."
 fi
 
-# The nine assignments this script owns, in the order they are reported.
-SCALARS=(legacy_apex_ipv4 legacy_apex_spf legacy_mx_records)
+# The ten assignments this script owns, in the order they are reported.
+SCALARS=(legacy_apex_ipv4 legacy_apex_spf legacy_dmarc_txt legacy_mx_records)
 MAPS=(legacy_apex_cname_records legacy_mirror_a_records legacy_mirror_cname_records
       legacy_mirror_mx_records legacy_mirror_txt_records)
 
@@ -192,6 +198,9 @@ awk -v domain="$DOMAIN" -v owned="$WORK/owned-workspace" -v out="$WORK/records" 
       if (txt !~ /^".*"$/) { print "an unquoted TXT at " label ": " value > bad; next }
       multi = (txt ~ /"[[:space:]]+"/)
       txt = substr(txt, 2, length(txt) - 2)
+      # The provider splits a value at an empty quote pair, so a value the zone
+      # serves as several strings keeps the split points the zone uses.
+      if (multi) gsub(/"[[:space:]]+"/, "\"\"", txt)
     }
 
     if ((label " " type) in ws) { print label " " type > seen_owned; next }
@@ -202,7 +211,8 @@ awk -v domain="$DOMAIN" -v owned="$WORK/owned-workspace" -v out="$WORK/records" 
     }
     if (label == "@" && type == "TXT" && txt !~ /^v=spf1[[:space:]]/) { print "@ TXT-OTHER " txt > seen_owned; next }
 
-    if (type == "TXT" && multi) { print "a TXT split into several strings at " label ": the mirror carries one string per entry" > bad; next }
+    if (type == "TXT" && multi && label == "@") { print "an apex sender policy split into several strings: legacy_apex_spf carries one" > bad; next }
+    if (label == "_dmarc" && type == "TXT") { print "DMARC\t_dmarc\t" txt > out; next }
 
     if (label == "@") {
       if (type == "A")   { print "APEX_A\t@\t" value > out; next }
@@ -235,7 +245,7 @@ while IFS= read -r line; do
 done < "$WORK/refusals"
 
 # One value per name where the resource holds one.
-for kind in APEX_A APEX_SPF A CNAME APEX_CNAME; do
+for kind in APEX_A APEX_SPF DMARC A CNAME APEX_CNAME; do
   dups="$(awk -F'\t' -v k="$kind" '$1 == k { c[$2]++ } END { for (n in c) if (c[n] > 1) print n }' "$WORK/records")"
   for name in $dups; do
     cr_error "$name carries more than one $kind record: the resource holds one value per name."
@@ -277,6 +287,7 @@ render() {
   case "$var" in
     legacy_apex_ipv4) hcl "$(awk -F'\t' '$1 == "APEX_A" { print $3 }' "$WORK/records")" ;;
     legacy_apex_spf)  hcl "$(awk -F'\t' '$1 == "APEX_SPF" { print $3 }' "$WORK/records")" ;;
+    legacy_dmarc_txt) hcl "$(awk -F'\t' '$1 == "DMARC" { print $3 }' "$WORK/records")" ;;
     legacy_mx_records)
       awk -F'\t' '$1 == "APEX_MX" { print $3 }' "$WORK/records" | LC_ALL=C sort -n -k1,1 -k2,2 \
         | awk 'BEGIN { printf "[" } { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); printf "%s\"%s\"", (NR > 1 ? ", " : ""), $0 } END { printf "]" }'

@@ -41,6 +41,17 @@ resource "aws_route53_zone" "primary" {
 
   lifecycle {
     prevent_destroy = true
+
+    # The apex address, www, the apex mail routing and the apex sender policy
+    # each exist while the mirror flag is on OR their switched state is, so the
+    # mirror flag turned off on its own removes them, and every legacy name with
+    # them, in one apply. Once delegation has moved here that is the live site
+    # and its mail gone. This is the one resource that always exists, so the
+    # refusal holds whichever other flags are set.
+    precondition {
+      condition     = var.enable_legacy_mirror_records || (local.apex_alias_mode && var.ses_enable_mail_records)
+      error_message = "enable_legacy_mirror_records is off while the apex and www alias records or the apex mail records are off too, so this apply would delete the apex address, www, the apex MX and the apex TXT set, and every mirrored legacy name. The mirror leaves only in the launch apply, after the record switch and the mail apply have both run."
+    }
   }
 }
 

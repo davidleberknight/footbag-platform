@@ -81,6 +81,7 @@ apex_txt_records = []
 enable_legacy_mirror_records = false
 legacy_apex_ipv4             = ""
 legacy_apex_spf              = ""
+legacy_dmarc_txt             = ""
 legacy_mx_records            = []
 
 # The legacy names that are CNAMEs onto the apex or www, as name => target, taken

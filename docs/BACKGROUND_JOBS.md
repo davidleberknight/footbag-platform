@@ -27,6 +27,7 @@ The shared technical approach (the job registry, the scheduler, run records and 
     - [SYS_Purge_Reconciliation_Issues](#sys_purge_reconciliation_issues)
     - [SYS_Purge_Audit_Entries](#sys_purge_audit_entries)
     - [SYS_Reclaim_Expired_Media_Jobs](#sys_reclaim_expired_media_jobs)
+    - [SYS_Expire_Abandoned_PayPal_Orders](#sys_expire_abandoned_paypal_orders)
     - [SYS_Open_Vote](#sys_open_vote)
     - [SYS_Close_Vote](#sys_close_vote)
 - [Continuous Jobs](#continuous-jobs)
@@ -394,6 +395,8 @@ Amount discrepancy checks compare both the amount AND the currency field: a loca
 
 Every pass compares only local records of the provider mode the loaded credential is in, because a live key cannot list test-mode objects and the reverse; rows of the other mode are set aside, counted, and reported with the run rather than raised as discrepancies, and rows whose mode was never recorded are compared.
 
+<< V2 SCOPE >> With PayPal as a second provider, the passes run once per provider and each compares only that provider's rows against that provider's records; the mode rule applies to PayPal's sandbox and live environments in the same way. PayPal has no listing equivalent to Stripe's PaymentIntents, so the PayPal passes look up each local PayPal order, capture and subscription by its id, and find PayPal transactions with no local record through PayPal's transaction search. A PayPal transaction can reach that search hours after it settles, so a missing local or provider record is raised only after a grace period of at least three hours. An order PayPal reports approved but not captured is flagged, because the buyer approved and was never charged. A PayPal capture still pending at PayPal agrees with a pending local record. Every issue records its provider.
+
 Discrepancies from every pass are stored as durable reconciliation issues with status (Outstanding/Resolved), resolver, timestamps, and resolution notes; shown in admin dashboard; retained 90 days.
 
 Operation:
@@ -496,6 +499,31 @@ Operation:
 - Failure alarm: the error alarm.
 - Missed-run alarm: the heartbeat alarm.
 - Audit trail: none.
+- Retention: 30 days.
+
+### SYS_Expire_Abandoned_PayPal_Orders
+
+<< V2 SCOPE >> Ships with PayPal as a second way to pay in v2; not part of the v1 launch.
+
+Access: This scheduled process runs under the system role.
+
+Story: The system settles PayPal checkouts the member abandoned, so that a PayPal payment the member never completed shows as canceled rather than pending forever. PayPal sends no event when an unapproved order lapses, which is what Stripe's checkout expiry event does for card payments.
+
+Success Criteria:
+
+- The job finds local PayPal payment records still `pending` with no capture, whose PayPal order was created longer ago than PayPal's order lifetime.
+- For each, it reads the order's status at PayPal. An order PayPal reports approved is left for the approval webhook or the nightly reconciliation, because the buyer approved and the money may yet be captured. Any other order is settled locally as `canceled`, exactly as a card checkout's expiry settles it, and the member's payment history shows it as such.
+- A member's next purchase attempt for the same item may close their abandoned PayPal order in the same way, without waiting for the job.
+
+Operation:
+
+- Cadence: hourly.
+- Configuration: none; PayPal's order lifetime is fixed in code beside the PayPal adapter.
+- Catch-up: the pass reads current state, so the first pass after a missed run settles every order that lapsed meanwhile.
+- Run record: its job-run row, with the orders settled.
+- Failure alarm: the error alarm.
+- Missed-run alarm: the heartbeat alarm.
+- Audit trail: each settlement is audit-logged with the PayPal order id, member_id, old status, new status, and timestamp.
 - Retention: 30 days.
 
 ### SYS_Open_Vote
@@ -623,6 +651,7 @@ Success Criteria:
 - Processing is idempotent (replayed events do not double-apply tier changes or create duplicate payment records).
 - On successful payment events, the system updates the relevant local payment records and triggers the correct downstream effects (e.g., membership tier upgrades, receipts) consistent with the relevant member/admin stories.
 - Failures are logged with sufficient metadata for debugging, and webhook failure counts/time-since-last-success are surfaced in the admin Stripe dashboard health indicators.
+- << V2 SCOPE >> PayPal webhook events arrive at an endpoint of their own and are handled the same way: each delivery is verified before any state changes, against PayPal's signing certificate and the webhook id registered for this environment, and an unverified delivery changes nothing. Each event is claimed by its PayPal event id in a processed-event store of its own, inside the same transaction as the change it makes, so a redelivery is a no-op and a processing failure leaves the event for PayPal to redeliver. PayPal webhook health is surfaced in the admin dashboard's PayPal panel.
 
 Operation:
 
@@ -650,6 +679,7 @@ Success Criteria:
 - On refund.failed, or refund.updated carrying a failed or canceled status: the payment record does not move, since refunded is its end state. The failure is audit-logged with refund id, charge id, amount, currency and failure reason, shown on the payment's money history, and raised as an administrator work item, because the money is still in the account and must be returned another way at the provider. Idempotent per event id.
 - On every card-dispute stage (charge.dispute.created, charge.dispute.updated, charge.dispute.closed, charge.dispute.funds_withdrawn, charge.dispute.funds_reinstated) and on payout.failed: the payment record does not move, since disputes are decided and payouts repaired at the provider. Each writes an audit entry carrying the identifiers needed to find the case at the provider, and every stage other than an evidence update raises an administrator work item. Idempotent per event id.
 - All one-time payment webhook processing is idempotent via the stripe_events table (keyed on Stripe event_id), consistent with the global Payment Processing Guarantees.
+- << V2 SCOPE >> PayPal one-time payments follow the same rules with PayPal's events. On CHECKOUT.ORDER.APPROVED the system captures the approved order at PayPal, idempotently, so a repeated capture is harmless; approval alone changes no local state. On PAYMENT.CAPTURE.COMPLETED the record transitions to `completed` with the same grant, receipt, audit entry and amount check as a card settlement. On PAYMENT.CAPTURE.PENDING the record stays `pending` until PayPal completes or denies the capture. On PAYMENT.CAPTURE.DECLINED or PAYMENT.CAPTURE.DENIED the attempt is recorded on the transition ledger and the record stays `pending`, as a declined card attempt does, so a later approval of the same order can still settle it; an order that never settles is closed by SYS_Expire_Abandoned_PayPal_Orders. On PAYMENT.CAPTURE.REFUNDED or PAYMENT.CAPTURE.REVERSED the record transitions to `refunded` with no automatic tier or registration change. Every PayPal dispute stage is recorded and raised exactly as a card dispute is.
 
 Operation:
 
@@ -676,6 +706,7 @@ Success Criteria:
 - On customer.subscription.deleted for a donation subscription (triggered when Stripe exhausts all retries, or when the member cancels via the platform): the system sets the local subscription status to canceled, enqueues a final notification email to the member and an admin alert, and audit-logs the cancellation with subscription_id and reason.
 - On customer.subscription.updated (e.g., amount or status changes made in the Stripe Dashboard by a System Administrator): the system updates the local subscription record to reflect the new state and audit-logs the change. The cancel-at-period-end flag is mirrored in both directions, because an administrator can set or clear it at the provider as readily as the member can on their own page and neither direction moves the status or the amount: unmirrored, a cleared flag leaves the member's page saying the gift is ending while the provider goes on charging it, and a set flag leaves the eventual deletion reported to administrators as the provider exhausting its retries. A subscription whose collection the administrator paused is raised as an administrator work item: pausing collection leaves the reported status active while nothing is collected, which is distinct from the provider's own paused status (a trial ending with no payment method) and is the shape an administrator actually produces.
 - All subscription webhook processing is idempotent via the stripe_events table (keyed on Stripe event_id) consistent with the global Payment Processing Guarantees.
+- << V2 SCOPE >> PayPal recurring donations are PayPal subscriptions, and PayPal owns their billing schedule and retries just as Stripe does for card gifts. On BILLING.SUBSCRIPTION.ACTIVATED the local subscription becomes active. On PAYMENT.SALE.COMPLETED for a subscription the system books one new payment record per collected sale, with the receipt and audit entry a card renewal gets. On BILLING.SUBSCRIPTION.PAYMENT.FAILED the status becomes past_due and the member is notified. On BILLING.SUBSCRIPTION.CANCELLED, and on BILLING.SUBSCRIPTION.SUSPENDED once PayPal stops retrying, the status becomes canceled with the same final notification and admin alert, so a gift PayPal has stopped collecting never stays past_due indefinitely. A member's cancellation ends the PayPal subscription at once rather than at period end, because PayPal offers no period-end cancellation; the PayPal plan the subscription runs on sets the number of failed payments PayPal tolerates before it suspends.
 
 Operation:
 

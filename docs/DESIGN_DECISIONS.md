@@ -112,6 +112,8 @@ Established practice: where it applies, the design follows the AWS Well-Architec
   - [6.8 Image Processing](#68-image-processing)
   - [6.9 Voting](#69-voting)
   - [6.10 Stripe webhook signing secret environment scope](#610-stripe-webhook-signing-secret-environment-scope)
+  - [6.10a PayPal Payments](#610a-paypal-payments)
+  - [6.10b PayPal webhook verification and environment scope](#610b-paypal-webhook-verification-and-environment-scope)
   - [6.11 How the `footbag.org` Namespace Is Served](#611-how-the-footbagorg-namespace-is-served)
   - [6.12 Legacy Independence at Go-Live](#612-legacy-independence-at-go-live)
   - [6.13 The Closed `footbag.org` Namespace](#613-the-closed-footbagorg-namespace)
@@ -4454,6 +4456,82 @@ Impact:
   accidentally using a production secret) becomes a boot-time
   configuration error rather than a silent acceptance of
   inappropriate webhook events.
+
+## 6.10a PayPal Payments
+
+<< V2 SCOPE >> PayPal as a second way to pay is version-two scope. This section is design
+intent for that build and is not part of the v1 launch.
+
+Decision:
+
+PayPal is a second way to pay, alongside card payment through Stripe, for every payment the platform takes: membership tier purchases, donations one-time and recurring, and paid event registrations. Money is taken into IFPA's own PayPal business account, and IFPA remains the intermediary for event fees exactly as in Stripe Payments. The integration is direct, against PayPal's REST APIs, because Stripe offers PayPal as a Checkout payment method only to accounts based in Europe. PayPal follows the Stripe Payments design wherever PayPal's behaviour allows; where it does not, the PayPal-specific rule is stated here and the Stripe rule is left as it is.
+
+- One-time payments use PayPal Orders with intent CAPTURE, by a pure server redirect: the platform creates the order with its return and cancel addresses, records the pending payment with the provider and the PayPal order id, and redirects the buyer to PayPal's approval page. Approval moves no money. The platform captures the order when PayPal's verified CHECKOUT.ORDER.APPROVED webhook arrives, sending a stable request id so a repeated capture is harmless, and fulfils only on the verified PAYMENT.CAPTURE.COMPLETED webhook. The buyer's return to the site is a GET, which only reads (Every GET Is Read-only): it shows that the payment is being confirmed.
+- The one-time state machine is Stripe's, keyed to PayPal objects: pending to completed on PAYMENT.CAPTURE.COMPLETED; pending held on PAYMENT.CAPTURE.PENDING until PayPal completes or denies it; pending to canceled when the order lapses unsettled; completed to refunded on PAYMENT.CAPTURE.REFUNDED or PAYMENT.CAPTURE.REVERSED. A declined capture records the attempt and leaves the payment pending, as a declined card attempt does.
+- PayPal sends no event when an unapproved order lapses, so a scheduled job (SYS_Expire_Abandoned_PayPal_Orders) settles a pending PayPal payment as canceled once PayPal's order lifetime has passed and PayPal reports the order unapproved. A released order needs no provider call: the platform controls capture, so an order it never captures never takes money.
+- Pending captures are accepted. Stripe Payments pins card-backed methods because a delayed settlement had no representable outcome there; PayPal reports a pending capture and its later completion as distinct events, so the outcome is representable and the payment simply stays pending until PayPal settles it.
+- Recurring donations use PayPal Subscriptions on a yearly plan. A donor-chosen amount is carried on the subscription itself, by overriding the plan's price when the subscription is created. PayPal owns the renewal schedule and its retries, as Stripe does. Each collected renewal (PAYMENT.SALE.COMPLETED) books one payment record. A member's cancellation ends the PayPal subscription at once, because PayPal offers no period-end cancellation; for a gift this only stops future charges. A subscription PayPal suspends after its failure threshold is treated as terminal, mapped to canceled, so a gift PayPal has stopped collecting never stays past_due indefinitely.
+- No platform-initiated refunds, recording a provider-side refund, reversal or dispute as an audit entry and administrator work item, the monotonic state machine, and claim-inside-the-transaction idempotency all apply unchanged. PayPal events are claimed in a processed-event store of their own, keyed on the PayPal event id, and the webhook endpoint subscribes to exactly the event set the PayPal dispatcher declares beside its handlers.
+- No payer data is stored. The platform keeps only PayPal's order, capture and subscription ids; PayPal has no merchant-side customer object, so account erasure has nothing to delete at PayPal.
+
+Rationale:
+
+- Members who pay with PayPal rather than a card, as the legacy site's dues and donations allowed, can keep doing so.
+- Capturing on the verified approval webhook keeps every money-moving step on a verified, idempotent, redelivered channel and keeps the buyer's return a read-only page view.
+- Reusing the Stripe state machine and idempotency rules keeps one model of payment state for both providers, so reconciliation, payment history and the admin views read the same shapes.
+
+Requirements:
+
+- A fifth arming switch, PAYPAL_ARMED, extends Arming Switches: a side-effect switch, seeded dark in production, inert below production, derived by the deploy into the PayPal adapter selector, and moved in both directions by the arming script. Its precondition is a typed confirmation that the PayPal webhook has been removed at PayPal, the PayPal equivalent of disabling the Stripe endpoint. PayPal is armed and disarmed independently of Stripe; the payments pause switch stops both.
+- The PayPal adapter follows Dedicated Adapters and Adapter contract parity: a stub in development, staging and a dark production, sharing the stub payment ledger, and the live adapter only on a production host armed for PayPal. Both sides refuse an unverified delivery identically.
+- The PayPal credential is an OAuth client id and client secret, held in Parameter Store under Secrets Management and set by the activation script. The adapter exchanges them for an access token, caches it for its stated lifetime, and refreshes it on expiry or refusal.
+- PayPal has no test or live key prefix; the mode is the configured environment, sandbox or live, and the adapter calls the matching PayPal host. PayPal sandbox credentials are admitted on production only while a PayPal-live marker reads exactly "false", mirroring the Stripe key-match guard, so PayPal can be exercised end to end on production before it takes real money.
+- Every PayPal client call carries a per-attempt time limit and a bounded retry count whose worst case ends inside the reverse proxy's wait for the app.
+- The CSP form-action allowance and the Origin-check exemption gain PayPal's approval host and the PayPal webhook path.
+
+Trade-offs:
+
+- A second provider doubles the webhook, reconciliation, arming and rotation surface an operator must keep healthy.
+- PayPal's REST APIs are versioned by path rather than by a pinned date, so payload stability rests on golden payloads captured from the sandbox and checked in tests rather than on a version pin.
+- An immediate cancellation tells the member their gift has ended at once rather than at the end of the year already given; for a donation no access depends on it.
+- Yearly renewals can be observed before launch only on a short-interval sandbox plan, because PayPal's sandbox has no clock to advance.
+
+Impact:
+
+- The payment record, the donation subscription record, the transition ledgers and the reconciliation issues carry a provider, with PayPal identifiers in columns of their own, added by migration after go-live; no Stripe column is renamed.
+- Nightly reconciliation runs once per provider. The PayPal passes look up each local PayPal order, capture and subscription by id and find PayPal transactions with no local record through PayPal's transaction search, raising a missing record only after a grace period of at least three hours, because PayPal's transaction search can lag settlement by hours. An order PayPal reports approved but uncaptured is flagged.
+- The admin payments dashboard gains a PayPal panel, and the scrubbed-copy rule covers every PayPal identifier as it covers Stripe's.
+
+## 6.10b PayPal webhook verification and environment scope
+
+<< V2 SCOPE >> PayPal as a second way to pay is version-two scope. This section is design
+intent for that build and is not part of the v1 launch.
+
+Decision:
+
+PayPal webhooks are environment-scoped as Stripe's are: each environment registers its own PayPal webhook, and the PayPal webhook id is per-environment configuration read once at boot. PayPal signs deliveries with a certificate rather than a shared secret, so the platform verifies each delivery locally: an RSA-SHA256 signature over the transmission id, the transmission time, this environment's webhook id and the CRC32 of the raw body, checked against the certificate named in the delivery, which is fetched only from PayPal's own host and cached. A delivery that fails verification changes no state and is refused as a Stripe signature failure is. The stub adapter signs and verifies with a key pair generated per deployment, so the stub never verifies against anything committed to source.
+
+Rationale:
+
+- Local verification adds no network call to webhook handling and keeps verification inside the adapter, the same shape as Stripe's local signature check.
+- Binding verification to this environment's webhook id makes a delivery meant for another environment fail verification, the property Stripe's environment-scoped secret provides.
+- A per-deployment stub key keeps the dark and staging webhook path verified end to end, as Stripe Payments requires of its stub secret.
+
+Requirements:
+
+- The PayPal webhook id is configuration, not a secret, and is required when the PayPal adapter is live; boot refuses a live PayPal adapter with no webhook id.
+- Certificates are accepted only from PayPal's documented certificate host over HTTPS; any other host named in a delivery fails verification.
+- The webhook is created and verified against the dispatcher's declared event set by script, so the subscription and the handling cannot drift apart.
+
+Trade-offs:
+
+- PayPal offers no two-secret rotation window. Rotating the PayPal credential is a new client secret issued at PayPal and set by script, followed by a restart; the webhook id does not change.
+- The first delivery after a restart fetches the signing certificate, so that one delivery depends on reaching PayPal's certificate host.
+
+Impact:
+
+- A PayPal webhook route sits beside the Stripe route, with the same raw-body handling and Origin-check exemption.
+- A PayPal delivery failure counts toward the webhook delivery failure alarm and the PayPal panel's health indicators.
 
 ## 6.11 How the `footbag.org` Namespace Is Served
 

@@ -166,7 +166,7 @@ When system events require administrator attention (event sanction requests, fla
 - Direct organizer payouts (Stripe Connect).
 - Archive search.
 - Marketplace beyond event registrations and donations.
-- E-Commerce (a store) is a possible later addition. We can raise money and provide cool merch to the community. This might include adding PayPal as a second payment option (after Stripe) for user convenience.
+- E-Commerce (a store) is a possible later addition. We can raise money and provide cool merch to the community.
 - Merging the full content from FootbagHallOfFame.net onto Footbag.org is a possible later addition, which would eliminate the cost of hosting that site on SquareSpace.
 
 ## 3.1 Media Content
@@ -260,7 +260,7 @@ Stripe webhooks are treated as durable input events; the system records them, ap
 
 All payment state transitions are tracked to prevent financial reconciliation failures. A nightly reconciliation job compares local payment records against Stripe to detect discrepancies.
 
-Note that it is possible to add PayPal as a second option for user convenience in the future.
+PayPal is v2 scope: a second way to pay, alongside card payment through Stripe, for every payment the platform takes, held to the same webhook, idempotency and reconciliation guarantees (the PayPal Payments design decision).
 
 ## 3.5 Emails
 

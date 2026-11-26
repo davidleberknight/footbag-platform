@@ -566,13 +566,31 @@ fi
 # correct one. www is in the design's served set, so it gets an explicit check.
 www_a="$("$DIG_BIN" +noall +answer +tries=3 +time=3 "@${NAMESERVER}" "www.${APEX}" A 2>&1 | grep -vE '^[[:space:]]*;' || true)"
 www_aaaa="$("$DIG_BIN" +noall +answer +tries=3 +time=3 "@${NAMESERVER}" "www.${APEX}" AAAA 2>&1 | grep -vE '^[[:space:]]*;' || true)"
+# Answering an address is not enough: the legacy zone's www reaches the apex,
+# so the mirror's www must answer the apex's own addresses, read from the same
+# server. A www alias pointed anywhere else answers an address too.
+# An unreadable apex answers nothing here, and nothing never equals www's
+# addresses, so a failed read reports DIFFERS rather than passing.
+address_values() {
+  awk 'toupper($4) == "A" || toupper($4) == "AAAA" { print toupper($4) " " tolower($5) }' | LC_ALL=C sort -u
+}
+apex_raw_a="$(query "$APEX" A)" || apex_raw_a=""
+apex_raw_aaaa="$(query "$APEX" AAAA)" || apex_raw_aaaa=""
+apex_addresses="$(printf '%s\n%s\n' "$(answer_records "$apex_raw_a")" "$(answer_records "$apex_raw_aaaa")" | address_values)"
+www_addresses="$(printf '%s\n%s\n' "$www_a" "$www_aaaa" | address_values)"
 if [[ -z "${www_a//[[:space:]]/}" && -z "${www_aaaa//[[:space:]]/}" ]]; then
   differing=$((differing + 1))
   add_line "DIFFERS   www.${APEX} A/AAAA"
   add_line "            the mirror answers no address for www, so the shape change"
   add_line "            this script treats as expected has not actually happened"
+elif [[ -z "$apex_addresses" || "$www_addresses" != "$apex_addresses" ]]; then
+  differing=$((differing + 1))
+  add_line "DIFFERS   www.${APEX} A/AAAA"
+  add_line "            www answers $(printf '%s' "$www_addresses" | paste -sd ' ' -),"
+  add_line "            the apex answers $(printf '%s' "${apex_addresses:-nothing}" | paste -sd ' ' -);"
+  add_line "            the legacy zone's www reaches the apex, so the two must agree"
 else
-  add_line "CHECKED   www.${APEX} answers an address, which is the shape the mirror is meant to carry"
+  add_line "CHECKED   www.${APEX} answers the apex's own addresses, which is the shape the mirror is meant to carry"
 fi
 
 # The apex certificate-authorisation record is the other record the capture

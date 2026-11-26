@@ -437,21 +437,35 @@ resource "aws_route53_record" "spf" {
 # custom MAIL FROM subdomain (mail.<domain>) Return-Path aligns; adkim=s stays
 # strict because the domain DKIM signs d=<domain>, matching the From: domain.
 
+# Like the apex sender policy, this record owns both of its states: a reporting
+# policy the legacy zone publishes, carried from the zone move while the mirror
+# is on, and the platform's own from email day. Declaring only the second would
+# collide with a mirrored legacy record at the same name on the day the mail
+# records move, since allow_overwrite stays at its default.
+
+variable "legacy_dmarc_txt" {
+  description = "The reporting-policy string the legacy zone publishes at _dmarc, read from the fresh zone snapshot by scripts/write-zone-mirror-values.sh and carried through the zone-move window. Empty while the legacy zone publishes none, which is the case in the 2026-11-23 snapshot."
+  type        = string
+  default     = ""
+}
+
 resource "aws_route53_record" "dmarc" {
-  count   = var.ses_enable_mail_records ? 1 : 0
+  count   = var.ses_enable_mail_records || (var.enable_legacy_mirror_records && var.legacy_dmarc_txt != "") ? 1 : 0
   zone_id = local.zone_id
   name    = "_dmarc.${var.domain_name}"
   type    = "TXT"
   ttl     = 600
   records = [
-    "v=DMARC1; p=${var.ses_dmarc_policy}; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=r; pct=100"
+    var.ses_enable_mail_records
+    ? "v=DMARC1; p=${var.ses_dmarc_policy}; rua=mailto:${var.ses_dmarc_rua_email}; adkim=s; aspf=r; pct=100"
+    : var.legacy_dmarc_txt
   ]
 
   # DMARC aggregate reports are useless without a destination, so the reporting
   # mailbox must be a real address before SES domain auth goes live.
   lifecycle {
     precondition {
-      condition     = var.ses_dmarc_rua_email != ""
+      condition     = !var.ses_enable_mail_records || var.ses_dmarc_rua_email != ""
       error_message = "ses_dmarc_rua_email must be set to a real mailbox before enabling ses_enable_mail_records, which is the flag that publishes this DMARC record, so aggregate reports have a destination."
     }
   }

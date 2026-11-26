@@ -247,6 +247,18 @@ read_scalar() {
     | sed -E 's/^[^=]*=[[:space:]]*//; s/[[:space:]]*(#.*)?$//; s/^"(.*)"$/\1/' || [[ $? == 1 ]]
 }
 
+# dmarc_action <when-no-legacy>: the plan action the reporting-policy record
+# takes when the mail records move. The record owns both of its states, so
+# where the legacy zone publishes its own policy (legacy_dmarc_txt, carried
+# from the zone move) the record already exists and is updated in place;
+# otherwise the mail-day apply creates it and the rollback deletes it.
+dmarc_action() {
+  local legacy
+  legacy="$(read_scalar "$TFVARS_PATH" legacy_dmarc_txt)" \
+    || cr_die "could not read legacy_dmarc_txt from $TFVARS_PATH"
+  if [[ -n "$legacy" ]]; then printf 'update'; else printf '%s' "$1"; fi
+}
+
 # The values file's maps are written one entry per key, each either on one line
 # or over several lines ending at the closing bracket, inside a block that opens
 # with `<map> = {` and closes with `}` at the start of a line. These read and
@@ -793,7 +805,14 @@ stage_mail_day() {
   fi
   propose_values "This turns on the apex mail records and routes the IFPA list domain to Google. Inbound mail moves to Google in the apply."
   plan_and_apply \
-    $'aws_ses_domain_mail_from.main[0] create\naws_route53_record.ses_mail_from_mx[0] create\naws_route53_record.ses_mail_from_spf[0] create\naws_route53_record.dmarc[0] create\naws_route53_record.spf[0] update\naws_route53_record.mx[0] update\naws_route53_record.workspace_mx["ifpa"] update\naws_route53_record.workspace_txt["ifpa"] update' \
+    "aws_ses_domain_mail_from.main[0] create
+aws_route53_record.ses_mail_from_mx[0] create
+aws_route53_record.ses_mail_from_spf[0] create
+aws_route53_record.dmarc[0] $(dmarc_action create)
+aws_route53_record.spf[0] update
+aws_route53_record.mx[0] update
+aws_route53_record.workspace_mx[\"ifpa\"] update
+aws_route53_record.workspace_txt[\"ifpa\"] update" \
     "" \
     "The plan publishes the mail-day records: the apex mail routing to Google, the sender policy naming SES and Google, the reporting policy, the bounce-domain records, and the IFPA list domain's routing and sender policy. Nothing else."
   if (( ! PLAN_EMPTY )); then
@@ -880,9 +899,14 @@ stage_revert() {
   set_assignment ses_enable_mail_records false < "$TFVARS_PATH" > "$VALUES_TMP"
   propose_values "This turns the apex mail records off, restoring the legacy mail routing and sender policy. The IFPA list domain stays on Google."
   plan_and_apply \
-    $'aws_ses_domain_mail_from.main[0] delete\naws_route53_record.ses_mail_from_mx[0] delete\naws_route53_record.ses_mail_from_spf[0] delete\naws_route53_record.dmarc[0] delete\naws_route53_record.spf[0] update\naws_route53_record.mx[0] update' \
+    "aws_ses_domain_mail_from.main[0] delete
+aws_route53_record.ses_mail_from_mx[0] delete
+aws_route53_record.ses_mail_from_spf[0] delete
+aws_route53_record.dmarc[0] $(dmarc_action delete)
+aws_route53_record.spf[0] update
+aws_route53_record.mx[0] update" \
     "" \
-    "The plan restores the legacy apex mail routing and sender policy, and removes the reporting policy and the bounce-domain records. Nothing else."
+    "The plan restores the legacy apex mail routing and sender policy, returns the reporting policy to the legacy zone's own (or removes it, where the legacy zone publishes none), and removes the bounce-domain records. Nothing else."
   (( PLAN_EMPTY )) && echo "Already reverted; checking what is served."
   echo ""
   echo "-- what is served --"

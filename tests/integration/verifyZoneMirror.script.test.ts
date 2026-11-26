@@ -286,9 +286,24 @@ describe('verify-zone-mirror.sh', () => {
   // driven from the capture alone ever asks the mirror for www's address, and
   // the departure branch marks the mismatch expected whether the mirror serves
   // an alias or serves nothing. www is in the served set; it gets asked.
-  it('checks that www actually answers an address in the mirror', () => {
+  it('checks that www answers the apex\'s own address in the mirror', () => {
     const r = run(FAITHFUL);
-    expect(r.stdout).toMatch(/CHECKED {3}www\.footbag\.org\. answers an address/);
+    expect(r.stdout).toMatch(/CHECKED {3}www\.footbag\.org\. answers the apex's own addresses/);
+  });
+
+  // Defect caught: a www alias pointed at the wrong target still answers an
+  // address, so a check that asks only "is there one" certifies a mirror that
+  // sends every visitor to www somewhere the legacy site is not.
+  it('fails when www answers an address other than the apex\'s', () => {
+    const elsewhere = FAITHFUL.replace(
+      '"www.footbag.org. A") echo -e "www.footbag.org.\\t60\\tIN\\tA\\t198.51.100.10" ;;',
+      '"www.footbag.org. A") echo -e "www.footbag.org.\\t60\\tIN\\tA\\t203.0.113.99" ;;',
+    );
+    const r = run(elsewhere);
+    expect(r.exitCode).not.toBe(0);
+    expect(r.stdout).toMatch(/DIFFERS {3}www\.footbag\.org\. A\/AAAA/);
+    expect(r.stdout).toMatch(/www answers A 203\.0\.113\.99/);
+    expect(r.stdout).toMatch(/the apex answers A 198\.51\.100\.10/);
   });
 
   it('fails when the mirror answers no address for www', () => {

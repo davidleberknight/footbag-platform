@@ -82,6 +82,8 @@ interface Values {
   mail?: boolean;
   mirror?: boolean;
   opsAlert?: string;
+  /** The reporting policy the legacy zone publishes, carried in legacy_dmarc_txt. */
+  legacyDmarc?: string;
 }
 
 const list = (xs: string[]) => `[${xs.map((x) => `"${x}"`).join(', ')}]`;
@@ -107,6 +109,7 @@ function values(v: Values = {}): string {
     `enable_legacy_mirror_records = ${v.mirror ?? true}`,
     `legacy_mx_records            = ${list(LEGACY_IFPA_MX)}`,
     `legacy_apex_spf              = "${APEX_LEGACY_SPF}"`,
+    ...(v.legacyDmarc ? [`legacy_dmarc_txt             = "${v.legacyDmarc}"`] : []),
     '',
     'legacy_mirror_mx_records = {',
     ...(inLegacy ? ['  "ifpa" = [', ...mx.map((m) => `    "${m}",`), '  ]'] : []),
@@ -579,6 +582,26 @@ describe('mail-domain-cutover.sh: mail-day', () => {
     expect(r.calls.filter((c) => c.startsWith('verify'))).toEqual([
       `verify --stage mail-day --nameserver ${NS} --resolver ${RESOLVER} --tfvars ${tfvars}`,
     ]);
+  });
+
+  // Defect caught: with the legacy zone publishing its own reporting policy, the
+  // record already exists, so the mail-day plan updates it in place; a stage
+  // still expecting a create refuses the correct plan inside the cutover window,
+  // or one that accepts a create lets a plan through that collides with it.
+  it('expects the reporting policy updated in place when the legacy zone publishes one', () => {
+    const legacyDmarc = 'v=DMARC1; p=none';
+    const update = MAIL_DAY.map(([a, act]): [string, string] => (a === 'aws_route53_record.dmarc[0]' ? [a, 'update'] : [a, act]));
+    writeFileSync(tfvars, values({ ...VERIFIED, legacyDmarc }));
+    const r = run({ plan: update, dns: servedAsValues(VERIFIED) }, args);
+    expect(r.status, r.out).toBe(0);
+    expect(r.tfvars).toBe(values({ ...MAILED, legacyDmarc }));
+  });
+
+  it('refuses a plan that creates the reporting policy when the legacy zone already publishes one', () => {
+    writeFileSync(tfvars, values({ ...VERIFIED, legacyDmarc: 'v=DMARC1; p=none' }));
+    const r = run({ plan: MAIL_DAY, dns: servedAsValues(VERIFIED) }, args);
+    expect(r.status, r.out).not.toBe(0);
+    expect(terraformCalls(r.calls)).not.toContain('terraform apply');
   });
 
   // Defect caught: the apply rewrites the apex text set without a string the
