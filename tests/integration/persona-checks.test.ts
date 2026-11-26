@@ -11,9 +11,10 @@
  *
  * Two declarations are related here as well: a persona's stories, as the
  * persona catalog lists them, and the success criteria those stories carry.
- * Every criterion of a story a persona's checks cover has a check, and every
- * check's criterion is still worded as the story words it, so a reworded or
- * added criterion fails here rather than going unproved.
+ * Every first-release criterion of a story a persona's checks cover has a
+ * check, and every check's criterion is still worded as the story words it, so
+ * a reworded or added criterion fails here rather than going unproved. A
+ * criterion marked for a later release has nothing deployed to prove yet.
  */
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -78,7 +79,8 @@ function criteriaOf(story: string): string[] {
   const end = rest.search(/\n#{2,3} /);
   const section = end === -1 ? rest : rest.slice(0, end);
   const after = section.slice(section.indexOf('Success Criteria:'));
-  return after.split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2));
+  return after.split('\n').filter((l) => l.startsWith('- ')).map((l) => l.slice(2))
+    .filter((c) => !/^<< V\d+ SCOPE >>/.test(c));
 }
 
 beforeAll(async () => {

@@ -552,6 +552,7 @@ export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWitho
   'SYS_Send_Email': { status: 'runtime-only', why: 'Runs as the worker outbox polling loop.' },
   'SYS_Open_Vote': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no vote-opening job exists.' },
   'SYS_Close_Vote': { status: 'designed-not-deployed', why: 'Voting is second-version scope and no vote-closing job exists.' },
+  'SYS_Expire_Abandoned_PayPal_Orders': { status: 'designed-not-deployed', why: 'PayPal is second-version scope and no abandoned-order job exists.' },
   'SYS_Reconcile_Payments_Nightly': { status: 'runtime-only', why: 'Runs as a daily worker job; its reports are read on admin payment routes mapped to another story.' },
   'SYS_Cleanup_Expired_Tokens': { status: 'runtime-only', why: 'Runs as a daily worker job.' },
   'SYS_Cleanup_Soft_Deleted_Records': { status: 'runtime-only', why: 'Runs as a daily worker job.' },
