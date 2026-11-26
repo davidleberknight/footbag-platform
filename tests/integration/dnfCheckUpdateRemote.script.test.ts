@@ -5,7 +5,9 @@
  * The contract pinned: a saved listing parses to the number of update rows in
  * it, the "Obsoleting Packages" section left out; and a run reports exit 0 as no
  * updates, exit 100 as the rows it counted, and as a marked error either a failed
- * run or exit 100 with no row it can count, never a count of 0.
+ * run or exit 100 with no row it can count, never a count of 0. And the release
+ * an upgrade would land on passes only when it is the release asked for; another
+ * release, a failed query or an empty answer is a marked error.
  *
  * The listings are the samples beside tests/fixtures/dnfSamples.ts. The helper
  * runs here as the hosts run it, behind the remote reporting library, with a
@@ -107,5 +109,53 @@ describe('dnf_check_update', () => {
     expect(r.status).toBe(1);
     expect(r.stdout.trim()).toBe('failed count=');
     expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR .*\(exit 1\): Error: stand-in repository unreachable; stand-in context$/m);
+  });
+});
+
+describe('dnf_release_target', () => {
+  const PIN = '2023.12.20261112';
+  const TARGET = `if dnf_release_target ${PIN} "stand-in context"; then echo "lands=\${DNF_RELEASE_TARGET}"; else echo "refused"; fi`;
+
+  /** A stand-in dnf answering the system-release query with the given output, error line and exit. */
+  function repoqueryAnswering(out: string, err: string, rc: number): string {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'dnf'), [
+      '#!/usr/bin/env bash',
+      `[[ "$*" == "repoquery -q --releasever=${PIN} --latest-limit=1 --qf %{version}\\n system-release" ]] || exit 64`,
+      `printf '%b' ${JSON.stringify(out)}`,
+      `printf '%b' ${JSON.stringify(err)} >&2`,
+      `exit ${rc}`,
+    ].join('\n') + '\n');
+    chmodSync(join(bin, 'dnf'), 0o755);
+    return `${bin}:${process.env.PATH ?? ''}`;
+  }
+
+  it('lets the step through when the repositories for the release serve that release', () => {
+    const r = run(TARGET, repoqueryAnswering(`${PIN}\n`, '', 0));
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout.trim()).toBe(`lands=${PIN}`);
+  });
+
+  it('marks an error when the repositories would carry the upgrade to another release', () => {
+    // Defect caught: a repository not locked to the pin serves a later
+    // system-release, the upgrade lands the host past the pin, and nothing
+    // asked before the packages moved.
+    const r = run(TARGET, repoqueryAnswering('2023.12.20261120\n', '', 0));
+    expect(r.status).toBe(1);
+    expect(r.stdout.trim()).toBe('refused');
+    expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR .*serve system-release 2023\.12\.20261120, so dnf upgrade would put the host on 2023\.12\.20261120, not 2023\.12\.20261112; nothing was upgraded; stand-in context$/m);
+  });
+
+  it('marks an error, never a pass, when the query fails or names no release', () => {
+    // Defect caught: an unreachable repository or an empty answer read as the
+    // pin, so the upgrade runs with nothing known about where it lands.
+    const failed = run(TARGET, repoqueryAnswering('', 'Error: stand-in repository unreachable\n', 1));
+    expect(failed.status).toBe(1);
+    expect(failed.stdout.trim()).toBe('refused');
+    expect(failed.stderr).toMatch(/^---FOOTBAG-PROBLEM--- ERROR .*\(exit 1\): Error: stand-in repository unreachable; stand-in context$/m);
+    const empty = run(TARGET, repoqueryAnswering('', '', 0));
+    expect(empty.status).toBe(1);
+    expect(empty.stderr).toMatch(/serve system-release none/);
   });
 });

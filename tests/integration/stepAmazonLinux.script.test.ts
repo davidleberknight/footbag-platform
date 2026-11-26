@@ -41,6 +41,7 @@ const pin = (k: string): string => {
 };
 const PIN = pin('AMAZON_LINUX_RELEASE');
 const OLD = '2023.6.20241010';
+const PAST = '2099.1.20990101';
 
 let dir: string;
 let hostBin: string;
@@ -85,10 +86,16 @@ function writeHostTools(): void {
     '    echo "kernel.x86_64   6.1.150-1.amzn2023       amazonlinux"',
     '    exit 100 ;;',
     '  *check-release-update*) exit 0 ;;',
+    // The release the repositories dnf resolves for the pin serve: the pin when
+    // the lock holds, a later release when it does not; the upgrade lands on
+    // whichever the query names, as the real repositories make it.
+    `  *"repoquery -q --releasever=${PIN} --latest-limit=1 --qf %{version}\\n system-release"*)`,
+    `    if [[ -e ${st}/repos-past-pin ]]; then echo "${PAST}"; else echo "${PIN}"; fi; exit 0 ;;`,
     '  *upgrade*)',
     `    echo "Upgrading 2 packages"`,
     `    [[ -e ${st}/scriptlet-error ]] && echo "warning: %post(docker) scriptlet failed, exit status 1"`,
-    `    [[ -e ${st}/upgrade-misses ]] || echo "Amazon Linux release ${PIN} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`,
+    `    landed="${PIN}"; [[ -e ${st}/repos-past-pin ]] && landed="${PAST}"`,
+    `    [[ -e ${st}/upgrade-misses ]] || echo "Amazon Linux release $landed (Amazon Linux)" > ${JSON.stringify(releaseFile)}`,
     `    touch ${st}/upgraded`,
     '    exit 0 ;;',
     `  *needs-restarting*) exit "$(cat ${st}/needs-restarting-rc 2>/dev/null || echo 0)" ;;`,
@@ -180,6 +187,38 @@ describe('the root-side step', () => {
     const r = runRemote('step');
     expect(r.status).toBe(1);
     expect(r.out).toMatch(new RegExp(`---FOOTBAG-PROBLEM--- ERROR .*${OLD.replace(/\./g, '\\.')}.*not ${PIN.replace(/\./g, '\\.')}`));
+  });
+
+  it('refuses a host already past the pin before anything stops, in the preview and in the step', () => {
+    // Defect caught: on a host newer than the pin, dnf upgrade leaves it where
+    // it is and finds nothing left at the pin, so the preview reads "nothing to
+    // do" and the run reports the host at the pin; or the step stops the
+    // service for an upgrade that cannot reach the pin.
+    writeFileSync(releaseFile, `Amazon Linux release ${PAST} (Amazon Linux)\n`);
+    const preview = runRemote('preview');
+    expect(preview.status).toBe(1);
+    expect(preview.out).not.toContain('---FOOTBAG-PREVIEW---');
+    expect(preview.out).toMatch(new RegExp(`^---FOOTBAG-PROBLEM--- ERROR .*${PAST.replace(/\./g, '\\.')}, newer than the pinned`, 'm'));
+    const step = runRemote('step');
+    expect(step.status).toBe(1);
+    expect(calls()).not.toMatch(/systemctl stop|dnf upgrade/);
+    expect(readFileSync(releaseFile, 'utf-8')).toContain(PAST);
+  });
+
+  it('refuses before anything stops when the repositories for the pin would carry the host past it', () => {
+    // Defect caught: the step trusts --releasever to hold the upgrade at the
+    // pin; where a repository dnf reads is not locked to it, the service is
+    // stopped and the host upgraded past the pin, and only the release check
+    // after the transaction notices.
+    flag('repos-past-pin');
+    const step = runRemote('step');
+    expect(step.status).toBe(1);
+    expect(step.out).toMatch(new RegExp(`^---FOOTBAG-PROBLEM--- ERROR .*serve system-release ${PAST.replace(/\./g, '\\.')}.*nothing was stepped`, 'm'));
+    expect(calls()).not.toMatch(/systemctl stop|dnf upgrade/);
+    expect(readFileSync(releaseFile, 'utf-8')).toContain(OLD);
+    const preview = runRemote('preview');
+    expect(preview.status).toBe(1);
+    expect(preview.out).not.toContain('---FOOTBAG-PREVIEW---');
   });
 
   it('fails on a scriptlet failure dnf printed and then exited 0 over', () => {

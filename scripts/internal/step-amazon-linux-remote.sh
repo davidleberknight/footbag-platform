@@ -16,18 +16,21 @@
 # Modes:
 #   status   the release, the pin, the newer releases the distribution offers,
 #            and whether a reboot is already pending
-#   preview  how many packages the step would change, without changing any
-#   step     stop the service and the backup timer, check the disk, run the
-#            upgrade so a dropped session cannot cut it short, prove the release
-#            and that nothing at the pin is left to install, and say whether a
-#            reboot is needed
+#   preview  how many packages the step would change, without changing any;
+#            a step that cannot land on the pin is an error instead
+#   step     refuse a step that cannot land on the pin (a host already past
+#            it, or repositories that resolve to another release) before
+#            anything stops; then stop the service and the backup timer,
+#            check the disk, run the upgrade so a dropped session cannot cut
+#            it short, prove the release and that nothing at the pin is left
+#            to install, and say whether a reboot is needed
 #   resume   start the backup timer again (the operator side then restarts the
 #            service and proves the stack)
 #   prove    compare the host's tools with the pins (needs
 #            scripts/internal/host-tool-versions-remote.sh sent ahead)
 #
-# preview and step count with scripts/internal/dnf-check-update-remote.sh, which
-# is sent ahead of this body.
+# preview and step count, and ask where the upgrade would land, with
+# scripts/internal/dnf-check-update-remote.sh, which is sent ahead of this body.
 #
 # Lines for the operator side to read:
 #   ---FOOTBAG-PREVIEW--- <packages>
@@ -77,6 +80,28 @@ count_updates() {
   echo "$DNF_UPDATE_COUNT"
 }
 
+# Whether a step can land on the pin, decided before anything stops. `dnf
+# upgrade --releasever` only moves a host forward, so a host already past the
+# pin would be stopped and upgraded to no effect, and a count of nothing left at
+# the pin would read as "already at the pin". And repositories that resolve to
+# another release would carry the host past it. Each is a marked error; the
+# return is 1 when the step cannot land.
+step_can_land() {
+  local rel newest
+  rel="$(release_now)" || return 1
+  [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]] && return 0
+  newest="$(printf '%s\n%s\n' "$AMAZON_LINUX_RELEASE" "${rel:-0}" | sort -V | tail -n 1)"
+  if [[ -n "$rel" && "$newest" == "$rel" ]]; then
+    crr_error "the host runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; dnf upgrade does not step a release back, so nothing was stepped"
+    return 1
+  fi
+  if ! declare -F dnf_release_target >/dev/null; then
+    crr_error "dnf-check-update-remote.sh was not sent ahead of this body"
+    return 1
+  fi
+  dnf_release_target "$AMAZON_LINUX_RELEASE" "nothing was stepped"
+}
+
 # dnf needs-restarting -r exits 1 when a reboot is required and 0 when it is not;
 # anything else is a failure to tell, never a yes.
 reboot_needed() {
@@ -113,12 +138,13 @@ case "$MODE" in
     ;;
 
   preview)
-    if n="$(count_updates)"; then
+    if step_can_land && n="$(count_updates)"; then
       echo "---FOOTBAG-PREVIEW--- ${n}"
     fi
     ;;
 
   step)
+    step_can_land || crr_finish
     echo "==> Stopping the backup timer and footbag.service for the step"
     if ! systemctl stop footbag-backup.timer footbag-backup.service footbag.service; then
       crr_error "could not stop the service and the backup timer; nothing was stepped"

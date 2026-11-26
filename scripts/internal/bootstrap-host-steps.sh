@@ -336,7 +336,21 @@ bh_probe_aws() {
   bh_probe_report
   out="$(FOOTBAG_CR_REPORT_TO="$BH_PROBE_REPORT" bash "${BH_SCRIPTS}/verify-host-snapshots.sh" --target "$target" </dev/null 2>&1)" || rc=$?
   P[SNAPSHOT_SAID]=""
-  if (( rc == 0 )); then P[SNAPSHOT]=ok; else P[SNAPSHOT]=fail; P[SNAPSHOT_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"; fi
+  P[SNAPSHOT_DUE]=""
+  P[SNAPSHOT_INSTANCE]=""
+  # Exit 3 is the verifier's not-yet-due: a new instance whose add-on is
+  # Enabled. It counts only with the line naming the instance and the time the
+  # first snapshot is due by; without that line it is a failure like any other.
+  local due_re='^== first automatic snapshot of ([^ ]+) is due by ([0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}Z)'
+  local due_line
+  due_line="$(grep -E "$due_re" <<< "$out" | tail -n 1 || [[ $? == 1 ]])"
+  if (( rc == 0 )); then
+    P[SNAPSHOT]=ok
+  elif (( rc == 3 )) && [[ "$due_line" =~ $due_re ]]; then
+    P[SNAPSHOT]=due; P[SNAPSHOT_INSTANCE]="${BASH_REMATCH[1]}"; P[SNAPSHOT_DUE]="${BASH_REMATCH[2]}"
+  else
+    P[SNAPSHOT]=fail; P[SNAPSHOT_SAID]="$(bh_reason "$out" "$BH_PROBE_REPORT")"
+  fi
   bh_probe_report_done
 
   P[FEEDS_FLAG]="$(bh_tfvars_flag "$target" enable_feed_queues)"
@@ -908,6 +922,9 @@ bh_verdict() {
       BH_NEXT="bash scripts/verify-host-snapshots.sh --target ${t}   (the daily automatic snapshot appears within a day of the instance's creation)"
       case "${P[SNAPSHOT]:-unknown}" in
         ok) BH_STATE=DONE; BH_DETAIL="an automatic snapshot younger than a day and two hours" ;;
+        # Not pending: nothing is left to run. Not done either: nothing has yet
+        # proved the add-on takes snapshots of this instance.
+        due) BH_STATE=INFO; BH_DETAIL="not yet due: ${P[SNAPSHOT_INSTANCE]} is new and its AutoSnapshot add-on is Enabled; the first automatic snapshot is due by ${P[SNAPSHOT_DUE]}" ;;
         fail) BH_STATE=PENDING; BH_DETAIL="no automatic snapshot younger than a day and two hours${P[SNAPSHOT_SAID]:+: ${P[SNAPSHOT_SAID]}}" ;;
         *) BH_STATE=UNKNOWN; BH_DETAIL="not read" ;;
       esac

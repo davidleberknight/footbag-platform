@@ -1,7 +1,8 @@
 # shellcheck shell=bash
 #
 # scripts/internal/dnf-check-update-remote.sh -- the host-side count of the
-# packages `dnf check-update` lists for one Amazon Linux release.
+# packages `dnf check-update` lists for one Amazon Linux release, and the
+# release a `dnf upgrade` to that release would land on.
 #
 # Sent on the ssh stream behind scripts/lib/closing-report-remote.sh and ahead
 # of a remote half that counts what a release step would change, the way
@@ -63,4 +64,36 @@ dnf_check_update() {
       return 1
       ;;
   esac
+}
+
+# dnf_release_target <releasever> [<context>]
+# The release a `dnf upgrade --releasever=<releasever>` would land the host on,
+# asked of dnf before the upgrade runs. The installed system-release package is
+# what sets the host's release, so the newest system-release the repositories
+# dnf resolves for that release serve is where the upgrade ends. It is the pin
+# only when every repository dnf reads is really locked to the pin; a
+# repository file, a release variable file or a third-party repository that
+# resolves to another release would carry the host past it, and a check after
+# the upgrade can only report that once the packages have moved. The format is
+# the query's own (--qf), so nothing of dnf's listing layout is parsed.
+# Sets DNF_RELEASE_TARGET. On a failed query, an empty answer, or any release
+# but the one asked for, marks the error (the context, when given, appended
+# after a semicolon) and returns 1.
+DNF_RELEASE_TARGET=""
+dnf_release_target() {
+  local release="$1" context="${2:-}" rc=0 out err_file err
+  DNF_RELEASE_TARGET=""
+  err_file="$(mktemp)"
+  out="$(dnf repoquery -q --releasever="$release" --latest-limit=1 --qf '%{version}\n' system-release 2>"$err_file")" || rc=$?
+  err="$(tail -n 1 "$err_file")"
+  rm -f "$err_file"
+  if (( rc != 0 )); then
+    crr_error "dnf repoquery --releasever=${release} system-release failed (exit ${rc}): ${err:-no message}${context:+; ${context}}"
+    return 1
+  fi
+  DNF_RELEASE_TARGET="$(printf '%s\n' "$out" | sed -n '/[^[:space:]]/{s/[[:space:]]//g;p;}' | tail -n 1)"
+  if [[ "$DNF_RELEASE_TARGET" != "$release" ]]; then
+    crr_error "the repositories dnf reads for --releasever=${release} serve system-release ${DNF_RELEASE_TARGET:-none}, so dnf upgrade would put the host on ${DNF_RELEASE_TARGET:-no known release}, not ${release}; nothing was upgraded${context:+; ${context}}"
+    return 1
+  fi
 }

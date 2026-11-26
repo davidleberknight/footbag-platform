@@ -621,6 +621,23 @@ function closingReport(out: string): string {
   return at < 0 ? '' : out.slice(at);
 }
 
+/**
+ * One list of the closing report: the "  - " items under the heading line
+ * `title`, up to the next line that is not an item. Empty when the list is not
+ * printed, which the report does for a list with nothing in it.
+ */
+function reportSection(report: string, title: string): string {
+  const lines = report.split('\n');
+  const at = lines.indexOf(title);
+  if (at < 0) return '';
+  const items: string[] = [];
+  for (const line of lines.slice(at + 1)) {
+    if (!line.startsWith('  - ')) break;
+    items.push(line);
+  }
+  return items.join('\n');
+}
+
 /** The provision half's modes, in the order the run sent them. */
 function provisionModes(): string[] {
   const p = join(state, 'calls.log');
@@ -792,6 +809,65 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     expect(r.status).toBe(0);
   });
 
+  // The verifier's not-yet-due answer for a new instance: exit 3 with the line
+  // naming the instance and the time its first automatic snapshot is due by.
+  const SNAPSHOT_DUE_LINE = '== first automatic snapshot of footbag-staging-web-r1 is due by 2026-11-27T03:11Z: not yet due on staging, since it was created 2026-11-26T01:11:00+00:00 and the AutoSnapshot add-on is Enabled ==';
+  function snapshotNotYetDue(): void {
+    hook('verify-host-snapshots.sh', [`echo ${JSON.stringify(SNAPSHOT_DUE_LINE)}`]);
+    setExit('verify-host-snapshots.sh', 3);
+  }
+
+  it('reads a new instance\'s first snapshot not yet due as INFO naming the due time, and passes', () => {
+    // Defect caught: an instance a restore or a replacement has just created
+    // reads its snapshot pending, the same as a host whose snapshots stopped,
+    // so the two cannot be told apart from the status view.
+    snapshotNotYetDue();
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status, r.stdout + r.stderr).toBe(0);
+    const row = rowFor(r.stdout, 'Recent host snapshot');
+    expect(row.line).toMatch(/\sINFO\s/);
+    expect(row.line).toContain('footbag-staging-web-r1');
+    expect(row.line).toContain('due by 2026-11-27T03:11Z');
+    expect(row.next).toMatch(/verify-host-snapshots\.sh --target staging/);
+  });
+
+  it('records the not-yet-due snapshot as unproved, never as proved or as a warning', () => {
+    // Defect caught: the run's closing report says every step reads done and
+    // lists nothing about the snapshot, so a host nobody has yet seen
+    // snapshotted reads as fully proved.
+    snapshotNotYetDue();
+    const r = run(['--target', 'staging', '--status']);
+    const report = closingReport(r.stderr);
+    const item = '  - that the add-on takes the first automatic snapshot of footbag-staging-web-r1; due by 2026-11-27T03:11Z';
+    expect(reportSection(report, 'Not proven:'), report).toContain(item);
+    expect(reportSection(report, 'Proven:'), report).not.toContain('automatic snapshot');
+    expect(report).toContain('No errors or warnings.');
+  });
+
+  it('reads exit 3 without the due line as pending, not as not yet due', () => {
+    // Defect caught: any exit 3 is taken for a new instance, so a verifier that
+    // stopped short for some other reason reads as nothing due.
+    setExit('verify-host-snapshots.sh', 3);
+    const r = run(['--target', 'staging', '--status']);
+    expect(rowFor(r.stdout, 'Recent host snapshot').line).toMatch(/\sPENDING\s/);
+  });
+
+  it('lists a pending snapshot as a warning in the closing report, and a current one as proved', () => {
+    // Defect caught: the pending snapshot is left out of the pending count and
+    // then out of the report too, so a host whose daily snapshot has stopped
+    // ends its status run with no warning at all.
+    setExit('verify-host-snapshots.sh', 1);
+    const pending = run(['--target', 'staging', '--status']);
+    expect(pending.status).toBe(0);
+    expect(closingReport(pending.stderr)).toMatch(/Warnings \(1\):[\s\S]*the automatic snapshot of \S+ reads PENDING/);
+
+    rmSync(join(state, 'exit', 'verify-host-snapshots.sh'));
+    const current = run(['--target', 'staging', '--status']);
+    const report = closingReport(current.stderr);
+    expect(report).toContain('No errors or warnings.');
+    expect(report).toMatch(/Proven:[\s\S]*the automatic snapshot of \S+: an automatic snapshot younger than a day/);
+  });
+
   it('names the rebuild deploy on production before go-live and the restore after it', () => {
     // Defect caught: a live production is told to run the rebuild deploy, which
     // would replace the member database, or a pre-live one is told to restore.
@@ -901,6 +977,21 @@ describe('bootstrap-host.sh: argument and identity refusals', () => {
 });
 
 describe('bootstrap-host.sh: the bootstrap', () => {
+  it('finishes a new instance whose first snapshot is not yet due, recording it unproved', () => {
+    // Defect caught: the bootstrap of an instance created minutes ago, the
+    // fresh-instance drill's own case, ends claiming every step done with no
+    // word that its snapshot is still to come, or fails for a snapshot that
+    // could not have been taken yet.
+    hook('verify-host-snapshots.sh', [
+      'echo "== first automatic snapshot of footbag-staging-web-r1 is due by 2026-11-27T03:11Z: not yet due on staging, since it was created 2026-11-26T01:11:00+00:00 and the AutoSnapshot add-on is Enabled =="',
+    ]);
+    setExit('verify-host-snapshots.sh', 3);
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(rowFor(r.out, 'Recent host snapshot').line).toMatch(/\sINFO\s.*due by 2026-11-27T03:11Z/);
+    expect(closingReport(r.out)).toContain('that the add-on takes the first automatic snapshot of footbag-staging-web-r1; due by 2026-11-27T03:11Z');
+  });
+
   it('on a finished host proves every step and changes nothing, then names the milestones', () => {
     // The passing case for the refusals and first-run cases below. Defect
     // caught: a re-run repeats work it should have proved done, minting keys,
@@ -2478,6 +2569,8 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       checkUpdate?: { rc: number; out: string };
       /** The host already has its disk swap file active. */
       swapActive?: boolean;
+      /** The system-release the repositories dnf resolves for the pin serve (default: the pin). */
+      reposServe?: string;
     }
     let releaseFile: string;
     let sqliteTarget: string;
@@ -2530,12 +2623,17 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       // A release step on a small host with no disk swap is killed for want of
       // memory while it loads the release's metadata, as it was on staging's
       // 512 MB instance (exit 137, the kernel's SIGKILL).
+      // The release the repositories dnf resolves for the pin actually serve:
+      // the pin when the lock holds, another release when it does not. The
+      // query and the upgrade read the same repositories, as the real ones do.
+      const serves = h.reposServe ?? AL_PIN;
       tool('dnf', [
-        '[[ "$1" == upgrade && ! -e "$LOG.swap-on" ]] && { echo "Amazon Linux 2023 repository  76 MB/s |  90 MB  00:01"; exit 137; }',
-        // dnf upgrade only moves forward: a host already past the pin is left
-        // where it is ("Nothing to do"), as on staging.
+        '[[ "$1" =~ ^(upgrade|repoquery)$ && ! -e "$LOG.swap-on" ]] && { echo "Amazon Linux 2023 repository  76 MB/s |  90 MB  00:01"; exit 137; }',
+        `[[ "$1" == repoquery && "$*" == *"--qf %{version}\\n system-release"* ]] && { echo ${serves}; exit 0; }`,
+        // dnf upgrade only moves forward: a host already past the release the
+        // repositories serve is left where it is ("Nothing to do"), as on staging.
         `cur="$(sed -n 's/^Amazon Linux release \\([0-9.]*\\).*/\\1/p' ${JSON.stringify(releaseFile)})"`,
-        `[[ "$1" == upgrade && "$(printf '%s\\n%s\\n' "$cur" ${AL_PIN} | sort -V | tail -n 1)" == ${AL_PIN} ]] && echo "Amazon Linux release ${AL_PIN} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`,
+        `[[ "$1" == upgrade && "$(printf '%s\\n%s\\n' "$cur" ${serves} | sort -V | tail -n 1)" == ${serves} ]] && echo "Amazon Linux release ${serves} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`,
         h.dnfSays ? `[[ "$1" == install ]] && echo ${JSON.stringify(h.dnfSays)}` : ':',
         h.checkUpdate
           ? `[[ "$1" == check-update ]] && { printf '%b' ${JSON.stringify(h.checkUpdate.out)}; exit ${h.checkUpdate.rc}; }`
@@ -2589,7 +2687,50 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       provisionTools({ engine: 'none', release: newer, distroSqlite: true });
       const prod = runHalf(PROVISION_HALF, pins().replace('FOOTBAG_ENV=staging', 'FOOTBAG_ENV=production'));
       expect(prod.status).toBe(1);
-      expect(prod.out).toContain(`after the upgrade the host reports Amazon Linux ${newer}`);
+      expect(problems(prod.out).join('\n')).toContain(`runs Amazon Linux ${newer}, newer than the pinned ${AL_PIN}`);
+    });
+
+    it('refuses a production host past its pin before the swap file or any package is touched', () => {
+      // Defect caught: a fresh production instance whose image is past the pin
+      // has its swap file made and a dnf upgrade run that cannot reach the pin,
+      // and is refused only afterwards, so the refusal reports a changed host
+      // for a step that could never have landed.
+      const newer = '2099.1.20990101';
+      provisionTools({ engine: 'none', release: newer, distroSqlite: true });
+      const r = runHalf(PROVISION_HALF, pins().replace('FOOTBAG_ENV=staging', 'FOOTBAG_ENV=production'));
+      expect(r.status).toBe(1);
+      expect(problems(r.out)).toHaveLength(1);
+      expect(problems(r.out)[0]).toContain('nothing was changed on the host');
+      expect(logged()).not.toMatch(/^(dnf|fallocate|mkswap) /m);
+      expect(existsSync(swapFile)).toBe(false);
+      expect(readFileSync(releaseFile, 'utf-8')).toContain(newer);
+    });
+
+    it('refuses before any package moves when the repositories for the pin would carry the host past it', () => {
+      // Defect caught: the release step trusts --releasever to hold the
+      // upgrade at the pin; where a repository dnf reads is not locked to it,
+      // the upgrade lands the host on a newer release, past the pin, and only
+      // the check after it notices, once every package has moved.
+      const past = '2099.1.20990101';
+      provisionTools({ engine: 'none', release: '2023.6.20241010', distroSqlite: true, reposServe: past });
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status).toBe(1);
+      expect(problems(r.out)).toHaveLength(1);
+      expect(problems(r.out)[0]).toContain(`serve system-release ${past}`);
+      expect(problems(r.out)[0]).toContain('this run had already changed: provisioned the 1G');
+      expect(problems(r.out)[0]).not.toContain('ran dnf upgrade');
+      expect(logged()).not.toMatch(/^dnf (upgrade|install|remove) /m);
+      expect(readFileSync(releaseFile, 'utf-8')).toContain('2023.6.20241010');
+
+      // The same host with the lock holding lands exactly on the pin.
+      rmSync(log, { force: true });
+      provisionTools({ engine: 'none', release: '2023.6.20241010', distroSqlite: true });
+      const held = runHalf(PROVISION_HALF, pins());
+      expect(held.status, held.out).toBe(0);
+      expect(readFileSync(releaseFile, 'utf-8')).toBe(`Amazon Linux release ${AL_PIN} (Amazon Linux)\n`);
+      const order = logged();
+      expect(order.indexOf('dnf repoquery')).toBeGreaterThan(-1);
+      expect(order.indexOf('dnf repoquery')).toBeLessThan(order.indexOf('dnf upgrade'));
     });
 
     it('leaves an active swap file alone', () => {

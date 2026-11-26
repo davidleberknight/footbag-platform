@@ -329,6 +329,58 @@ cmd_disk() {
   banner "DB file + WAL + SHM sizes on host"
   sudo ls -lh "$DB_HOST_PATH"* 2>/dev/null || echo "(no host DB file at $DB_HOST_PATH)"
 }
+# Where the host's Amazon Linux release came from. The release a host runs is
+# meant to move only when the pin does, so a host found past its pin is
+# answered from the host's own record: the release the image booted with, every
+# dnf transaction since, the release each transaction that changed the release
+# package resolved its repositories against, the command lines dnf logged, and
+# any release variable file that would override the one a command passes.
+# Read-only: dnf runs from its cache only and never refreshes metadata.
+cmd_dnf_history() {
+  banner "Release now"
+  cat /etc/amazon-linux-release 2>/dev/null || echo "(no /etc/amazon-linux-release)"
+  rpm -q --qf '%{NAME}-%{VERSION}-%{RELEASE} installed %{INSTALLTIME:date}\n' system-release \
+    || echo "(rpm -q system-release failed)"
+
+  banner "dnf release variable files"
+  local f found=0
+  for f in /etc/dnf/vars/*; do
+    [[ -e "$f" ]] || continue
+    found=1
+    printf '%s = %s\n' "$f" "$(head -c 200 "$f")"
+  done
+  [[ "$found" -eq 1 ]] || echo "(no file in /etc/dnf/vars)"
+
+  banner "dnf history list"
+  sudo dnf -C -q history list || echo "(dnf history list failed)"
+
+  # A package name selects every transaction that manipulated it, so no
+  # transaction number is read out of dnf's table.
+  banner "Transactions that changed system-release"
+  sudo dnf -C -q history info system-release || echo "(dnf history info system-release failed)"
+
+  banner "Commands and release lines dnf logged"
+  # grep exits 1 on no match and 2 on a log that is not there; either is
+  # reported as no line, and only then.
+  local lines rc
+  rc=0
+  lines="$(sudo grep -hE 'Command: |releasever' /var/log/dnf.log* 2>&1)" || rc=$?
+  if (( rc == 0 )); then
+    printf '%s\n' "$lines" | sort | tail -n 80
+  else
+    echo "(no matching line in /var/log/dnf.log*, grep exit ${rc})"
+  fi
+
+  banner "Package lines the instance's first boot logged"
+  rc=0
+  lines="$(sudo grep -hiE 'dnf|yum|releasever|system-release' /var/log/cloud-init-output.log /var/log/cloud-init.log 2>&1)" || rc=$?
+  if (( rc == 0 )); then
+    printf '%s\n' "$lines" | tail -n 40
+  else
+    echo "(no matching line in the cloud-init logs, grep exit ${rc})"
+  fi
+}
+
 cmd_systemd() {
   banner "systemctl status footbag.service"; sudo systemctl status footbag.service --no-pager -l || true
   # The backup service's own journal is the only place a refused or failed
@@ -1073,6 +1125,9 @@ staging_diagnostics.sh — subcommands
     host-access              effective sshd settings, the provider default
                              account and agent, and every account that can log
                              in with its key fingerprints
+    dnf-history              where the Amazon Linux release came from: the
+                             release file, dnf's release variables, every dnf
+                             transaction and those that changed system-release
 
   Workers
     worker-status            worker container status + restart history
@@ -1185,6 +1240,7 @@ main() {
     disk)                 cmd_disk ;;
     systemd)              cmd_systemd ;;
     host-access)          cmd_host_access ;;
+    dnf-history)          cmd_dnf_history ;;
 
     aws-whoami)           cmd_aws_whoami ;;
     ses-identity)         cmd_ses_identity ;;

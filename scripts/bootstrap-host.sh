@@ -361,6 +361,19 @@ report_reboot_need() {
   esac
 }
 
+# The automatic snapshot is left out of the pending count, so what its row reads
+# goes into the closing report instead, and the run never claims a snapshot it
+# did not see. A new instance's first snapshot not yet due is unproved; any other
+# row short of done is a warning naming what the check said.
+report_snapshot_row() {
+  bh_verdict snapshot
+  case "$BH_STATE" in
+    DONE) cr_proved "the automatic snapshot of ${ALIAS}: ${BH_DETAIL}" ;;
+    INFO) cr_unproved "that the add-on takes the first automatic snapshot of ${P[SNAPSHOT_INSTANCE]}; due by ${P[SNAPSHOT_DUE]}" ;;
+    *) cr_warn "the automatic snapshot of ${ALIAS} reads ${BH_STATE}: ${BH_DETAIL}; check it with ${BH_NEXT%%   (*}" ;;
+  esac
+}
+
 # ── --status ─────────────────────────────────────────────────────────────────
 
 if [[ "$MODE" == "status" ]]; then
@@ -387,6 +400,7 @@ if [[ "$MODE" == "status" ]]; then
     cr_die "${ALIAS} records FOOTBAG_ENV=${P[FOOTBAG_ENV]}. The rows above describe that host, not ${TARGET}'s."
   fi
   report_reboot_need
+  report_snapshot_row
   if (( RENDER_PENDING > 0 )); then
     echo "${RENDER_PENDING} step(s) pending or unread."
     cr_die "${RENDER_PENDING} step(s) pending or unread on ${ALIAS}; each row above names its command"
@@ -1399,6 +1413,7 @@ bh_probe_pin "$TARGET"
 refresh_host; refresh_aws
 bh_probe_host_env "$TARGET"
 render_all
+report_snapshot_row
 bh_milestones "$TARGET"
 echo ""
 if (( RENDER_PENDING > 0 )); then

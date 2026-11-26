@@ -155,6 +155,60 @@ describe('systemd reads the backup service beside the application', () => {
   });
 });
 
+describe('dnf-history reads where the release came from and changes nothing', () => {
+  // Stand-ins that record their arguments, one line per call; the case asserts
+  // what was asked of dnf, not how dnf prints.
+  function runDnfHistory(): { status: number | null; calls: string } {
+    const { path } = stubTools();
+    const callsFile = join(workDir, 'dnf-calls.txt');
+    for (const tool of ['dnf', 'rpm']) {
+      const bin = join(workDir, 'bin', tool);
+      writeFileSync(
+        bin,
+        ['#!/usr/bin/env bash', `printf '${tool} %s\\n' "$*" >> ${JSON.stringify(callsFile)}`, 'exit 0', ''].join('\n'),
+        'utf-8',
+      );
+      chmodSync(bin, 0o755);
+    }
+    const res = spawnSync('bash', [SCRIPT, 'dnf-history'], {
+      encoding: 'utf-8',
+      env: { ...process.env, PATH: path, HOME: workDir },
+      ...SPAWN_GUARD,
+    });
+    let calls = '';
+    try {
+      calls = readFileSync(callsFile, 'utf-8');
+    } catch {
+      calls = '';
+    }
+    return { status: res.status, calls };
+  }
+
+  // Defect caught: the diagnostic an operator runs on a live host to learn why
+  // its release moved refreshes the repositories or runs a transaction, and so
+  // changes the very state it was asked to report.
+  it('asks dnf only for its history, from the cache, never a transaction or a refresh', () => {
+    const r = runDnfHistory();
+    expect(r.status).toBe(0);
+    const dnfCalls = r.calls.trim().split('\n').filter((l) => l.startsWith('dnf '));
+    expect(dnfCalls.length, r.calls).toBeGreaterThan(0);
+    for (const call of dnfCalls) {
+      expect(call, call).toMatch(/^dnf -C -q history (list|info)\b/);
+    }
+  });
+
+  // Defect caught: the transactions that changed the release package, which
+  // say which release each resolved against, are left out, so the history
+  // cannot tell an image past the pin from an upgrade that overshot it.
+  it('describes every transaction that changed system-release, and the installed one', () => {
+    const r = runDnfHistory();
+    const lines = r.calls.trim().split('\n');
+    expect(lines).toContain('dnf -C -q history list');
+    expect(lines).toContain('dnf -C -q history info system-release');
+    expect(lines.some((l) => /^rpm -q .*system-release$/.test(l)), r.calls).toBe(true);
+  });
+});
+
 describe('the diagnostics run only on a host that records a deployed environment', () => {
   // Defect caught: the toolkit runs against a host that has not confirmed it is
   // staging or production, and reports confidently about the wrong machine.

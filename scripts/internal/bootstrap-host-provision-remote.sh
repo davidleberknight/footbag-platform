@@ -39,8 +39,11 @@
 #             root-owned directory makes the application exit at startup.
 #
 # What it refuses: a pin still holding its placeholder, a digest that does not
-# match, and a machine that is not x86_64, since the pinned binary is built for
-# that and nothing else.
+# match, a machine that is not x86_64, since the pinned binary is built for
+# that and nothing else, and a release step that would not land on the pin:
+# a production host already past the pin, refused before anything changes, and
+# repositories that would carry the upgrade to any other release, refused
+# before any package moves.
 #
 # A refusal says what this run had already changed on the host before it, or
 # that it had changed nothing, so the operator is never told a host is as it
@@ -165,21 +168,37 @@ case "$MODE" in
     arch="$(uname -m)"
     [[ "$arch" == "x86_64" ]] || refuse "this host is ${arch}; the pinned Compose plugin is built for x86_64"
 
-    ensure_swapfile
     # The package repositories are locked to the pinned Amazon Linux release, so
     # every package below, docker included, comes from that one release. Stepping
     # forward is the same command step-amazon-linux.sh runs later.
+    #
+    # The release is judged before anything on the host changes. A fresh
+    # instance boots whatever release its provider's image has reached, which
+    # can be past the pin, and `dnf upgrade --releasever` only moves a host
+    # forward: it leaves a newer one where it is. Staging carries on with a
+    # warning; production refuses a host off its pin before the swap file or
+    # any package is touched.
     rel="$(release_now)"
-    # A release newer than the pin cannot be stepped back: dnf only moves
-    # forward. Staging carries on with a warning, since a fresh instance boots
-    # whatever release its image has reached; production refuses a host off its
-    # pin.
     newest="$(printf '%s\n%s\n' "$AMAZON_LINUX_RELEASE" "${rel:-0}" | sort -V | tail -n 1)"
+    step_release=0
     if [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]]; then
       echo "    Amazon Linux already at the pinned release ${AMAZON_LINUX_RELEASE}"
-    elif [[ "${FOOTBAG_ENV:-}" == "staging" && -n "$rel" && "$newest" == "$rel" ]]; then
-      crr_warn "staging runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; the release step was skipped, since dnf cannot step back. Production refuses a host off its pin."
+    elif [[ -n "$rel" && "$newest" == "$rel" ]]; then
+      if [[ "${FOOTBAG_ENV:-}" == "staging" ]]; then
+        crr_warn "staging runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; the release step was skipped, since dnf upgrade does not step a release back. Production refuses a host off its pin."
+      else
+        refuse "the host runs Amazon Linux ${rel}, newer than the pinned ${AMAZON_LINUX_RELEASE}; dnf upgrade does not step a release back, so the host cannot be brought to the pin"
+      fi
     else
+      step_release=1
+      declare -F dnf_release_target >/dev/null || refuse "dnf-check-update-remote.sh was not sent ahead of this body"
+    fi
+
+    ensure_swapfile
+    if (( step_release )); then
+      # Asked after the swap file, since loading the release's metadata is
+      # what runs a small host out of memory, and before any package moves.
+      dnf_release_target "$AMAZON_LINUX_RELEASE" "$(changed_so_far)." || crr_finish
       echo "==> Stepping Amazon Linux from ${rel:-an unknown release} to the pinned release ${AMAZON_LINUX_RELEASE}"
       # Recorded before the transaction: a failure part way has still changed
       # packages, and the refusal must not say otherwise.
