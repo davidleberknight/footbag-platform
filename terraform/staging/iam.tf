@@ -101,22 +101,39 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
 
   policy = jsonencode({
     Version = "2012-10-17"
-    Statement = [{
-      # Put, get and list, and deliberately not delete, matching production: the
-      # backup script uses get and list for generation promotion, and expiry
-      # belongs entirely to the bucket's lifecycle rules.
-      Sid    = "WriteSnapshots"
-      Effect = "Allow"
-      Action = [
-        "s3:PutObject",
-        "s3:GetObject",
-        "s3:ListBucket"
-      ]
-      Resource = [
-        aws_s3_bucket.snapshots.arn,
-        "${aws_s3_bucket.snapshots.arn}/*"
-      ]
-    }]
+    Statement = [
+      {
+        # Put, get and list, and deliberately not delete, matching production: the
+        # backup script uses get and list for generation promotion, and expiry
+        # belongs entirely to the bucket's lifecycle rules.
+        Sid    = "WriteSnapshots"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.snapshots.arn,
+          "${aws_s3_bucket.snapshots.arn}/*"
+        ]
+      },
+      {
+        # The host pulls a restore's snapshot itself with this role, so a
+        # restore from the routine DR copy fails with AccessDenied without this
+        # statement. Read-only: replication is that bucket's only writer.
+        Sid    = "ReadRoutineDisasterRecoverySnapshots"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.routine_dr.arn,
+          "${aws_s3_bucket.routine_dr.arn}/*"
+        ]
+      },
+    ]
   })
 }
 
@@ -350,7 +367,7 @@ resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {
 }
 
 # =============================================================================
-# S3 cross-region replication role for the media and archive buckets.
+# S3 cross-region replication role for the snapshot, media and archive buckets.
 # Separate from app_runtime: the principal of trust is s3.amazonaws.com,
 # not the application. Combining would muddy each role's purpose.
 # =============================================================================
@@ -387,6 +404,7 @@ resource "aws_iam_role_policy" "s3_replication" {
   role = aws_iam_role.s3_replication.id
 
   # One policy covering every replication pair:
+  #   snapshots (us-east-1) → routine_dr (us-west-2), the five-minute stream
   #   media   (us-east-1) → media_dr (us-west-2)
   #   archive (us-east-1) → archive_dr (us-west-2), while the archive exists
   #
@@ -406,7 +424,7 @@ resource "aws_iam_role_policy" "s3_replication" {
             "s3:ListBucket"
           ]
           Resource = concat(
-            [aws_s3_bucket.media.arn],
+            [aws_s3_bucket.snapshots.arn, aws_s3_bucket.media.arn],
             var.enable_archive ? [aws_s3_bucket.archive[0].arn] : [],
           )
         },
@@ -419,7 +437,7 @@ resource "aws_iam_role_policy" "s3_replication" {
             "s3:GetObjectVersionTagging"
           ]
           Resource = concat(
-            ["${aws_s3_bucket.media.arn}/*"],
+            ["${aws_s3_bucket.snapshots.arn}/*", "${aws_s3_bucket.media.arn}/*"],
             var.enable_archive ? ["${aws_s3_bucket.archive[0].arn}/*"] : [],
           )
         },
@@ -432,7 +450,7 @@ resource "aws_iam_role_policy" "s3_replication" {
             "s3:ReplicateTags"
           ]
           Resource = concat(
-            ["${aws_s3_bucket.media_dr.arn}/*"],
+            ["${aws_s3_bucket.routine_dr.arn}/*", "${aws_s3_bucket.media_dr.arn}/*"],
             var.enable_archive ? ["${aws_s3_bucket.archive_dr[0].arn}/*"] : [],
           )
         },

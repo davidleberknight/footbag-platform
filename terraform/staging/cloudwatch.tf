@@ -199,8 +199,8 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
 # first of the day into daily/ fails, so both alarms above stay green while the
 # generations stop advancing. routine/ expires after two days, so a stuck
 # promotion collapses the recovery history to those two days. Staging's snapshot
-# bucket replicates nowhere, so the off-region loss production carries is absent
-# here and the alarm still belongs: staging is where the backup pipeline is
+# bucket replicates only its routine/ stream, so the locked off-region history
+# production carries is absent here and the alarm still belongs: staging is where the backup pipeline is
 # rehearsed, and an alarm that has never been proved on staging is an alarm the
 # operator meets for the first time in production.
 #
@@ -227,11 +227,12 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_promotion" {
 }
 
 # ── Cross-region replication health ───────────────────────────────────────────
-# The DR copies of the media and archive buckets are maintained by S3
+# The DR copies of the snapshot, media and archive buckets are maintained by S3
 # replication and, until these, nothing watched them. A replication rule that
 # stops working is silent: the source bucket keeps accepting writes and the copy
-# that recovery depends on quietly falls behind. Staging's snapshot bucket has
-# no DR copy, which is the one shape difference from production here.
+# that recovery depends on quietly falls behind. Staging's snapshot bucket
+# replicates its routine/ stream only, with no locked hourly and daily copy,
+# which is the one shape difference from production here.
 #
 # A failed replication is not retried by S3. Recovery is re-uploading the object
 # or running S3 Batch Replication to clear the backlog.
@@ -239,6 +240,11 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_promotion" {
 locals {
   replicated_buckets = var.enable_replication_alarm ? merge(
     {
+      "snapshots-routine" = {
+        source      = aws_s3_bucket.snapshots.id
+        destination = aws_s3_bucket.routine_dr.id
+        rule        = "replicate-routine-stream-to-routine-dr"
+      }
       media = {
         source      = aws_s3_bucket.media.id
         destination = aws_s3_bucket.media_dr.id
@@ -299,6 +305,17 @@ resource "aws_sqs_queue_policy" "replication_failures" {
       }
     }]
   })
+}
+
+resource "aws_s3_bucket_notification" "snapshots_replication_failures" {
+  count      = var.enable_replication_alarm ? 1 : 0
+  bucket     = aws_s3_bucket.snapshots.id
+  depends_on = [aws_sqs_queue_policy.replication_failures]
+
+  queue {
+    queue_arn = aws_sqs_queue.replication_failures[0].arn
+    events    = ["s3:Replication:OperationFailedReplication"]
+  }
 }
 
 resource "aws_s3_bucket_notification" "media_replication_failures" {
@@ -370,6 +387,35 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog_us_west_2" {
     SourceBucket      = each.value.source
     DestinationBucket = each.value.destination
     RuleId            = each.value.rule
+  }
+}
+
+# The routine copy falling behind, declared as production declares it so the
+# alarm is proved here first. Replication Time Control states 99.9 percent of
+# objects within 15 minutes, so a latency of 15 minutes is where that promise is
+# broken and a regional loss would cost more than the backup window. In the
+# backup region, where S3 publishes the latency metric. Missing data keeps the
+# alarm's state, as AWS advises for replication metrics.
+resource "aws_cloudwatch_metric_alarm" "snapshot_routine_replication_latency_us_west_2" {
+  provider            = aws.us_west_2
+  count               = var.enable_replication_alarm ? 1 : 0
+  alarm_name          = "${local.prefix}-snapshots-routine-replication-latency"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ReplicationLatency"
+  namespace           = "AWS/S3"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 900 # seconds: the 15 minutes Replication Time Control promises
+  treat_missing_data  = "ignore"
+  alarm_description   = "The five-minute database backups are reaching the DR region 15 or more minutes late, so a regional loss would cost more than the backup window. Check the snapshot bucket's routine replication rule."
+  alarm_actions       = [aws_sns_topic.alarms_us_west_2.arn]
+  ok_actions          = [aws_sns_topic.alarms_us_west_2.arn]
+
+  dimensions = {
+    SourceBucket      = aws_s3_bucket.snapshots.id
+    DestinationBucket = aws_s3_bucket.routine_dr.id
+    RuleId            = "replicate-routine-stream-to-routine-dr"
   }
 }
 

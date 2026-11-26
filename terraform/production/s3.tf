@@ -2,7 +2,8 @@
 # S3 Buckets
 #   - media:       user-facing media (future use)
 #   - snapshots:   SQLite DB snapshots (primary)
-#   - dr:          cross-region DR copy of snapshots
+#   - dr:          cross-region DR copy of the hourly and daily snapshots
+#   - routine_dr:  cross-region DR copy of the five-minute routine snapshots
 #   - maintenance_page: static maintenance page served by CloudFront on 5xx, in us-west-2
 # =============================================================================
 
@@ -529,7 +530,7 @@ resource "aws_s3_bucket_policy" "dr" {
 }
 
 # Replication carries the promoted hourly and daily generations here, not the routine
-# stream, so this bucket holds roughly one point an hour rather than one every
+# stream, which goes to the unlocked routine_dr bucket below, so this bucket holds roughly one point an hour rather than one every
 # six minutes. Without expiry rules those still accumulate with no end, and the
 # routine rule below remains because copies replicated under the earlier
 # every-object scope have to age out; nothing new arrives under that prefix.
@@ -595,24 +596,111 @@ resource "aws_s3_bucket_lifecycle_configuration" "dr" {
   }
 }
 
+# ── Routine DR bucket (cross-region copy of the five-minute stream) ──────────
+# Losing the whole primary region costs no more than the five-minute backup
+# window, the same as every other failure, so every routine/ snapshot is copied
+# to the recovery region as it is written. It lands here rather than in the
+# locked DR bucket above, because Object Lock would hold each six-minute copy
+# for 90 days: about 98 GB of near-identical snapshots that nothing could thin.
+# This bucket is unlocked and keeps two days, matching the primary's routine/
+# window, so the copy is the same short stream the primary keeps and no more.
+# Older recovery points come from the locked bucket's hourly and daily copies.
+#
+# Versioning is on because replication requires it on both ends.
+resource "aws_s3_bucket" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = "${local.prefix}-db-snapshots-routine-dr"
+  # The newest off-region database copy lives here and nowhere else, so a
+  # terraform run must not be able to remove the bucket.
+  lifecycle { prevent_destroy = true }
+}
+
+resource "aws_s3_bucket_versioning" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "routine_dr" {
+  provider                = aws.us_west_2
+  bucket                  = aws_s3_bucket.routine_dr.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Deny-only policy, as on the locked DR bucket: replication writes through the
+# replication role's own IAM and the host reads through its runtime role, both
+# over TLS, and this refuses anything that is not.
+data "aws_iam_policy_document" "routine_dr" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.routine_dr.arn,
+      "${aws_s3_bucket.routine_dr.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  policy   = data.aws_iam_policy_document.routine_dr.json
+}
+
+# Two days for a copy and two for a superseded version. The bucket is versioned,
+# so the expiry only writes a delete marker; the noncurrent rule is what removes
+# the bytes, and without it the bucket would grow by every snapshot it ever held.
+# Nothing here needs a longer undo window: the primary keeps each routine/
+# version for a week, and the locked bucket holds the hourly points for 90 days.
+resource "aws_s3_bucket_lifecycle_configuration" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  rule {
+    id     = "expire-routine-dr-stream"
+    status = "Enabled"
+    filter { prefix = "routine/" }
+    expiration { days = 2 }
+    noncurrent_version_expiration { noncurrent_days = 2 }
+  }
+}
+
 # ── Snapshots cross-region replication ───────────────────────────────────────
-# Replicates the promoted retention generations (including delete markers) from
-# snapshots (us-east-1) to dr (us-west-2) using the s3_replication IAM role
-# declared in iam.tf, at ONEZONE_IA on the destination.
+# Replicates every retention generation (including delete markers) from
+# snapshots (us-east-1) to the recovery region using the s3_replication IAM role
+# declared in iam.tf: hourly/ and daily/ to the locked dr bucket, routine/ to the
+# unlocked routine_dr bucket.
 #
-# Deliberately not every object. Replicating the six-minute routine stream moved
-# roughly 98 GB a month between regions to build an off-region copy that cannot
-# be thinned, because Object Lock refuses to delete anything for 90 days: the
-# transfer and the destination storage were together the largest line in the
-# backup bill, and the copy they bought was 90 days of near-identical snapshots.
-# Carrying the hourly and daily generations instead costs about a tenth of that.
+# Storage classes. The hourly and daily copies are kept for 90 days and read
+# only in a recovery, which is the infrequent-access case, and STANDARD_IA keeps
+# them in several Availability Zones: a single-zone class would leave the
+# recovery copy exposed to the loss of one zone. The routine copies live two
+# days, and every infrequent-access class bills a 30-day minimum, so STANDARD,
+# which has no minimum duration, is the cheaper class as well as a multi-zone one.
 #
-# The trade is stated plainly: losing the whole region costs up to an hour of
-# writes rather than up to six minutes. That is the rarest failure on the list
-# and the one where an hour of member edits is the smallest part of the problem.
-# Every other failure mode restores from the primary bucket and is unaffected.
-#
-# Two rules because a replication filter takes a single prefix. The priorities
+# Three rules because a replication filter takes a single prefix. The priorities
 # are distinct as S3 requires; the prefixes cannot overlap, so their order
 # carries no meaning.
 
@@ -620,6 +708,7 @@ resource "aws_s3_bucket_replication_configuration" "snapshots" {
   depends_on = [
     aws_s3_bucket_versioning.snapshots,
     aws_s3_bucket_versioning.dr,
+    aws_s3_bucket_versioning.routine_dr,
   ]
 
   role   = aws_iam_role.s3_replication.arn
@@ -634,7 +723,7 @@ resource "aws_s3_bucket_replication_configuration" "snapshots" {
 
     destination {
       bucket        = aws_s3_bucket.dr.arn
-      storage_class = "ONEZONE_IA"
+      storage_class = "STANDARD_IA"
 
       # S3 publishes the replication metrics the alarms read only when the rule
       # asks for them, so the metrics and the alarms share one flag: arming the
@@ -657,13 +746,41 @@ resource "aws_s3_bucket_replication_configuration" "snapshots" {
 
     destination {
       bucket        = aws_s3_bucket.dr.arn
-      storage_class = "ONEZONE_IA"
+      storage_class = "STANDARD_IA"
 
       dynamic "metrics" {
         for_each = var.enable_replication_alarm ? [1] : []
         content {
           status = "Enabled"
         }
+      }
+    }
+  }
+
+  # The five-minute stream, under Replication Time Control, which S3 states
+  # replicates 99.9 percent of objects within 15 minutes and publishes the
+  # metrics the latency alarm reads. S3 refuses Replication Time Control on a
+  # rule whose metrics are off, so this rule's metrics are always on rather than
+  # following the alarm flag; only the alarms wait for that flag.
+  rule {
+    id       = "replicate-routine-stream-to-routine-dr"
+    status   = "Enabled"
+    priority = 30
+    filter { prefix = "routine/" }
+    delete_marker_replication { status = "Enabled" }
+
+    destination {
+      bucket        = aws_s3_bucket.routine_dr.arn
+      storage_class = "STANDARD"
+
+      replication_time {
+        status = "Enabled"
+        time { minutes = 15 }
+      }
+
+      metrics {
+        status = "Enabled"
+        event_threshold { minutes = 15 }
       }
     }
   }

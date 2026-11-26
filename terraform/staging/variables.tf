@@ -222,12 +222,16 @@ variable "enable_cwagent_alarms" {
 
 variable "enable_replication_alarm" {
   description = <<-EOT
-    Watch the cross-region replication that carries the media bucket to its DR
-    copy. Off by default and off until the rule has replicated at least once,
-    because the same flag turns on the S3 replication metrics the alarms read.
+    Watch the cross-region replication that carries the media bucket and the
+    routine snapshot stream to their DR copies. Off by default and off until the
+    rules have replicated at least once, because the same flag turns on the
+    media rule's S3 replication metrics the alarms read. The routine snapshot
+    rule runs under Replication Time Control, which S3 accepts only with its
+    metrics on, so its metrics are on whatever this says and only its alarms,
+    the latency alarm among them, wait for this flag.
 
-    Staging replicates media only: its snapshot bucket has no DR copy, so unlike
-    production there is no snapshot replication here to watch.
+    Staging replicates the routine/ snapshots only: unlike production it has no
+    locked DR copy of the hourly and daily generations to watch.
 
     A failed replication is not retried by S3. Recovery is re-uploading the
     object or running S3 Batch Replication to clear the backlog.

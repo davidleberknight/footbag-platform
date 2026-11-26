@@ -136,6 +136,22 @@ resource "aws_iam_role_policy" "app_s3_snapshots" {
         ]
       },
       {
+        # The newest off-region point after a regional loss is a routine copy,
+        # and the host pulls it with this role, so a restore from the routine
+        # DR bucket fails with AccessDenied without this statement. Read-only:
+        # replication is that bucket's only writer.
+        Sid    = "ReadRoutineDisasterRecoverySnapshots"
+        Effect = "Allow"
+        Action = [
+          "s3:GetObject",
+          "s3:ListBucket"
+        ]
+        Resource = [
+          aws_s3_bucket.routine_dr.arn,
+          "${aws_s3_bucket.routine_dr.arn}/*"
+        ]
+      },
+      {
         # The pre-flip rollback artifact, and nothing else. The cutover snapshot
         # gate has the host write that one archive to this bucket under a prefix
         # distinct from the replicated backup stream, so the rollback copy is
@@ -450,7 +466,8 @@ resource "aws_iam_user_policy" "cwagent_publisher_putmetric" {
 # =============================================================================
 # S3 cross-region replication role.
 # Used by aws_s3_bucket_replication_configuration.snapshots to replicate
-# SQLite snapshot objects from snapshots (us-east-1) to dr (us-west-2).
+# SQLite snapshot objects from snapshots (us-east-1) to dr and routine_dr
+# (us-west-2).
 # Separate from app_runtime: the principal of trust is s3.amazonaws.com,
 # not the application.
 # =============================================================================
@@ -488,7 +505,8 @@ resource "aws_iam_role_policy" "s3_replication" {
   role = aws_iam_role.s3_replication.id
 
   # Single policy covering every replication pair:
-  #   snapshots (us-east-1) → dr (us-west-2)
+  #   snapshots (us-east-1) → dr (us-west-2), the hourly and daily generations
+  #   snapshots (us-east-1) → routine_dr (us-west-2), the five-minute stream
   #   media     (us-east-1) → media_dr (us-west-2)
   #   archive   (us-east-1) → archive_dr (us-west-2), while the archive exists
   #   archive   (us-east-1) → legacy_mirror_backup (us-west-2), while both exist
@@ -550,6 +568,7 @@ resource "aws_iam_role_policy" "s3_replication" {
           Resource = concat(
             [
               "${aws_s3_bucket.dr.arn}/*",
+              "${aws_s3_bucket.routine_dr.arn}/*",
               "${aws_s3_bucket.media_dr.arn}/*",
             ],
             var.enable_archive ? ["${aws_s3_bucket.archive_dr[0].arn}/*"] : [],

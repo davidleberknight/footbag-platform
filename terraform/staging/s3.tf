@@ -3,17 +3,21 @@
 # - media:        processed photo objects and media assets
 # - snapshots:    5-minute SQLite WAL snapshots (primary backup)
 # - media_dr:     cross-region replication target for media (us-west-2)
+# - routine_dr:   cross-region replication target for the routine/ snapshots
+#                 (us-west-2), at parity with production
 # - maintenance_page: static maintenance page bucket, in us-west-2
 #
-# PARITY DIVERGENCE, DELIBERATE. Production carries a fourth durable bucket, a
+# PARITY DIVERGENCE, DELIBERATE. Production carries one more durable bucket, a
 # snapshot DR target in the backup region with Object Lock enabled at creation,
-# together with the replication that fills it. Staging has none of the three,
-# because staging is reset-tolerant: its database can be rebuilt from a seed at
-# any time, so there is nothing here whose loss a second region would prevent,
-# and a same-region unlocked copy would rehearse none of what production's DR
-# actually does. Media replication is a different case and is at parity: it
-# exercises the media pipeline itself, so both trees replicate media to a
-# second region.
+# together with the hourly and daily replication rules that fill it. Staging
+# has neither, because staging is reset-tolerant: its database can be rebuilt
+# from a seed at any time, so there is no long history here whose loss a second
+# region would prevent, and a lock would only hold rehearsal data for 90 days.
+# Production proves its locked copy itself: the replication check reads each
+# newest hourly and daily copy's lock there, and the restore drill reads the
+# copy back. The routine copy is at parity, because it is the path a regional
+# loss restores from first and staging is where every change to it is
+# rehearsed; media replication is at parity for the same reason.
 # =============================================================================
 
 locals {
@@ -182,6 +186,97 @@ resource "aws_s3_bucket_lifecycle_configuration" "snapshots" {
     status = "Enabled"
     filter { prefix = "daily/" }
     expiration { days = 3 }
+  }
+}
+
+# ── Routine DR bucket (cross-region copy of the five-minute stream) ──────────
+# The same shape as production's: every routine/ snapshot is copied to the
+# recovery region under Replication Time Control, into an unlocked bucket that
+# keeps two days, so a regional loss costs no more than the backup window.
+# Versioning is on because replication requires it on both ends.
+resource "aws_s3_bucket" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = "${local.prefix}-snapshots-routine-dr"
+  lifecycle { prevent_destroy = true }
+}
+
+resource "aws_s3_bucket_versioning" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  versioning_configuration { status = "Enabled" }
+}
+
+resource "aws_s3_bucket_server_side_encryption_configuration" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  rule {
+    apply_server_side_encryption_by_default {
+      sse_algorithm = "AES256"
+    }
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "routine_dr" {
+  provider                = aws.us_west_2
+  bucket                  = aws_s3_bucket.routine_dr.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# Two days for a copy and two for a superseded version, as in production. The
+# bucket is versioned, so the expiry only writes a delete marker and the
+# noncurrent rule is what removes the bytes.
+resource "aws_s3_bucket_lifecycle_configuration" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  rule {
+    id     = "expire-routine-dr-stream"
+    status = "Enabled"
+    filter { prefix = "routine/" }
+    expiration { days = 2 }
+    noncurrent_version_expiration { noncurrent_days = 2 }
+  }
+}
+
+# ── Cross-region replication: snapshots → routine_dr ─────────────────────────
+# The routine/ stream only; staging has no locked bucket for hourly/ and daily/,
+# for the reason at the top of this file. Under Replication Time Control, which
+# S3 states replicates 99.9 percent of objects within 15 minutes, and which S3
+# refuses on a rule whose metrics are off, so the metrics here are always on and
+# only the alarms wait for the alarm flag. STANDARD on the destination: the
+# copies live two days and every infrequent-access class bills a 30-day minimum.
+resource "aws_s3_bucket_replication_configuration" "snapshots" {
+  depends_on = [
+    aws_s3_bucket_versioning.snapshots,
+    aws_s3_bucket_versioning.routine_dr,
+  ]
+
+  role   = aws_iam_role.s3_replication.arn
+  bucket = aws_s3_bucket.snapshots.id
+
+  rule {
+    id       = "replicate-routine-stream-to-routine-dr"
+    status   = "Enabled"
+    priority = 30
+    filter { prefix = "routine/" }
+    delete_marker_replication { status = "Enabled" }
+
+    destination {
+      bucket        = aws_s3_bucket.routine_dr.arn
+      storage_class = "STANDARD"
+
+      replication_time {
+        status = "Enabled"
+        time { minutes = 15 }
+      }
+
+      metrics {
+        status = "Enabled"
+        event_threshold { minutes = 15 }
+      }
+    }
   }
 }
 
@@ -401,7 +496,7 @@ resource "aws_s3_bucket_policy" "media" {
   policy = data.aws_iam_policy_document.media_cloudfront_oac.json
 }
 
-# Deny-only policies for the three staging buckets that grant nothing. Parity
+# Deny-only policies for the four staging buckets that grant nothing. Parity
 # with production, and the same reasoning: adding a deny where no allow exists
 # cannot subtract anything, and the estate should not have a bucket that accepts
 # plaintext just because nothing else needed a policy on it.
@@ -483,4 +578,31 @@ resource "aws_s3_bucket_policy" "media_dr" {
   provider = aws.us_west_2
   bucket   = aws_s3_bucket.media_dr.id
   policy   = data.aws_iam_policy_document.media_dr.json
+}
+
+data "aws_iam_policy_document" "routine_dr" {
+  statement {
+    sid    = "DenyPlaintextAccess"
+    effect = "Deny"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+    actions = ["s3:*"]
+    resources = [
+      aws_s3_bucket.routine_dr.arn,
+      "${aws_s3_bucket.routine_dr.arn}/*",
+    ]
+    condition {
+      test     = "Bool"
+      variable = "aws:SecureTransport"
+      values   = ["false"]
+    }
+  }
+}
+
+resource "aws_s3_bucket_policy" "routine_dr" {
+  provider = aws.us_west_2
+  bucket   = aws_s3_bucket.routine_dr.id
+  policy   = data.aws_iam_policy_document.routine_dr.json
 }

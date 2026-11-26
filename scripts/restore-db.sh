@@ -110,7 +110,14 @@
 #                       own snapshot bucket. The pre-cutover rollback artifact is
 #                       written to the cross-region DR bucket, so a rollback
 #                       needs this flag AND --pre-flip. The value is carried to
-#                       the host, not just used locally.
+#                       the host, not just used locally. Naming the locked DR
+#                       bucket (<env>-...snapshots-dr) for an ordinary search
+#                       also searches routine/ in its routine DR bucket beside
+#                       it (<env>-...snapshots-routine-dr), where the
+#                       five-minute stream is copied, so a restore after the
+#                       loss of the primary region reaches the newest point;
+#                       the chosen snapshot is read from whichever bucket holds
+#                       it.
 #
 #   --snapshot <key>    An exact key, skipping the search entirely.
 #
@@ -426,6 +433,19 @@ else
   SEARCH_PREFIX="routine/ hourly/ daily/"
 fi
 
+# Where the routine/ generation is searched. Off-region, the five-minute stream
+# is replicated to its own unlocked bucket beside the locked DR bucket, which
+# carries hourly/ and daily/ only, so a restore after the loss of the primary
+# region names the locked bucket and still has to find the newest routine copy.
+# Its name is the locked bucket's with -routine before the -dr, as the Terraform
+# trees build both; a bucket named any other way searches routine/ in itself.
+ROUTINE_BUCKET="$BUCKET"
+if [[ "$BUCKET" == *-snapshots-dr ]]; then
+  ROUTINE_BUCKET="${BUCKET%-dr}-routine-dr"
+fi
+[[ "$PRE_FLIP" -eq 0 && "$ROUTINE_BUCKET" != "$BUCKET" ]] \
+  && SEARCH_PREFIX="${SEARCH_PREFIX} (routine/ in ${ROUTINE_BUCKET})"
+
 if (( DRY_RUN )); then
   echo "== dry run: restore from ${SOURCE_ENV} snapshots (bucket ${BUCKET}, prefix ${SEARCH_PREFIX}) =="
   echo ""
@@ -498,10 +518,10 @@ NEWEST=""
 LS_ERR="$(mktemp)"
 cr_cleanup rm -f -- "$LS_ERR"
 newest_under() {
-  local listing=""
+  local listing="" bucket="${2:-$BUCKET}"
   NEWEST=""
-  if ! listing="$("$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 ls "s3://${BUCKET}/$1" --recursive 2>"$LS_ERR")"; then
-    [[ -s "$LS_ERR" ]] && die "could not list s3://${BUCKET}/$1: $(tail -n 1 "$LS_ERR")"
+  if ! listing="$("$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3 ls "s3://${bucket}/$1" --recursive 2>"$LS_ERR")"; then
+    [[ -s "$LS_ERR" ]] && die "could not list s3://${bucket}/$1: $(tail -n 1 "$LS_ERR")"
     listing=""
   fi
   # Objects sort chronologically within a generation because the key carries the UTC
@@ -517,11 +537,17 @@ newest_under() {
 # the object carries none. Called directly, for the same reason as newest_under.
 LINEAGE_AT=""
 LINEAGE_SINCE=""
+# bucket_of <key>: the bucket a searched key was found in. Only a routine/ key
+# can live apart from the named bucket, in the routine DR bucket.
+bucket_of() {
+  if [[ "$1" == routine/* ]]; then printf '%s' "$ROUTINE_BUCKET"; else printf '%s' "$BUCKET"; fi
+}
 lineage_of() {
-  local record=""
-  if ! record="$("$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3api head-object --bucket "$BUCKET" --key "$1" \
+  local record="" bucket
+  bucket="$(bucket_of "$1")"
+  if ! record="$("$AWS_BIN" "${AWS_ARGS[@]+"${AWS_ARGS[@]}"}" s3api head-object --bucket "$bucket" --key "$1" \
         --query '[Metadata."audit-newest-at", Metadata."lineage-since"]' --output text 2>"$LS_ERR")"; then
-    die "could not read the lineage record of s3://${BUCKET}/$1: $(tail -n 1 "$LS_ERR")"
+    die "could not read the lineage record of s3://${bucket}/$1: $(tail -n 1 "$LS_ERR")"
   fi
   IFS=$'\t' read -r LINEAGE_AT LINEAGE_SINCE <<<"$record"
   LINEAGE_AT="${LINEAGE_AT:-None}"
@@ -540,7 +566,7 @@ confirm_newest_by_content() {
   lineage_of "$pick"
   pick_at="$LINEAGE_AT"
   if [[ "$pick_at" == None || "$pick_at" == none ]]; then
-    cr_warn "s3://${BUCKET}/${pick} carries no record of the data it holds, so it was chosen by its name alone."
+    cr_warn "s3://$(bucket_of "$pick")/${pick} carries no record of the data it holds, so it was chosen by its name alone."
     return 0
   fi
   best_at="$pick_at"
@@ -565,7 +591,7 @@ confirm_newest_by_content() {
     fi
   done
   if [[ "$best" != "$pick" ]]; then
-    cr_warn "the newest-named snapshot s3://${BUCKET}/${pick} holds older data (newest audit row ${pick_at}) than s3://${BUCKET}/${best} (${best_at}), so the latter is restored. The former is a stale upload; find out how it was written."
+    cr_warn "the newest-named snapshot s3://$(bucket_of "$pick")/${pick} holds older data (newest audit row ${pick_at}) than s3://$(bucket_of "$best")/${best} (${best_at}), so the latter is restored. The former is a stale upload; find out how it was written."
     SNAPSHOT_KEY="$best"
   fi
   echo "    newest audit row in the chosen snapshot: ${best_at}"
@@ -579,7 +605,7 @@ if [[ -z "$SNAPSHOT_KEY" ]]; then
   else
     # Compare the three generations on the object name (field 5 of gen/YYYY/MM/DD/name),
     # so the newest point wins wherever it happens to live.
-    newest_under 'routine/'; newest_routine="$NEWEST"
+    newest_under 'routine/' "$ROUTINE_BUCKET"; newest_routine="$NEWEST"
     newest_under 'hourly/'; newest_hourly="$NEWEST"
     newest_under 'daily/'; newest_daily="$NEWEST"
     SNAPSHOT_KEY="$(printf '%s\n' "$newest_routine" "$newest_hourly" "$newest_daily" \
@@ -590,8 +616,15 @@ if [[ -z "$SNAPSHOT_KEY" ]]; then
     if [[ "$PRE_FLIP" -eq 1 ]]; then
       die "no pre-cutover snapshot under pre-flip/ in s3://${BUCKET}. That artifact is written to the DR bucket, so pass --bucket if you have not."
     fi
+    if [[ "$ROUTINE_BUCKET" != "$BUCKET" ]]; then
+      die "no snapshots under hourly/ or daily/ in s3://${BUCKET}, nor under routine/ in s3://${ROUTINE_BUCKET} (has replication ever run?). For the cutover rollback artifact, pass --pre-flip."
+    fi
     die "no snapshots under routine/, hourly/ or daily/ in s3://${BUCKET} (has the backup timer ever run?). For the cutover rollback artifact, pass --pre-flip."
   fi
+  # The chosen point is read from the bucket it was found in, from here on by
+  # both halves: a routine copy found in the routine DR bucket is fetched from
+  # there. Both DR buckets are in the recovery region, so the region stands.
+  BUCKET="$(bucket_of "$SNAPSHOT_KEY")"
 fi
 echo "    snapshot: s3://${BUCKET}/${SNAPSHOT_KEY}"
 

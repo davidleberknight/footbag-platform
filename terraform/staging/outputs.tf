@@ -43,6 +43,11 @@ output "snapshots_bucket_name" {
   value       = aws_s3_bucket.snapshots.bucket
 }
 
+output "routine_dr_bucket_name" {
+  description = "Cross-region DR bucket holding the five-minute routine/ SQLite DB snapshots for two days. Read by scripts/verify-replication.sh."
+  value       = aws_s3_bucket.routine_dr.bucket
+}
+
 output "media_bucket_name" {
   description = "S3 bucket for processed photo objects (CloudFront /media-store/* origin)"
   value       = aws_s3_bucket.media.bucket
@@ -54,7 +59,7 @@ output "media_dr_bucket_name" {
 }
 
 output "replication_alarm_enabled" {
-  description = "Whether this environment arms the cross-region replication alarms. Published in both trees so the verification reads the same name wherever it runs; here the flag governs media replication only, because staging's snapshot bucket has no DR copy and so has no snapshot replication to watch."
+  description = "Whether this environment arms the cross-region replication alarms. Published in both trees so the verification reads the same name wherever it runs; here the flag governs the media and routine snapshot replication, because staging's snapshot bucket replicates its routine/ stream only and has no locked hourly and daily copy to watch."
   value       = var.enable_replication_alarm
 }
 

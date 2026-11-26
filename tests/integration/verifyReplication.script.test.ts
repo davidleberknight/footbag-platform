@@ -39,8 +39,14 @@ afterEach(() => {
 });
 
 interface Bucket {
-  /** Destination bucket ARN of the enabled rule, or '' for none. */
+  /** Destination bucket ARN of the first enabled rule S3 lists, or '' for none. */
   dest: string;
+  /**
+   * Destination ARN of the enabled rule whose filter names each prefix, for a
+   * bucket replicating through one rule per prefix; a prefix not named has no
+   * such rule.
+   */
+  destByPrefix?: Record<string, string>;
   /** Objects as [LastModified, Key]. */
   objects: Array<[string, string]>;
   /** ReplicationStatus each key reports at the source; COMPLETED unless named. */
@@ -56,6 +62,7 @@ const NOT_JSON = 'not-json';
 
 const HOURLY_KEY = 'hourly/2026/10/07/footbag-20261007T070000Z.db.gz';
 const DAILY_KEY = 'daily/2026/10/07/footbag-20261007T000000Z.db.gz';
+const ROUTINE_KEY = 'routine/2026/10/07/footbag-20261007T074000Z.db.gz';
 
 /** Each newest database copy locked for the bucket's 90-day default from NOW. */
 const LOCKED: Record<string, string> = {
@@ -77,6 +84,7 @@ interface Versions {
 const SNAPSHOT_LIFECYCLE: Record<string, Array<[string, number]>> = {
   'footbag-env-db-snapshots': [['routine/', 2], ['hourly/', 30], ['daily/', 400]],
   'footbag-env-db-snapshots-dr': [['routine/', 90], ['hourly/', 90], ['daily/', 90]],
+  'footbag-env-db-snapshots-routine-dr': [['routine/', 2]],
 };
 
 function run(
@@ -111,8 +119,16 @@ function run(
     'for a in "$@"; do case "$prev" in --bucket) bucket="$a" ;; --key) key="$a" ;; --prefix) prefix="$a" ;; esac; prev="$a"; done',
     'case "$2" in',
   ];
+  // A --query filtering the rules on Filter.Prefix is answered from that
+  // prefix's rule, as S3 evaluates the JMESPath; an unfiltered one from the
+  // first rule listed.
   lines.push('  get-bucket-replication)');
+  lines.push('    query=""; prev=""; for a in "$@"; do [[ "$prev" == --query ]] && query="$a"; prev="$a"; done');
   for (const [name, b] of Object.entries(buckets)) {
+    for (const [p, d] of Object.entries(b.destByPrefix ?? {})) {
+      lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} && "$query" == *"Filter.Prefix=='${p}'"* ]] && { echo ${JSON.stringify(d || 'None')}; exit 0; }`);
+    }
+    lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} && "$query" == *"Filter.Prefix=="* ]] && { echo None; exit 0; }`);
     lines.push(`    [[ "$bucket" == ${JSON.stringify(name)} ]] && { echo ${JSON.stringify(b.dest || 'None')}; exit 0; }`);
   }
   lines.push('    exit 254 ;;');
@@ -180,6 +196,7 @@ function run(
     'case "$*" in',
     '  *media_bucket_name*) echo footbag-env-media ;;',
     '  *snapshots_bucket_name*) echo footbag-env-db-snapshots ;;',
+    '  *routine_dr_bucket_name*) echo footbag-env-db-snapshots-routine-dr ;;',
     '  *dr_bucket_name*) echo footbag-env-db-snapshots-dr ;;',
     // Live Terraform keeps no null output in its state, so the archive off is
     // a name absent from the map, and asking for the name alone fails.
@@ -216,6 +233,7 @@ function calls(): string {
 
 const MEDIA_DR = 'arn:aws:s3:::footbag-env-media-dr';
 const SNAP_DR = 'arn:aws:s3:::footbag-env-db-snapshots-dr';
+const ROUTINE_DR = 'arn:aws:s3:::footbag-env-db-snapshots-routine-dr';
 const ARCHIVE_DR = 'arn:aws:s3:::footbag-env-archive-dr';
 
 function healthyProduction(): { buckets: Record<string, Bucket>; present: Record<string, string[]> } {
@@ -226,10 +244,14 @@ function healthyProduction(): { buckets: Record<string, Bucket>; present: Record
         objects: [['2026-10-07T06:00:00+00:00', 'photos/old.jpg'], ['2026-10-07T07:00:00+00:00', 'photos/settled.jpg']],
       },
       'footbag-env-db-snapshots': {
-        dest: SNAP_DR,
+        // S3 lists the routine rule first here, so a check reading the first
+        // rule for every prefix would look for hourly copies in the wrong bucket.
+        dest: ROUTINE_DR,
+        destByPrefix: { 'routine/': ROUTINE_DR, 'hourly/': SNAP_DR, 'daily/': SNAP_DR },
         objects: [
           ['2026-10-07T00:00:00+00:00', DAILY_KEY],
           ['2026-10-07T07:00:00+00:00', HOURLY_KEY],
+          ['2026-10-07T07:40:00+00:00', ROUTINE_KEY],
         ],
       },
       'footbag-env-archive': {
@@ -240,6 +262,7 @@ function healthyProduction(): { buckets: Record<string, Bucket>; present: Record
     present: {
       'footbag-env-media-dr': ['photos/settled.jpg'],
       'footbag-env-db-snapshots-dr': [HOURLY_KEY, DAILY_KEY],
+      'footbag-env-db-snapshots-routine-dr': [ROUTINE_KEY],
       'footbag-env-archive-dr': ['members/roster.html'],
     },
   };
@@ -469,19 +492,78 @@ describe('verifying replication', () => {
     expect(res.stderr).toContain('nothing proves replication');
   });
 
-  it('checks media and the archive on staging, which replicates no snapshot tier', () => {
+  /** Staging's estate: no locked tier, so its snapshot bucket has the routine rule alone. */
+  function healthyStaging(): { buckets: Record<string, Bucket>; present: Record<string, string[]> } {
     const { buckets, present } = healthyProduction();
-    const res = run('staging', {
-      'footbag-env-media': buckets['footbag-env-media'],
-      'footbag-env-archive': buckets['footbag-env-archive'],
-    }, present);
+    return {
+      buckets: {
+        'footbag-env-media': buckets['footbag-env-media'],
+        'footbag-env-archive': buckets['footbag-env-archive'],
+        'footbag-env-db-snapshots': {
+          dest: ROUTINE_DR,
+          destByPrefix: { 'routine/': ROUTINE_DR },
+          objects: [['2026-10-07T07:40:00+00:00', ROUTINE_KEY]],
+        },
+      },
+      present,
+    };
+  }
+
+  it('checks media, the archive and the routine snapshot stream on staging, which has no locked tier', () => {
+    // Defect caught: staging rehearses the routine copy, so a staging check
+    // that skipped it would let a broken routine rule reach production unseen;
+    // one that judged hourly/ or daily/ there would fail a tier staging never
+    // replicates.
+    const { buckets, present } = healthyStaging();
+    const res = run('staging', buckets, present);
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('present in footbag-env-media-dr');
     expect(res.stdout).toContain('present in footbag-env-archive-dr');
-    // Staging's snapshot bucket replicates nowhere, so no replication of it is
-    // judged; only its delete markers are read.
-    expect(calls()).not.toMatch(/(get-bucket-replication|list-objects-v2) --bucket footbag-env-db-snapshots/);
-    expect(calls()).not.toContain('footbag-env-db-snapshots-dr');
+    expect(res.stdout).toContain('present in footbag-env-db-snapshots-routine-dr');
+    expect(calls()).not.toMatch(/list-objects-v2 --bucket footbag-env-db-snapshots --prefix (hourly|daily)\//);
+    expect(calls()).not.toContain('footbag-env-db-snapshots-dr ');
+    expect(calls()).not.toMatch(/footbag-env-db-snapshots-dr$/m);
+  });
+
+  it('fails when the newest settled routine snapshot is missing from the routine DR bucket', () => {
+    // Defect caught: the routine rule configured but delivering nothing, so a
+    // regional loss falls back an hour to the locked bucket's last point while
+    // every alarm reads healthy.
+    for (const target of ['production', 'staging'] as const) {
+      const { buckets, present } = target === 'production' ? healthyProduction() : healthyStaging();
+      present['footbag-env-db-snapshots-routine-dr'] = [];
+      const res = run(target, buckets, present);
+      expect(res.status, target).toBe(1);
+      expect(res.stderr, target).toContain(`${ROUTINE_KEY} is missing from footbag-env-db-snapshots-routine-dr`);
+    }
+  });
+
+  it('fails when a snapshot generation replicates into the wrong DR bucket', () => {
+    // Defect caught: a routine rule pointed at the locked bucket holds every
+    // five-minute copy for 90 days, and an hourly rule pointed at the routine
+    // bucket loses the long history after two days; both copies exist, so a
+    // check that only looked for the key would pass.
+    const { buckets, present } = healthyProduction();
+    buckets['footbag-env-db-snapshots'].destByPrefix = { 'routine/': SNAP_DR, 'hourly/': ROUTINE_DR, 'daily/': SNAP_DR };
+    present['footbag-env-db-snapshots-dr'].push(ROUTINE_KEY);
+    present['footbag-env-db-snapshots-routine-dr'].push(HOURLY_KEY);
+    const res = run('production', buckets, present);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('footbag-env-db-snapshots/routine/ replicates to footbag-env-db-snapshots-dr, not footbag-env-db-snapshots-routine-dr');
+    expect(res.stderr).toContain('footbag-env-db-snapshots/hourly/ replicates to footbag-env-db-snapshots-routine-dr, not footbag-env-db-snapshots-dr');
+    expect(res.stderr).not.toContain('footbag-env-db-snapshots/daily/ replicates');
+  });
+
+  it('fails when the snapshot bucket has no enabled rule for the routine stream', () => {
+    // Defect caught: the routine rule removed or disabled while the hourly and
+    // daily rules still answer, so an unfiltered look at the rules passes.
+    const { buckets, present } = healthyProduction();
+    buckets['footbag-env-db-snapshots'].dest = SNAP_DR;
+    buckets['footbag-env-db-snapshots'].destByPrefix = { 'hourly/': SNAP_DR, 'daily/': SNAP_DR };
+    const res = run('production', buckets, present);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('footbag-env-db-snapshots has no enabled replication rule for routine/');
+    expect(res.stderr).not.toContain('rule for hourly/');
   });
 
   it('refuses a missing or unknown target', () => {
@@ -517,8 +599,31 @@ describe('delete markers in the snapshot buckets', () => {
 
     expect(res.status, res.stderr).toBe(0);
     expect(calls()).toContain('list-object-versions --region us-west-2 --bucket footbag-env-db-snapshots ');
-    expect(calls()).toContain('list-object-versions --region us-west-2 --bucket footbag-env-db-snapshots-dr');
+    expect(calls()).toContain('list-object-versions --region us-west-2 --bucket footbag-env-db-snapshots-dr ');
     expect(res.stdout).toMatch(/1 delete marker\(s\) checked/);
+  });
+
+  // Defect caught: the newest off-region copies, in the routine DR bucket,
+  // deleted with nobody told, because its markers were never read; or each of
+  // its daily two-day expiries misread as a deletion.
+  it('reads the routine DR bucket\'s markers too, explained by its own two-day expiry', () => {
+    const expired = production({
+      ...LIFECYCLE_MARKERS,
+      'footbag-env-db-snapshots-routine-dr': [
+        ['routine/2026/10/01/footbag-20261001T120000Z.db.gz', '2026-10-04T00:00:00+00:00'],
+      ],
+    });
+    expect(expired.status, expired.stderr).toBe(0);
+    expect(calls()).toContain('list-object-versions --region us-west-2 --bucket footbag-env-db-snapshots-routine-dr');
+
+    const deleted = production({
+      ...LIFECYCLE_MARKERS,
+      'footbag-env-db-snapshots-routine-dr': [
+        ['routine/2026/10/07/footbag-20261007T070000Z.db.gz', '2026-10-07T07:30:00+00:00'],
+      ],
+    });
+    expect(deleted.status).toBe(1);
+    expect(deleted.stderr).toMatch(/delete marker on routine\/2026\/10\/07\/footbag-20261007T070000Z\.db\.gz in footbag-env-db-snapshots-routine-dr .*2-day/);
   });
 
   // Defect caught: someone deletes a backup (the newest daily point, long
@@ -570,16 +675,22 @@ describe('delete markers in the snapshot buckets', () => {
 
   // Defect caught: staging's backups are deleted unnoticed, because only
   // production's buckets were read.
-  it('checks staging\'s one snapshot bucket too', () => {
+  it('checks staging\'s snapshot buckets too', () => {
     const { buckets, present } = healthyProduction();
-    const res = run('staging', {
+    const staging = {
       'footbag-env-media': buckets['footbag-env-media'],
       'footbag-env-archive': buckets['footbag-env-archive'],
-    }, present, ARCHIVE_OUTPUT, LOCKED, 'OK', {
+      'footbag-env-db-snapshots': {
+        dest: ROUTINE_DR, destByPrefix: { 'routine/': ROUTINE_DR }, objects: [['2026-10-07T07:40:00+00:00', ROUTINE_KEY]] as Array<[string, string]>,
+      },
+    };
+    const res = run('staging', staging, present, ARCHIVE_OUTPUT, LOCKED, 'OK', {
       markers: { 'footbag-env-db-snapshots': [['hourly/2026/10/06/footbag-20261006T010000Z.db.gz', '2026-10-06T02:00:00+00:00']] },
     });
 
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('FAIL: delete marker on hourly/2026/10/06/footbag-20261006T010000Z.db.gz in footbag-env-db-snapshots');
+    expect(res.stderr).not.toContain('replication rule');
+    expect(calls()).toContain('list-object-versions --region us-west-2 --bucket footbag-env-db-snapshots-routine-dr');
   });
 });

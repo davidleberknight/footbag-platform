@@ -37,6 +37,11 @@ output "dr_bucket_name" {
   value       = aws_s3_bucket.dr.bucket
 }
 
+output "routine_dr_bucket_name" {
+  description = "Cross-region DR bucket holding the five-minute routine/ SQLite DB snapshots for two days. Read by scripts/verify-replication.sh."
+  value       = aws_s3_bucket.routine_dr.bucket
+}
+
 output "snapshots_batch_replication_report" {
   description = "Where a Batch Replication job over the snapshot bucket writes its generated manifest and completion report: the snapshot bucket itself and the one key prefix the replication role may write there, outside every replicated and expiring generation. Read by scripts/backfill-replication.sh."
   value = {

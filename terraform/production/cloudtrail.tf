@@ -478,6 +478,7 @@ locals {
     [
       aws_s3_bucket.snapshots.bucket,
       aws_s3_bucket.dr.bucket,
+      aws_s3_bucket.routine_dr.bucket,
       aws_s3_bucket.media.bucket,
       aws_s3_bucket.media_dr.bucket,
     ],

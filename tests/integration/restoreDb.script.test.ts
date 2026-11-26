@@ -1243,6 +1243,104 @@ describe('the operator-facing restore script', () => {
   });
 
   /**
+   * A stand-in CLI for the recovery region: the locked DR bucket holds the
+   * hourly and daily points and an old routine copy, the routine DR bucket
+   * beside it holds the five-minute stream. A listing answers only for the
+   * bucket and prefix it names, so a search of the wrong bucket finds nothing.
+   * Every call is logged.
+   */
+  function recoveryRegionStub(routineKey: string, hourlyKey: string, routineError = ''): { stubDir: string; log: string } {
+    const stubDir = join(workDir, 'recovery-bin');
+    mkdirSync(stubDir, { recursive: true });
+    const log = join(workDir, 'recovery-calls.log');
+    const stub = join(stubDir, 'aws');
+    writeFileSync(stub, [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> ${JSON.stringify(log)}`,
+      'args="$*"',
+      'case "$args" in',
+      '  *"head-object"*) printf "None\\tNone\\n"; exit 0 ;;',
+      routineError
+        ? `  *"s3://footbag-staging-snapshots-routine-dr/routine/"*) echo ${JSON.stringify(routineError)} >&2; exit 1 ;;`
+        : `  *"s3://footbag-staging-snapshots-routine-dr/routine/"*) echo "2026-09-04 00:00:00 100 ${routineKey}"; exit 0 ;;`,
+      '  *"s3://footbag-staging-snapshots-dr/routine/"*) echo "2026-06-01 00:00:00 100 routine/2026/06/01/footbag-20260601T000000Z.db.gz"; exit 0 ;;',
+      `  *"s3://footbag-staging-snapshots-dr/hourly/"*) echo "2026-09-04 00:00:00 100 ${hourlyKey}"; exit 0 ;;`,
+      '  *"s3://footbag-staging-snapshots-dr/daily/"*) echo "2026-09-04 00:00:00 100 daily/2026/09/04/footbag-20260904T000000Z.db.gz"; exit 0 ;;',
+      'esac',
+      'exit 1',
+    ].join('\n'));
+    chmodSync(stub, 0o755);
+    return { stubDir, log };
+  }
+
+  // Defect caught: after the loss of the primary region the operator names the
+  // locked DR bucket, which carries only the hourly and daily points, and the
+  // restore returns the database up to an hour old although a copy five
+  // minutes old sits in the routine DR bucket beside it.
+  it('reaches the newest routine copy in the routine DR bucket when the locked DR bucket is named', () => {
+    const routine = 'routine/2026/09/04/footbag-20260904T225500Z.db.gz';
+    const { stubDir, log } = recoveryRegionStub(routine, 'hourly/2026/09/04/footbag-20260904T220000Z.db.gz');
+
+    const res = runOperator(
+      ['--to-local', join(workDir, 'region-loss.db'), '--source', 'staging', '--bucket', 'footbag-staging-snapshots-dr'],
+      { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` },
+    );
+
+    expect(res.stdout).toContain(`snapshot: s3://footbag-staging-snapshots-routine-dr/${routine}`);
+    const calls = readFileSync(log, 'utf8').split('\n');
+    // The pick is fetched from the bucket it was found in, in the recovery region.
+    const fetch = calls.find((l) => l.includes(' cp '));
+    expect(fetch, 'the chosen snapshot was never fetched').toBeDefined();
+    expect(fetch).toContain(`s3://footbag-staging-snapshots-routine-dr/${routine}`);
+    expect(fetch).toContain('--region us-west-2');
+    // routine/ is searched in the routine bucket, never in the locked one,
+    // whose routine/ holds only copies replicated before the stream had its own.
+    expect(calls.some((l) => l.includes('s3://footbag-staging-snapshots-dr/routine/'))).toBe(false);
+  });
+
+  // Defect caught: a routine copy chosen merely for living in the routine
+  // bucket, when replication of the stream had stalled and the locked
+  // bucket's hourly point is newer.
+  it('still picks the locked bucket\'s hourly point when it is newer than every routine copy', () => {
+    const hourly = 'hourly/2026/09/04/footbag-20260904T230000Z.db.gz';
+    const { stubDir } = recoveryRegionStub('routine/2026/09/04/footbag-20260904T120000Z.db.gz', hourly);
+
+    const res = runOperator(
+      ['--to-local', join(workDir, 'stalled.db'), '--source', 'staging', '--bucket', 'footbag-staging-snapshots-dr'],
+      { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` },
+    );
+
+    expect(res.stdout).toContain(`snapshot: s3://footbag-staging-snapshots-dr/${hourly}`);
+  });
+
+  // Defect caught: a routine DR bucket the credential cannot list read as an
+  // empty one, so the restore silently falls back an hour instead of saying why.
+  it('refuses with the CLI\'s words when the routine DR bucket cannot be listed', () => {
+    const { stubDir } = recoveryRegionStub('', 'hourly/2026/09/04/footbag-20260904T220000Z.db.gz',
+      'An error occurred (AccessDenied) when calling the ListObjectsV2 operation: Access Denied');
+
+    const res = runOperator(
+      ['--to-local', join(workDir, 'denied-routine.db'), '--source', 'staging', '--bucket', 'footbag-staging-snapshots-dr'],
+      { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` },
+    );
+
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/could not list s3:\/\/footbag-staging-snapshots-routine-dr\/routine\/: An error occurred \(AccessDenied\)/);
+    expect(existsSync(join(workDir, 'denied-routine.db'))).toBe(false);
+  });
+
+  it('names the routine DR bucket in the dry run when the locked DR bucket is named, and not for the rollback', () => {
+    // Defect caught: a rehearsal that hides which bucket the routine search
+    // reaches; or the rollback artifact search widened to the routine stream.
+    const plain = runOperator(['--target', 'production', '--drill', '--bucket', 'footbag-production-db-snapshots-dr', '--dry-run']);
+    expect(plain.status, plain.stderr).toBe(0);
+    expect(plain.stdout).toContain('routine/ in footbag-production-db-snapshots-routine-dr');
+    const rollback = runOperator(['--target', 'production', '--drill', '--pre-flip', '--bucket', 'footbag-production-db-snapshots-dr', '--dry-run']);
+    expect(rollback.status, rollback.stderr).toBe(0);
+    expect(rollback.stdout).not.toContain('routine');
+  });
+
+  /**
    * A stand-in CLI holding one point per generation, each with the lineage
    * record the backup stores on it: `head-object` with a list query and text
    * output prints the two fields tab-separated, as the real CLI does.

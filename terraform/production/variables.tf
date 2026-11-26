@@ -215,7 +215,10 @@ variable "enable_replication_alarm" {
     buckets to their DR copies. Off by default and off until the buckets have
     replicated at least once, because the same flag turns on the S3 replication
     metrics the alarms read: armed against a rule that has never run, the
-    pending-operations alarm has no data to evaluate.
+    pending-operations alarm has no data to evaluate. The routine snapshot rule
+    is the exception: it runs under Replication Time Control, which S3 accepts
+    only with its metrics on, so its metrics are on whatever this says and only
+    its alarms, the latency alarm among them, wait for this flag.
 
     Replication is the mechanism the DR copy depends on and nothing currently
     watches it, so a replication failure is silent and the DR copy drifts until

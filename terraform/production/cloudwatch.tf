@@ -191,9 +191,9 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_failures" {
 # server-side copy that carries the first run of the hour into hourly/ and the
 # first of the day into daily/ fails, so both alarms above stay green while the
 # generations stop advancing. That state is expensive here: routine/ expires after
-# two days, and the cross-region replication rules carry hourly/ and daily/ alone,
-# so a stuck promotion collapses the recovery history to two days and holds the
-# off-region copy at the last point that promoted.
+# two days in both regions, so a stuck promotion collapses the recovery history
+# to two days and holds the locked off-region history at the last point that
+# promoted.
 #
 # Minimum over an hour rather than Maximum over a backup cycle, because a single
 # failed promotion is self-healing: the producer asks S3 whether the window
@@ -234,8 +234,8 @@ locals {
   # stale id names a rule that does not exist. Either way the alarm sits green
   # on missing data, because `treat_missing_data` is `notBreaching` and no
   # operations arriving is indistinguishable from none failing. The snapshots
-  # bucket replicates through two rules, one per promoted retention generation, so it
-  # takes two entries.
+  # bucket replicates through three rules, one per retention generation, so it
+  # takes three entries.
   replicated_buckets = var.enable_replication_alarm ? merge(
     {
       "snapshots-hourly" = {
@@ -247,6 +247,11 @@ locals {
         source      = aws_s3_bucket.snapshots.id
         destination = aws_s3_bucket.dr.id
         rule        = "replicate-daily-tier-to-dr"
+      }
+      "snapshots-routine" = {
+        source      = aws_s3_bucket.snapshots.id
+        destination = aws_s3_bucket.routine_dr.id
+        rule        = "replicate-routine-stream-to-routine-dr"
       }
       media = {
         source      = aws_s3_bucket.media.id
@@ -436,6 +441,39 @@ resource "aws_cloudwatch_metric_alarm" "snapshot_replication_stopped_us_west_2" 
     SourceBucket      = aws_s3_bucket.snapshots.id
     DestinationBucket = aws_s3_bucket.dr.id
     RuleId            = "replicate-hourly-tier-to-dr"
+  }
+}
+
+# The routine copy falling behind. A regional loss costs at most the five-minute
+# backup window only while the routine stream reaches the recovery region
+# promptly, and Replication Time Control states 99.9 percent of objects within 15
+# minutes, so a latency of 15 minutes is the point at which that promise is
+# broken. The latency metric is the maximum seconds the destination is behind the
+# source for the rule, published per minute in the destination's region, so the
+# alarm lives in the backup region beside the backlog alarms. Missing data keeps
+# the alarm's state, as AWS advises for replication metrics: a gap in reporting
+# neither clears a real delay nor raises a false one. Operations held behind the
+# rule are watched separately, by the routine entry in the backlog alarms above.
+resource "aws_cloudwatch_metric_alarm" "snapshot_routine_replication_latency_us_west_2" {
+  provider            = aws.us_west_2
+  count               = var.enable_replication_alarm ? 1 : 0
+  alarm_name          = "${local.prefix}-snapshots-routine-replication-latency"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "ReplicationLatency"
+  namespace           = "AWS/S3"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 900 # seconds: the 15 minutes Replication Time Control promises
+  treat_missing_data  = "ignore"
+  alarm_description   = "The five-minute database backups are reaching the DR region 15 or more minutes late, so a regional loss would cost more than the backup window. Check the snapshot bucket's routine replication rule."
+  alarm_actions       = [aws_sns_topic.alarms_us_west_2.arn]
+  ok_actions          = [aws_sns_topic.alarms_us_west_2.arn]
+
+  dimensions = {
+    SourceBucket      = aws_s3_bucket.snapshots.id
+    DestinationBucket = aws_s3_bucket.routine_dr.id
+    RuleId            = "replicate-routine-stream-to-routine-dr"
   }
 }
 

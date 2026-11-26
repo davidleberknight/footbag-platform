@@ -18,14 +18,21 @@
 # bucket is a check nobody can run twice.
 #
 # What it checks, per environment:
-#   production   the snapshot bucket's hourly/ and daily/ tiers, each copy's
-#                Object Lock retention read and required at least 60 days
-#                ahead, the media bucket, the archive bucket, and the state of
+#   production   the snapshot bucket's hourly/ and daily/ tiers in the locked
+#                DR bucket, each copy's Object Lock retention read and required
+#                at least 60 days ahead, its routine/ stream in the routine DR
+#                bucket, the media bucket, the archive bucket, and the state of
 #                the alarm that fires when hourly snapshot replication stops
-#   staging      the media bucket and the archive bucket
+#   staging      the snapshot bucket's routine/ stream in the routine DR bucket,
+#                the media bucket and the archive bucket
 #
-# On both, the delete markers in every database snapshot bucket (production's
-# primary bucket and its DR copy, staging's one bucket). A delete marker hides
+# Each snapshot generation is judged against the rule whose filter names its
+# prefix, and its copy must be in the bucket that generation belongs in, so a
+# rule pointed at the wrong DR bucket fails rather than passing on whichever
+# rule S3 happens to list first.
+#
+# On both, the delete markers in every database snapshot bucket (the primary
+# bucket and each of its DR copies). A delete marker hides
 # every version beneath it from an ordinary read, so a backup bucket could read
 # empty while every alarm stays healthy. The buckets are versioned, so each
 # lifecycle expiry writes a marker by design; a marker is explained only when its
@@ -98,23 +105,29 @@ tf_output() {
   "$TF_BIN" -chdir="terraform/${TARGET}" output -raw "$1" </dev/null 2>/dev/null
 }
 
-# Source bucket, prefix and whether the copy must carry an Object Lock. The
-# snapshot bucket replicates its hourly/ and daily/ tiers only, through one rule
-# each, so both are checked: a daily rule that stopped would leave the
-# longest-lived points with no recovery-region copy while hourly/ still passed.
-# Their destination holds the Object Lock that keeps a database copy from being
-# deleted early, so the newest copy's retention is read as well; a lock that is
-# configured but not applied protects nothing.
+# Source bucket, prefix, whether the copy must carry an Object Lock, and the
+# bucket the copy must land in (empty: whichever the rule names). The snapshot
+# bucket replicates each generation through its own rule, so each is checked: a
+# daily rule that stopped would leave the longest-lived points with no
+# recovery-region copy while hourly/ still passed, and a routine rule that
+# stopped would leave a regional loss an hour behind instead of five minutes.
+# The hourly and daily destination holds the Object Lock that keeps a database
+# copy from being deleted early, so the newest copy's retention is read as well;
+# a lock that is configured but not applied protects nothing. The routine copy
+# goes to its own unlocked bucket, which keeps two days.
 declare -a CHECKS=()
 MEDIA_BUCKET="$(tf_output media_bucket_name)" || die "could not read terraform/${TARGET} output media_bucket_name"
-CHECKS+=("${MEDIA_BUCKET}||")
+CHECKS+=("${MEDIA_BUCKET}|||")
 SNAP_BUCKET="$(tf_output snapshots_bucket_name)" || die "could not read terraform/${TARGET} output snapshots_bucket_name"
+ROUTINE_DR_BUCKET="$(tf_output routine_dr_bucket_name)" || die "could not read terraform/${TARGET} output routine_dr_bucket_name"
 declare -a MARKER_BUCKETS=("$SNAP_BUCKET")
 if [[ "$TARGET" == "production" ]]; then
-  CHECKS+=("${SNAP_BUCKET}|hourly/|locked" "${SNAP_BUCKET}|daily/|locked")
   SNAP_DR_BUCKET="$(tf_output dr_bucket_name)" || die "could not read terraform/${TARGET} output dr_bucket_name"
+  CHECKS+=("${SNAP_BUCKET}|hourly/|locked|${SNAP_DR_BUCKET}" "${SNAP_BUCKET}|daily/|locked|${SNAP_DR_BUCKET}")
   MARKER_BUCKETS+=("$SNAP_DR_BUCKET")
 fi
+CHECKS+=("${SNAP_BUCKET}|routine/||${ROUTINE_DR_BUCKET}")
+MARKER_BUCKETS+=("$ROUTINE_DR_BUCKET")
 # The newest database copy must stay locked at least this many days ahead. The
 # bucket's default retention is 90 days, so a fresh copy reads about 90; below
 # 60 means the lock was shortened or the newest copy is far older than it
@@ -135,7 +148,7 @@ archive_json="$(jq -c 'if type == "object" then (.archive_bucket_name.value // n
 if [[ "$archive_json" == "null" ]]; then
   skipped="archive"
 elif [[ "$archive_json" =~ ^\"([a-z0-9][a-z0-9.-]*)\"$ ]]; then
-  CHECKS+=("${BASH_REMATCH[1]}||")
+  CHECKS+=("${BASH_REMATCH[1]}|||")
 else
   die "terraform/${TARGET} output archive_bucket_name is neither null nor a bucket name: ${archive_json}"
 fi
@@ -153,18 +166,30 @@ fi
 lock_floor="$(date -u -d "${now} UTC + ${MIN_LOCK_DAYS} days" +%Y-%m-%dT%H:%M:%S)"
 
 for check in "${CHECKS[@]}"; do
-  IFS='|' read -r src prefix lock <<<"$check"
+  IFS='|' read -r src prefix lock want_dest <<<"$check"
   echo "==> s3://${src}/${prefix}"
 
+  # A bucket replicating through one rule per prefix is asked for the rule whose
+  # filter names this prefix; a whole-bucket source has its one rule.
+  rule_query="ReplicationConfiguration.Rules[?Status=='Enabled']"
+  [[ -n "$prefix" ]] && rule_query="ReplicationConfiguration.Rules[?Status=='Enabled' && Filter.Prefix=='${prefix}']"
   dest_arn="$("$AWS_BIN" s3api get-bucket-replication --bucket "$src" \
-    --query "ReplicationConfiguration.Rules[?Status=='Enabled'] | [0].Destination.Bucket" \
+    --query "${rule_query} | [0].Destination.Bucket" \
     --output text </dev/null 2>/dev/null)" || dest_arn=""
   if [[ -z "$dest_arn" || "$dest_arn" == "None" ]]; then
-    fail "${src} has no enabled replication rule"
+    if [[ -n "$prefix" ]]; then
+      fail "${src} has no enabled replication rule for ${prefix}"
+    else
+      fail "${src} has no enabled replication rule"
+    fi
     continue
   fi
   dest="${dest_arn#arn:aws:s3:::}"
   echo "    replicates to ${dest}"
+  if [[ -n "$want_dest" && "$dest" != "$want_dest" ]]; then
+    fail "${src}/${prefix} replicates to ${dest}, not ${want_dest}"
+    continue
+  fi
 
   # Newest key whose LastModified is before the cutoff. ISO timestamps compare
   # correctly as strings on their first nineteen characters.
