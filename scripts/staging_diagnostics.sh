@@ -329,7 +329,17 @@ cmd_disk() {
   banner "DB file + WAL + SHM sizes on host"
   sudo ls -lh "$DB_HOST_PATH"* 2>/dev/null || echo "(no host DB file at $DB_HOST_PATH)"
 }
-cmd_systemd() { banner "systemctl status footbag.service"; sudo systemctl status footbag.service --no-pager -l || true; }
+cmd_systemd() {
+  banner "systemctl status footbag.service"; sudo systemctl status footbag.service --no-pager -l || true
+  # The backup service's own journal is the only place a refused or failed
+  # backup says why (a database that does not continue the stored history, a
+  # pending erasure replay, an unreadable lineage record), so it is read here
+  # beside the service rather than left to a hand-typed journalctl.
+  banner "systemctl status footbag-backup.timer footbag-backup.service"
+  sudo systemctl status footbag-backup.timer footbag-backup.service --no-pager -l || true
+  banner "footbag-backup.service journal, last 40 lines"
+  sudo journalctl -u footbag-backup.service --no-pager -n 40 --output=short-iso || true
+}
 
 # ---------------- Host access ----------------
 
@@ -1059,7 +1069,7 @@ staging_diagnostics.sh — subcommands
     memory-watch [seconds]   sample available memory across an upload and report
                              the minimum reached (default 300s)
     disk                     df -h plus DB file sizes
-    systemd                  systemctl status footbag.service
+    systemd                  footbag.service status; backup timer, service and journal
     host-access              effective sshd settings, the provider default
                              account and agent, and every account that can log
                              in with its key fingerprints

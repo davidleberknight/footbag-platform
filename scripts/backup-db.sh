@@ -46,8 +46,9 @@
 # its upload would otherwise become the newest snapshot, be promoted, replicate
 # into the object-locked bucket, and be what the next restore puts back. Each
 # upload records, as object metadata, the id and time of the database's newest
-# audit row; a run uploads only if the database still holds the row recorded on
-# the newest stored snapshot. Audit rows are append-only, so a continuation
+# audit row that the testkit can neither write nor delete (LINEAGE_ROWS below);
+# a run uploads only if the database still holds the row recorded on the newest
+# stored snapshot. Those audit rows are never removed, so a continuation
 # always holds it and a stale or foreign copy never does, however many rows its
 # own worker writes after boot. A timestamp comparison would not do: a day-old
 # database's daily jobs all fall due at once and stamp fresh audit rows within
@@ -179,8 +180,25 @@ TS_RE='^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z$'
 ID_RE='^[A-Za-z0-9_]+$'
 last_aws_error() { tail -n 1 "${AWS_ERR}" 2>/dev/null || true; }
 
+# The audit rows that can serve as the lineage record: every row except those
+# the testkit writes or the persona rebuild deletes. On staging a code-only
+# deploy rebuilds the personas, and the rebuild deletes the persona switch and
+# finance-journey rows it wrote, the rows the persona seed wrote under its
+# dev-shortcuts/personas marker, and every row a persona member (an id starting
+# member_persona_) was the actor of. A record naming such a row would be deleted
+# under the next backup, which would then refuse a database that does continue
+# the history. The rule excludes every testkit.* action type rather than only
+# the ones the rebuild deletes today, so a testkit row added later cannot become
+# the record either; excluding a row the rebuild keeps only makes the record an
+# older row, which the check still finds.
+# Production never holds these rows, so there the record is the newest row, as
+# it would be without the rule. The same rule picks the row recorded on the
+# upload and the row a refusal names as this database's own newest, so the two
+# always agree.
+LINEAGE_ROWS="action_type NOT GLOB 'testkit.*' AND created_by <> 'dev-shortcuts/personas' AND (actor_member_id IS NULL OR actor_member_id NOT LIKE 'member_persona_%')"
+
 if ! local_wm="$(sqlite3 "${SNAP}" \
-       "SELECT id || char(9) || occurred_at FROM audit_entries ORDER BY occurred_at DESC, id DESC LIMIT 1;" 2>&1)"; then
+       "SELECT id || char(9) || occurred_at FROM audit_entries WHERE ${LINEAGE_ROWS} ORDER BY occurred_at DESC, id DESC LIMIT 1;" 2>&1)"; then
   record_failure "could not read the newest audit row from the snapshot: ${local_wm##*$'\n'}"
 fi
 LOCAL_ID=none

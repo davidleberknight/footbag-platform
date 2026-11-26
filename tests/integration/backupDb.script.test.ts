@@ -36,6 +36,10 @@ import { tmpdir } from 'node:os';
 import { gunzipSync } from 'node:zlib';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../../src/lib/personaGuards';
+import {
+  PERSONA_SEED_CREATED_BY, PERSONA_SWITCH_AUDIT_ACTION_TYPE,
+} from '../../src/testkit/personaFactory';
 
 const BACKUP_SCRIPT = join(process.cwd(), 'scripts/backup-db.sh');
 const BUCKET = 'footbag-test-snapshots';
@@ -57,13 +61,21 @@ beforeEach(() => {
   callLog = join(workDir, 'calls.log');
 
   // The producer reads one thing from the database it copies: the newest row of
-  // the audit ledger, which is what it records as the snapshot's lineage. The
-  // ledger here carries only the two columns that read touches, created by this
-  // file so its rows are the file's own; nothing else about the schema matters
-  // to a backup.
+  // the audit ledger that the testkit can neither write nor delete, which is
+  // what it records as the snapshot's lineage. The ledger here carries only the
+  // columns that read touches, with the same nullability as the real schema,
+  // created by this file so its rows are the file's own; nothing else about the
+  // schema matters to a backup. The defaults make an ordinary row: a real
+  // action, written by the application, with no persona as its actor.
   const db = new BetterSqlite3(join(dbDir, 'footbag.db'));
   db.exec('CREATE TABLE backup_probe (id INTEGER PRIMARY KEY);');
-  db.exec('CREATE TABLE audit_entries (id TEXT PRIMARY KEY, occurred_at TEXT NOT NULL);');
+  db.exec(`CREATE TABLE audit_entries (
+    id TEXT PRIMARY KEY,
+    occurred_at TEXT NOT NULL,
+    action_type TEXT NOT NULL DEFAULT 'member.profile_update',
+    created_by TEXT NOT NULL DEFAULT 'system',
+    actor_member_id TEXT
+  );`);
   db.close();
 
   // The bucket stands in as a directory tree, so a promotion is observable as a
@@ -437,10 +449,26 @@ describe('backing up while a restore\'s erasure replay is pending', () => {
   });
 });
 
-/** Appends a row to the live database's audit ledger. */
-function addAuditRow(id: string, occurredAt: string): void {
+interface AuditOrigin { actionType?: string; createdBy?: string; actorMemberId?: string }
+
+/**
+ * Appends a row to the live database's audit ledger. With no origin it is an
+ * ordinary application row; an origin makes it one the testkit wrote.
+ */
+function addAuditRow(id: string, occurredAt: string, origin: AuditOrigin = {}): void {
   const db = new BetterSqlite3(join(dbDir, 'footbag.db'));
-  db.prepare('INSERT INTO audit_entries (id, occurred_at) VALUES (?, ?)').run(id, occurredAt);
+  db.prepare(
+    `INSERT INTO audit_entries (id, occurred_at, action_type, created_by, actor_member_id)
+     VALUES (?, ?, COALESCE(?, 'member.profile_update'), COALESCE(?, 'system'), ?)`,
+  ).run(id, occurredAt, origin.actionType ?? null, origin.createdBy ?? null, origin.actorMemberId ?? null);
+  db.close();
+}
+
+/** Removes audit rows the way the persona rebuild does, by id. */
+function deleteAuditRows(ids: string[]): void {
+  const db = new BetterSqlite3(join(dbDir, 'footbag.db'));
+  const del = db.prepare('DELETE FROM audit_entries WHERE id = ?');
+  for (const id of ids) del.run(id);
   db.close();
 }
 
@@ -649,6 +677,107 @@ describe('uploading only a continuation of the stored history', () => {
 
     expect(res.status, res.stderr).toBe(0);
     expect(keysUnder('routine/')).toHaveLength(2);
+  });
+});
+
+// On staging a code-only deploy rebuilds the personas, which deletes the audit
+// rows the testkit wrote and the rows a persona was the actor of. The testkit's
+// own constants are used for those rows, so a rename in the testkit that the
+// backup does not follow turns these cases red rather than letting staging's
+// backups stop again.
+describe('a lineage record the persona rebuild cannot delete', () => {
+  const persona = `${SEEDED_PERSONA_MEMBER_ID_PREFIX}backup_probe`;
+
+  // Defect caught: on staging every backup after a code-only deploy is refused
+  // as a database that does not continue the stored history, because the
+  // snapshot before the deploy recorded a persona switch row as its lineage and
+  // the persona rebuild deleted that row.
+  it('keeps uploading after the persona rebuild deletes the rows the testkit wrote', () => {
+    addAuditRow('audit_real', '2026-11-01T00:00:00.000Z');
+    addAuditRow('audit_switch', '2026-11-02T00:00:00.000Z', {
+      actionType: PERSONA_SWITCH_AUDIT_ACTION_TYPE,
+    });
+    addAuditRow('audit_by_persona', '2026-11-03T00:00:00.000Z', { actorMemberId: persona });
+
+    const first = runBackup();
+    expect(first.status, first.stderr).toBe(0);
+    const [stored] = keysUnder('routine/');
+    expect(lineageOf(stored)?.['audit-newest-id']).toBe('audit_real');
+
+    deleteAuditRows(['audit_switch', 'audit_by_persona']);
+    addAuditRow('audit_worker_after_deploy', '2026-11-04T00:00:00.000Z');
+    // A second run in the same second would reuse the first run's key.
+    rmSync(join(s3Dir, BUCKET, stored));
+    seedSnapshot(yesterdayRoutineKey(), lineageOf(stored) as Lineage);
+
+    const second = runBackup();
+
+    expect(second.status, second.stderr).toBe(0);
+    expect(keysUnder('routine/')).toHaveLength(2);
+  });
+
+  // Defect caught: a host rebuilt from an old disk snapshot uploads its stale
+  // database because rows the testkit wrote on it are treated as evidence that
+  // it continues the stored history, and the refusal names a persona row as
+  // the database's own newest row, which tells the operator nothing.
+  it('still refuses a database missing the stored row, and names its newest lasting row', () => {
+    addAuditRow('audit_old_real', '2026-11-01T00:00:00.000Z');
+    addAuditRow('audit_old_switch', '2026-11-05T00:00:00.000Z', {
+      actionType: PERSONA_SWITCH_AUDIT_ACTION_TYPE,
+    });
+    const stored = yesterdayRoutineKey();
+    seedSnapshot(stored, {
+      'audit-newest-id': 'audit_newer_real',
+      'audit-newest-at': '2026-11-02T00:00:00.000Z',
+      'lineage-since': 'none',
+    });
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('routine/')).toEqual([stored]);
+    expect(failureCount()).toBe('1');
+    expect(res.stderr).toContain('audit_newer_real');
+    expect(res.stderr).toContain('its own newest audit row is audit_old_real (2026-11-01T00:00:00.000Z)');
+  });
+
+  // Defect caught: a row the persona rebuild deletes (one a persona was the
+  // actor of, or one the persona seed wrote under its marker) becomes the
+  // lineage record, so the next code-only deploy on staging stops backups.
+  it('never records a row a persona wrote or the persona seed marked', () => {
+    addAuditRow('audit_real', '2026-11-01T00:00:00.000Z');
+    addAuditRow('audit_by_persona', '2026-11-02T00:00:00.000Z', { actorMemberId: persona });
+    addAuditRow('audit_seed_marked', '2026-11-03T00:00:00.000Z', {
+      actionType: 'membership.tier_grant', createdBy: PERSONA_SEED_CREATED_BY,
+    });
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    const [key] = keysUnder('routine/');
+    expect(lineageOf(key)).toEqual({
+      'audit-newest-id': 'audit_real',
+      'audit-newest-at': '2026-11-01T00:00:00.000Z',
+      'lineage-since': 'none',
+    });
+  });
+
+  // Defect caught: a staging database holding only rows the testkit wrote
+  // records one of them as its lineage, so the first persona rebuild stops
+  // every backup, where a database with no lasting row must record none.
+  it('records no row when every audit row is one the testkit wrote', () => {
+    addAuditRow('audit_switch', '2026-11-02T00:00:00.000Z', {
+      actionType: PERSONA_SWITCH_AUDIT_ACTION_TYPE,
+    });
+    addAuditRow('audit_by_persona', '2026-11-03T00:00:00.000Z', { actorMemberId: persona });
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    const [key] = keysUnder('routine/');
+    expect(lineageOf(key)).toEqual({
+      'audit-newest-id': 'none', 'audit-newest-at': 'none', 'lineage-since': 'none',
+    });
   });
 });
 

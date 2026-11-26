@@ -113,6 +113,48 @@ describe('the diagnostics read the live install', () => {
   });
 });
 
+describe('systemd reads the backup service beside the application', () => {
+  // Stand-ins that record the arguments they were given, one line per call;
+  // the case asserts which units were asked about, not how either tool prints.
+  function runSystemd(): { status: number | null; calls: string } {
+    const { path } = stubTools();
+    const callsFile = join(workDir, 'systemd-calls.txt');
+    for (const tool of ['systemctl', 'journalctl']) {
+      const bin = join(workDir, 'bin', tool);
+      writeFileSync(
+        bin,
+        ['#!/usr/bin/env bash', `printf '${tool} %s\\n' "$*" >> ${JSON.stringify(callsFile)}`, 'exit 0', ''].join('\n'),
+        'utf-8',
+      );
+      chmodSync(bin, 0o755);
+    }
+    const res = spawnSync('bash', [SCRIPT, 'systemd'], {
+      encoding: 'utf-8',
+      env: { ...process.env, PATH: path, HOME: workDir },
+      ...SPAWN_GUARD,
+    });
+    let calls = '';
+    try {
+      calls = readFileSync(callsFile, 'utf-8');
+    } catch {
+      calls = '';
+    }
+    return { status: res.status, calls };
+  }
+
+  // Defect caught: an operator diagnosing stopped backups runs `systemd` and
+  // sees only the application, so the refused or failed backup's own reason,
+  // which only the backup service's journal holds, stays unread.
+  it('asks for the backup timer and service status and the backup journal', () => {
+    const r = runSystemd();
+    expect(r.status).toBe(0);
+    const lines = r.calls.trim().split('\n');
+    expect(lines).toContain('systemctl status footbag.service --no-pager -l');
+    expect(lines).toContain('systemctl status footbag-backup.timer footbag-backup.service --no-pager -l');
+    expect(lines.some((l) => /^journalctl -u footbag-backup\.service .*-n 40\b/.test(l)), r.calls).toBe(true);
+  });
+});
+
 describe('the diagnostics run only on a host that records a deployed environment', () => {
   // Defect caught: the toolkit runs against a host that has not confirmed it is
   // staging or production, and reports confidently about the wrong machine.
