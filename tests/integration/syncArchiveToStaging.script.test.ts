@@ -22,11 +22,10 @@ import * as fs from 'node:fs';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 'sync-archive-to-staging.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const PROD = 'footbag-production-archive';
 const STAGING = 'footbag-staging-archive';
@@ -58,7 +57,7 @@ function writeExec(file: string, body: string) {
 interface RunOpts {
   /** The ARN the identity proof resolves to. */
   arn?: string;
-  /** Run at a terminal through `script`, typing this. */
+  /** Run at a pseudo-terminal, typing this. */
   typed?: string;
   /** Leave the signing key out. */
   noSigningKey?: boolean;
@@ -144,9 +143,7 @@ function run(args: string[], opts: RunOpts = {}) {
   let out: string;
   if (opts.typed !== undefined) {
     const inner = ['bash', JSON.stringify(SCRIPT), ...args.map((a) => JSON.stringify(a)), '</dev/null'].join(' ');
-    const r = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-      encoding: 'utf-8', input: opts.typed, env, ...SPAWN_GUARD,
-    });
+    const r = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { typed: opts.typed, env });
     out = r.stdout ?? '';
     const m = out.match(/EXIT=(\d+)/);
     status = m ? Number(m[1]) : -1;
@@ -241,7 +238,7 @@ describe('sync-archive-to-staging.sh: a dry run changes nothing', () => {
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('sync-archive-to-staging.sh: an applied run, driven end to end', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('sync-archive-to-staging.sh: an applied run, driven end to end', () => {
   it('copies production over staging inside S3, proves they match, invalidates staging once and runs the edge proof', () => {
     const res = run([], { typed: 'APPLY\n' });
     expect(res.status, res.out).toBe(0);

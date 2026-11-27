@@ -222,8 +222,10 @@ resource "aws_cloudwatch_metric_alarm" "db_backup_promotion" {
   threshold           = 1
   treat_missing_data  = "notBreaching" # silence is covered by the staleness alarm
   alarm_description   = "SQLite backup generation promotion failed on every run for an hour"
-  alarm_actions       = [aws_sns_topic.alarms.arn]
-  ok_actions          = [aws_sns_topic.alarms.arn]
+  # Critical: with promotion failing the recovery window shrinks to the
+  # fine-grained stream's two days, like the stale and failing backup alarms.
+  alarm_actions = local.critical_alarm_actions
+  ok_actions    = local.critical_alarm_actions
 }
 
 # ── Cross-region replication health ───────────────────────────────────────────

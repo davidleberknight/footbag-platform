@@ -19,6 +19,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/cutover-marker-remote.sh');
@@ -189,9 +190,7 @@ describe('the operator-facing marker script', () => {
     const pw = join(workDir, 'pw');
     writeFileSync(pw, 'fixture-sudo-password\n');
     const inner = ['bash', OPERATOR_SCRIPT, ...args, '<', pw].map((a) => (a === '<' ? a : JSON.stringify(a))).join(' ');
-    const res = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      encoding: 'utf8', input: 'APPLY\n', env, ...SPAWN_GUARD,
-    });
+    const res = spawnAtTerminal(inner, { typed: 'APPLY\n', env });
     return { status: res.status ?? -1, out: `${res.stdout ?? ''}${res.stderr ?? ''}` };
   }
 

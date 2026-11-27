@@ -51,6 +51,25 @@ require_images_for_hosts() {
   done
 }
 
+# A production build sets INCLUDE_DEV_SHORTCUTS=0 so the images carry no test
+# kit, the persona harness that can sign in as any test member. The setting only
+# reaches the build through an exported variable, so the built images are read
+# back: a production image holding dist/testkit is refused before anything is
+# sent. DEPLOY_DOCKER_BIN is the test seam for the docker client.
+require_no_testkit_in_images() {
+  local image docker_bin="${DEPLOY_DOCKER_BIN:-docker}" rc
+  [[ -n "${DEPLOY_DOCKER_BIN:-}" ]] && echo "NOTE: DEPLOY_DOCKER_BIN is set; the image check reads a stand-in, not the real images." >&2
+  for image in docker-web docker-worker docker-image; do
+    rc=0
+    "$docker_bin" run --rm --network none --entrypoint sh "$image" -c 'test ! -e /app/dist/testkit' </dev/null || rc=$?
+    case "$rc" in
+      0) ;;
+      1) echo "ERROR: ${image} holds /app/dist/testkit, which a production image must not; nothing was sent to the host." >&2; return 1 ;;
+      *) echo "ERROR: could not read ${image} to check it holds no test kit (docker exited ${rc}); nothing was sent to the host." >&2; return 1 ;;
+    esac
+  done
+}
+
 # The archive's name in the deploy account's home on the host. It lives outside
 # the release upload directory, which every deploy empties, because it is the
 # basis the next deploy's rsync compares against.

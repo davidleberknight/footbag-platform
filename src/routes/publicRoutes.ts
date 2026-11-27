@@ -85,6 +85,9 @@ publicRouter.get('/media/freestyle-tutorials', mediaController.freestyleTutorial
 // Literal sub-route; like /media/browse it MUST precede /media/:galleryId so
 // the member-galleries list page is not captured as a gallery id.
 publicRouter.get('/media/member-galleries', mediaController.memberGalleries);
+// Literal sub-route; like /media/browse it MUST precede /media/:galleryId so
+// the curated-galleries list page is not captured as a gallery id.
+publicRouter.get('/media/curated-galleries', mediaController.curatedGalleries);
 // Standalone item viewer reached from any tag-query surface (browse, profile,
 // teaching). It shares the two-segment depth of /media/:galleryId/:mediaId, so
 // it MUST be registered before that route or "item" is captured as a galleryId.

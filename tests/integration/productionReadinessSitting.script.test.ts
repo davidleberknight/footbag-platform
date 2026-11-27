@@ -13,7 +13,7 @@
  *
  * Every child is a stand-in that records its arguments, whether its stdin was
  * a terminal and the first line it was given, and answers from a rule table.
- * Full runs go through `script` so the questions are asked at a real terminal
+ * Full runs go through a pseudo-terminal so the questions are asked at a real terminal
  * and answered from the test. Nothing reaches AWS or a host.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -26,6 +26,7 @@ import { createHash } from 'node:crypto';
 import { realpathSync } from 'node:fs';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
@@ -243,16 +244,15 @@ function env(extra: Record<string, string> = {}, arn?: string): NodeJS.ProcessEn
 }
 
 /** At a terminal, the credential on stdin unless `stdin` says otherwise, answering each question in turn. */
-function sit(args: string[], answers: string[] = [], o: { stdin?: string; env?: Record<string, string>; arn?: string; wrap?: string } = {}) {
+function sit(args: string[], answers: string[] = [], o: { stdin?: string; env?: Record<string, string>; arn?: string; wrap?: string; typeAhead?: string } = {}) {
   const target = args[args.indexOf('--target') + 1];
   const cred = join(dir, 'home', 'AWS', target === 'production' ? 'AWS_OPERATOR_PRODUCTION.txt' : 'AWS_OPERATOR.txt');
   const redirect = o.stdin ?? `< ${JSON.stringify(cred)}`;
   const inner = `${o.wrap ?? ''} bash ${JSON.stringify(SCRIPT)} ${args.join(' ')} ${redirect}; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: answers.map((a) => `${a}\n`).join(''),
+  const r = spawnAtTerminal(inner, {
+    typed: answers.map((a) => `${a}\n`).join(''),
+    typeAhead: o.typeAhead,
     env: { ...process.env, ...env(o.env, o.arn) },
-    ...SPAWN_GUARD,
   });
   const out = r.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
@@ -518,6 +518,21 @@ describe('the host rebuild drills', () => {
     expect(at(/restore-host\.sh|bootstrap-host\.sh --target production --replace-instance/)).toBe(-1);
   });
 
+  // Defect caught: the restore drill putting a named, older snapshot onto a
+  // live production behind only the typed confirmation, losing real members'
+  // writes since it; or the drill run alone, skipping the marker read.
+  it('restores the named snapshot onto production only after reading it pre-live', () => {
+    writeRules([{ match: 'scripts/production-live-marker.sh --status*', stdout: 'Marker /footbag/production/app/production_live currently reads: true' }]);
+    const live = sit(['--target', 'production', '--from-step', 'p08g', '--to-step', 'p09']);
+    expect(live.status).toBe(1);
+    expect(live.out).toMatch(/VERDICT: STOPPED AT p08g/);
+    expect(at(/restore-db\.sh --target production --snapshot/)).toBe(-1);
+    const alone = sit(['--target', 'production', '--from-step', 'p09', '--to-step', 'p09']);
+    expect(rows().at(-1)!.slice(3, 6)).toEqual(['p09', expect.any(String), 'skipped (needs p08g)']);
+    expect(alone.out).not.toMatch(/VERDICT: DONE/);
+    expect(at(/restore-db\.sh --target production --snapshot/)).toBe(-1);
+  });
+
   // Defect caught: a production restore started while email is armed, so the
   // restored host's worker resends, from the snapshot's day-old database, mail
   // the old host had already sent to real members.
@@ -607,6 +622,37 @@ describe('stopping', () => {
     expect(rows().map((c) => c[3])).toContain('p95');
   });
 
+  // Defect caught: an alarm-mail question nobody can answer without help: no
+  // search to find the emails among hundreds, no window start in UTC, no list
+  // of the runs an email may match; or one asked over a window whose start
+  // nothing recorded, so any answer is a guess.
+  it('asks the alarm-mail question with its search, window and runs filled from the log, and not without a window', () => {
+    const head = ['', '## 9. Production-readiness sitting', '', 'One row per step.', '',
+      '| Started (UTC) | Finished (UTC) | Target | Step | Command | Result | Notes |', '|---|---|---|---|---|---|---|'];
+    writeFileSync(logReal, LOG_HEAD + [...head,
+      '| 2026-11-20T00:00:00Z | 2026-11-20T00:05:00Z | staging | s11b | scripts/verify-account-baseline.sh --profile footbag-operator | ok |  |',
+      '| 2026-11-26T01:10:28Z | 2026-11-26T01:30:39Z | staging | s11c | scripts/restore-host.sh --target staging | ok |  |',
+      '| 2026-11-26T01:31:00Z | 2026-11-26T01:40:00Z | staging | s11d | deploy_to_aws.sh --target staging | ok |  |',
+      '| 2026-11-26T01:41:00Z | 2026-11-26T01:41:00Z | staging | s11e | - | ok | answered yes |',
+      '',
+    ].join('\n'));
+    const r = sit(['--target', 'staging', '--from-step', 's11h', '--to-step', 's11h'], ['yes']);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain('after:2026/11/26 subject:ALARM ("footbag-production-iam-write" OR "footbag-production-alerting-disabled" OR "footbag-production-break-glass-host-access")');
+    expect(r.out).toContain('The window opened when s11c started, 2026-11-26T01:10:28Z UTC.');
+    expect(r.out).toContain('s11c 2026-11-26T01:10:28Z to 2026-11-26T01:30:39Z UTC; s11d 2026-11-26T01:31:00Z to 2026-11-26T01:40:00Z UTC.');
+    // A run before the window, and a question that ran nothing, are not listed.
+    expect(r.out).not.toMatch(/runs in it that can send one: [^.]*\bs11b\b/);
+    expect(r.out).not.toMatch(/runs in it that can send one: [^.]*\bs11e\b/);
+    expect(r.out).toContain("the time in Gmail's list is your local time");
+
+    writeFileSync(logReal, LOG_HEAD);
+    const blind = sit(['--target', 'staging', '--from-step', 's11h', '--to-step', 's11h'], ['yes']);
+    expect(blind.status).toBe(1);
+    expect(blind.out).toMatch(/VERDICT: STOPPED AT s11h/);
+    expect(blind.out).toContain('could not be asked: no start time recorded for step s11c');
+  });
+
   // Defect caught: a pending verdict over a run that also failed, so a caller
   // branching on "pending" carries on past a real error.
   it('reports a failure, not pending, when an error follows a deferred step', () => {
@@ -634,6 +680,16 @@ describe('stopping', () => {
     expect(ran.status, ran.out).toBe(0);
     const drill = stepCalls().find((c) => /incident-drill\.sh --target staging/.test(c.call))!;
     expect(drill.line).toBe(PASSWORD);
+  });
+
+  // Defect caught: a "yes" typed while the run was still busy answering a
+  // question the operator has not read, so the drill runs on an attestation
+  // nobody gave, and the "no" typed at the question is never read.
+  it('does not take a yes typed before the question as its answer', () => {
+    const r = sit(['--target', 'staging', '--from-step', 's98', '--to-step', 's99'], ['no'], { typeAhead: 'yes\n' });
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/VERDICT: STOPPED AT s98/);
+    expect(firstCall(/incident-drill/)).toBe(-1);
   });
 });
 
@@ -823,7 +879,7 @@ describe('derived values', () => {
   // meant to follow, or any key the listing happens to hold.
   it('restores the newest routine backup made after the production deploy', () => {
     sit(['--target', 'production', '--from-step', 'p04a', '--to-step', 'p04a']);
-    sit(['--target', 'production', '--from-step', 'p09', '--to-step', 'p09']);
+    sit(['--target', 'production', '--from-step', 'p08g', '--to-step', 'p09']);
     const restore = calls().find((c) => /restore-db\.sh .*--snapshot/.test(c.call))!;
     expect(restore.call).toBe('scripts/restore-db.sh --target production --snapshot routine/2026/11/10/footbag-20261110T120000Z.db.gz');
   });
@@ -839,13 +895,13 @@ describe('derived values', () => {
     expect(bucketsListed()).toEqual(['footbag-staging-snapshots']);
     writeFileSync(stubLog, '');
     sit(['--target', 'production', '--from-step', 'p04a', '--to-step', 'p04a']);
-    sit(['--target', 'production', '--from-step', 'p09', '--to-step', 'p09']);
+    sit(['--target', 'production', '--from-step', 'p08g', '--to-step', 'p09']);
     expect(bucketsListed()).toEqual(['footbag-production-db-snapshots']);
   });
 
   it('stops the restore when no backup is newer than the deploy', () => {
     sit(['--target', 'production', '--from-step', 'p04a', '--to-step', 'p04a']);
-    const r = sit(['--target', 'production', '--from-step', 'p09', '--to-step', 'p09'], [], { env: { SITTING_AWS_BIN: awsStub(-600) } });
+    const r = sit(['--target', 'production', '--from-step', 'p08g', '--to-step', 'p09'], [], { env: { SITTING_AWS_BIN: awsStub(-600) } });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/wait for the next routine backup/);
     expect(firstCall(/restore-db\.sh/)).toBe(-1);
@@ -1080,13 +1136,17 @@ describe('checks made by a read rather than asked', () => {
 
 describe('waiting, and an interrupted step', () => {
   // Defect caught: the edge check run inside the hour after the publish, when
-  // its logs cannot have arrived; or an interrupt during a step leaving no row,
-  // so the log reads as though the step never started.
-  it('waits out the hour after a fresh publish, and records the step as interrupted on Ctrl-C', () => {
+  // its logs cannot have arrived; an interrupt during a step leaving no row,
+  // so the log reads as though the step never started; or a stop before the
+  // step's command started hiding the step's earlier ok row, so the step
+  // reads interrupted though nothing it owns changed.
+  it('waits out the hour after a fresh publish, and records a stop in the wait as interrupted before the command started', () => {
     const now = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+    const earlier = '2026-11-20T00:00:00Z';
     writeFileSync(logReal, LOG_HEAD + [
       '', '## 9. Production-readiness sitting', '', 'One row per step.', '',
       '| Started (UTC) | Finished (UTC) | Target | Step | Command | Result | Notes |', '|---|---|---|---|---|---|---|',
+      `| ${earlier} | ${earlier} | production | p15d | scripts/verify-archive-edge.sh --target production --profile footbag-operator --check | ok |  |`,
       `| ${now} | ${now} | production | p15c | scripts/publish-archive.sh --target production | ok |  |`,
       '',
     ].join('\n'));
@@ -1100,7 +1160,12 @@ describe('waiting, and an interrupted step', () => {
     expect(firstCall(/verify-archive-edge/)).toBe(-1);
     const row = rows().at(-1)!;
     expect(row[3]).toBe('p15d');
-    expect(row[5]).toBe('interrupted');
+    expect(row[5]).toBe('interrupted (not started)');
+    const s = sit(['--target', 'production', '--from-step', 'p15d', '--to-step', 'p15d', '--status']);
+    // The hand-written ok row names no commit, so it reads lapsed; what matters
+    // is that the earlier ok row, not the stop, is the one status reads.
+    expect(s.out).toMatch(new RegExp(`p15d +.*recorded ok at ${earlier}`, 'i'));
+    expect(s.out).not.toMatch(/p15d +INTERRUPTED/);
   });
 });
 
@@ -1285,9 +1350,11 @@ describe('passes 2 and 3', () => {
   it('runs pass 1\'s section-1 reads again in pass 3, twice, with the notice expected on', () => {
     const pass1 = listed(spawnSync('bash', [SCRIPT, '--target', 'production', '--dry-run'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout);
     const pass3 = listed(dryPass('3').stdout);
-    for (const letter of 'bcdefghijklmno') {
+    // p07d, the dry run of going live, proved nothing and is not a step.
+    expect(pass1.has('p07d')).toBe(false);
+    for (const letter of 'bcefghijklmno') {
+      expect(pass1.get(`p07${letter}`), letter).toBeDefined();
       const want = pass1.get(`p07${letter}`)!.replace('--expect-live', '--expect-notice');
-      expect(want, letter).toBeDefined();
       expect(pass3.get(`p3-2-${letter}`), `p3-2-${letter}`).toBe(want);
       expect(pass3.get(`p3-3-${letter}`), `p3-3-${letter}`).toBe(want);
     }
@@ -1427,9 +1494,35 @@ describe('the production steps around email, the zero-logins gate and the archiv
     expect(restore.after).toMatch(/after +scripts\/check-env-health\.sh --target production --alarms-only --wait-minutes 10$/);
   });
 
-  it('waits long enough for two clean hours after the session check', () => {
-    const line = dry().split('\n').find((l) => /^ {2}p13n /.test(l))!;
-    expect(Number(line.match(/--wait-minutes (\d+)/)![1])).toBeGreaterThanOrEqual(180);
+  // Defect caught: an alarm wait that ends before the alarm can have changed
+  // state, so a healthy check reads as a failure and stops the sitting, or a
+  // wait with no room for CloudWatch's own evaluation delay. Each wait is held
+  // to twice the alarm's evaluation window as the production Terraform
+  // declares it (period times evaluation periods), so a later change to the
+  // alarm moves the floor with it.
+  it('waits at least twice each alarm\'s evaluation window before judging it', () => {
+    const blocks = readFileSync(join(process.cwd(), 'terraform', 'production', 'cloudwatch.tf'), 'utf-8')
+      .split('resource "aws_cloudwatch_metric_alarm"');
+    // The window of an alarm declared with one metric; an alarm built from a
+    // metric expression declares its period per query and is not held here.
+    const windowMinutes = (alarm: string): number | undefined => {
+      const suffix = alarm.replace(/^footbag-production-/, '');
+      const block = blocks.find((b) => new RegExp(`alarm_name\\s*=\\s*"\\$\\{local\\.prefix\\}-${suffix}"`).test(b));
+      expect(block, `${alarm} is declared in the production Terraform`).toBeDefined();
+      const period = block!.match(/\n\s*period\s*=\s*(\d+)/);
+      const periods = block!.match(/\n\s*evaluation_periods\s*=\s*(\d+)/);
+      return period && periods ? (Number(period[1]) * Number(periods[1])) / 60 : undefined;
+    };
+    const lines = dry().split('\n');
+    for (const id of ['p13i', 'p13n']) {
+      const line = lines.find((l) => new RegExp(`^ {2}${id} `).test(l))!;
+      const wait = Number(line.match(/--wait-minutes (\d+)/)![1]);
+      const held = [...line.matchAll(/--alarm (\S+)/g)]
+        .map((m) => [m[1], windowMinutes(m[1])] as const)
+        .filter((e): e is readonly [string, number] => e[1] !== undefined);
+      expect(held.length, `${id} names an alarm whose window the Terraform declares`).toBeGreaterThan(0);
+      for (const [a, w] of held) expect(wait, `${id} waits ${wait} minutes for ${a} (window ${w})`).toBeGreaterThanOrEqual(2 * w);
+    }
   });
 
   // Defect caught: the zero-logins alarm proved only by going off on an idle
@@ -1537,6 +1630,17 @@ describe('the production steps around email, the zero-logins gate and the archiv
       [' 3. Payments                 N-A      payments dark', ' 3. Payments                 PENDING  payments dark'],
       [' 4. Backup pipeline          DONE ', ' 4. Backup pipeline          UNKNOWN '],
       [' 8. Deployed runtime         DONE ', ' 8. Deployed runtime         FAILED '],
+    ]],
+    // The closing bring-up read after the test-mode payment stage: payments
+    // back to dark and a runtime whose monitor was read, not merely healthy.
+    ['p22f', 'scripts/bringup-status.sh --target production --profile footbag-operator', [
+      ' 2. Terraform                DONE     plan reports no changes in shared, identity or production',
+      ' 3. Payments                 N-A      payments dark (stub adapter; fake checkout, no real money)',
+      ' 4. Backup pipeline          DONE     timer active',
+      ' 8. Deployed runtime         DONE     4 containers healthy',
+    ], [
+      [' 3. Payments                 N-A      payments dark', ' 3. Payments                 DONE     payments armed'],
+      [' 8. Deployed runtime         DONE ', ' 8. Deployed runtime         UNKNOWN '],
     ]],
     ['p07j', 'scripts/diagnose-cwagent.sh --target production', [
       '  enabled: enabled', '  active:  active', '  toml: namespace = "CWAgent/production"',

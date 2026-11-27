@@ -38,6 +38,7 @@ import {
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import {
@@ -352,12 +353,7 @@ function closingReport(out: string): string {
 
 function runInTerminal(terminal: string[], extra: Record<string, string> = {}) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args().map((a) => JSON.stringify(a))].join(' ');
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: terminal.map((l) => `${l}\n`).join(''),
-    env: { ...process.env, ...env(extra) },
-    ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(inner, { typed: terminal.map((l) => `${l}\n`).join(''), env: { ...process.env, ...env(extra) } });
   return { status: r.status, out: r.stdout ?? '' };
 }
 
@@ -900,13 +896,7 @@ describe('accept-dev-tester-onboarding.sh — a whole acceptance', () => {
 /** A run through a terminal with explicit arguments. */
 function runWith(argv: string[], terminal: string[], extra: Record<string, string> = {}, cwd = dir) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a))].join(' ');
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    cwd,
-    input: terminal.map((l) => `${l}\n`).join(''),
-    env: { ...process.env, ...env(extra) },
-    ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(inner, { cwd, typed: terminal.map((l) => `${l}\n`).join(''), env: { ...process.env, ...env(extra) } });
   return { status: r.status, out: r.stdout ?? '' };
 }
 

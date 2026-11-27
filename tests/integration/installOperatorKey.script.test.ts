@@ -33,6 +33,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 
 const LIB = join(process.cwd(), 'scripts/lib/aws-credentials-file.sh');
@@ -561,9 +562,8 @@ describe('install-operator-key.sh — the probe of the pasted key', () => {
     );
     const akid = 'AKIAEXAMPLEEXAMPLE01';
     const sak = 'fixtureSecretAccessKeyValue0000000000000';
-    const res = spawnSync('script', ['-qec', `bash ${JSON.stringify(SCRIPT)}`, '/dev/null'], {
-      encoding: 'utf-8',
-      input: `${akid}\n${sak}\nno\n`,
+    const res = spawnAtTerminal(`bash ${JSON.stringify(SCRIPT)}`, {
+      typed: `${akid}\n${sak}\nno\n`,
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
@@ -572,7 +572,6 @@ describe('install-operator-key.sh — the probe of the pasted key', () => {
         AWS_CONFIG_FILE: join(workDir, 'config'),
         INSTALL_OPERATOR_KEY_AWS_BIN: aws,
       },
-      ...SPAWN_GUARD,
     });
     const out = res.stdout ?? '';
     expect(out).toMatch(/authenticates as arn:aws:iam::000000000000:user\/footbag-operator\r?\n/);

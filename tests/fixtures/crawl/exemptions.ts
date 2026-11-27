@@ -69,7 +69,7 @@ export function getWritesByDesign(url: string): boolean {
 const NO_DESCRIPTION_PAGES = [
   '', 'bap', 'clubs', 'clubs/usa', 'clubs/club_crawlville', 'events', 'freestyle/media', 'hof',
   'ifpa', 'login', 'media',
-  'media/browse', 'media/member-galleries', 'media/gallery_[a-z0-9_]+', 'members/canary_shown',
+  'media/browse', 'media/member-galleries', 'media/curated-galleries','media/gallery_[a-z0-9_]+', 'members/canary_shown',
   'net', 'password/forgot', 'consecutives', 'register', 'rules', 'rules/[a-z-]+/[a-z0-9-]+', 'sideline',
   'x-square', 'golf', 'history/[A-Za-z0-9_-]+',
   'media/item/[A-Za-z0-9_]+', 'media/gallery_[a-z0-9_]+/[A-Za-z0-9_]+',
@@ -265,6 +265,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'GET /admin/freestyle/notation-backlog/:candidateId/publish',
       'POST /admin/freestyle/notation-backlog/:candidateId/publish',
       'GET /admin/curator/media/:id/edit', 'POST /admin/curator/media/:id/edit', 'POST /admin/curator/media/:id/delete',
+      'GET /media/curated-galleries',
       'POST /admin/media-flags/flags/:flagId/clear', 'POST /admin/media-flags/:mediaId/delete',
       'POST /admin/media-flags/:mediaId/no-action', 'POST /admin/media-flags/:mediaId/flag',
       'POST /admin/media-flags/:mediaId/retry-removal',

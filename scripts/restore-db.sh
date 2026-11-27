@@ -750,6 +750,11 @@ else
   echo "This REPLACES the live database on ${SSH_ALIAS}."
 fi
 echo "  snapshot:        s3://${BUCKET}/${SNAPSHOT_KEY}"
+# How old the chosen point is, on every path, a named --snapshot included:
+# everything written since it is what this restore gives up.
+# shellcheck source=lib/backup-key.sh
+source "${SCRIPT_DIR}/lib/backup-key.sh"
+echo "  taken:           $(backup_key_age_line "$SNAPSHOT_KEY" "$(date -u +%s)")"
 echo "  SES adapter:     ${SES_ADAPTER_ON_HOST:-unset}"
 echo "  payment adapter: ${PAYMENT_ADAPTER_ON_HOST:-unset}"
 echo "The database in place is copied aside on the host first and kept for seven days."

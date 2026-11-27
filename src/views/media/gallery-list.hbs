@@ -17,12 +17,14 @@
         {{#if coverThumbUrl}}<a href="{{href}}" tabindex="-1" aria-hidden="true"><img src="{{coverThumbUrl}}" alt="{{name}}" class="card-cover" loading="lazy"></a>{{/if}}
         <a href="{{href}}" class="card-title card-link">{{name}}</a>
         {{#if description}}<p class="card-description">{{description}}</p>{{/if}}
-        <p class="card-meta">{{itemCount}} {{itemCountNoun}} by {{#if ownerHref}}<a href="{{ownerHref}}">{{ownerDisplayName}}</a>{{else}}{{ownerDisplayName}}{{/if}}</p>
+        {{! A member gallery names its owner; a curated gallery is IFPA's and
+            carries no owner line. }}
+        <p class="card-meta">{{itemCount}} {{itemCountNoun}}{{#if ownerDisplayName}} by {{#if ownerHref}}<a href="{{ownerHref}}">{{ownerDisplayName}}</a>{{else}}{{ownerDisplayName}}{{/if}}{{/if}}</p>
       </div>
       {{/each}}
     </div>
     {{> _pager pagination=content.pagination}}
   {{else}}
-    <div class="empty-state">No member galleries yet.</div>
+    <div class="empty-state">{{content.emptyText}}</div>
   {{/if}}
 </div>

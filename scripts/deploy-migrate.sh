@@ -256,6 +256,11 @@ if [[ "$ASSUME_YES" != "yes" ]]; then
   # the prompt dies on its own redirection instead of refusing.
   { true >/dev/tty; } 2>/dev/null \
     || die "no terminal available to confirm on, and a production migration has no unattended form; on staging, pass --yes deliberately instead"
+  # A line typed while the run was busy, or pasted with the command, is thrown
+  # away here, so only what is typed after the prompt answers it.
+  # shellcheck source=lib/terminal.sh
+  source "${SCRIPT_DIR}/lib/terminal.sh"
+  tty_discard_pending
   [[ "$DEPLOY_TARGET" == "footbag-production" ]] && production_staging_first_reminder
   printf 'Type APPLY to continue: ' > /dev/tty
   IFS= read -r reply < /dev/tty

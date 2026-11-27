@@ -76,6 +76,14 @@ beforeEach(() => {
     created_by TEXT NOT NULL DEFAULT 'system',
     actor_member_id TEXT
   );`);
+  // The job-run history, the second lineage mark: only the columns its read
+  // touches, as for the ledger above.
+  db.exec(`CREATE TABLE system_job_runs (
+    id TEXT PRIMARY KEY,
+    job_name TEXT NOT NULL DEFAULT 'SYS_Reclaim_Media_Leases',
+    started_at TEXT NOT NULL,
+    details_json TEXT NOT NULL DEFAULT '{}'
+  );`);
   db.close();
 
   // The bucket stands in as a directory tree, so a promotion is observable as a
@@ -187,7 +195,7 @@ beforeEach(() => {
       'const fs = require("fs"); const f = process.argv[1];' +
       ' const m = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, "utf8")) : {};' +
       ' const v = (k) => (k in m ? m[k] : "None");' +
-      ' console.log([v("audit-newest-id"), v("audit-newest-at"), v("lineage-since")].join("\\t"));' +
+      ' console.log([v("audit-newest-id"), v("audit-newest-at"), v("lineage-since"), v("jobs-newest-id")].join("\\t"));' +
       `' "$META/$bucket/$key"`,
     '  exit 0',
     'fi',
@@ -472,7 +480,14 @@ function deleteAuditRows(ids: string[]): void {
   db.close();
 }
 
-interface Lineage { 'audit-newest-id'?: string; 'audit-newest-at'?: string; 'lineage-since'?: string }
+interface Lineage { 'audit-newest-id'?: string; 'audit-newest-at'?: string; 'lineage-since'?: string; 'jobs-newest-id'?: string }
+
+/** Records a scheduled job run in the database being backed up. */
+function addJobRun(id: string, startedAt: string, detailsJson = '{}'): void {
+  const db = new BetterSqlite3(join(dbDir, 'footbag.db'));
+  db.prepare('INSERT INTO system_job_runs (id, started_at, details_json) VALUES (?, ?, ?)').run(id, startedAt, detailsJson);
+  db.close();
+}
 
 /** Places a snapshot in the stand-in bucket carrying the given lineage record. */
 function seedSnapshot(key: string, lineage?: Lineage): void {
@@ -512,9 +527,18 @@ describe('uploading only a continuation of the stored history', () => {
   // data, and the next run has nothing to check the database against, because
   // the upload, or the hourly and daily copies made from it, lost the record of
   // the newest audit row it holds.
-  it('records the newest audit row on the upload and on both promoted copies', () => {
+  it('records the newest audit row and job run on the upload and on both promoted copies', () => {
     addAuditRow('audit_older', '2026-11-01T00:00:00.000Z');
     addAuditRow('audit_newest', '2026-11-02T00:00:00.000Z');
+    addJobRun('run_older', '2026-11-02T00:00:00.000Z');
+    addJobRun('run_newest', '2026-11-02T00:05:00.000Z');
+    addJobRun('run_finance_demo', '2026-11-02T00:10:00.000Z');
+    // A run of a job the staging test kit rebuilds is never the record.
+    {
+      const db = new BetterSqlite3(join(dbDir, 'footbag.db'));
+      db.prepare('UPDATE system_job_runs SET job_name = ? WHERE id = ?').run('SYS_Reconcile_Payments_Nightly', 'run_finance_demo');
+      db.close();
+    }
 
     const res = runBackup();
 
@@ -523,6 +547,7 @@ describe('uploading only a continuation of the stored history', () => {
       'audit-newest-id': 'audit_newest',
       'audit-newest-at': '2026-11-02T00:00:00.000Z',
       'lineage-since': 'none',
+      'jobs-newest-id': 'run_newest',
     };
     for (const generation of ['routine/', 'hourly/', 'daily/']) {
       const [key] = keysUnder(generation);
@@ -544,6 +569,51 @@ describe('uploading only a continuation of the stored history', () => {
 
     expect(res.status, res.stderr).toBe(0);
     expect(keysUnder('routine/')).toHaveLength(2);
+  });
+
+  // Defect caught: a host rolled back across a stretch in which no member
+  // acted, so its old database still holds the stored audit row, uploaded as
+  // the newest snapshot, though its worker's newest runs are missing. Its
+  // worker starts a fresh run at boot, so a newest-time comparison would pass
+  // it; the run it lacks is what gives it away.
+  it('refuses a database holding the stored audit row but missing the stored newest job run', () => {
+    addAuditRow('audit_quiet', '2026-11-01T00:00:00.000Z');
+    addJobRun('run_before_rollback', '2026-11-01T00:05:00.000Z');
+    addJobRun('run_after_boot', '2026-11-27T09:00:00.000Z');
+    const stored = yesterdayRoutineKey();
+    seedSnapshot(stored, {
+      'audit-newest-id': 'audit_quiet', 'audit-newest-at': '2026-11-01T00:00:00.000Z', 'lineage-since': 'none',
+      'jobs-newest-id': 'run_lost_in_rollback',
+    });
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('routine/')).toEqual([stored]);
+    expect(res.stderr).toContain('records job run run_lost_in_rollback, which this database does not hold');
+  });
+
+  // Defect caught: the live database refused once the job-run record exists,
+  // stopping every backup, or the record never written, so the check above has
+  // nothing to compare against; or a run the staging test kit seeds taken as
+  // the record, which its next rebuild deletes.
+  it('uploads a database that holds the stored newest job run, and records its own', () => {
+    addAuditRow('audit_quiet', '2026-11-01T00:00:00.000Z');
+    addJobRun('run_stored', '2026-11-27T08:55:00.000Z');
+    addJobRun('run_since', '2026-11-27T09:00:00.000Z');
+    addJobRun('run_seeded_later', '2026-11-27T09:30:00.000Z', JSON.stringify({ seededBy: 'testkit.finance_demo' }));
+    const stored = yesterdayRoutineKey();
+    seedSnapshot(stored, {
+      'audit-newest-id': 'audit_quiet', 'audit-newest-at': '2026-11-01T00:00:00.000Z', 'lineage-since': 'none',
+      'jobs-newest-id': 'run_stored',
+    });
+
+    const res = runBackup();
+
+    expect(res.status, res.stderr).toBe(0);
+    const uploaded = keysUnder('routine/').filter((k) => k !== stored);
+    expect(uploaded).toHaveLength(1);
+    expect(lineageOf(uploaded[0])?.['jobs-newest-id']).toBe('run_since');
   });
 
   // Defect caught: a host rebuilt from a day-old disk snapshot uploads its old
@@ -670,7 +740,7 @@ describe('uploading only a continuation of the stored history', () => {
   it('uploads over a newest snapshot whose database had no audit rows', () => {
     addAuditRow('audit_first', '2026-11-01T00:00:00.000Z');
     seedSnapshot(yesterdayRoutineKey(), {
-      'audit-newest-id': 'none', 'audit-newest-at': 'none', 'lineage-since': 'none',
+      'audit-newest-id': 'none', 'audit-newest-at': 'none', 'lineage-since': 'none', 'jobs-newest-id': 'none',
     });
 
     const res = runBackup();
@@ -759,6 +829,7 @@ describe('a lineage record the persona rebuild cannot delete', () => {
       'audit-newest-id': 'audit_real',
       'audit-newest-at': '2026-11-01T00:00:00.000Z',
       'lineage-since': 'none',
+      'jobs-newest-id': 'none',
     });
   });
 
@@ -776,7 +847,7 @@ describe('a lineage record the persona rebuild cannot delete', () => {
     expect(res.status, res.stderr).toBe(0);
     const [key] = keysUnder('routine/');
     expect(lineageOf(key)).toEqual({
-      'audit-newest-id': 'none', 'audit-newest-at': 'none', 'lineage-since': 'none',
+      'audit-newest-id': 'none', 'audit-newest-at': 'none', 'lineage-since': 'none', 'jobs-newest-id': 'none',
     });
   });
 });
@@ -811,6 +882,7 @@ describe('a database put back on purpose', () => {
       'audit-newest-id': 'audit_restored_point',
       'audit-newest-at': '2026-11-01T00:00:00.000Z',
       'lineage-since': '2026-11-19T10:00:00Z',
+      'jobs-newest-id': 'none',
     });
 
     // The next run is checked against the upload the marker let through.
@@ -846,6 +918,23 @@ describe('a database put back on purpose', () => {
 
     expect(res.status).toBe(1);
     expect(keysUnder('routine/')).toEqual([stored]);
+  });
+
+  // Defect caught: a marker another account could have written (the app
+  // account owns the database directory) honoured as a declaration, so a
+  // database that does not continue the history is uploaded as a new lineage.
+  it('ignores a marker that others can write, and lets the lineage check refuse', () => {
+    const stored = staleHost();
+    const marker = writeMarker({
+      since: '2026-11-18T10:00:00Z', by: 'restore-db.sh', expires: String(nowEpoch() + 3600),
+    });
+    chmodSync(marker, 0o664);
+
+    const res = runBackup();
+
+    expect(res.status).toBe(1);
+    expect(keysUnder('routine/')).toEqual([stored]);
+    expect(res.stderr).toMatch(/ignoring the declared-restore marker .*mode 664/);
   });
 });
 
@@ -1017,6 +1106,36 @@ describe('a run the service manager kills', () => {
     expect(readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim()).toBe('1');
     expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
     expect(stderr).toContain('SIGTERM');
+    expect(keysUnder('')).toEqual([]);
+  });
+});
+
+describe('the backup unit\'s start limit', () => {
+  // Defect caught: a oneshot backup with no start limit, which a hang holds
+  // open for ever while its timer starts no other run; or a limit longer than
+  // the timer's interval, so one hung run still costs a scheduled backup.
+  it('bounds a run to less than the timer\'s interval', () => {
+    const unit = readFileSync(join(process.cwd(), 'ops/systemd/footbag-backup.service'), 'utf8');
+    const timer = readFileSync(join(process.cwd(), 'ops/systemd/footbag-backup.timer'), 'utf8');
+    const limit = unit.match(/^TimeoutStartSec=(\d+)$/m);
+    expect(limit, 'the backup unit declares a start limit in seconds').not.toBeNull();
+    const interval = timer.match(/^OnUnitActiveSec=(\d+)min$/m);
+    expect(interval, 'the timer declares its interval in minutes').not.toBeNull();
+    expect(Number(limit![1])).toBeGreaterThan(0);
+    expect(Number(limit![1])).toBeLessThan(Number(interval![1]) * 60);
+  });
+});
+
+describe('an AWS call that never returns', () => {
+  // Defect caught: an upload hung on a dead connection holding the run open
+  // until the service manager's start limit, with no failure counted for it,
+  // so the next timer tick never starts and backups stop silently. The bound
+  // is shortened here only because this case's verdict is the bound running out.
+  it('gives up on the hung call, fails the run and counts the failure', () => {
+    const res = runBackup({ AWS_STUB_UPLOAD_BLOCKS: '1', BACKUP_AWS_TIMEOUT_SECS: '1' });
+    expect(res.status, res.stderr).toBe(1);
+    expect(readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim()).toBe('1');
+    expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
     expect(keysUnder('')).toEqual([]);
   });
 });

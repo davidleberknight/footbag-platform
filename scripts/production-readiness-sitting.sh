@@ -232,7 +232,7 @@ STAGING_STEPS=(
   's11e|read|cred|-|scripts/bootstrap-host.sh --target staging --status'
   's11f|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   's11g|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target staging --drill'
-  's11h|ask+mail|-|log|Alarm check, snapshot restore. Since s11c began, the operations mailbox should hold an IAM-write or alerting-disabled alarm email only for an apply the restore or the deploy made, and a break-glass alarm email for each host-key read the restore made. Does every such email match one of those?'
+  's11h|ask+mail|-|log|Alarm check, snapshot restore. In the operations mailbox, search Gmail for: from:no-reply@sns.amazonaws.com after:{DATE<s11c} subject:ALARM ("footbag-production-iam-write" OR "footbag-production-alerting-disabled" OR "footbag-production-break-glass-host-access") These three alarms live in the production tree and watch the whole account, so a staging run sends them too. The window opened when s11c started, {SINCE<s11c} UTC. The runs in it that can send one: {RUNS_SINCE<s11c}. Judge each email by the Timestamp line in its body, which is UTC; the time in Gmail'\''s list is your local time. An IAM-write or alerting-disabled email matches an apply one of those runs made; a break-glass email matches a host-key read the restore made. Does every email the search finds match one of those runs? (Finding none also means yes.)'
   's11i|once|cred|log|scripts/restore-host.sh --target staging --delete-old'
   's11j|once|cred|log|scripts/bootstrap-host.sh --target staging --replace-instance'
   # The fresh instance comes back the way a live production's does: the
@@ -241,7 +241,7 @@ STAGING_STEPS=(
   's11k|idem+heavy+fresh|cred|cred:0=scripts/bootstrap-host.sh --target staging --status|scripts/bootstrap-host.sh --target staging --restore-database'
   's11l|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   's11m|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target staging --drill'
-  's11n|ask+mail|-|log|Alarm check, fresh instance. Since s11j began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
+  's11n|ask+mail|-|log|Alarm check, fresh instance. In the operations mailbox, search Gmail for: from:no-reply@sns.amazonaws.com after:{DATE<s11j} subject:ALARM ("footbag-production-iam-write" OR "footbag-production-alerting-disabled" OR "footbag-production-break-glass-host-access") These three alarms live in the production tree and watch the whole account, so a staging run sends them too. The window opened when s11j started, {SINCE<s11j} UTC. The runs in it that can send one: {RUNS_SINCE<s11j}. Judge each email by the Timestamp line in its body, which is UTC; the time in Gmail'\''s list is your local time. An IAM-write or alerting-disabled email matches an apply one of those runs made; a break-glass email matches a host-key read the replacement or the bootstrap made. Does every email the search finds match one of those runs? (Finding none also means yes.)'
   # The fresh instance proved to come back hardened, wired and serving.
   's11o|read|cred|-|scripts/harden-sshd.sh --target staging --expect-hardened'
   's11p|read|cred|-|scripts/verify-host-env.sh --target staging'
@@ -281,7 +281,6 @@ PRODUCTION_STEPS=(
   'p07a|ask|-|log|Open PRODUCTION_READINESS_RUNBOOK.md in the private checkout (footbag_private_repo/) and read its opening and its section 1, Reads: what this pass changes on production, what to have ready, and what to look for in each read. p07h to p07n run those reads later in this pass. Read it?'
   'p07b|read|tty|stdout=^tfvars .*: payments_armed = dark$ && ^SSM  \(/footbag/production/app/payments_armed\): dark$|scripts/arming.sh --target production --status --profile footbag-operator'
   'p07c|read|tty|-|scripts/production-live-marker.sh --status --profile footbag-operator'
-  'p07d|read|tty|-|scripts/production-live-marker.sh --set live --dry-run --profile footbag-operator'
   'p07e|read|cred|stdout=^ 2\. Terraform +DONE  && ^ 3\. Payments +N-A +payments dark && ^ 4\. Backup pipeline +DONE  && ^ 8\. Deployed runtime +DONE |scripts/bringup-status.sh --target production --profile footbag-operator'
   'p07f|read|tty|-|scripts/create-stripe-endpoint.sh --target production --mode live --verify'
   'p07g|read|tty|-|scripts/verify-replication.sh --target production'
@@ -300,6 +299,7 @@ PRODUCTION_STEPS=(
   'p08d1|ask|-|log|Outbox mail check. p08d sent one message through the production outbox to the inbox you typed. Open that inbox. Did the message arrive, and does its original source (in Gmail: the three-dot menu, Show original) show DKIM: PASS? Answer yes only if both are true.'
   'p08e|once|tty|log|scripts/verify-prod-email.sh --profile footbag-production-runtime --read-profile footbag-operator --bounce-probe'
   'p08f|read|tty|after=p08e+5|scripts/host-diagnostics.sh --target production ses-bounces --since {SINCE<p08e}'
+  'p08g|read|tty|stdout=currently reads: false$|scripts/production-live-marker.sh --status --profile footbag-operator'
   'p09|once|cred|log|scripts/restore-db.sh --target production --snapshot {SNAPSHOT>p04a}|scripts/restore-db.sh --target production --resume-erasure-replay'
   'p10a|ask|-|log|First admin. In a browser on the production cloudfront.net address, register the person who will be the first admin at /register as an ordinary member, verify their email, and finish the sign-up wizard: the claim page sends anyone mid-wizard back to it. Next, p10b mints a one-time admin claim token and prints it here; paste it at /admin/bootstrap-claim rather than typing it, since five wrong tries lock the claim for an hour. Is that account registered, verified and through the wizard?'
   'p10b|once|tty|log|scripts/admin-bootstrap-token.sh --target production --profile footbag-operator provision'
@@ -330,12 +330,12 @@ PRODUCTION_STEPS=(
   'p13f3|read+mail|tty|-|scripts/host-diagnostics.sh --target production active-alarms'
   'p13g|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_host_key_alarm --state on'
   'p13h|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_jobs_heartbeat_alarm --state on'
-  'p13i|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect OK --wait-minutes 20 --alarm footbag-production-jobs-missed-run --alarm footbag-production-captcha-unavailable'
+  'p13i|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect OK --wait-minutes 30 --alarm footbag-production-jobs-missed-run --alarm footbag-production-captcha-unavailable'
   'p13j|idem|tty|rerun|scripts/apply-account-baseline.sh --enable-guardduty'
   'p13k|once+mail|tty|log|scripts/prove-audit-alarms.sh'
   'p13l|once|tty|log|scripts/rehearse-planned-maintenance.sh --target production'
   'p13m|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state on'
-  'p13n|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect ALARM --wait-minutes 180 --alarm footbag-production-cutover-zero-logins'
+  'p13n|read|tty|-|scripts/send-test-alarm.sh --target production --status --expect ALARM --wait-minutes 240 --alarm footbag-production-cutover-zero-logins'
   'p13o|idem|tty|rerun|scripts/set-terraform-gate.sh --target production --gate enable_cutover_login_alarm --state off'
   'p13p|ask|-|log|Login count check (1 of 2). Sign out of production, then sign in again at /login with your own password: only the /login form counts as a sign-in, so the session the email-verification link opened does not. The next step reads that CloudWatch counted the sign-in, which proves the login filter the zero-logins alarm rests on matches a real sign-in. Signed in?'
   'p13q|read|tty|-|scripts/send-test-alarm.sh --target production --status --metric LoginSuccessCount --wait-minutes 10'
@@ -391,7 +391,7 @@ PRODUCTION_STEPS=(
   'p22c|ask|-|log|Close the test-mode stage (1 of 2). Have the refunds and cancellations above moved their local rows, and is the test endpoint now disabled in the Stripe Dashboard? Next, p22d disarms payments and asks you to type APPLY to confirm the endpoint is disabled.'
   'p22d|once|tty|log|scripts/arming.sh --target production --switch payments --state dark --profile footbag-operator'
   'p22e|once|cred|log|scripts/activate-payments.sh --target production --profile footbag-operator --deactivate'
-  'p22f|read|cred|-|scripts/bringup-status.sh --target production --profile footbag-operator'
+  'p22f|read|cred|stdout=^ 2\. Terraform +DONE  && ^ 3\. Payments +N-A +payments dark && ^ 4\. Backup pipeline +DONE  && ^ 8\. Deployed runtime +DONE |scripts/bringup-status.sh --target production --profile footbag-operator'
   'p20a|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p20b|read|tty|-|scripts/terraform-apply-all.sh --target production --check'
   # The host rebuild drills, with every lesson the staging drill taught. They
@@ -413,7 +413,7 @@ PRODUCTION_STEPS=(
   'p90h|read|cred|-|scripts/bootstrap-host.sh --target production --status'
   'p90i|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p90j|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill'
-  'p90k|ask+mail|-|log|Alarm check, snapshot restore. Since p90f began, the operations mailbox should hold an IAM-write or alerting-disabled alarm email only for an apply the restore or the deploy made, and a break-glass alarm email for each host-key read the restore made. Does every such email match one of those?'
+  'p90k|ask+mail|-|log|Alarm check, snapshot restore. In the operations mailbox, search Gmail for: from:no-reply@sns.amazonaws.com after:{DATE<p90f} subject:ALARM ("footbag-production-iam-write" OR "footbag-production-alerting-disabled" OR "footbag-production-break-glass-host-access") The window opened when p90f started, {SINCE<p90f} UTC. The runs in it that can send one: {RUNS_SINCE<p90f}. Judge each email by the Timestamp line in its body, which is UTC; the time in Gmail'\''s list is your local time. An IAM-write or alerting-disabled email matches an apply one of those runs made; a break-glass email matches a host-key read the restore made. Does every email the search finds match one of those runs? (Finding none also means yes.)'
   'p90l|once|cred|log|scripts/restore-host.sh --target production --delete-old'
   'p90m|once|cred|log|scripts/bootstrap-host.sh --target production --replace-instance'
   # As on staging, the fresh instance comes back the way it will after go-live,
@@ -421,7 +421,7 @@ PRODUCTION_STEPS=(
   'p90n|idem+heavy+fresh|cred|cred:0=scripts/bootstrap-host.sh --target production --status|scripts/bootstrap-host.sh --target production --restore-database'
   'p90o|read|tty|-|scripts/verify-account-baseline.sh --profile footbag-operator'
   'p90p|read|cred|stdout=^  Members: +[1-9][0-9]*$ && ^  Newest audit: +[0-9]{4}-|scripts/restore-db.sh --target production --drill --bucket footbag-production-db-snapshots-dr'
-  'p90q|ask+mail|-|log|Alarm check, fresh instance. Since p90m began, does every IAM-write, alerting-disabled or break-glass alarm email in the operations mailbox match an apply or a host-key read the replacement or the bootstrap made?'
+  'p90q|ask+mail|-|log|Alarm check, fresh instance. In the operations mailbox, search Gmail for: from:no-reply@sns.amazonaws.com after:{DATE<p90m} subject:ALARM ("footbag-production-iam-write" OR "footbag-production-alerting-disabled" OR "footbag-production-break-glass-host-access") The window opened when p90m started, {SINCE<p90m} UTC. The runs in it that can send one: {RUNS_SINCE<p90m}. Judge each email by the Timestamp line in its body, which is UTC; the time in Gmail'\''s list is your local time. An IAM-write or alerting-disabled email matches an apply one of those runs made; a break-glass email matches a host-key read the replacement or the bootstrap made. Does every email the search finds match one of those runs? (Finding none also means yes.)'
   # The fresh instance proved to come back hardened, wired and serving, as
   # staging's is at s11o to s11q.
   'p90q1|read|cred|-|scripts/harden-sshd.sh --target production --expect-hardened'
@@ -520,7 +520,7 @@ PRODUCTION_PASS3_STEPS=(
 # replacement), and its row would read as proof. A step not listed stands on
 # nothing a blocked step does, so it runs.
 STAGING_NEEDS=""
-PRODUCTION_NEEDS="p90n:p90m p90q:p90m"
+PRODUCTION_NEEDS="p90n:p90m p90q:p90m p09:p08g"
 # Pass 2: the window, the checks on the real names, the walks and the dress
 # rehearsal all stand on the hop from CloudFront to the origin being encrypted
 # first, since each rehearses what members will use; the archive walk stands on
@@ -929,16 +929,17 @@ log_row() {
 }
 
 # The last row of this pass's section for a step: started, finished, result,
-# command, notes. A heavy step refused for the host's health never started,
-# so its row does not stand in front of an earlier ok row for the step; a
-# step whose only rows are such refusals still reads failed.
+# command, notes. A heavy step refused for the host's health, and a step
+# stopped before its command started, never started, so neither row stands
+# in front of an earlier ok row for the step; a step whose only rows are such
+# refusals or stops still reads them.
 log_last() {
   local id="$1"
   awk -v sec="$SECTION" '$0 == sec { on = 1; next } /^## / { on = 0 } on' "$LOG" \
     | sed 's/\\|/\x01/g' \
     | awk -F'|' -v t="$TARGET" -v id="$1" '{ for (i = 1; i <= NF; i++) gsub(/^ +| +$/, "", $i) }
         $4 == t && $5 == id {
-          if ($7 == "failed (health)" && res ~ /^ok/) next
+          if (($7 == "failed (health)" || $7 == "interrupted (not started)") && res ~ /^ok/) next
           res = $7; line = $2 "\t" $3 "\t" $7 "\t" $6 "\t" $8
         }
         END { if (line != "") print line }'
@@ -1000,6 +1001,40 @@ step_time() {
   row="$(log_last "$id")"
   [[ -n "$row" && "$(cut -f3 <<<"$row")" == ok* ]] || return 1
   if [[ "$which" == started ]]; then cut -f1 <<<"$row"; else cut -f2 <<<"$row"; fi
+}
+
+# runs_since <UTC time>: every step of this pass that ran a command for this
+# target since that time, as "<id> <start> to <finish> UTC", joined by "; ".
+# These are the runs an alarm email in that window can have come from; a
+# question's own rows, which ran nothing, are left out.
+runs_since() {
+  awk -v sec="$SECTION" '$0 == sec { on = 1; next } /^## / { on = 0 } on' "$LOG" \
+    | sed 's/\\|/\x01/g' \
+    | awk -F'|' -v t="$TARGET" -v from="$1" '{ for (i = 1; i <= NF; i++) gsub(/^ +| +$/, "", $i) }
+        $4 == t && $2 >= from && $6 != "-" && $6 != "" { out = out (out == "" ? "" : "; ") $5 " " $2 " to " $3 " UTC" }
+        END { print (out == "" ? "none recorded" : out) }'
+}
+
+# resolve_ask <text>: sets ASK_TEXT to a question with its window filled in
+# from the cutover log. {SINCE<id} is when step <id> started, in UTC;
+# {DATE<id} is that day in the form a Gmail after: search takes;
+# {RUNS_SINCE<id} lists the runs since then. A window whose start is not
+# recorded cannot be judged, so the question is not asked.
+resolve_ask() {
+  local text="$1" tok kind ref when value
+  local re='[{](SINCE|DATE|RUNS_SINCE)<([a-z0-9-]+)[}]'
+  while [[ "$text" =~ $re ]]; do
+    tok="${BASH_REMATCH[0]}"; kind="${BASH_REMATCH[1]}"; ref="${BASH_REMATCH[2]}"
+    when="$(step_time started "$ref")" || { echo "no start time recorded for step ${ref}" >&2; return 1; }
+    [[ "$when" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$ ]] || { echo "step ${ref}'s start time '${when}' is not a UTC time" >&2; return 1; }
+    case "$kind" in
+      SINCE) value="$when" ;;
+      DATE) value="$(date -u -d "$when" +%Y/%m/%d)" ;;
+      RUNS_SINCE) value="$(runs_since "$when")" ;;
+    esac
+    text="${text//"$tok"/"$value"}"
+  done
+  ASK_TEXT="$text"
 }
 
 # ── Placeholders ─────────────────────────────────────────────────────────────
@@ -1152,6 +1187,7 @@ proof_passes() {
 
 ask_yes() {
   local answer=""
+  tty_discard_pending
   printf '%s (yes/no; anything but yes stops the run here): ' "$1" > /dev/tty
   read -r answer < /dev/tty || answer=""
   [[ "$answer" == yes ]] && return 0
@@ -1239,11 +1275,19 @@ fi
 # ── The run ──────────────────────────────────────────────────────────────────
 ensure_section
 
-CURRENT=""; CURRENT_START=""; CURRENT_CMD=""
+# CURRENT_RAN is set only once the step's own command (or its fallback) has
+# been started. A stop before that, in a wait, a question, the health read or
+# the command's preparation, changed nothing the step owns, so its row says
+# so and does not stand in front of an earlier ok row (log_last).
+CURRENT=""; CURRENT_START=""; CURRENT_CMD=""; CURRENT_RAN=0
 on_interrupt() {
   case "$(cr_exit_status)" in 130|143|129) ;; *) return 0 ;; esac
   [[ -n "$CURRENT" ]] || return 0
-  log_row "$CURRENT" "$CURRENT_START" "$CURRENT_CMD" interrupted
+  if (( CURRENT_RAN )); then
+    log_row "$CURRENT" "$CURRENT_START" "$CURRENT_CMD" interrupted
+  else
+    log_row "$CURRENT" "$CURRENT_START" "$CURRENT_CMD" "interrupted (not started)"
+  fi
 }
 # Cleanups run newest first: the interrupted step's row, then the mute lifted,
 # then the run lock released.
@@ -1322,7 +1366,7 @@ for (( i = FIRST; i <= LAST; i++ )); do
   echo "== ${S_ID} (${S_KIND}) =="
   started="$(now_utc)"
   STARTED["$S_ID"]="$started"
-  CURRENT="$S_ID"; CURRENT_START="$started"; CURRENT_CMD="$S_CMD"
+  CURRENT="$S_ID"; CURRENT_START="$started"; CURRENT_CMD="$S_CMD"; CURRENT_RAN=0
 
   unmet="$(unmet_needs "$S_ID")"
   if [[ -n "$unmet" ]]; then
@@ -1362,7 +1406,12 @@ for (( i = FIRST; i <= LAST; i++ )); do
         cr_proved "${S_ID}: proved by ${PROOF_SAID}, so not asked"
         continue
       fi
-      if ask_yes "$S_CMD"; then
+      if ! resolve_ask "$S_CMD" 2>"${SCRATCH}/resolve.err"; then
+        msg="$(tail -n 1 "${SCRATCH}/resolve.err")"
+        log_row "$S_ID" "$started" "-" failed "$msg"
+        stop_at "$i" STOPPED "could not be asked: ${msg}"
+      fi
+      if ask_yes "$ASK_TEXT"; then
         log_row "$S_ID" "$started" "-" ok "answered yes: ${S_CMD}"
         cr_proved "${S_ID}: answered yes: ${S_CMD}"
       else
@@ -1428,6 +1477,7 @@ for (( i = FIRST; i <= LAST; i++ )); do
   out=""
   [[ "$S_KIND" == digest || "$S_PROOF" == stdout=* ]] && out="${SCRATCH}/${S_ID}.out"
   report="$(new_report)"
+  CURRENT_RAN=1
   rc=0; run_child "$S_STDIN" "$report" "$out" "${CMD_WORDS[@]}" || rc=$?
   failed=""
 
@@ -1484,6 +1534,7 @@ for (( i = FIRST; i <= LAST; i++ )); do
   if [[ -n "$failed" && -n "$S_FALLBACK" ]] && ask_yes "${S_ID} did not finish (${failed}). Run ${S_FALLBACK} now?"; then
     resolve_command "$S_FALLBACK" || stop_at "$i" STOPPED "its fallback could not be prepared"
     fallback_report="$(new_report)"
+    CURRENT_RAN=1
     frc=0; run_child "$S_STDIN" "$fallback_report" "" "${CMD_WORDS[@]}" || frc=$?
     if (( frc == 0 )); then
       hand_on "$report" warn

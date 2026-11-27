@@ -105,6 +105,19 @@ LINEAGE_PREFIXES=(routine/ hourly/ daily/)
 
 fail() { echo "backup-db: $*" >&2; exit 1; }
 
+# Every AWS call is bounded, so a hung connection fails this run, which counts
+# it and leaves the timer free for the next one, instead of holding the backup
+# until the service manager's own start limit kills it. A call that runs out
+# exits 124 and is handled like any other failed call.
+BACKUP_AWS_TIMEOUT_SECS="${BACKUP_AWS_TIMEOUT_SECS:-60}"
+aws() {
+  local real
+  real="$(type -P aws)" || return 127
+  # --foreground keeps the call in this script's process group, so a stop
+  # signalled to the run (the service manager's, an operator's) reaches it too.
+  timeout --foreground --kill-after=10 "${BACKUP_AWS_TIMEOUT_SECS}" "$real" "$@"
+}
+
 put_metric() {
   # Best-effort: a metric-publish failure must not mask the backup outcome. It
   # is still logged with the CLI's own reason, because an alarm fed by a metric
@@ -126,7 +139,12 @@ record_failure() {
     prev=$(cat "${FAIL_FILE}" 2>/dev/null || echo 0)
     [[ "${prev}" =~ ^[0-9]+$ ]] && count=$(( prev + 1 ))
   fi
-  echo "${count}" > "${FAIL_FILE}"
+  # A counter that cannot be written still leaves the failure metric to publish,
+  # so the write is logged with the shell's reason rather than ending the run.
+  local write_err
+  if ! write_err="$( { echo "${count}" > "${FAIL_FILE}"; } 2>&1 )"; then
+    echo "backup-db: consecutive-failure counter ${FAIL_FILE} was not written: $(tail -n 1 <<<"${write_err:-no message from the shell}")" >&2
+  fi
   put_metric BackupConsecutiveFailures "${count}"
   echo "backup-db: FAILURE (${count} consecutive): ${reason}" >&2
   exit 1
@@ -207,13 +225,39 @@ LOCAL_AT=none
 [[ "${LOCAL_ID}" == none || ( "${LOCAL_ID}" =~ ${ID_RE} && "${LOCAL_AT}" =~ ${TS_RE} ) ]] \
   || record_failure "the snapshot's newest audit row has an unexpected shape (id '${LOCAL_ID}', time '${LOCAL_AT}')"
 
+# The second lineage record: the newest scheduled job run. The audit row above
+# moves only when somebody acts, so a database rolled back across a quiet
+# stretch still holds the stored row; the worker records a job run every few
+# minutes whatever members do, so the newest run on the stored snapshot is one
+# such a database lacks. Like the audit row it is checked by being held, not by
+# its time: a rolled-back host's worker starts a fresh run as soon as it boots.
+# The retention prune removes only runs weeks old, never the newest. Runs the
+# staging test kit seeds or deletes are left out. Read from the snapshot copy,
+# so the backup still only reads the live database.
+JOB_LINEAGE_ROWS="json_extract(details_json, '\$.seededBy') IS NULL AND job_name NOT IN ('SYS_Reconcile_Payments_Nightly', 'SYS_Reconciliation_Digest')"
+if ! local_jobs="$(sqlite3 "${SNAP}" \
+       "SELECT id FROM system_job_runs WHERE ${JOB_LINEAGE_ROWS} ORDER BY started_at DESC, id DESC LIMIT 1;" 2>&1)"; then
+  record_failure "could not read the newest job run from the snapshot: ${local_jobs##*$'\n'}"
+fi
+LOCAL_JOBS_ID="${local_jobs:-none}"
+[[ "${LOCAL_JOBS_ID}" == none || "${LOCAL_JOBS_ID}" =~ ${ID_RE} ]] \
+  || record_failure "the snapshot's newest job run has an unexpected id '${LOCAL_JOBS_ID}'"
+
 LINEAGE_SINCE=none
 declared=0
 if [[ -e "${DECLARED_RESTORE}" ]]; then
   m_since="$(sed -n 's/^since=//p' "${DECLARED_RESTORE}" | head -n 1)"
   m_by="$(sed -n 's/^by=//p' "${DECLARED_RESTORE}" | head -n 1)"
   m_expires="$(sed -n 's/^expires=//p' "${DECLARED_RESTORE}" | head -n 1)"
-  if [[ "${m_since}" =~ ${TS_RE} && "${m_expires}" =~ ^[0-9]+$ ]] \
+  # Only a marker this run's own account owns, and nobody else can write, is a
+  # declaration: the database directory belongs to the app account, which could
+  # otherwise write one and have a database that does not continue the history
+  # uploaded as a new lineage.
+  m_owner="$(stat -c '%u' "${DECLARED_RESTORE}" 2>/dev/null || echo unknown)"
+  m_mode="$(stat -c '%a' "${DECLARED_RESTORE}" 2>/dev/null || echo 777)"
+  m_trusted=0
+  [[ "${m_owner}" == "$(id -u)" ]] && (( (8#${m_mode} & 8#022) == 0 )) && m_trusted=1
+  if (( m_trusted )) && [[ "${m_since}" =~ ${TS_RE} && "${m_expires}" =~ ^[0-9]+$ ]] \
      && (( $(date -u +%s) < m_expires )); then
     declared=1
     LINEAGE_SINCE="${m_since}"
@@ -221,7 +265,7 @@ if [[ -e "${DECLARED_RESTORE}" ]]; then
   else
     # Ignored rather than refused: whether this database may be uploaded is then
     # the lineage check's to decide, exactly as if the marker were absent.
-    echo "backup-db: WARNING: ignoring the declared-restore marker ${DECLARED_RESTORE} (by '${m_by}', since '${m_since}', expires '${m_expires}'): it is expired or malformed. The lineage check decides this run." >&2
+    echo "backup-db: WARNING: ignoring the declared-restore marker ${DECLARED_RESTORE} (by '${m_by}', since '${m_since}', expires '${m_expires}', owner uid ${m_owner}, mode ${m_mode}): it is expired, malformed, or not this account's alone. The lineage check decides this run." >&2
     rm_err="$( { rm -f "${DECLARED_RESTORE}"; } 2>&1 )" \
       || echo "backup-db: WARNING: the ignored marker was not removed: ${rm_err##*$'\n'}" >&2
   fi
@@ -241,10 +285,10 @@ if (( declared == 0 )); then
     echo "backup-db: no stored snapshot yet; this upload starts the history"
   else
     meta="$(aws s3api head-object --bucket "${BACKUP_S3_BUCKET}" --key "${newest}" \
-              --query '[Metadata."audit-newest-id", Metadata."audit-newest-at", Metadata."lineage-since"]' \
+              --query '[Metadata."audit-newest-id", Metadata."audit-newest-at", Metadata."lineage-since", Metadata."jobs-newest-id"]' \
               --output text 2>"${AWS_ERR}")" \
       || record_failure "could not read the lineage record of s3://${BACKUP_S3_BUCKET}/${newest}; nothing was uploaded: $(last_aws_error)"
-    IFS=$'\t' read -r S_ID S_AT S_SINCE <<<"${meta}"
+    IFS=$'\t' read -r S_ID S_AT S_SINCE S_JOBS_ID <<<"${meta}"
     if [[ "${S_ID:-None}" == None ]]; then
       echo "backup-db: WARNING: the newest stored snapshot ${newest} carries no lineage record, so this run cannot check that the database continues it; uploading, and every later run is checked against this one." >&2
     else
@@ -257,12 +301,23 @@ if (( declared == 0 )); then
         [[ "${held}" == "1" ]] \
           || record_failure "this database does not continue the stored history, so it was not uploaded: the newest stored snapshot s3://${BACKUP_S3_BUCKET}/${newest} records audit row ${S_ID} (${S_AT}), which this database does not hold; its own newest audit row is ${LOCAL_ID} (${LOCAL_AT}). A host rebuilt from a disk snapshot holds an old database: put the newest backup back with scripts/restore-db.sh --target ${FOOTBAG_ENV}, which declares the restore and lets backups resume."
       fi
+      # A snapshot uploaded before this mark existed carries none, and is
+      # checked by its audit row alone.
+      [[ "${S_JOBS_ID:-None}" == None ]] && S_JOBS_ID=none
+      [[ "${S_JOBS_ID}" == none || "${S_JOBS_ID}" =~ ${ID_RE} ]] \
+        || record_failure "the lineage record of s3://${BACKUP_S3_BUCKET}/${newest} has an unexpected job-run id '${S_JOBS_ID}'; nothing was uploaded"
+      if [[ "${S_JOBS_ID}" != none ]]; then
+        held_job="$(sqlite3 "${SNAP}" "SELECT count(*) FROM system_job_runs WHERE id = '${S_JOBS_ID}';" 2>&1)" \
+          || record_failure "could not look up job run ${S_JOBS_ID} in the snapshot: ${held_job##*$'\n'}"
+        [[ "${held_job}" == "1" ]] \
+          || record_failure "this database does not continue the stored history, so it was not uploaded: the newest stored snapshot s3://${BACKUP_S3_BUCKET}/${newest} records job run ${S_JOBS_ID}, which this database does not hold, though it holds that snapshot's audit row: it was rolled back across a stretch in which no member acted. A host rebuilt from a disk snapshot holds an old database: put the newest backup back with scripts/restore-db.sh --target ${FOOTBAG_ENV}, which declares the restore and lets backups resume."
+      fi
       LINEAGE_SINCE="${S_SINCE}"
     fi
   fi
 fi
-META_JSON="$(printf '{"audit-newest-id":"%s","audit-newest-at":"%s","lineage-since":"%s"}' \
-  "${LOCAL_ID}" "${LOCAL_AT}" "${LINEAGE_SINCE}")"
+META_JSON="$(printf '{"audit-newest-id":"%s","audit-newest-at":"%s","lineage-since":"%s","jobs-newest-id":"%s"}' \
+  "${LOCAL_ID}" "${LOCAL_AT}" "${LINEAGE_SINCE}" "${LOCAL_JOBS_ID}")"
 
 gzip -9 "${SNAP}" || record_failure "gzip failed"
 KEY="routine/${DAY_PREFIX}/footbag-${TS}.db.gz"
@@ -310,7 +365,11 @@ if [[ -f "${STATE_FILE}" ]]; then
     (( AGE_MINUTES < 0 )) && AGE_MINUTES=0
   fi
 fi
-echo "${NOW_EPOCH}" > "${STATE_FILE}"
+# The snapshot is already uploaded, so a timestamp that cannot be written is
+# logged with the shell's reason and the age metric still goes out.
+if ! state_err="$( { echo "${NOW_EPOCH}" > "${STATE_FILE}"; } 2>&1 )"; then
+  echo "backup-db: health timestamp ${STATE_FILE} was not written: $(tail -n 1 <<<"${state_err:-no message from the shell}")" >&2
+fi
 put_metric BackupAgeMinutes "${AGE_MINUTES}"
 
 # 5. Retention generations. Copy this snapshot into hourly/ and daily/ when it is the

@@ -25,6 +25,7 @@ import { join } from 'node:path';
 
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 
 let dir: string;
 let repo: string;
@@ -280,13 +281,12 @@ function run(args: string[], env: Record<string, string> = {}) {
   };
 }
 
-/** A run at a real terminal (through `script`), answering each prompt in turn. */
+/** A run at a real terminal (a pseudo-terminal), answering each prompt in turn. */
 function atTerminal(args: string[], answers: string[], env: Record<string, string> = {}) {
   const inner = `bash ${JSON.stringify(join(repo, 'scripts/set-terraform-gate.sh'))} ${args.join(' ')}; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
+  const r = spawnAtTerminal(inner, {
     cwd: dir,
-    encoding: 'utf-8',
-    input: answers.map((a) => `${a}\n`).join(''),
+    typed: answers.map((a) => `${a}\n`).join(''),
     env: {
       ...process.env,
       FOOTBAG_CR_REPORT_TO: '',
@@ -300,7 +300,6 @@ function atTerminal(args: string[], answers: string[], env: Record<string, strin
       TMPDIR: join(dir, 'tmp'),
       ...env,
     },
-    ...SPAWN_GUARD,
   });
   const m = (r.stdout ?? '').match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out: r.stdout ?? '' };

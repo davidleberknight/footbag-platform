@@ -54,6 +54,15 @@ EnvironmentFile=/srv/footbag/env
 # the replay and clears the marker.
 ExecStartPre=/usr/bin/env bash scripts/assert-no-erasure-replay-pending.sh
 
+# The app runs as uid 1000 and must open the database and its write-ahead log
+# and shared-memory files for writing. A root process that opened the database
+# while the stack was down (the final backup, a restore, a migration) can leave
+# those side files owned by root, and the app then cannot reopen the database.
+# Only the three database files are handed back: the markers beside them stay
+# root's. A chown that fails stops the start, rather than starting an app that
+# cannot write.
+ExecStartPre=/usr/bin/env bash -c 'd="$${FOOTBAG_DB_DIR:-/srv/footbag/db}"; for f in footbag.db footbag.db-wal footbag.db-shm; do if [[ -e "$$d/$$f" ]]; then chown 1000:1000 "$$d/$$f" || exit 1; fi; done'
+
 # Start the stack; --remove-orphans cleans up containers from old service defs.
 # --no-build forbids boot-time image builds (see comment above).
 ExecStart=/usr/bin/docker compose \

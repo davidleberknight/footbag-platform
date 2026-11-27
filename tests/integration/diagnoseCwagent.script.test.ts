@@ -167,6 +167,66 @@ describe('diagnose-cwagent-remote.sh: what the translator merges, and its verdic
       removeScratch(dir);
     }
   });
+
+  // Defect caught: the agent warning that it skipped the shared credential
+  // files, meaning some part of it fell back to the instance role, with no read
+  // saying which part. The diagnostic names each part of the running config
+  // that names the profile and each that does not, and the agent's own
+  // credential lines since it started, with no key id in them.
+  it('names which parts of the running agent use the profile, and its credential log lines', () => {
+    const dir = createScratchDir('diagnose-cwagent-creds');
+    try {
+      const agent = join(dir, 'agent');
+      for (const sub of ['bin', 'etc/amazon-cloudwatch-agent.d', 'logs']) mkdirSync(join(agent, sub), { recursive: true });
+      writeFileSync(join(agent, 'etc', 'amazon-cloudwatch-agent.toml'), [
+        '[agent]', '  interval = "60s"',
+        '[[outputs.cloudwatch]]', '  namespace = "CWAgent"', '  shared_credential_file = "/etc/amazon-cloudwatch-agent.aws/credentials"', '  profile = "footbag-staging-cwagent"',
+        '[processors.ec2tagger]', '  refresh_interval_seconds = "0s"',
+      ].join('\n') + '\n');
+      writeFileSync(join(agent, 'etc', 'amazon-cloudwatch-agent.yaml'), [
+        'exporters:',
+        '    awscloudwatchlogs/emf_logs:',
+        '        profile: footbag-staging-cwagent',
+        '        shared_credentials_file:',
+        '            - /etc/amazon-cloudwatch-agent.aws/credentials',
+        '    awsemf/containerinsights:',
+        '        region: us-east-1',
+        'service:',
+        '    pipelines: {}',
+      ].join('\n') + '\n');
+      writeFileSync(join(agent, 'logs', 'amazon-cloudwatch-agent.log'), [
+        '2026-11-25T00:00:00Z I! will use file based credentials provider',
+        '2026-11-26T00:00:00Z I! Starting AmazonCloudWatchAgent CWAgent/1.300074.0',
+        '2026-11-26T00:00:01Z I! will use file based credentials provider',
+        '2026-11-26T00:00:02Z D! Using credential AKIAEXAMPLEEXAMPLE01 from SharedConfigCredentials',
+        '2026-11-26T00:00:03Z W! Unused shared config file(s) found: [/root/.aws/credentials]. If you would like to use them, please update your common-config.toml.',
+      ].join('\n') + '\n');
+      const bin = join(dir, 'stub-bin');
+      mkdirSync(bin);
+      writeFileSync(join(bin, 'systemctl'), '#!/usr/bin/env bash\necho stub\n');
+      chmodSync(join(bin, 'systemctl'), 0o755);
+
+      const r = spawnSync('bash', [join(process.cwd(), 'scripts/internal/diagnose-cwagent-remote.sh')], {
+        encoding: 'utf-8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, CWAGENT_AGENT_DIR: agent, CWAGENT_CREDS_FILE: join(dir, 'none'), TMPDIR: dir },
+        ...SPAWN_GUARD,
+      });
+      const all = r.stdout ?? '';
+      const start = all.indexOf('=== credentials each part of the running agent uses ===');
+      expect(start, all).toBeGreaterThan(-1);
+      const out = all.slice(start, all.indexOf('\n===', start + 1));
+      expect(out).toContain('toml [[outputs.cloudwatch]]: names the profile');
+      expect(out).toContain('toml [processors.ec2tagger]: names no profile');
+      expect(out).toContain('pipeline exporter awscloudwatchlogs/emf_logs: names the profile');
+      expect(out).toContain('pipeline exporter awsemf/containerinsights: names no profile');
+      expect(out).toContain('Unused shared config file(s) found');
+      // Only the lines since the agent last started, and never a key id.
+      expect(out.match(/will use file based credentials provider/g)).toHaveLength(1);
+      expect(out).not.toContain('AKIAEXAMPLEEXAMPLE01');
+    } finally {
+      removeScratch(dir);
+    }
+  });
 });
 
 /**

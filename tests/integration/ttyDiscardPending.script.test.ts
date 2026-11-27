@@ -11,8 +11,8 @@
  * test is how a terminal holds input, and no file or pipe stands in for that.
  * The pending bytes are written into the terminal before the child process
  * exists, so they are queued by construction rather than by a delay, and the
- * answer that belongs to the prompt is written only once the prompt has been
- * read back from the terminal.
+ * answer that belongs to the prompt is written only once the prompt's read is
+ * waiting on the terminal.
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -20,50 +20,12 @@ import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const TERMINAL_LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'terminal.sh');
-const HAS_PYTHON = requireToolInCI('python3', '--version');
 /** `setsid` gives a run no controlling terminal, the condition of a scheduled job. */
 const HAS_SETSID = requireToolInCI('setsid', '--version');
-
-/**
- * Opens a pseudo-terminal, queues `pending` on it, starts bash with that
- * terminal as its controlling terminal and output, and types `typed` once
- * `PROMPT> ` has appeared. Arguments travel hex-encoded so no shell or Python
- * escaping can change a byte.
- */
-const DRIVER = [
-  'import fcntl, os, sys, termios',
-  'pending, typed, body = bytes.fromhex(sys.argv[1]), bytes.fromhex(sys.argv[2]), sys.argv[3]',
-  'master, slave = os.openpty()',
-  'if pending:',
-  '    os.write(master, pending)',
-  'pid = os.fork()',
-  'if pid == 0:',
-  '    os.setsid()',
-  '    fcntl.ioctl(slave, termios.TIOCSCTTY, 0)',
-  "    os.dup2(os.open('/dev/null', os.O_RDONLY), 0)",
-  '    os.dup2(slave, 1); os.dup2(slave, 2)',
-  '    os.close(master)',
-  "    os.execvp('bash', ['bash', '-c', body])",
-  'os.close(slave)',
-  "out, sent = b'', False",
-  'while True:',
-  '    try:',
-  '        chunk = os.read(master, 4096)',
-  '    except OSError:',
-  '        break',
-  '    if not chunk:',
-  '        break',
-  '    out += chunk',
-  "    if not sent and b'PROMPT> ' in out:",
-  '        os.write(master, typed)',
-  '        sent = True',
-  '_, status = os.waitpid(pid, 0)',
-  'sys.stdout.buffer.write(out)',
-  'sys.exit(os.waitstatus_to_exitcode(status))',
-].join('\n');
 
 /** The calling convention of a real prompt: errexit on, drain, prompt, read. */
 const BODY = [
@@ -80,16 +42,13 @@ const BODY = [
 ].join('\n');
 
 function atTerminal(pending: string, typed: string): { status: number | null; answer: string; modes: string; out: string } {
-  const hex = (s: string) => Buffer.from(s, 'utf8').toString('hex');
-  const res = spawnSync('python3', ['-I', '-c', DRIVER, hex(pending), hex(typed), BODY], {
-    encoding: 'utf8', ...SPAWN_GUARD,
-  });
-  const out = res.stdout ?? '';
+  const res = spawnAtTerminal(BODY, { typeAhead: pending, typed });
+  const out = res.stdout;
   const m = out.match(/ANSWER=\[([^\]\r\n]*)\] MODES=(\w+)/);
-  return { status: res.status, answer: m ? m[1] : '<no answer line>', modes: m ? m[2] : '', out: out + (res.stderr ?? '') };
+  return { status: res.status, answer: m ? m[1] : '<no answer line>', modes: m ? m[2] : '', out: out + res.stderr };
 }
 
-describe.skipIf(!HAS_PYTHON)('tty_discard_pending: only what is typed after the prompt answers it', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('tty_discard_pending: only what is typed after the prompt answers it', () => {
   it('discards a whole line typed before the prompt, and the line typed after it is the answer', () => {
     // Defect caught: an APPLY typed ahead, before the operator has read what
     // is being confirmed, accepts a production confirmation.

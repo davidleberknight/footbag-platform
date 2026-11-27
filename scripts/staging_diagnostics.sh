@@ -292,6 +292,13 @@ cmd_memory_detail() {
     fi
   done
 
+  banner "Paging and CPU over five seconds (vmstat 1 5; si/so above 0 is the host swapping, st is CPU stolen while burst runs out)"
+  if command -v vmstat >/dev/null 2>&1; then
+    vmstat 1 5
+  else
+    echo "(vmstat not installed)"
+  fi
+
   banner "Top 15 processes by resident set"
   ps -eo rss,pid,user,comm --sort=-rss 2>/dev/null | head -16
 

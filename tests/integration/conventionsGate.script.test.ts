@@ -1120,6 +1120,21 @@ describe('the convention gate: assertions that cannot fail', () => {
     expectCheckRan(res, 'tool-gated skips in tests/ fail on the runner');
   });
 
+  it('accepts a skip on the terminal driver, whose fixture probes through the CI-failing helper', () => {
+    // Defect caught: every suite driving a prompt through the shared terminal
+    // fixture warned as an unprobed skip, so a clean tree reports warnings
+    // and a real unprobed skip hides among them.
+    const res = inFixtureRepo({
+      'tests/integration/thing.test.ts':
+        `import { HAS_PTY_DRIVER } from '../fixtures/${'ptySession'}';\n`
+        + `${SKIP_IF}!HAS_PTY_DRIVER)('x', () => {});\n`,
+      'tests/unit/other.test.ts': '',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('WARNING');
+    expectCheckRan(res, 'tool-gated skips in tests/ fail on the runner');
+  });
+
   const CACHED_IMPORT = `import { cachedGet } from '../fixtures/${'cachedGet'}';\n`;
 
   it('warns on a shared-page suite that inserts rows inside a case, without failing the gate', () => {

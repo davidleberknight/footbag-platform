@@ -35,6 +35,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
@@ -494,46 +495,13 @@ describe.each(INSTALLERS)('$script — the credential file reaches the host one 
     writeFileSync(cred, 'stub-sudo-pass\nSECOND-LINE-MARKER\nTHIRD-LINE-MARKER\n', { mode: 0o600 });
 
     // Standard input is the credential file; the controlling terminal, standard
-    // output and standard error are a pseudo-terminal whose input already holds
-    // the answer to the vault prompt.
-    const harness = join(stubDir, 'pty-harness.py');
-    writeFileSync(
-      harness,
-      [
-        'import fcntl, os, sys, termios',
-        'cred, script = sys.argv[1], sys.argv[2]',
-        'master, slave = os.openpty()',
-        'pid = os.fork()',
-        'if pid == 0:',
-        '    os.setsid()',
-        '    fcntl.ioctl(slave, termios.TIOCSCTTY, 0)',
-        '    fd = os.open(cred, os.O_RDONLY)',
-        '    os.dup2(fd, 0); os.dup2(slave, 1); os.dup2(slave, 2)',
-        '    os.close(master)',
-        "    os.execvp('bash', ['bash', script])",
-        'os.close(slave)',
-        "os.write(master, b'VAULTED\\n')",
-        "out = b''",
-        'while True:',
-        '    try:',
-        '        chunk = os.read(master, 4096)',
-        '    except OSError:',
-        '        break',
-        '    if not chunk:',
-        '        break',
-        '    out += chunk',
-        '_, status = os.waitpid(pid, 0)',
-        'sys.stdout.buffer.write(out)',
-        'sys.exit(os.waitstatus_to_exitcode(status))',
-      ].join('\n'),
-    );
-
-    const r = spawnSync(
-      'python3',
-      ['-I', harness, cred, join(process.cwd(), script)],
+    // output and standard error are a pseudo-terminal that answers the vault
+    // prompt when it is asked.
+    const r = spawnAtTerminal(
+      `bash ${JSON.stringify(join(process.cwd(), script))} < ${JSON.stringify(cred)}`,
       {
         cwd: process.cwd(),
-        encoding: 'utf-8',
+        typed: 'VAULTED\n',
         env: {
           ...process.env,
           ...NO_AWS_CREDENTIALS,
@@ -543,7 +511,6 @@ describe.each(INSTALLERS)('$script — the credential file reaches the host one 
           FOOTBAG_KNOWN_HOSTS: knownHosts,
           FOOTBAG_TOOL_VERSIONS: pinnedManifest(),
         },
-        ...SPAWN_GUARD,
       },
     );
     expect(r.status, r.stdout).toBe(0);

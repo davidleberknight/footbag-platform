@@ -1100,6 +1100,8 @@ fi
 # toolAvailability.ts) returns availability for the skip and throws when the
 # tool is missing and CI is set. A suite that fails on the runner some other way
 # says so with a `skip-fails-in-ci:` comment beside the code that fails it. The
+# terminal fixture (tests/fixtures/ptySession.ts) probes its own interpreter
+# through `requireToolInCI`, so a suite skipping on its flag counts as probed. The
 # check reads the file as a whole, so a file mixing one probed skip with another
 # raw one is left to review. The smoke and dev tiers are gated by their own
 # environment variables and are out of scope. Advisory: the file-level match can
@@ -1108,7 +1110,7 @@ if check "tool-gated skips in tests/ fail on the runner" tests/unit tests/integr
 skipif_files=$(grep -rlE --include='*.ts' '\.(skipIf|runIf)\(' tests/unit tests/integration || true)
 skipif_hits=""
 if [ -n "$skipif_files" ]; then
-  skipif_hits=$(echo "$skipif_files" | xargs grep -L -e 'toolAvailability' -e 'skip-fails-in-ci:' || true)
+  skipif_hits=$(echo "$skipif_files" | xargs grep -L -e 'toolAvailability' -e 'fixtures/ptySession' -e 'skip-fails-in-ci:' || true)
 fi
 if [ -n "$skipif_hits" ]; then
   echo "$skipif_hits" >&2

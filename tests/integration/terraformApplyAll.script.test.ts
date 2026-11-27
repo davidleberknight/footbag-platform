@@ -15,6 +15,7 @@ import { writeFileSync, readFileSync, chmodSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
@@ -188,11 +189,9 @@ describe('terraform-apply-all.sh: the sweep', () => {
       ...clean,
       production: { pending: ['aws_iam_role_policy.app_jwt_ses'] },
     });
-    const r = spawnSync('script', ['-qec', `bash ${JSON.stringify(SCRIPT)} --target production`, '/dev/null'], {
+    const r = spawnAtTerminal(`bash ${JSON.stringify(SCRIPT)} --target production`, {
       env: { ...process.env, ...awsIdentityStubEnv(dir), TERRAFORM_APPLY_BIN: tf },
-      input: 'no\n',
-      encoding: 'utf-8',
-      ...SPAWN_GUARD,
+      typed: 'no\n',
     });
     const out = r.stdout ?? '';
     expect(out).toContain("Type 'APPLY' to apply the plan shown above");

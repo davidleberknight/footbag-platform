@@ -24,6 +24,7 @@ import { writeFileSync, readFileSync, rmSync, mkdirSync, chmodSync, existsSync }
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
@@ -240,12 +241,7 @@ function world(w: World): NodeJS.ProcessEnv {
 function run(w: World, args: string[] = [], answers: string[] = ['APPLY', 'APPLY']) {
   const env = world(w);
   const inner = ['bash', SCRIPT, '--target', 'production', ...args].map((a) => JSON.stringify(a)).join(' ');
-  const res = spawnSync('script', ['-qec', `${inner} < ${JSON.stringify(cred)}`, '/dev/null'], {
-    env,
-    input: answers.map((a) => `${a}\n`).join(''),
-    encoding: 'utf-8',
-    ...SPAWN_GUARD,
-  });
+  const res = spawnAtTerminal(`${inner} < ${JSON.stringify(cred)}`, { env, typed: answers.map((a) => `${a}\n`).join('') });
   return {
     status: res.status,
     // The pseudo-terminal ends lines with CR LF.

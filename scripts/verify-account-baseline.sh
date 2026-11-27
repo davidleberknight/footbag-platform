@@ -577,12 +577,28 @@ else
   # file in the window from the trail bucket, so it takes minutes, and it needs
   # read access to that bucket, which the dev-and-tester role deliberately
   # lacks.
+  # Measured at about 18 minutes on staging, so the run says what it is doing
+  # before it starts, and is bounded at a little over twice that: a validation
+  # that has not finished by then is reported as not done, never left hanging.
   VALIDATE_START="$(date -u -d '7 days ago' +%Y-%m-%dT%H:%M:%SZ)"
-  if ! aws_read TRAIL_ARN - "the audit trail's ARN" cloudtrail describe-trails \
+  VALIDATE_TIMEOUT_SECS="${VERIFY_BASELINE_VALIDATE_TIMEOUT_SECS:-2400}"
+  VALIDATE_BOUND_MIN=$(( (VALIDATE_TIMEOUT_SECS + 59) / 60 ))
+  validate_rc=0
+  if aws_read TRAIL_ARN - "the audit trail's ARN" cloudtrail describe-trails \
     --trail-name-list "$TRAIL_NAME" --query 'trailList[0].TrailARN' --output text; then
+    echo "    validating 7 days of the audit trail's digest and log files; this reads every one from the trail bucket and can take tens of minutes (stopped after ${VALIDATE_BOUND_MIN} minutes)" >&2
+    VALIDATION="$(timeout --foreground "$VALIDATE_TIMEOUT_SECS" "$AWS_BIN" cloudtrail validate-logs \
+      --trail-arn "$TRAIL_ARN" --start-time "$VALIDATE_START" ${AWS_ARGS[@]+"${AWS_ARGS[@]}"} 2>"$AWS_ERR")" \
+      || validate_rc=$?
+  else
+    validate_rc=-1
+  fi
+  if (( validate_rc == -1 )); then
     note "the read did not answer, so the log files were not validated"
-  elif ! aws_read VALIDATION - "the audit trail's log-file validation" cloudtrail \
-    validate-logs --trail-arn "$TRAIL_ARN" --start-time "$VALIDATE_START"; then
+  elif (( validate_rc == 124 )); then
+    fail "the audit trail's log-file validation did not finish within ${VALIDATE_BOUND_MIN} minutes, so the log files were not validated"
+  elif (( validate_rc != 0 )); then
+    fail "could not read the audit trail's log-file validation: $(aws_err)"
     note "the log files were not validated, which is a failure rather than a pass"
   else
     DIGESTS="$(grep -oE '^[0-9]+/[0-9]+ digest files valid' <<<"$VALIDATION" || [[ $? == 1 ]])"

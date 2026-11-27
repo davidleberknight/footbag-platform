@@ -74,6 +74,38 @@ else
 fi
 grep -o 'shared_credential_profile.*' "${AGENT_DIR}/etc/common-config.toml" 2>/dev/null | sed 's/^/  common-config: /' || echo "  common-config: absent"
 
+# Which part of the running agent reads which credentials. A session opened
+# without the dedicated profile falls back to the instance role, and the agent
+# then logs "Unused shared config file(s)" for the files it skipped. Each table
+# of the running TOML and each exporter of its pipeline file is listed with
+# whether it names the profile, and the agent log's credential lines since it
+# last started say which provider each session used. Names only, no values.
+echo
+echo "=== credentials each part of the running agent uses ==="
+for f in "${AGENT_DIR}/etc/amazon-cloudwatch-agent.toml"; do
+  [[ -r "$f" ]] || { echo "  ${f} is missing or unreadable"; continue; }
+  awk '/^[[:space:]]*\[/ { if (sec != "") print "  toml " sec ": " (prof ? "names the profile" : "names no profile"); sec = $0; gsub(/^[[:space:]]+|[[:space:]]+$/, "", sec); prof = 0; next }
+       /shared_credential_file|profile[[:space:]]*=/ { prof = 1 }
+       END { if (sec != "") print "  toml " sec ": " (prof ? "names the profile" : "names no profile") }' "$f"
+done
+yaml="${AGENT_DIR}/etc/amazon-cloudwatch-agent.yaml"
+if [[ -r "$yaml" ]]; then
+  awk '/^exporters:/ { on = 1; next } on && /^[^[:space:]]/ { on = 0 }
+       on && /^    [^[:space:]][^:]*:[[:space:]]*$/ { if (name != "") print "  pipeline exporter " name ": " (prof ? "names the profile" : "names no profile"); name = $1; sub(/:$/, "", name); prof = 0; next }
+       on && /shared_credentials_file:|profile:/ { prof = 1 }
+       END { if (name != "") print "  pipeline exporter " name ": " (prof ? "names the profile" : "names no profile") }' "$yaml"
+else
+  echo "  ${yaml} is absent (no pipeline file)"
+fi
+agent_log="${AGENT_DIR}/logs/amazon-cloudwatch-agent.log"
+if [[ -r "$agent_log" ]]; then
+  echo "  agent log, credential lines since its last start:"
+  awk '/Starting AmazonCloudWatchAgent/ { n = NR } { line[NR] = $0 } END { for (i = (n ? n : 1); i <= NR; i++) if (line[i] ~ /credential|shared config file/) print "    " line[i] }' "$agent_log" \
+    | sed -E 's/(AKIA|ASIA)[A-Z0-9]{12,}/<key id>/g'
+else
+  echo "  ${agent_log} is missing or unreadable"
+fi
+
 echo
 echo "=== agent control status ==="
 "${AGENT_DIR}/bin/amazon-cloudwatch-agent-ctl" -a status 2>&1 | sed 's/^/  /' || true

@@ -135,7 +135,7 @@ read_marker() {
     --region "$AWS_REGION_ARG" \
     --profile "$AWS_PROFILE_ARG" \
     --query 'Parameter.Value' \
-    --output text 2>/dev/null
+    --output text
 }
 
 describe_marker() {
@@ -146,13 +146,27 @@ describe_marker() {
   esac
 }
 
-CURRENT="$(read_marker)" || CURRENT="<unreadable>"
+# A failed read keeps the tool's own words, so a status that cannot see the
+# marker says why rather than reading as either state.
+READ_WHY=""
+if READ_OUT="$(read_marker 2>&1)"; then
+  CURRENT="$READ_OUT"
+else
+  CURRENT="<unreadable>"
+  READ_WHY="$(tail -n 1 <<<"$READ_OUT")"
+fi
 
 echo "Marker $PARAM currently reads: $CURRENT"
 echo "  meaning: $(describe_marker "$CURRENT")"
 
 if [[ "$MODE" == "status" ]]; then
-  exit 0
+  # Status proves a state only when the marker reads one: anything else is
+  # not pre-live and not live, and a caller judging the exit must see that.
+  case "$CURRENT" in
+    false|true) exit 0 ;;
+    "<unreadable>") echo "ERROR: the marker could not be read: ${READ_WHY:-no output}" >&2; exit 1 ;;
+    *) echo "ERROR: the marker reads neither false nor true" >&2; exit 1 ;;
+  esac
 fi
 
 if [[ "$CURRENT" == "$WANT_VALUE" ]]; then

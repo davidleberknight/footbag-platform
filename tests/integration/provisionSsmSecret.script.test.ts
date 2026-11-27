@@ -22,6 +22,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/provision-ssm-secret.sh');
 
@@ -173,15 +174,10 @@ describe('provision-ssm-secret.sh — storing and rotating', () => {
   }
 
   /** A pseudo-terminal answering the rotation prompt, as an operator would. */
-  function runAtTerminal(answer: string) {
+  function runAtTerminal(answer: string, typeAhead = '') {
     const inner = [`PATH=${JSON.stringify(`${binDir}:${process.env.PATH ?? ''}`)}`, 'bash', SCRIPT, ...ARGS]
       .map((a, i) => (i < 2 ? a : JSON.stringify(a))).join(' ');
-    const res = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      env: { ...process.env },
-      encoding: 'utf-8',
-      input: `${answer}\n`,
-      ...SPAWN_GUARD,
-    });
+    const res = spawnAtTerminal(inner, { env: { ...process.env }, typed: `${answer}\n`, typeAhead });
     return { status: res.status ?? -1, out: `${res.stdout ?? ''}${res.stderr ?? ''}` };
   }
 
@@ -234,6 +230,19 @@ describe('provision-ssm-secret.sh — storing and rotating', () => {
     // answer as consent.
     writeFileSync(valueFile, REAL);
     const r = runAtTerminal('ROTATE');
+
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('Aborted');
+    expect(calls()).not.toContain('put-parameter');
+    expect(readFileSync(valueFile, 'utf8')).toBe(REAL);
+  });
+
+  it('does not take an APPLY typed before the prompt as the confirmation', () => {
+    // Defect caught: an APPLY pasted along with the command rotating a live
+    // secret before the operator has read what the rotation voids, and the
+    // refusal they type at the prompt never being read.
+    writeFileSync(valueFile, REAL);
+    const r = runAtTerminal('no', 'APPLY\n');
 
     expect(r.status).toBe(1);
     expect(r.out).toContain('Aborted');

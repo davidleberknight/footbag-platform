@@ -12,7 +12,7 @@
  * Hermetic: a stand-in AWS CLI keeping the parameter in a scratch file and
  * answering the replication configuration from one, a stand-in Terraform, and a
  * stand-in backfill that logs its arguments, each through the script's announced
- * seams. A typed APPLY is driven through `script`, which gives the run a
+ * seams. A typed APPLY is driven at a pseudo-terminal, which gives the run a
  * terminal. The AWS error lines follow the CLI's "An error occurred (<Code>)
  * when calling the <Op> operation" shape, which the script reads only for the
  * error code in parentheses.
@@ -24,11 +24,10 @@ import * as fs from 'node:fs';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 'archive-source-switch.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const ARCHIVE = 'footbag-production-archive-stub';
 const COLD = 'arn:aws:s3:::footbag-production-legacy-mirror-backup';
@@ -140,9 +139,7 @@ function run(args: string[], opts: CaseOpts = {}) {
 function atTerminal(target: string, typed: string, opts: CaseOpts = {}) {
   const c = makeCase(opts);
   const inner = `bash ${JSON.stringify(SCRIPT)} --target ${target} </dev/null; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    cwd: REPO_ROOT, env: c.env, input: `${typed}\n`, encoding: 'utf-8', ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(inner, { cwd: REPO_ROOT, env: c.env, typed: `${typed}\n` });
   const out = r.stdout ?? '';
   return { ...c, status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };
 }
@@ -255,14 +252,14 @@ describe('archive-source-switch.sh: production waits for the cold-copy rule', ()
 });
 
 describe('archive-source-switch.sh: the switch, driven at a terminal', () => {
-  it.skipIf(!HAS_SCRIPT)('writes nothing unless APPLY is typed', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('writes nothing unless APPLY is typed', () => {
     const res = atTerminal('staging', 'yes');
     expect(res.status).toBe(1);
     expect(res.param()).toBe('crawl');
     expect(wrote(res.awsCalls())).toBe(false);
   });
 
-  it.skipIf(!HAS_SCRIPT)('switches staging with no backfill, and proves it by reading the value back', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('switches staging with no backfill, and proves it by reading the value back', () => {
     const res = atTerminal('staging', 'APPLY');
     expect(res.status, res.out).toBe(0);
     expect(res.param()).toBe('bucket');
@@ -276,7 +273,7 @@ describe('archive-source-switch.sh: the switch, driven at a terminal', () => {
     expect(res.out).toContain('a cold copy of the staging archive: staging has none');
   });
 
-  it.skipIf(!HAS_SCRIPT)('backfills the production cold copy before it writes the switch', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('backfills the production cold copy before it writes the switch', () => {
     // Defect caught: the switch taken before the archive as it stood reached the
     // cold copy, so the bucket becomes the only source with nothing to roll
     // back to for any object an edit later changes.
@@ -291,7 +288,7 @@ describe('archive-source-switch.sh: the switch, driven at a terminal', () => {
     expect(order[0]).toBe('backfill --target production --source archive-cold-copy');
   });
 
-  it.skipIf(!HAS_SCRIPT)('leaves production on the crawl when the backfill fails', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('leaves production on the crawl when the backfill fails', () => {
     const res = atTerminal('production', 'APPLY', { backfillStatus: 1 });
     expect(res.status).toBe(1);
     expect(res.out).toContain("still reads 'crawl'");
@@ -299,7 +296,7 @@ describe('archive-source-switch.sh: the switch, driven at a terminal', () => {
     expect(wrote(res.awsCalls())).toBe(false);
   });
 
-  it.skipIf(!HAS_SCRIPT)('fails when the value read back is not "bucket", though the write reported success', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('fails when the value read back is not "bucket", though the write reported success', () => {
     // Defect caught: a switch judged by the write's exit status, which leaves the
     // publish free to overwrite edits while the run reports done.
     const res = atTerminal('staging', 'APPLY', { putIsNoop: true });

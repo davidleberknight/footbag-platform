@@ -70,6 +70,8 @@ interface Estate {
   trailStatus?: string | null;
   /** What `cloudtrail validate-logs` prints, and whether it exits zero. */
   validation?: { output: string; ok: boolean };
+  /** The validation never returns, as one reading a large window can seem to. */
+  validationHangs?: boolean;
   /**
    * Subcommands whose read does not answer at all (an access denial), as
    * distinct from AWS answering that the thing is absent.
@@ -170,6 +172,7 @@ const HEALTHY: Required<Estate> = {
   detectorStatus: 'ENABLED',
   trailStatus: 'True\tNone',
   validation: { output: VALIDATE_LOGS_SAMPLE, ok: true },
+  validationHangs: false,
   readFails: [],
 };
 
@@ -305,7 +308,9 @@ function awsStub(estate: Estate): string {
       "  describe-trails) printf 'arn:aws:cloudtrail:us-east-1:111122223333:trail/footbag-production-trail\\n' ;;",
       // From a file, because a multi-line string inside double quotes in bash
       // keeps its newlines as literal backslash-n.
-      `  validate-logs) cat ${JSON.stringify(validationFile)}; ${e.validation.ok ? 'exit 0' : 'exit 1'} ;;`,
+      e.validationHangs
+        ? '  validate-logs) exec sleep 30 ;;'
+        : `  validate-logs) cat ${JSON.stringify(validationFile)}; ${e.validation.ok ? 'exit 0' : 'exit 1'} ;;`,
       'esac',
       'exit 0',
     ].join('\n'),
@@ -315,7 +320,7 @@ function awsStub(estate: Estate): string {
   return path;
 }
 
-function run(estate: Estate = {}, args: string[] = []) {
+function run(estate: Estate = {}, args: string[] = [], extraEnv: NodeJS.ProcessEnv = {}) {
   const res = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
@@ -326,6 +331,7 @@ function run(estate: Estate = {}, args: string[] = []) {
       // The run settles and proves its identity before reading the account.
       ...awsIdentityStubEnv(workDir),
       ACCOUNT_BASELINE_AWS_BIN: awsStub(estate),
+      ...extraEnv,
     },
     ...SPAWN_GUARD,
   });
@@ -451,6 +457,16 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
     // this proves the real sample reads as valid.
     const r = run();
     expect(r.stdout).toMatch(/41\/41 digest files valid, 692\/692 log files valid/);
+  });
+
+  // Defect caught: a validation that never returns holding the run, and the
+  // sitting step around it, silently and without end. The bound is shortened
+  // here only because this case's verdict is the bound running out.
+  it('says what it is validating, and fails by name when the validation runs past its bound', () => {
+    const r = run({ validationHangs: true }, [], { VERIFY_BASELINE_VALIDATE_TIMEOUT_SECS: '1' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/validating 7 days of the audit trail's digest and log files; .*can take tens of minutes/);
+    expect(r.stderr).toMatch(/log-file validation did not finish within 1 minutes, so the log files were not validated/);
   });
 
   it('fails when log-file validation finds a file that does not match its digest', () => {

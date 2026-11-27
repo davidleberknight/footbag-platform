@@ -17,10 +17,9 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/ses-remove-suppressed-destination.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const QUEUE = 'queue-finance@footbag.org';
 
@@ -96,9 +95,7 @@ function run(args: string[], aws = writeAws()) {
 /** At a terminal, typing `typed`. */
 function runAtTerminal(args: string[], typed = 'APPLY\n', aws = writeAws()) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args.map((a) => JSON.stringify(a)), '</dev/null'].join(' ');
-  const r = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-    encoding: 'utf-8', input: typed, env: env(aws), ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { typed, env: env(aws) });
   const out = r.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out };
@@ -192,7 +189,7 @@ describe('ses-remove-suppressed-destination.sh: the read before any change', () 
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('ses-remove-suppressed-destination.sh: the removal', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('ses-remove-suppressed-destination.sh: the removal', () => {
   it('states the change, removes the address after APPLY, and proves it gone', () => {
     // Defect caught: a removal reported done from the delete call's exit alone,
     // or run without saying what SES recorded against the address.

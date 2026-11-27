@@ -21,13 +21,12 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { findSanitisationViolations } from '../../scripts/lib/stripe-golden-sanitise';
 
 /** A run with no controlling terminal has to be made: one is inherited otherwise. */
 const SETSID = requireToolInCI('setsid', '--version');
-/** The typed APPLY needs a terminal to be typed into. */
-const SCRIPT_PTY = requireToolInCI('script', '--version');
 
 const SCRIPT = join(process.cwd(), 'scripts/capture-stripe-golden-payloads.sh');
 const PINNED_VERSION = readFileSync(join(process.cwd(), 'scripts/activate-payments.sh'), 'utf-8')
@@ -133,9 +132,7 @@ function runScript(args: string[], opts: RunOptions = {}): RunResult {
   let result;
   if (opts.typed !== undefined) {
     const inner = ['bash', SCRIPT, ...args].map((a) => `'${a}'`).join(' ');
-    result = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      cwd: process.cwd(), env, input: `${opts.typed}\n`, encoding: 'utf-8', ...SPAWN_GUARD,
-    });
+    result = spawnAtTerminal(inner, { cwd: process.cwd(), env, typed: `${opts.typed}\n` });
   } else {
     const [command, argv] = opts.noTerminal
       ? ['setsid', ['--wait', 'bash', SCRIPT, ...args]]
@@ -292,7 +289,7 @@ describe('capture-stripe-golden-payloads.sh: a capture', () => {
     expect(existsSync(out)).toBe(false);
   });
 
-  it.skipIf(!SCRIPT_PTY)('on APPLY writes the sanitised set, and a repeat finds nothing to write', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('on APPLY writes the sanitised set, and a repeat finds nothing to write', () => {
     // The written body must be the sanitiser's output: a script that wrote the
     // raw event would publish the donor's address, words and ids.
     const out = join(dir, 'applied.json');

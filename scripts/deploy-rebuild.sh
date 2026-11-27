@@ -545,6 +545,9 @@ fi
 # Images built on another processor cannot start on the hosts, so refuse here,
 # before anything is sent. Mirrors deploy-code.sh.
 require_images_for_hosts || exit 1
+if [[ "$FOOTBAG_ENV" == "production" ]]; then
+  require_no_testkit_in_images || exit 1
+fi
 
 # Capture layer DiffIDs (RootFS.Layers) for end-to-end integrity verification:
 # the remote-half inspects the loaded images and exits non-zero if either layer
@@ -700,6 +703,7 @@ send_remote_half() {
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_MANAGED=%q\n' "$INITIAL_ADMIN_MANAGED"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'DEPLOY_PROVENANCE=%q\n'            "$DEPLOY_PROVENANCE"
+  printf 'REBOOT_FOLLOWS=%q\n'               "${FOOTBAG_BOOTSTRAP_REBOOT_FOLLOWS:-0}"
   printf 'EXPECTED_SQLITE_VERSION=%q\n'     "$PIN_SQLITE_VERSION"
   printf 'EXPECTED_DOCKER_ENGINE=%q\n'      "$PIN_DOCKER_ENGINE"
   printf 'EXPECTED_COMPOSE_VERSION=%q\n'    "$PIN_COMPOSE_VERSION"

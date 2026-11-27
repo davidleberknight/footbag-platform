@@ -22,10 +22,9 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/backup-legacy-mirror.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 const BUCKET = 'footbag-production-legacy-mirror-backup';
 
 const scratch = createScratchDir('backup-legacy-mirror');
@@ -146,12 +145,7 @@ function run(args: string[], tf: 'on' | 'off' | 'fails' = 'on', extra: Record<st
 /** A production run at a terminal, typing the answer to the prompt. */
 function atTerminal(typed: string, extra: Record<string, string> = {}) {
   const inner = `bash ${JSON.stringify(SCRIPT)} --target production </dev/null; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: `${typed}\n`,
-    env: env('on', extra),
-    ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(inner, { typed: `${typed}\n`, env: env('on', extra) });
   const out = r.stdout ?? '';
   return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };
 }
@@ -274,7 +268,7 @@ describe('backup-legacy-mirror.sh: the dry run', () => {
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('backup-legacy-mirror.sh: the copy', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('backup-legacy-mirror.sh: the copy', () => {
   it('uploads nothing without the typed word', () => {
     // Defect caught: a copy into production that runs on any answer.
     const r = atTerminal('no');

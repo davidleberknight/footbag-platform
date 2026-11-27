@@ -26,6 +26,7 @@ import { tmpdir } from 'node:os';
 import { gzipSync } from 'node:zlib';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { insertSystemConfig } from '../fixtures/factories';
@@ -170,6 +171,8 @@ beforeEach(() => {
     // release's first install leaves it. SYSTEMCTL_NO_UNIT: no unit installed.
     'if [[ "$1" == "is-active" && "$*" == *" footbag" && -n "${SYSTEMCTL_SERVICE_INACTIVE:-}" ]]; then exit 3; fi',
     'if [[ "$1" == "cat" && -n "${SYSTEMCTL_NO_UNIT:-}" ]]; then exit 1; fi',
+    // The final backup's result, as `systemctl show -p Result --value` prints it.
+    'if [[ "$1" == "show" && "$*" == *footbag-backup.service* ]]; then echo "${SYSTEMCTL_BACKUP_RESULT:-success}"; exit 0; fi',
     // Each service start records what the levers read in the database in place
     // at that moment, so a case can show the pauses were set before the start.
     'if [[ "$1" == "start" && "$2" == "footbag" ]]; then',
@@ -327,6 +330,23 @@ describe('restoring a snapshot onto a host', () => {
     expect(res.stdout).toContain('DATABASE RESTORED');
   });
 
+  // Defect caught: the database being replaced deleted with its newest writes
+  // never sent off the host, or a restore refused for want of that backup, so a
+  // damaged database, whose backup is the one that fails, cannot be replaced.
+  it('takes a final backup of the database it replaces before deleting it, and restores anyway when that backup fails', () => {
+    const key = publishSnapshot(['snapshot-1']);
+    const ok = runRemote(key);
+    expect(ok.status, ok.stderr).toBe(0);
+    const log = calls();
+    expect(log.indexOf('systemctl start footbag-backup.service')).toBeGreaterThan(log.indexOf('systemctl stop footbag'));
+    expect(ok.stderr).not.toMatch(/WARN the final backup/);
+
+    const failed = runRemote(publishSnapshot(['snapshot-2']), undefined, { SYSTEMCTL_BACKUP_RESULT: 'exit-code' });
+    expect(failed.status, failed.stderr).toBe(0);
+    expect(memberIds(dbPath)).toEqual(['snapshot-2']);
+    expect(failed.stderr).toMatch(/WARN the final backup of the database being replaced ended 'exit-code'.*only in \S+\.pre-restore\.\d{8}T\d{6}Z on this host/);
+  });
+
   it('re-applies erasures before the service is allowed to serve the restored data', () => {
     // A snapshot older than an erasure carries back the personal data that
     // erasure removed, along with the ledger row that would have said it was
@@ -340,7 +360,10 @@ describe('restoring a snapshot onto a host', () => {
     expect(res.stderr).not.toContain('erasure replay did not complete');
     const log = calls();
     expect(log).toContain('runErasureReplay.js');
-    expect(log.indexOf('runErasureReplay.js')).toBeLessThan(log.indexOf('systemctl start footbag'));
+    // The service's own start line, not the backup unit's, which shares its prefix.
+    const serviceStart = log.search(/^systemctl start footbag$/m);
+    expect(serviceStart).toBeGreaterThan(-1);
+    expect(log.indexOf('runErasureReplay.js')).toBeLessThan(serviceStart);
   });
 
   // Defect caught: a restore whose erasure replay failed started the site
@@ -2027,9 +2050,8 @@ describe('the operator-facing restore script', () => {
       '--bucket', 'footbag-production-db-snapshots-dr',
       '--snapshot', 'pre-flip/pre-cutover-20261215T000000Z/pre-cutover-20261215T000000Z.db.gz',
     ].map((a) => JSON.stringify(a)).join(' ');
-    const res = spawnSync('script', ['-qec', `${inner} < ${JSON.stringify(credFile)}; echo "EXIT=$?"`, '/dev/null'], {
-      encoding: 'utf8',
-      input: 'APPLY\n',
+    const res = spawnAtTerminal(`${inner} < ${JSON.stringify(credFile)}; echo "EXIT=$?"`, {
+      typed: 'APPLY\n',
       env: {
         ...process.env,
         ...awsIdentityStubEnv(workDir),
@@ -2037,7 +2059,6 @@ describe('the operator-facing restore script', () => {
         FOOTBAG_KNOWN_HOSTS: pin,
         RESTORE_DB_AWS_BIN: awsStub,
       },
-      ...SPAWN_GUARD,
     });
     const out = res.stdout ?? '';
     expect(out, out).toMatch(/EXIT=0/);

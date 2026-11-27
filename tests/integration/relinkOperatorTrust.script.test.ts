@@ -26,10 +26,9 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir } from '../fixtures/scratchDir';
 import { hclBlocks } from '../fixtures/hclBlocks';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/relink-operator-trust.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 const scratch = createScratchDir('relink-operator-trust');
 afterAll(() => rmSync(scratch, { recursive: true, force: true }));
 
@@ -172,7 +171,7 @@ function run(args: string[], seams: Record<string, string>, arn?: string) {
 /** A run at a terminal, typing the answer to the prompt; both streams arrive as one. */
 function atTerminal(args: string[], seams: Record<string, string>, typed: string) {
   const inner = `bash ${[SCRIPT, ...args].map((a) => JSON.stringify(a)).join(' ')} </dev/null; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], { encoding: 'utf-8', input: `${typed}\n`, env: env(seams), ...SPAWN_GUARD });
+  const r = spawnAtTerminal(inner, { typed: `${typed}\n`, env: env(seams) });
   const out = r.stdout ?? '';
   return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };
 }
@@ -336,7 +335,7 @@ describe('relink-operator-trust.sh: the replacement fallback', () => {
     expect(calls()).not.toMatch(/^baseline/m);
   });
 
-  it.skipIf(!HAS_SCRIPT)('replaces the role when the trust is still broken after the plain apply and APPLY is typed', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('replaces the role when the trust is still broken after the plain apply and APPLY is typed', () => {
     // Defect caught: a trust the plain apply could not re-save left broken
     // with no way forward, or the replacement judged by its exit status.
     const r = atTerminal(['--yes'], stubs({ staging: 'broken', production: 'linked' }, { plainLeavesBroken: true }), 'APPLY');
@@ -345,7 +344,7 @@ describe('relink-operator-trust.sh: the replacement fallback', () => {
     expect(r.out).toContain('footbag-staging-app-runtime was replaced and its trust now names footbag-operator');
   });
 
-  it.skipIf(!HAS_SCRIPT)('fails when the replacement reports success but the trust still does not name the operator', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('fails when the replacement reports success but the trust still does not name the operator', () => {
     // Defect caught: success judged by the apply's exit status, which a plan
     // that did not touch the trust also returns.
     const seams = stubs({ staging: 'broken', production: 'linked' }, { plainLeavesBroken: true, replaceLeavesBroken: true });

@@ -33,8 +33,8 @@ beforeAll(() => {
 afterAll(() => removeScratch(root));
 
 interface World {
-  /** What the marker parameter currently reads. */
-  marker: 'true' | 'false';
+  /** What the marker parameter currently reads; 'unreadable' fails the read. */
+  marker: 'true' | 'false' | 'unreadable' | 'maybe';
   /** The origin protocol CloudFront reports, or null for a failed read. */
   originPolicy: string | null;
   /** Whether terraform answers the distribution id, fails the read, or answers empty. */
@@ -50,7 +50,9 @@ function run(w: World, args: string[]) {
     fs.writeFileSync(path.join(bin, name), ['#!/usr/bin/env bash', ...lines].join('\n') + '\n', { mode: 0o755 });
 
   exe('aws', [
-    'if [[ "$1 $2" == "ssm get-parameter" ]]; then echo ' + w.marker + '; exit 0; fi',
+    w.marker === 'unreadable'
+      ? 'if [[ "$1 $2" == "ssm get-parameter" ]]; then echo "An error occurred (AccessDeniedException) when calling the GetParameter operation" >&2; exit 254; fi'
+      : 'if [[ "$1 $2" == "ssm get-parameter" ]]; then echo ' + w.marker + '; exit 0; fi',
     `if [[ "$1 $2" == "ssm put-parameter" ]]; then echo "$*" >> ${JSON.stringify(writes)}; exit 0; fi`,
     'echo "unexpected aws call: $*" >&2; exit 64',
   ]);
@@ -130,5 +132,26 @@ describe('production-live-marker.sh going live', () => {
     expect(res.status).toBe(1);
     expect(res.stderr).not.toContain('refusing to take production live');
     expect(res.stderr).toContain('requires an interactive terminal');
+  });
+});
+
+describe('production-live-marker.sh --status', () => {
+  // Defect caught: a status read that cannot see the marker exits 0, so the
+  // sitting's marker read passes with the marker unread, or a marker holding
+  // neither value reads as a state the deploy guards would refuse.
+  it('exits 0 only when the marker reads pre-live or live, and says why it cannot read one', () => {
+    for (const marker of ['false', 'true'] as const) {
+      const { res } = run({ marker, originPolicy: 'https-only' }, ['--status']);
+      expect(res.status, `${marker}: ${res.stdout}${res.stderr}`).toBe(0);
+      expect(res.stdout).toContain(`currently reads: ${marker}`);
+    }
+    const unreadable = run({ marker: 'unreadable', originPolicy: 'https-only' }, ['--status']);
+    expect(unreadable.res.status).toBe(1);
+    expect(unreadable.res.stdout).toContain('currently reads: <unreadable>');
+    expect(unreadable.res.stderr).toContain('AccessDeniedException');
+    const odd = run({ marker: 'maybe', originPolicy: 'https-only' }, ['--status']);
+    expect(odd.res.status).toBe(1);
+    expect(odd.res.stderr).toContain('neither false nor true');
+    expect(unreadable.wrote || odd.wrote).toBe(false);
   });
 });

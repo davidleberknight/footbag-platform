@@ -19,13 +19,12 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { connectingAs, SHARED_ACCOUNT, NAMED_ACCOUNT } from '../fixtures/sshConfigStub';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/rotate-host-password.sh');
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/rotate-host-password-remote.sh');
 const REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 const ROOT_GUARD = 'if [[ $EUID -ne 0 ]]; then';
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const CURRENT = 'stub-current-password';
 const NEW = 'stub-new-password-aaaaaaaaaaaaaaaaaaaaaa';
@@ -117,9 +116,7 @@ function runDetached(args: string[], account = SHARED_ACCOUNT) {
 /** At a terminal, with the credential file on stdin, typing `typed`. */
 function runAtTerminal(typed = 'APPLY\n', args = ['--target', 'staging']) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
-  const r = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-    encoding: 'utf-8', input: typed, env: env(), ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { typed, env: env() });
   const out = r.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out };
@@ -160,7 +157,7 @@ describe('rotate-host-password.sh: refusals, each beside a run the guard lets th
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('rotate-host-password.sh: the rotation', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('rotate-host-password.sh: the rotation', () => {
   it('changes the password, proves sudo accepts the new one, files it, and shows it on the terminal', () => {
     // Defects caught: a run reporting success on a host still taking the old
     // password; a new password the operator never receives; the credential file

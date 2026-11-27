@@ -24,6 +24,11 @@ Type=oneshot
 WorkingDirectory=/srv/footbag
 EnvironmentFile=/srv/footbag/env
 ExecStart=/usr/bin/env bash scripts/backup-db.sh
+# A oneshot unit has no start limit by default, and while one run hangs the
+# timer starts no other, so backups would stop with nothing failing. Four
+# minutes sits inside the five-minute interval; a run killed at the limit
+# counts as a failed backup (the script's TERM handler records it).
+TimeoutStartSec=240
 
 # Sandboxing. Unlike the stack unit, this one runs a real workload rather than
 # a client for a daemon, so it can be confined properly: it reads one database,

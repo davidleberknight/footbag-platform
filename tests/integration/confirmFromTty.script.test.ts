@@ -29,6 +29,7 @@ import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const LIB = path.join(REPO_ROOT, 'scripts', 'lib', 'host-env-remote.sh');
@@ -173,5 +174,32 @@ describe('confirm_from_tty: the human-present guard', () => {
       { encoding: 'utf8', env: { ...process.env, ASSUME_YES: 'no' }, ...SPAWN_GUARD },
     );
     expect(res.stdout).toBe('yes');
+  });
+});
+
+describe.skipIf(!HAS_PTY_DRIVER)('confirm_from_tty at a terminal: only what is typed after the prompt answers it', () => {
+  /** A confirmation at a real terminal, with `ahead` already waiting on it and `typed` entered at the prompt. */
+  function confirmAt(ahead: string, typed: string) {
+    const res = spawnAtTerminal(
+      `source "${LIB}"; if confirm_from_tty "Type APPLY to continue: " APPLY; then echo VERDICT=confirmed; else echo VERDICT=declined; fi`,
+      { typeAhead: ahead, typed },
+    );
+    return { verdict: res.stdout.match(/VERDICT=(\w+)/)?.[1], out: res.stdout + res.stderr };
+  }
+
+  it('does not take an APPLY typed before the prompt as the confirmation', () => {
+    // Defect caught: an APPLY typed or pasted while the run was still busy
+    // confirms a production change before the operator has read what it is,
+    // and the "no" they then type at the prompt is never read.
+    const r = confirmAt('APPLY\n', 'no\n');
+    expect(r.verdict, r.out).toBe('declined');
+  });
+
+  it('takes the APPLY typed at the prompt, whatever was typed before it', () => {
+    // Defect caught: a stray line typed ahead declining the confirmation in
+    // no time, so the operator's own APPLY is never read; or the discard
+    // swallowing the answer typed at the prompt, so nothing can confirm.
+    const r = confirmAt('no\n', 'APPLY\n');
+    expect(r.verdict, r.out).toBe('confirmed');
   });
 });

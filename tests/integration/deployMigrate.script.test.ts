@@ -541,6 +541,19 @@ describe('the off-host snapshot and the service around a migration', () => {
     expect(remote).toMatch(/must be restored by hand\. NOT starting the[\s\S]{0,200}service_stopped_for_migration=0\n\s*exit 1/);
     expect(remote).toMatch(/^systemctl restart footbag\nservice_stopped_for_migration=0$/m);
   });
+
+  // Defect caught: a migrating deploy that leaves backups stopped from the
+  // migration until the run ends, through the health checks and persona steps,
+  // so the migrated database goes unbacked-up for the whole tail of the run.
+  it('restarts the paused backup timer as soon as the service is back, before anything else runs', () => {
+    const remote = readFileSync(join(process.cwd(), 'scripts/internal/deploy-code-remote.sh'), 'utf8');
+    const restart = remote.search(/^systemctl restart footbag\nservice_stopped_for_migration=0$/m);
+    expect(restart).toBeGreaterThan(-1);
+    const after = remote.slice(restart, restart + 900);
+    const resume = after.search(/if systemctl start footbag-backup\.timer; then\n\s*backup_timer_paused=0/);
+    expect(resume, 'the timer restart and flag clear directly after the service restart').toBeGreaterThan(-1);
+    expect(after.slice(0, resume)).not.toMatch(/compose exec|curl /);
+  });
 });
 
 describe('the operator-facing script', () => {

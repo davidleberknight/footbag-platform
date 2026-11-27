@@ -124,7 +124,7 @@ describe('public surfaces leave a prospective member out', () => {
       insertGalleryCriterionTag(db, galleryId, tagId);
       attachMediaTag(db, insertMediaItem(db, { uploader_member_id: who.id }), tagId);
     }
-    const owners = (dbMod.media.listMemberOwnedNamedGallerySummaries.all() as { owner_slug: string }[])
+    const owners = (dbMod.media.listNamedGallerySummariesByOwnerKind.all(0) as { owner_slug: string }[])
       .map((g) => g.owner_slug);
     expect(owners).toContain(MEMBER.slug);
     expect(owners).not.toContain(PENDING.slug);

@@ -22,6 +22,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
@@ -136,12 +137,7 @@ function env(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
 /** The script at a terminal, with the password on stdin and `answers` typed. */
 function drill(args: string[], answers: string[], extra: Record<string, string> = {}) {
   const inner = `bash ${JSON.stringify(SCRIPT)} ${args.join(' ')} < ${JSON.stringify(cred)}; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: answers.map((a) => `${a}\n`).join(''),
-    env: env(extra),
-    ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(inner, { typed: answers.map((a) => `${a}\n`).join(''), env: env(extra) });
   const out = r.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out };

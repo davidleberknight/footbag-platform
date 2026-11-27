@@ -41,6 +41,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /media/browse': { stories: ['V_Browse_Hashtags', 'V_View_Gallery'] },
   'GET /media/freestyle-tutorials': { stories: ['V_View_Freestyle_Media_Hub'] },
   'GET /media/member-galleries': { stories: ['V_View_Gallery'] },
+  'GET /media/curated-galleries': { stories: ['V_View_Gallery'] },
   'GET /media/item/:mediaId': { stories: ['V_View_Gallery'] },
   'POST /media/item/:mediaId/flag': { stories: ['M_Flag_Media'] },
   'GET /media/:galleryId': { stories: ['V_View_Gallery'] },

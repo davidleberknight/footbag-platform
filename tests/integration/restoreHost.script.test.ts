@@ -41,6 +41,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/restore-host.sh');
 
@@ -94,7 +95,6 @@ const DEFAULT_PORTS = {
 /** The host keys Lightsail reports for an instance the stand-in created. */
 const keyOf = (name: string) => `AAAAC3-${name}`;
 
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 const HAS_SETSID = requireToolInCI('setsid', '--version');
 
 let work: string;
@@ -401,6 +401,9 @@ function writeSshStub(recorded?: string): void {
     'done',
     'on="$(cut -f2 "$S/staticip")"',
     '[[ -f "$S/lost" ]] && grep -qxF "$on" "$S/lost" && { echo "ssh: connect to host: Connection timed out" >&2; exit 255; }',
+    // A host that drops one connection and answers the next, as a brief network
+    // fault looks.
+    '[[ -f "$S/lost-once" ]] && grep -qxF "$on" "$S/lost-once" && { rm -f "$S/lost-once"; echo "ssh: connect to host: Connection timed out" >&2; exit 255; }',
     hostIdentityAnswer(recorded, recorded === undefined ? '' : 'https://staging.example.invalid'),
     'case "$*" in',
     '  *footbag-restore-hold*)',
@@ -502,9 +505,7 @@ function runDetached(args: string[], extra: NodeJS.ProcessEnv = {}) {
 /** At a terminal, typing `typed`, with the credential redirected in as the usage line says. */
 function runAtTerminal(args: string[], typed = 'APPLY\n', extra: NodeJS.ProcessEnv = {}) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args.map((a) => JSON.stringify(a)), '<', JSON.stringify(credFile)].join(' ');
-  const res = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-    encoding: 'utf8', input: typed, env: env(extra), ...SPAWN_GUARD,
-  });
+  const res = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { typed, env: env(extra) });
   const out = res.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out };
@@ -577,7 +578,7 @@ describe.skipIf(!HAS_SETSID)('restore-host.sh refusals, each before anything cha
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, a full restore at a terminal', () => {
   it('does nothing when the typed word is anything but APPLY', () => {
     // Defect caught: a casual or lower-case answer accepted as consent to stop
     // the live host.
@@ -729,6 +730,15 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     expect(openPorts(ports(NEW))).not.toContain(80);
   });
 
+  // Defect caught: a hold that failed reported only as "did not stop", with the
+  // host's own reason thrown away, so the operator cannot tell a refused stop
+  // from a dropped session.
+  it('says why the hold failed, in the host\'s own words', () => {
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { HOLD_REFUSED: '1' });
+    expect(r.status).toBe(1);
+    expect(r.out).toMatch(/did not stop \(---FOOTBAG-NOT-HELD---\)/);
+  });
+
   it('stops with the origin port closed when no last backup was recorded, and restores the one named with --db-snapshot', () => {
     // Defect caught: a host opened to the public on the snapshot's database
     // because no backup was found to restore, or a named backup ignored.
@@ -768,6 +778,25 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
     expect(r.status).toBe(1);
     expect(r.out).toContain('admits every address');
     expect(r.out).not.toContain('restored: ');
+  });
+
+  it('refuses a listed object that is not a backup key, before recording or restoring it', () => {
+    // Defect caught: whatever object sorts newest in the bucket (a stray
+    // upload, a file with another name) recorded as the backup to put back and
+    // handed to the database restore.
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { LAST_BACKUP_KEY: 'routine/2026/10/26/notes.txt' });
+    expect(r.status).toBe(1);
+    expect(r.out).toContain("is not a backup key ('routine/2026/10/26/notes.txt')");
+    expect(callLines().some((l) => l.includes('tag-resource') && l.includes('footbag-restore-last-backup'))).toBe(false);
+    expect(callLines().some((l) => l.includes('create-instances-from-snapshot'))).toBe(false);
+  });
+
+  it('names a script, never an AWS command, in what it tells the operator to run', () => {
+    // Defect caught: an operator told to type a raw AWS command under
+    // pressure, where a script owns the step and checks its outcome.
+    const source = readFileSync(SCRIPT, 'utf8');
+    const told = source.split('\n').filter((l) => /\b(die|cr_error|cr_warn|cr_die)\b.*\baws (lightsail|s3|s3api|ssm|iam) /.test(l));
+    expect(told).toEqual([]);
   });
 
   it('records the last real database backup before the restored host can upload its own', () => {
@@ -916,7 +945,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a full restore at a terminal', ()
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh --instance-snapshot', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh --instance-snapshot', () => {
   const STEP_SNAP = `${OLD}-pre-step-20261026T060000Z`;
   /** One instance snapshot as Lightsail lists it: name, state, the instance it was taken of, when. */
   const snapshotRow = (name: string, state: string, from: string) =>
@@ -998,7 +1027,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh --instance-snapshot', () => {
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a restored host that is lost in its turn', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, a restored host that is lost in its turn', () => {
   it('supersedes the finished restore and restores the lost instance, keeping both earlier hosts', () => {
     // Defect caught: a second host loss before --delete-old deadlocked, the open
     // record neither resumable (its host is gone) nor replaceable (it is open).
@@ -1019,9 +1048,76 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, a restored host that is lost in i
     expect(instanceState(OLD)).toBe('stopped');
     expect(countCalls('delete-instance')).toBe(0);
   });
+
+  it('does not take a finished restore\'s host for lost on one dropped connection', () => {
+    // Defect caught: a re-run of a finished restore that met one brief network
+    // fault started a second restore of a host that was fine, replacing it.
+    expect(runAtTerminal(['--target', 'staging']).status).toBe(0);
+    const created = countCalls('create-instances-from-snapshot');
+    writeFileSync(p('lost-once'), `${NEW}\n`);
+    const r = runAtTerminal(['--target', 'staging'], 'APPLY\n', { RESTORE_HOST_NOW: String(NOW + 86400) });
+    expect(r.out).not.toContain('is treated as lost');
+    expect(countCalls('create-instances-from-snapshot')).toBe(created);
+    expect(recordRow()?.[3]).not.toBe('superseded');
+  });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh, nothing leaves Terraform state unless the adoption is the only change', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, the bodies it runs on the restored host', () => {
+  // The suite's ssh stand-in answers each body with its marker; these run the
+  // bodies themselves against stand-in service tools, so what the host does is
+  // what the markers claim.
+  const body = (name: 'HOLD_BODY' | 'RELEASE_BODY' | 'LINEAGE_BODY'): string => {
+    const source = readFileSync(SCRIPT, 'utf8');
+    const quoted = source.match(new RegExp(`^${name}='([\\s\\S]*?)'$`, 'm'));
+    if (quoted) return quoted[1];
+    const heredoc = source.match(new RegExp(`^${name}="\\$\\(cat <<'BODY'\\n([\\s\\S]*?)\\nBODY\\n\\)"$`, 'm'));
+    expect(heredoc, `${name} is in the script`).not.toBeNull();
+    return heredoc![1];
+  };
+  let bodyRuns = 0;
+  const runBody = (text: string, tools: Record<string, string>) => {
+    const bin = p(`bodybin-${++bodyRuns}`);
+    mkdirSync(bin, { recursive: true });
+    for (const [name, script] of Object.entries(tools)) {
+      writeFileSync(join(bin, name), `#!/usr/bin/env bash\n${script}\n`);
+      chmodSync(join(bin, name), 0o755);
+    }
+    return spawnSync('bash', ['-c', text], { encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` }, ...SPAWN_GUARD });
+  };
+
+  // Defect caught: a hold that reports the service and backups stopped while
+  // one of them still runs, so the snapshot's database serves or uploads.
+  it('holds only once the service and the backups have all stopped', () => {
+    const held = runBody(body('HOLD_BODY'), { systemctl: '[[ "$1" == is-active ]] && exit 3; exit 0' });
+    expect(held.status).toBe(0);
+    expect(held.stdout.trim()).toBe('---FOOTBAG-HELD---');
+    const running = runBody(body('HOLD_BODY'), { systemctl: '[[ "$1" == is-active && "$3" == footbag.service ]] && exit 0; [[ "$1" == is-active ]] && exit 3; exit 0' });
+    expect(running.status).toBe(1);
+    expect(running.stdout.trim()).toBe('---FOOTBAG-NOT-HELD---');
+  });
+
+  // Defect caught: a release reported done while the backup timer stays off.
+  it('reports the release only once the backup timer is running', () => {
+    expect(runBody(body('RELEASE_BODY'), { systemctl: 'exit 0' }).stdout.trim()).toBe('---FOOTBAG-RELEASED---');
+    expect(runBody(body('RELEASE_BODY'), { systemctl: '[[ "$1" == is-active ]] && exit 3; exit 0' }).stdout).not.toContain('---FOOTBAG-RELEASED---');
+  });
+
+  // Defect caught: the lineage read counting the wrong lines, or reading an
+  // unreadable journal as no refusals.
+  it('counts the backup refusals since boot, and says so when the journal cannot be read', () => {
+    const refusals = runBody(body('LINEAGE_BODY'), {
+      journalctl: 'printf "%s\\n" "backup-db: FAILURE (1 consecutive): this database does not continue the stored history, so it was not uploaded" "backup-db: ok" "backup-db: FAILURE (2 consecutive): this database does not continue the stored history, so it was not uploaded"',
+    });
+    expect(refusals.stdout.trim()).toBe('---FOOTBAG-REFUSALS-2---');
+    expect(runBody(body('LINEAGE_BODY'), { journalctl: 'echo ok' }).stdout.trim()).toBe('---FOOTBAG-REFUSALS-0---');
+    const unreadable = runBody(body('LINEAGE_BODY'), { journalctl: 'echo "No journal files were found." >&2; exit 1' });
+    expect(unreadable.status).toBe(1);
+    expect(unreadable.stdout).toContain('---FOOTBAG-JOURNAL-UNREADABLE---');
+    expect(unreadable.stdout).toContain('No journal files were found.');
+  });
+});
+
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, nothing leaves Terraform state unless the adoption is the only change', () => {
   it('stops before touching state when the tree does not take the name from the values file', () => {
     // Defect caught: the old instance removed from state for a tree that still
     // names it, so the next plan creates an empty host under the old name.
@@ -1114,7 +1210,7 @@ const unprovenOf = (out: string) => reportList(out, /Not proven:/);
 const setBucket = (rows: string[]) => writeFileSync(p('bucket'), rows.join('\n') + '\n');
 const STALE_KEY = (prefix: string) => `${prefix}/2026/10/26/footbag-20261026T073500Z.db.gz`;
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the snapshot\'s database never reaches the bucket', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, the snapshot\'s database never reaches the bucket', () => {
   it('proves every backup after the restored one continues it, and that the host refused the stale database', () => {
     // Defect caught: a restore reported done while nothing checked that the
     // restored host's day-old database stayed out of the bucket, so the next
@@ -1246,7 +1342,7 @@ function useProduction(): void {
 }
 const isoAt = (epoch: number) => new Date(epoch * 1000).toISOString().replace('Z', '+00:00');
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh on production, the email switch', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh on production, the email switch', () => {
   // The newest automatic snapshot the fixture holds was taken ten hours before the run.
   it.each([
     ['reads armed', { EMAIL_VALUE: 'armed' }, /email switch reads 'armed', not dark/],
@@ -1276,7 +1372,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh on production, the email switch', 
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the restored host proves itself', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, the restored host proves itself', () => {
   it('fails, naming the installer, when the installer\'s Terraform still names the old instance', () => {
     // Defect caught: an installer that reads a Terraform still naming the old
     // instance pinning the stopped host's keys, and the run reporting the pin
@@ -1308,7 +1404,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the restored host proves itself',
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the host state the snapshot carried back', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, the host state the snapshot carried back', () => {
   const hardenCalls = () => callLines().filter((l) => l.startsWith('harden-sshd '));
   const FIXTURE_PASS = 'fixture-sudo-password';
 
@@ -1387,7 +1483,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, the host state the snapshot carri
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh, an interrupt undoes only what nothing points at', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh, an interrupt undoes only what nothing points at', () => {
   it('deletes the new instance when interrupted before the static IP has moved', () => {
     // Defect caught: an abandoned host running a day-old database, uploading
     // backups and costing money, with nothing pointing at it.
@@ -1429,7 +1525,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh, an interrupt undoes only what not
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-host.sh leaves no temporary file behind', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-host.sh leaves no temporary file behind', () => {
   // Defect caught: a saved Terraform plan, a zip carrying resolved secrets from
   // state, or a copy of the operator's values file, left readable in the temp
   // directory after the run, whichever way it ended.
@@ -1445,7 +1541,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-host.sh leaves no temporary file behind', 
   });
 });
 
-describe.skipIf(!HAS_SCRIPT || !HAS_SETSID)('restore-host.sh --delete-old', () => {
+describe.skipIf(!HAS_PTY_DRIVER || !HAS_SETSID)('restore-host.sh --delete-old', () => {
   it('refuses while Terraform still names the old instance', () => {
     // Defect caught: the old host deleted while Terraform still manages it, so
     // the next plan recreates an empty host in its place.
@@ -1510,7 +1606,7 @@ describe.skipIf(!HAS_SCRIPT || !HAS_SETSID)('restore-host.sh --delete-old', () =
   });
 });
 
-describe.skipIf(!HAS_SCRIPT || !HAS_SETSID)('restore-host.sh, the read-only modes', () => {
+describe.skipIf(!HAS_PTY_DRIVER || !HAS_SETSID)('restore-host.sh, the read-only modes', () => {
   it('--status reports each step of an open restore and changes nothing', () => {
     // Defect caught: a status read that resumes or mutates, or one that reports
     // a step done that is not.

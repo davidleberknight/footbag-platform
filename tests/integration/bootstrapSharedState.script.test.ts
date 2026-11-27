@@ -24,10 +24,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/bootstrap-shared-state.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 const OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
 
 let root: string;
@@ -70,12 +69,7 @@ function run(args: string[]) {
 /** A run at a terminal, typing the answer to the prompt; both streams arrive as one. */
 function atTerminal(args: string[], typed: string) {
   const inner = `bash ${[SCRIPT, ...args].map((a) => JSON.stringify(a)).join(' ')} </dev/null; echo "EXIT=$?"`;
-  const res = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: `${typed}\n`,
-    env: env(),
-    ...SPAWN_GUARD,
-  });
+  const res = spawnAtTerminal(inner, { typed: `${typed}\n`, env: env() });
   const out = res.stdout ?? '';
   return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), stdout: out, stderr: out };
 }
@@ -299,7 +293,7 @@ describe('bootstrap-shared-state.sh — restoring lost state from a bucket versi
     versioned([['v-1', '2026-10-01T00:00:00+00:00', STATE(4)]]);
     // Production and identity take the typed APPLY at a terminal; staging may
     // be confirmed with --yes.
-    const trees: string[] = HAS_SCRIPT ? ['identity', 'staging', 'production'] : ['staging'];
+    const trees: string[] = HAS_PTY_DRIVER ? ['identity', 'staging', 'production'] : ['staging'];
     for (const tree of trees) {
       // Each tree's object starts lost; the stand-in's one bucket would
       // otherwise hold the previous tree's restore as current.

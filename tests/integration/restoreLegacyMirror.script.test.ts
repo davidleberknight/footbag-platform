@@ -25,13 +25,12 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/restore-legacy-mirror.sh');
 const BACKUP_SCRIPT = join(process.cwd(), 'scripts/backup-legacy-mirror.sh');
 /** The real crawl's path: only ever passed as an argument the script must refuse, never written. */
 const REAL_MIRROR = join(process.cwd(), 'legacy_data/legacy_mirror/mirror_footbag_org');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 const BUCKET = 'footbag-production-legacy-mirror-backup';
 
 const scratch = createScratchDir('restore-legacy-mirror');
@@ -183,7 +182,7 @@ function writeTfStub(dir: string, state: TfState, callLog: string): string {
 let templateBucket: string;
 
 beforeAll(() => {
-  if (!HAS_SCRIPT) return;
+  if (!HAS_PTY_DRIVER) return;
   const base = join(scratch, 'backup');
   const crawl = join(base, 'mirror_footbag_org');
   templateBucket = join(base, 'bucket');
@@ -194,9 +193,8 @@ beforeAll(() => {
   }
   const log = join(base, 'calls.log');
   const inner = `bash ${JSON.stringify(BACKUP_SCRIPT)} --target production </dev/null; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: 'APPLY\n',
+  const r = spawnAtTerminal(inner, {
+    typed: 'APPLY\n',
     env: {
       ...process.env,
       ...awsIdentityStubEnv(base),
@@ -205,7 +203,6 @@ beforeAll(() => {
       BACKUP_LEGACY_MIRROR_ROOT: crawl,
       TMPDIR: base,
     },
-    ...SPAWN_GUARD,
   });
   expect(r.stdout, 'the backup that makes the fixture bucket succeeded').toContain('EXIT=0');
 });
@@ -216,7 +213,7 @@ let callLog: string;
 let caseNo = 0;
 
 beforeEach(() => {
-  if (!HAS_SCRIPT) return;
+  if (!HAS_PTY_DRIVER) return;
   caseNo += 1;
   dir = join(scratch, `case-${caseNo}`);
   bucketDir = join(dir, 'bucket');
@@ -254,9 +251,7 @@ function run(args: string[], tf: TfState = 'on', extra: Record<string, string> =
 /** A run at a terminal, typing the answer to the prompt. */
 function atTerminal(args: string[], typed: string, extra: Record<string, string> = {}) {
   const quoted = [SCRIPT, '--target', 'production', ...args].map((a) => JSON.stringify(a)).join(' ');
-  const r = spawnSync('script', ['-qec', `bash ${quoted} </dev/null; echo "EXIT=$?"`, '/dev/null'], {
-    encoding: 'utf-8', input: `${typed}\n`, env: env('on', extra), ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(`bash ${quoted} </dev/null; echo "EXIT=$?"`, { typed: `${typed}\n`, env: env('on', extra) });
   const out = r.stdout ?? '';
   return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };
 }
@@ -266,7 +261,7 @@ const restoreCalls = () => calls().split('\n').filter((l) => l.startsWith('s3api
 const downloadCalls = () => calls().split('\n').filter((l) => /^s3 cp s3:\/\/\S+\/mirror\//.test(l));
 const requestedKeys = () => restoreCalls().map((l) => l.match(/--key mirror\/(.*) --region/)?.[1]);
 
-describe.skipIf(!HAS_SCRIPT)('restore-legacy-mirror.sh: refused before anything is read', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-legacy-mirror.sh: refused before anything is read', () => {
   it('takes production only, with no default, beside a production dry run that goes through', () => {
     // Defect caught: a restore aimed by ambient state at a tree that declares
     // no such bucket, or a script that refuses everything and so proves nothing.
@@ -346,7 +341,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-legacy-mirror.sh: refused before anything 
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-legacy-mirror.sh: the dry run and the status', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-legacy-mirror.sh: the dry run and the status', () => {
   it('reports the listed files, bytes and each restore state, and changes nothing', () => {
     // Defect caught: a rehearsal that requests or downloads, or a count the
     // operator cannot check against the list.
@@ -380,7 +375,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-legacy-mirror.sh: the dry run and the stat
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-legacy-mirror.sh: the request', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-legacy-mirror.sh: the request', () => {
   it('requests nothing without the typed word', () => {
     // Defect caught: a billed retrieval that runs on any answer.
     const r = atTerminal(['--request'], 'no');
@@ -425,7 +420,7 @@ describe.skipIf(!HAS_SCRIPT)('restore-legacy-mirror.sh: the request', () => {
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('restore-legacy-mirror.sh: the download', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('restore-legacy-mirror.sh: the download', () => {
   it('refuses while any listed file is not restored, and writes nothing', () => {
     // Defect caught: a download that starts on a half-restored bucket and
     // leaves a partial crawl that looks whole.

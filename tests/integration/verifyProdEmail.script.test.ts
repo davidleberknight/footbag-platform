@@ -29,6 +29,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
@@ -183,16 +184,14 @@ describe('verify-prod-email.sh --inbox-from-tty', () => {
   /** At a terminal, typing `typed` when the script asks for the inbox. */
   function atTerminal(args: string[], typed: string, stdin = '') {
     const inner = `bash ${JSON.stringify(SCRIPT)} ${withRead(args).join(' ')} ${stdin}; echo "EXIT=$?"`;
-    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      encoding: 'utf8',
-      input: `${typed}\n`,
+    const r = spawnAtTerminal(inner, {
+      typed: `${typed}\n`,
       env: {
         ...process.env,
         ...awsIdentityStubEnv(dir),
         TF_OUTPUT_BIN: writeFakeTerraform('noreply@footbag.org'),
         PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
       },
-      ...SPAWN_GUARD,
     });
     const out = r.stdout ?? '';
     return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };

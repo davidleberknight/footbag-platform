@@ -2576,10 +2576,21 @@ describe('both deploy paths start from an empty upload directory', () => {
         }
       };
 
-      it('restarts a timer already enabled and takes no extra backup', () => {
+      // Defect caught: a deploy that replaced the backup script reporting done
+      // while the replacement cannot back up, so the gap shows only when the
+      // staleness alarm fires.
+      it('restarts a timer already enabled and proves one backup with what it installed', () => {
         const r = runBackupBlock({ enabled: true, bucket: true });
+        expect(r.status, r.stderr).toBe(0);
         expect(r.calls).toMatch(/systemctl restart footbag-backup\.timer/);
+        expect(r.calls).toMatch(/systemctl start footbag-backup\.service/);
         expect(r.calls).not.toMatch(/enable --now/);
+        expect(r.stderr).not.toMatch(/ ERROR | WARN /);
+      });
+
+      it('reports a failed backup after the deploy as an error', () => {
+        const r = runBackupBlock({ enabled: true, bucket: true, result: 'exit-code' });
+        expect(r.stderr).toMatch(/ ERROR the backup after this deploy ended 'exit-code'/);
       });
 
       it('enables the timer and proves a first backup once the bucket is configured', () => {
@@ -2610,7 +2621,9 @@ describe('both deploy paths start from an empty upload directory', () => {
   );
 
   // Defect caught: the compressed swap device left in use after a deploy wrote
-  // its suppression, with nothing telling the operator a reboot is still owed.
+  // its suppression, with nothing telling the operator a reboot is still owed;
+  // or a bootstrap's deploy warning about what the bootstrap's own reboot step
+  // then removes, so a clean bootstrap reports a warning it has already fixed.
   it.each(['scripts/internal/deploy-code-remote.sh', 'scripts/internal/deploy-rebuild-remote.sh'])(
     '%s warns while the compressed swap device is still in use, and only then',
     (file) => {
@@ -2622,16 +2635,21 @@ describe('both deploy paths start from an empty upload directory', () => {
       try {
         const swaps = path.join(dir, 'swaps');
         const reportLib = path.join(REPO_ROOT, 'scripts/lib/closing-report-remote.sh');
-        const run = (contents: string, env: string) => {
+        const run = (contents: string, env: string, rebootFollows = '0') => {
           fs.writeFileSync(swaps, contents);
-          return spawnSync('bash', ['-c', `set -euo pipefail\nsource ${JSON.stringify(reportLib)}\nFOOTBAG_ENV=${env}\n${block.replace('/proc/swaps', swaps)}`], {
+          const r = spawnSync('bash', ['-c', `set -euo pipefail\nsource ${JSON.stringify(reportLib)}\nFOOTBAG_ENV=${env}\nREBOOT_FOLLOWS=${rebootFollows}\n${block.replace('/proc/swaps', swaps)}`], {
             encoding: 'utf8', ...SPAWN_GUARD,
-          }).stderr ?? '';
+          });
+          return { stderr: r.stderr ?? '', stdout: r.stdout ?? '' };
         };
         const header = 'Filename\tType\tSize\tUsed\tPriority\n';
-        expect(run(`${header}/dev/zram0 partition 1000 0 100\n/swapfile file 2000 0 -2\n`, 'staging')).toMatch(/ WARN the compressed in-RAM swap device is still in use/);
-        expect(run(`${header}/swapfile file 2000 0 -2\n`, 'staging')).not.toMatch(/ WARN /);
-        expect(run(`${header}/dev/zram0 partition 1000 0 100\n`, 'production')).not.toMatch(/ WARN /);
+        const inUse = `${header}/dev/zram0 partition 1000 0 100\n/swapfile file 2000 0 -2\n`;
+        expect(run(inUse, 'staging').stderr).toMatch(/ WARN the compressed in-RAM swap device is still in use/);
+        expect(run(`${header}/swapfile file 2000 0 -2\n`, 'staging').stderr).not.toMatch(/ WARN /);
+        expect(run(`${header}/dev/zram0 partition 1000 0 100\n`, 'production').stderr).not.toMatch(/ WARN /);
+        const inBootstrap = run(inUse, 'staging', '1');
+        expect(inBootstrap.stderr).not.toMatch(/ WARN /);
+        expect(inBootstrap.stdout).toMatch(/still in use: the bootstrap's reboot step, which follows, removes it/);
       } finally {
         fs.rmSync(dir, { recursive: true, force: true });
       }
@@ -3261,6 +3279,38 @@ describe('the code deploy protects host state at least as well as the rebuild de
     expect(content).toMatch(/case "\$_db_dir_from_env" in\n\s*"\$LIVE_DIR"\|\/\|""\)/);
   });
 
+  // Defect caught: a code-only deploy, which leaves the stack running, handing
+  // the live database and media to root, so the running app loses write access
+  // to its own database until the ownership step further on puts it back, or
+  // for good if the run stops between the two.
+  it('gives the promoted release to root and leaves the database and media as they are', () => {
+    const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'), 'utf8');
+    const start = content.indexOf('find "$LIVE_DIR" \\( -path "$LIVE_DIR/db"');
+    expect(start, 'the release sweep').toBeGreaterThan(-1);
+    const sweep = content.slice(start, content.indexOf('{} +', start) + 4);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-release-sweep-'));
+    try {
+      const live = path.join(dir, 'live');
+      for (const d of ['db', 'media/photos', 'scripts']) fs.mkdirSync(path.join(live, d), { recursive: true });
+      for (const f of ['db/footbag.db', 'db/footbag.db-wal', 'media/photos/a.jpg', 'scripts/backup-db.sh', 'footbag.db']) fs.writeFileSync(path.join(live, f), '');
+      const log = path.join(dir, 'chown.log');
+      const bin = path.join(dir, 'bin');
+      fs.mkdirSync(bin);
+      fs.writeFileSync(path.join(bin, 'chown'), `#!/usr/bin/env bash\nshift 2\nprintf '%s\\n' "$@" >> ${JSON.stringify(log)}\n`, { mode: 0o755 });
+      const r = spawnSync('bash', ['-c', `set -euo pipefail\nLIVE_DIR=${JSON.stringify(live)}\n${sweep}`], {
+        encoding: 'utf8', env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` }, ...SPAWN_GUARD,
+      });
+      expect(r.status, r.stderr).toBe(0);
+      const owned = fs.readFileSync(log, 'utf8').trim().split('\n').map((p) => path.relative(live, p) || '.');
+      expect(owned).toEqual(expect.arrayContaining(['.', 'scripts', 'scripts/backup-db.sh']));
+      for (const kept of ['db', 'db/footbag.db', 'db/footbag.db-wal', 'media', 'media/photos/a.jpg', 'footbag.db']) {
+        expect(owned, kept).not.toContain(kept);
+      }
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('requires the release directory to be sent rather than defaulting to one', () => {
     // A default cannot tell a caller that never sent the value from one that sent
     // an empty one, so it answered a sender bug by promoting a directory nobody
@@ -3507,6 +3557,41 @@ describe('production has two modes: code-only, and a database built in the run b
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
       expect(r.status, `${args.join(' ')}: ${combined}`).toBe(1);
       expect(combined, args.join(' ')).toMatch(message);
+    }
+  });
+
+  // Defect caught: a persona seed or rebuild reaching a production host because
+  // a sender sent the flag, with only the workstation's allowlist and an import
+  // guard between it and production's members; the host itself must refuse.
+  it.each([
+    ['scripts/internal/deploy-code-remote.sh', 'SEED_TEST_PERSONAS'],
+    ['scripts/internal/deploy-code-remote.sh', 'REFRESH_TEST_PERSONAS'],
+    ['scripts/internal/deploy-rebuild-remote.sh', 'SEED_TEST_PERSONAS'],
+  ])('%s refuses %s on any host but staging, from the host\'s own environment', (file, flag) => {
+    const source = fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
+    const start = source.indexOf(`if [[ "\${${flag}:-no}" == "yes" ]]; then`);
+    expect(start, `${file} has a ${flag} block`).toBeGreaterThan(-1);
+    const block = source.slice(start, source.indexOf('\nfi\n', start) + 4);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-persona-host-'));
+    try {
+      const log = path.join(dir, 'calls.log');
+      const drive = (env: string) => spawnSync('bash', ['-c', [
+        'set -uo pipefail',
+        `source ${JSON.stringify(path.join(REPO_ROOT, 'scripts/lib/closing-report-remote.sh'))}`,
+        `docker() { echo "docker $*" >> ${JSON.stringify(log)}; return 0; }`,
+        'compose_cmd() { docker compose "$@"; }',
+        `${flag}=yes`, `FOOTBAG_ENV_VAL=${env}`, 'ENV_PATH=/dev/null', `LIVE_DIR=${JSON.stringify(dir)}`,
+        block, 'echo BLOCK-DONE',
+      ].join('\n')], { encoding: 'utf8', ...SPAWN_GUARD });
+      const prod = drive('production');
+      expect(prod.status).toBe(1);
+      expect(prod.stderr).toMatch(/ ERROR refusing the persona/);
+      expect(fs.existsSync(log), 'nothing ran on production').toBe(false);
+      const staging = drive('staging');
+      expect(staging.stderr).not.toMatch(/refusing the persona/);
+      expect(fs.readFileSync(log, 'utf8')).toMatch(/docker compose/);
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 

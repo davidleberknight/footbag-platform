@@ -343,6 +343,10 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   # shellcheck source=scripts/lib/production-release-gate.sh
   source "${SCRIPT_DIR}/scripts/lib/production-release-gate.sh"
   production_release_gate_deploy "$SCRIPT_DIR" || exit 1
+  # tty_discard_pending, called before each question below so that a line typed
+  # while the run was busy, or pasted with the command, never answers it.
+  # shellcheck source=scripts/lib/terminal.sh
+  source "${SCRIPT_DIR}/scripts/lib/terminal.sh"
   # What happens to the media bucket, asked here or not at all.
   #
   # A rebuild couples the media sync on, because it reseeds curated media and
@@ -367,6 +371,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
     echo "  y skips the upload and leaves the bucket as it is; anything else uploads" >&2
     echo "  the media, adding objects and removing none." >&2
     echo "" >&2
+    tty_discard_pending
     printf "  Skip the media upload, leaving the bucket exactly as it is? [y/N] " >&2
     if ! read -r _media </dev/tty 2>/dev/null; then
       echo "" >&2
@@ -387,6 +392,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
     fi
     echo "" >&2
   fi
+  tty_discard_pending
   production_staging_first_reminder
   printf "  Type 'APPLY' to confirm: " >&2
   if ! read -r _ack </dev/tty 2>/dev/null; then

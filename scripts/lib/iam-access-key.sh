@@ -301,6 +301,7 @@ iam_key_provision() {
   } > /dev/tty
 
   local answer=""
+  tty_discard_pending
   printf 'Type VAULTED once it is recorded, or anything else to abandon it: ' > /dev/tty
   read -r answer < /dev/tty || answer=""
   if [[ "$answer" != "VAULTED" ]]; then

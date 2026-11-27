@@ -580,7 +580,13 @@ rsync -a --delete \
   --exclude=/footbag.db --exclude=/footbag.db-wal --exclude=/footbag.db-shm \
   --exclude=/data --exclude=/.curated-build --exclude=/.release-stamp \
   "$RELEASE_DIR/" "$LIVE_DIR/"
-chown -R root:root "$LIVE_DIR"
+# The promoted release is root's. The database and media directories are the
+# app account's and are in use while the stack runs (a code-only deploy does not
+# stop it), so the sweep leaves them, and the database files the rsync above
+# also excludes, exactly as they are. -h changes a link, never what it points at.
+find "$LIVE_DIR" \( -path "$LIVE_DIR/db" -o -path "$LIVE_DIR/media" \
+  -o -path "$LIVE_DIR/footbag.db" -o -path "$LIVE_DIR/footbag.db-wal" -o -path "$LIVE_DIR/footbag.db-shm" \) \
+  -prune -o -exec chown -h root:root {} +
 
 # Runtime-user migration. The containers run as an unprivileged account
 # (uid 1000, the base image's own user) rather than as root, so the two places
@@ -668,6 +674,14 @@ for _d in "$_db_dir_from_env" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}"; do
     chown -R "$APP_UID":"$APP_UID" "$_d"
   fi
 done
+# The markers beside the database are root's: the backup honours a declared
+# restore only from a marker root owns, so the app account cannot declare one.
+for _marker in .declared-restore .erasure-replay-pending; do
+  if [[ -e "${_db_dir_from_env}/${_marker}" ]]; then
+    chown root:root "${_db_dir_from_env}/${_marker}"
+    chmod 600 "${_db_dir_from_env}/${_marker}"
+  fi
+done
 unset _db_dir_from_env
 
 # Real disk swap on the host. The instances ship with zram swap only, which
@@ -731,9 +745,15 @@ ensure_zram_disabled() {
 }
 ensure_zram_disabled
 # The suppression waits for a boot, and a deploy never reboots, so a device
-# still in use is reported rather than left outstanding without a word.
+# still in use is reported rather than left outstanding without a word. Inside
+# a bootstrap, whose own reboot step follows and proves it gone, it is that
+# step's to report.
 if [[ "$FOOTBAG_ENV" != "production" ]] && grep -q '^/dev/zram' /proc/swaps 2>/dev/null; then
-  crr_warn "the compressed in-RAM swap device is still in use and goes only at the next boot: reboot through bash scripts/bootstrap-host.sh --target ${FOOTBAG_ENV}, whose reboot step asks first"
+  if [[ "${REBOOT_FOLLOWS:-0}" == "1" ]]; then
+    echo "== The compressed in-RAM swap device is still in use: the bootstrap's reboot step, which follows, removes it and proves it gone"
+  else
+    crr_warn "the compressed in-RAM swap device is still in use and goes only at the next boot: reboot through bash scripts/bootstrap-host.sh --target ${FOOTBAG_ENV}, whose reboot step asks first"
+  fi
 fi
 
 # Sync X_ORIGIN_VERIFY_SECRET from SSM to /srv/footbag/env. Both the value
@@ -1353,6 +1373,16 @@ systemctl enable --now footbag-container-monitor.timer
 # first install, before the restore, leaves it off for the stack's own reason.
 if systemctl is-enabled --quiet footbag-backup.timer 2>/dev/null; then
   systemctl restart footbag-backup.timer
+  # This deploy may have replaced the backup script and its unit, so one run
+  # now proves the replacement still backs up, rather than the next timer tick
+  # failing silently until the staleness alarm.
+  echo "== Taking one backup to prove the installed backup still works..."
+  _backup_start_rc=0
+  systemctl start footbag-backup.service || _backup_start_rc=$?
+  _backup_result="$(systemctl show -p Result --value footbag-backup.service)"
+  if [[ "$_backup_result" != "success" ]]; then
+    crr_error "the backup after this deploy ended '${_backup_result}' (start exited ${_backup_start_rc}), not success; see journalctl -u footbag-backup.service"
+  fi
 elif [[ "${FIRST_INSTALL:-0}" != "1" ]]; then
   if [[ -n "$(awk -F= '$1=="BACKUP_S3_BUCKET" {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1)" ]]; then
     echo "== Enabling the backup timer and taking its first backup..."
@@ -1422,12 +1452,19 @@ Environment=AWS_REGION=${AWS_REGION_VAL}
 Environment=AWS_PROFILE=${LOGS_PROFILE}
 DROPIN
 if ! cmp -s "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf 2>/dev/null; then
+  awslogs_dropin_existed=0
+  [[ -e /etc/systemd/system/docker.service.d/awslogs.conf ]] && awslogs_dropin_existed=1
   install -m 0644 -o root -g root "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf
   systemctl daemon-reload
   systemctl restart docker
-  # A change this deploy made to the host's container runtime, so it is listed
-  # in the closing report rather than left as one line among hundreds.
-  crr_warn "installed the dockerd awslogs drop-in and restarted docker on this host."
+  # A first install is what this step exists to make. A drop-in that differed
+  # from the committed one changed the host's container runtime under a running
+  # host, so that is listed in the closing report.
+  if (( awslogs_dropin_existed )); then
+    crr_warn "replaced a dockerd awslogs drop-in that differed from the committed one, and restarted docker on this host."
+  else
+    echo "== Installed the dockerd awslogs drop-in and restarted docker"
+  fi
 fi
 rm -f "$awslogs_dropin_tmp"
 
@@ -1837,6 +1874,16 @@ echo "== Restarting service (compose up via systemctl, --no-build)..."
 cd "$LIVE_DIR"
 systemctl restart footbag
 service_stopped_for_migration=0
+# Backups resume as soon as the service holds the migrated database again, not
+# at the end of the health checks and persona steps that follow. The exit trap
+# stays the fallback for a run that stops before this line.
+if [[ "$backup_timer_paused" == "1" ]]; then
+  if systemctl start footbag-backup.timer; then
+    backup_timer_paused=0
+  else
+    crr_error "could not restart footbag-backup.timer after the migration. Backups are STOPPED; start it by hand."
+  fi
+fi
 
 # Every `compose exec` below reads from /dev/null, and that redirect is
 # load-bearing rather than tidiness. This whole script arrives on the remote
@@ -2055,6 +2102,12 @@ systemctl status footbag --no-pager -l
 # import guard throws when FOOTBAG_ENV='production'. The deploy_to_aws.sh wrapper
 # also allowlists --seed-test-personas to --target staging only.
 if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
+  # The workstation allows this on staging only; the host refuses it too, from
+  # its own recorded environment, so no sender bug can seed another host.
+  if [[ "$FOOTBAG_ENV_VAL" != "staging" ]]; then
+    crr_error "refusing the persona-catalog seed on a host recording FOOTBAG_ENV=${FOOTBAG_ENV_VAL:-<unset>}: personas are seeded on staging only"
+    exit 1
+  fi
   echo "== Running persona-catalog seed..."
   if ! docker compose \
       --env-file "$ENV_PATH" \
@@ -2080,6 +2133,11 @@ fi
 # container reads it from /srv/footbag/env per host, and the testkit import
 # guard throws when FOOTBAG_ENV='production'.
 if [[ "${REFRESH_TEST_PERSONAS:-no}" == "yes" ]]; then
+  # As for the seed: the host refuses from its own recorded environment.
+  if [[ "$FOOTBAG_ENV_VAL" != "staging" ]]; then
+    crr_error "refusing the persona rebuild on a host recording FOOTBAG_ENV=${FOOTBAG_ENV_VAL:-<unset>}: it deletes persona-owned rows and runs on staging only"
+    exit 1
+  fi
   echo "== Rebuilding every persona from its deployed spec (persona-owned rows are deleted)..."
   if ! docker compose \
       --env-file "$ENV_PATH" \

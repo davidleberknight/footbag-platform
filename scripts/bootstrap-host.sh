@@ -291,7 +291,23 @@ aws_identity_require_direct_user footbag-operator \
 
 # ── Shared pieces ────────────────────────────────────────────────────────────
 
-say() { printf '\n== %s\n' "$*"; }
+# Each heading closes the step before it with how long that step took, so a
+# step that runs slow on a throttled host is visible by name in the output.
+BH_STEP_NAME=""
+BH_STEP_START=$SECONDS
+# say_end closes the current step; the last one is closed before the report.
+say_end() {
+  if [[ -n "$BH_STEP_NAME" ]]; then
+    printf '    (%s took %dm %02ds)\n' "$BH_STEP_NAME" $(( (SECONDS - BH_STEP_START) / 60 )) $(( (SECONDS - BH_STEP_START) % 60 ))
+  fi
+  BH_STEP_NAME=""
+}
+say() {
+  say_end
+  BH_STEP_NAME="$*"
+  BH_STEP_START=$SECONDS
+  printf '\n== %s\n' "$*"
+}
 proved() {
   printf '    proved: %s\n' "$*"
   cr_proved "$*"
@@ -724,7 +740,12 @@ if [[ "$MODE" == "replace" ]]; then
   prefix="${INSTANCE}-pre-replace-"
   snap=""
   reused=0
-  if host_snapshot_recent "$BH_AWS_BIN" "$INSTANCE" "$prefix" "$inst_epoch" "$SNAP_REUSE_SECS"; then
+  # A live production is still taking writes, so a snapshot from an earlier
+  # attempt predates its final backup and is never the way back: it always takes
+  # a fresh one, after the quiesce below.
+  if (( LIVE )); then
+    echo "    production is live: no earlier snapshot is reused; a fresh one is taken after the final backup"
+  elif host_snapshot_recent "$BH_AWS_BIN" "$INSTANCE" "$prefix" "$inst_epoch" "$SNAP_REUSE_SECS"; then
     if [[ -n "$HS_NAME" ]]; then
       snap="$HS_NAME"
       reused=1
@@ -1257,6 +1278,9 @@ require_boot_secrets() {
 }
 
 # 10. The first deploy, or on a live production the restore and a code deploy.
+# Step 15 reboots when the host needs it and proves the result, so a deploy
+# this run makes does not report what only that reboot settles.
+export FOOTBAG_BOOTSTRAP_REBOOT_FOLLOWS=1
 refresh_host
 if verdict_is_done deploy; then
   proved "deployed runtime: ${BH_DETAIL}"
@@ -1416,6 +1440,11 @@ case "${P[REBOOT_NEEDED]:-}" in
 esac
 if [[ "$swap_state" == "DONE" ]]; then
   proved "swap: ${swap_detail}"
+elif [[ -z "$reboot_why" ]]; then
+  # The deploys this run made left swap to this step, and no reboot settles it.
+  cr_warn "swap: ${swap_detail}"
+else
+  cr_unproved "swap until the reboot below: ${swap_detail}"
 fi
 if [[ -n "$reboot_why" ]]; then
   say "Rebooting ${ALIAS} once, ${reboot_why}"
@@ -1436,6 +1465,11 @@ if [[ -n "$reboot_why" ]]; then
   done
   verdict_is_done deploy || cr_die "after the reboot: ${BH_DETAIL}"
   proved "deployed runtime after the reboot: ${BH_DETAIL}"
+  if [[ "$swap_state" != "DONE" ]]; then
+    bh_verdict swap
+    if [[ "$BH_STATE" == "DONE" ]]; then proved "swap after the reboot: ${BH_DETAIL}"
+    else cr_error "swap after the reboot: ${BH_DETAIL}"; fi
+  fi
   case "${P[REBOOT_NEEDED]:-}" in
     no) proved "${ALIAS} needs no further reboot for its packages" ;;
     yes) cr_error "${ALIAS} still reports a reboot needed after rebooting: the kernel or core library it was for is not the running one" ;;
@@ -1463,8 +1497,7 @@ cr_proved "every bootstrap step reads done on ${ALIAS}"
 # confirmed from its email, so the walk runs here rather than being left for
 # someone to remember. A subscription left pending does not fail the host,
 # which is done; it is reported, and the walk is the command to finish it.
-echo ""
-echo "== alarm email subscriptions =="
+say "Alarm email subscriptions"
 walk_rc=0
 bash "${BH_SCRIPTS}/confirm-alarm-subscription.sh" --target "$TARGET" </dev/tty || walk_rc=$?
 case "$walk_rc" in
@@ -1473,4 +1506,5 @@ case "$walk_rc" in
   *) cr_error "the alarm email confirmation did not finish (exit ${walk_rc}); rerun bash scripts/confirm-alarm-subscription.sh --target ${TARGET}" ;;
 esac
 cr_unproved "the milestone-gated steps named above: each waits on its milestone"
+say_end
 cr_finish

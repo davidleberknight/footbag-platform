@@ -74,6 +74,7 @@ const ALL_DONE_PRODUCTION = [
   'SSM_STRIPE_KEY=live',
   'SSM_BOOTSTRAP_TOKEN=absent',
   'CW_BACKUP_METRIC=flowing',
+  'CW_MONITOR_HEARTBEAT=flowing',
   'ORIGIN_HOP=encrypted',
 ];
 
@@ -119,6 +120,16 @@ describe('bringup-status.sh — fully provisioned production', () => {
     expect(result.stdout).toMatch(/journalctl -u footbag-container-monitor\.service/);
     const flowing = runScript(['--target', 'production', '--probe-file', writeProbeFile([...ALL_DONE_PRODUCTION, 'CW_MONITOR_HEARTBEAT=flowing'])]);
     expect(flowing.stdout).toMatch(/8\. Deployed runtime\s+DONE.*container monitor heartbeat: flowing/);
+  });
+
+  it('reads the runtime row unknown, never done, when the heartbeat was not read', () => {
+    // Defect caught: healthy containers reported done when the heartbeat read
+    // failed or never ran, so the sitting's runtime proof passes with nothing
+    // showing the container monitor reaches CloudWatch.
+    const unread = ALL_DONE_PRODUCTION.filter((l) => !l.startsWith('CW_MONITOR_HEARTBEAT='));
+    const result = runScript(['--target', 'production', '--probe-file', writeProbeFile(unread)]);
+    expect(result.stdout).toMatch(/8\. Deployed runtime\s+UNKNOWN\s+containers healthy, but container_monitor_heartbeat was not read/);
+    expect(result.stdout).not.toMatch(/8\. Deployed runtime\s+DONE/);
   });
 
   it('an absent token with the administrators uncounted reads unknown, never DONE, and names no raw parameter write', () => {

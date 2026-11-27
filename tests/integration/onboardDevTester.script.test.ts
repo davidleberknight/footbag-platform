@@ -28,6 +28,7 @@ import { writeFileSync, readFileSync, chmodSync, existsSync, mkdirSync, readdirS
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
@@ -374,17 +375,12 @@ function runPiped(argv: string[], extraEnv: Record<string, string> = {}) {
   return { status: r.status, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
-/** Through `script`, with the sudo password redirected in as documented. */
+/** At a pseudo-terminal, with the sudo password redirected in as documented. */
 function runInTerminal(terminal: string, argv: string[] = args(), extraEnv: Record<string, string> = {}) {
   const cred = join(dir, 'cred');
   writeFileSync(cred, 'fixture-sudo-password\n', { mode: 0o600 });
   const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: terminal,
-    env: { ...process.env, ...env(), ...extraEnv },
-    ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(inner, { typed: terminal, env: { ...process.env, ...env(), ...extraEnv } });
   return { status: r.status, out: r.stdout ?? '' };
 }
 
@@ -1026,12 +1022,7 @@ describe('onboard-dev-tester.sh — the key and the address it is given', () => 
     writeFileSync(cred, 'fixture-sudo-password\n', { mode: 0o600 });
     const argv = args({ '--public-key': '', '--expect-fingerprint': '', '--address': '' });
     const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
-    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      encoding: 'utf-8',
-      input: 'APPLY\n',
-      env: { ...process.env, ...env(), ONBOARD_DEV_TESTER_FETCH: fetch },
-      ...SPAWN_GUARD,
-    });
+    const r = spawnAtTerminal(inner, { typed: 'APPLY\n', env: { ...process.env, ...env(), ONBOARD_DEV_TESTER_FETCH: fetch } });
     expect(r.status, r.stdout).toBe(0);
     expect(read('address.args')).toContain('--address 203.0.113.44/32 ');
     expect(r.stdout).toMatch(new RegExp(`fingerprint: +${pubSha.replace(/[+/]/g, '\\$&')}`));
@@ -1047,12 +1038,7 @@ describe('onboard-dev-tester.sh — the key and the address it is given', () => 
     writeFileSync(cred, 'fixture-sudo-password\n', { mode: 0o600 });
     const argv = args({ '--public-key': '', '--expect-fingerprint': '', '--address': '' });
     const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
-    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      encoding: 'utf-8',
-      input: 'APPLY\n',
-      env: { ...process.env, ...env(), ONBOARD_DEV_TESTER_FETCH: fetch },
-      ...SPAWN_GUARD,
-    });
+    const r = spawnAtTerminal(inner, { typed: 'APPLY\n', env: { ...process.env, ...env(), ONBOARD_DEV_TESTER_FETCH: fetch } });
     expect(r.status, r.stdout).toBe(2);
     const report = r.stdout.slice(r.stdout.lastIndexOf('Closing report'));
     expect(report).toMatch(/Errors \([1-9]\d*\):[\s\S]*exit 6\): curl: \(6\) Could not resolve host/);

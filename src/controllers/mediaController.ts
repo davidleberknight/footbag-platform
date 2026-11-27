@@ -23,9 +23,19 @@ export const mediaController = {
       // a signed-out visitor does, and every profile link would 404 for them.
       const rawPage = typeof req.query.page === 'string' ? req.query.page : undefined;
       const vm = mediaService.getMemberGalleriesPage({ authenticated: req.isMember }, rawPage);
-      res.render('media/member-galleries', vm);
+      res.render('media/gallery-list', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'media controller (member galleries)');
+    }
+  },
+
+  curatedGalleries(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const rawPage = typeof req.query.page === 'string' ? req.query.page : undefined;
+      const vm = mediaService.getCuratedGalleriesPage(rawPage);
+      res.render('media/gallery-list', vm);
+    } catch (err) {
+      handleControllerError(err, res, next, 'media controller (curated galleries)');
     }
   },
 

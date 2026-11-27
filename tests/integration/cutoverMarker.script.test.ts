@@ -22,6 +22,7 @@ import os from 'os';
 import path from 'path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = 'scripts/cutover-marker.sh';
@@ -47,7 +48,7 @@ function run(args: string[]) {
  * for every operator prompt (`scripts/ci/check_script_credentials.sh`): a caller
  * who redirects a credential file into a script whose prompt reads stdin has the
  * password silently consumed as the answer. So the write path genuinely requires
- * a terminal, and `script` supplies one. Testing through the same gate an
+ * a terminal, and a pseudo-terminal supplies one. Testing through the same gate an
  * operator passes is the point — a test-only escape hatch would be a hole in it.
  */
 function runTyped(args: string[], phrase: string) {
@@ -58,13 +59,7 @@ function runTyped(args: string[], phrase: string) {
     SCRIPT,
     ...args.map((a) => JSON.stringify(a)),
   ].join(' ');
-  return spawnSync('script', ['-qec', inner, '/dev/null'], {
-    cwd: REPO_ROOT,
-    env: { ...process.env },
-    input: `${phrase}\n`,
-    encoding: 'utf-8',
-    ...SPAWN_GUARD,
-  });
+  return spawnAtTerminal(inner, { cwd: REPO_ROOT, env: { ...process.env }, typed: `${phrase}\n` });
 }
 
 // One word for every confirmation in the tree; the direction comes from --set.

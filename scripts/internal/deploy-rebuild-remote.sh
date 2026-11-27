@@ -1285,6 +1285,14 @@ for _runtime_dir in "$(dirname "$DB_PATH")" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/m
     chown -R "$APP_UID":"$APP_UID" "$_runtime_dir"
   fi
 done
+# The markers beside the database are root's: the backup honours a declared
+# restore only from a marker root owns, so the app account cannot declare one.
+for _marker in .declared-restore .erasure-replay-pending; do
+  if [[ -e "$(dirname "$DB_PATH")/${_marker}" ]]; then
+    chown root:root "$(dirname "$DB_PATH")/${_marker}"
+    chmod 600 "$(dirname "$DB_PATH")/${_marker}"
+  fi
+done
 
 # The credential files stay root-owned and readable only by a dedicated group
 # the containers join; the containers run unprivileged and do not own them.
@@ -1384,9 +1392,15 @@ ensure_zram_disabled() {
 }
 ensure_zram_disabled
 # The suppression waits for a boot, and a deploy never reboots, so a device
-# still in use is reported rather than left outstanding without a word.
+# still in use is reported rather than left outstanding without a word. Inside
+# a bootstrap, whose own reboot step follows and proves it gone, it is that
+# step's to report.
 if [[ "$FOOTBAG_ENV" != "production" ]] && grep -q '^/dev/zram' /proc/swaps 2>/dev/null; then
-  crr_warn "the compressed in-RAM swap device is still in use and goes only at the next boot: reboot through bash scripts/bootstrap-host.sh --target ${FOOTBAG_ENV}, whose reboot step asks first"
+  if [[ "${REBOOT_FOLLOWS:-0}" == "1" ]]; then
+    echo "== The compressed in-RAM swap device is still in use: the bootstrap's reboot step, which follows, removes it and proves it gone"
+  else
+    crr_warn "the compressed in-RAM swap device is still in use and goes only at the next boot: reboot through bash scripts/bootstrap-host.sh --target ${FOOTBAG_ENV}, whose reboot step asks first"
+  fi
 fi
 
 # Assert the end state now that both writers have run: the committed host config
@@ -1447,6 +1461,16 @@ systemctl enable --now footbag-container-monitor.timer
 # first install, before the restore, leaves it off for the stack's own reason.
 if systemctl is-enabled --quiet footbag-backup.timer 2>/dev/null; then
   systemctl restart footbag-backup.timer
+  # This deploy may have replaced the backup script and its unit, so one run
+  # now proves the replacement still backs up, rather than the next timer tick
+  # failing silently until the staleness alarm.
+  echo "== Taking one backup to prove the installed backup still works..."
+  _backup_start_rc=0
+  systemctl start footbag-backup.service || _backup_start_rc=$?
+  _backup_result="$(systemctl show -p Result --value footbag-backup.service)"
+  if [[ "$_backup_result" != "success" ]]; then
+    crr_error "the backup after this deploy ended '${_backup_result}' (start exited ${_backup_start_rc}), not success; see journalctl -u footbag-backup.service"
+  fi
 elif [[ "${FIRST_INSTALL:-0}" != "1" ]]; then
   if [[ -n "$(awk -F= '$1=="BACKUP_S3_BUCKET" {sub(/^[^=]*=/,""); print}' "$ENV_PATH" | tail -1)" ]]; then
     echo "== Enabling the backup timer and taking its first backup..."
@@ -1511,12 +1535,19 @@ Environment=AWS_REGION=${AWS_REGION_VAL}
 Environment=AWS_PROFILE=${LOGS_PROFILE}
 DROPIN
 if ! cmp -s "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf 2>/dev/null; then
+  awslogs_dropin_existed=0
+  [[ -e /etc/systemd/system/docker.service.d/awslogs.conf ]] && awslogs_dropin_existed=1
   install -m 0644 -o root -g root "$awslogs_dropin_tmp" /etc/systemd/system/docker.service.d/awslogs.conf
   systemctl daemon-reload
   systemctl restart docker
-  # A change this deploy made to the host's container runtime, so it is listed
-  # in the closing report rather than left as one line among hundreds.
-  crr_warn "installed the dockerd awslogs drop-in and restarted docker on this host."
+  # A first install is what this step exists to make. A drop-in that differed
+  # from the committed one changed the host's container runtime under a running
+  # host, so that is listed in the closing report.
+  if (( awslogs_dropin_existed )); then
+    crr_warn "replaced a dockerd awslogs drop-in that differed from the committed one, and restarted docker on this host."
+  else
+    echo "== Installed the dockerd awslogs drop-in and restarted docker"
+  fi
 fi
 rm -f "$awslogs_dropin_tmp"
 
@@ -1693,6 +1724,12 @@ systemctl status footbag.service --no-pager -l
 # deploy_to_aws.sh wrapper also allowlists --seed-test-personas to
 # --target staging only.
 if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
+  # The workstation allows this on staging only; the host refuses it too, from
+  # its own recorded environment, so no sender bug can seed another host.
+  if [[ "$FOOTBAG_ENV_VAL" != "staging" ]]; then
+    crr_error "refusing the persona-catalog seed on a host recording FOOTBAG_ENV=${FOOTBAG_ENV_VAL:-<unset>}: personas are seeded on staging only"
+    exit 1
+  fi
   echo "    Running persona-catalog seed..."
   if ! compose_cmd exec -T web node dist/testkit/personaSeedRunner.js </dev/null; then
     echo "    ERROR: persona-catalog seed step exited non-zero; aborting the deploy." >&2

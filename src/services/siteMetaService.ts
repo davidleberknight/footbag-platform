@@ -64,6 +64,7 @@ const STATIC_PUBLIC_PATHS = [
   '/media',
   '/media/browse',
   '/media/member-galleries',
+  '/media/curated-galleries',
   '/net',
   '/x-square',
   '/golf',

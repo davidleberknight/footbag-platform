@@ -21,11 +21,10 @@ import * as path from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 'archive-edit.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 const BUCKET = 'footbag-archive-stub';
 const SPAWN = { ...SPAWN_GUARD, timeout: 60_000 };
 /**
@@ -263,9 +262,7 @@ function run(args: string[], extra: Record<string, string> = {}) {
 /** At a terminal, typing `typed`. */
 function runAtTerminal(args: string[], typed = 'APPLY\n') {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args.map((a) => JSON.stringify(a)), '</dev/null'].join(' ');
-  const r = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-    cwd: work, env: env(), encoding: 'utf-8', input: typed, ...SPAWN,
-  });
+  const r = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { cwd: work, env: env(), typed, timeout: SPAWN.timeout });
   const out = r.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out };
@@ -518,7 +515,7 @@ describe('archive-edit.sh push', () => {
   }
   const push = (list: string) => runAtTerminal(['push', '--target', 'staging', '--dest', dest(), '--delete-list', list]);
 
-  it.skipIf(!HAS_SCRIPT)('writes each change conditionally, invalidates exactly those paths, runs the edge proof and reports every version', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('writes each change conditionally, invalidates exactly those paths, runs the edge proof and reports every version', () => {
     const list = prepared();
     const res = push(list);
     expect(res.status, res.out).toBe(0);
@@ -570,7 +567,7 @@ describe('archive-edit.sh push', () => {
     expect(recheck.status, recheck.out).toBe(0);
   });
 
-  it.skipIf(!HAS_SCRIPT)('stops at a key another writer changed since the pull, writes nothing past it, and reports it', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('stops at a key another writer changed since the pull, writes nothing past it, and reports it', () => {
     const list = prepared();
     seed('news/item.html', PAGE('someone else'));
     const res = push(list);
@@ -587,7 +584,7 @@ describe('archive-edit.sh push', () => {
     expect(inv.map((c) => c.slice(c.indexOf('--paths') + 1, c.indexOf('--query')))).toEqual([['/news/added.html', '/news/index.html']]);
   });
 
-  it.skipIf(!HAS_SCRIPT)('refuses unless the archive-source parameter reads exactly "bucket"', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('refuses unless the archive-source parameter reads exactly "bucket"', () => {
     const list = prepared();
     for (const param of ['crawl', 'Bucket', null]) {
       const s = readState();
@@ -601,7 +598,7 @@ describe('archive-edit.sh push', () => {
     expect(callsOf('s3api put-object')).toEqual([]);
   });
 
-  it.skipIf(!HAS_SCRIPT)('refuses a tree changed after its check, and a different delete list', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('refuses a tree changed after its check, and a different delete list', () => {
     const list = prepared();
     // Defect caught: unchecked bytes pushed because a check once passed.
     fs.writeFileSync(tree('news/item.html'), PAGE('<script>alert(1)</script>'));
@@ -624,7 +621,7 @@ describe('archive-edit.sh push', () => {
     expect(callsOf('s3api delete-object')).toEqual([]);
   });
 
-  it.skipIf(!HAS_SCRIPT)('writes nothing when the operator types anything but APPLY', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('writes nothing when the operator types anything but APPLY', () => {
     const list = prepared();
     const res = runAtTerminal(['push', '--target', 'staging', '--dest', dest(), '--delete-list', list], 'yes\n');
     expect(res.status).toBe(1);
@@ -655,7 +652,7 @@ describe('archive-edit.sh rollback', () => {
     return path.join(dest(), 'state', name);
   }
 
-  it.skipIf(!HAS_SCRIPT)('puts every replaced version back, removes what the push added and restores what it deleted', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('puts every replaced version back, removes what the push added and restores what it deleted', () => {
     const report = pushed();
     const before = callsOf('cloudfront create-invalidation').length;
     const res = runAtTerminal(['rollback', '--target', 'staging', '--report', report]);
@@ -683,7 +680,7 @@ describe('archive-edit.sh rollback', () => {
     expect(callsOf('s3api copy-object').length).toBe(writes);
   });
 
-  it.skipIf(!HAS_SCRIPT)('refuses the whole rollback when a key changed after the push, and changes nothing', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('refuses the whole rollback when a key changed after the push, and changes nothing', () => {
     const report = pushed();
     seed('news/item.html', PAGE('a later fix'));
     const res = runAtTerminal(['rollback', '--target', 'staging', '--report', report]);

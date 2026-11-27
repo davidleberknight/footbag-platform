@@ -171,6 +171,7 @@ declare -A P=(
   [KMS_MAIN]=unknown
   [KMS_JWT]=unknown
 )
+HEARTBEAT_WHY=""
 
 if [[ -n "$PROBE_FILE" ]]; then
   if [[ ! -f "$PROBE_FILE" ]]; then
@@ -405,15 +406,20 @@ else
       # host's own namespace with no dimensions, once a minute.
       CW_NAMESPACE="CWAgent"
       [[ "$TARGET" == "production" ]] && CW_NAMESPACE="CWAgent/production"
+      HEARTBEAT_ERR="$(mktemp "$(_cr_tmp)/heartbeat.XXXXXX")"
       HEARTBEATS="$(aws cloudwatch get-metric-statistics \
         --namespace "$CW_NAMESPACE" --metric-name container_monitor_heartbeat \
         --start-time "$(date -u -d '10 minutes ago' +%Y-%m-%dT%H:%M:%SZ)" \
         --end-time "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
         --period 600 --statistics SampleCount \
         --query 'length(Datapoints)' --output text \
-        --profile "$AWS_PROFILE_ARG" 2>/dev/null || echo "")"
+        --profile "$AWS_PROFILE_ARG" 2>"${HEARTBEAT_ERR}" || echo "")"
       if [[ "$HEARTBEATS" =~ ^[0-9]+$ ]]; then
         (( HEARTBEATS > 0 )) && P[CW_MONITOR_HEARTBEAT]=flowing || P[CW_MONITOR_HEARTBEAT]=missing
+      else
+        # A failed read is not a missing heartbeat: keep the tool's own words.
+        HEARTBEAT_WHY="$(tail -n 1 "${HEARTBEAT_ERR}" 2>/dev/null)"
+        HEARTBEAT_WHY="${HEARTBEAT_WHY:-the read returned ${HEARTBEATS:-nothing}}"
       fi
 
       # Alarm email subscriptions, judged by the script that recreates them, in
@@ -684,8 +690,13 @@ else
     # so a missing heartbeat means its readings are not reaching CloudWatch.
     row 8 "Deployed runtime" PENDING "containers healthy, but container_monitor_heartbeat is not arriving"
     next_cmd "ssh $SSH_ALIAS journalctl -u footbag-container-monitor.service -n 20   (then the next deploy re-applies the agent)"
+  elif [[ -z "$RUNTIME_MISSING" && "${P[CW_MONITOR_HEARTBEAT]}" != "flowing" ]]; then
+    # Healthy containers whose monitor was never read (no profile, or the read
+    # failed): nothing shows the monitor is watching them, so this is not done.
+    row 8 "Deployed runtime" UNKNOWN "containers healthy, but container_monitor_heartbeat was not read${HEARTBEAT_WHY:+ (${HEARTBEAT_WHY})}"
+    next_cmd "bash scripts/bringup-status.sh --target $TARGET --profile footbag-operator   (reads the heartbeat)"
   elif [[ -z "$RUNTIME_MISSING" ]]; then
-    row 8 "Deployed runtime" DONE "${P[CONTAINERS]}; container monitor heartbeat: ${P[CW_MONITOR_HEARTBEAT]}"
+    row 8 "Deployed runtime" DONE "${P[CONTAINERS]}; container monitor heartbeat: flowing"
   else
     row 8 "Deployed runtime" PENDING "not healthy: ${RUNTIME_MISSING%; }"
     next_cmd "./deploy_to_aws.sh   (ships the local working tree)"

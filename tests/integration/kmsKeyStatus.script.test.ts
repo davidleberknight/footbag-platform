@@ -16,10 +16,9 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/kms-key-status.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const MAIN_ID = '1111aaaa-1111-4111-8111-111111111111';
 const JWT_ID = '2222bbbb-2222-4222-8222-222222222222';
@@ -100,9 +99,7 @@ function run(args: string[], aws = writeAws()) {
 /** At a terminal, typing `typed`. */
 function runAtTerminal(args: string[], typed = 'APPLY\n', aws = writeAws()) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args.map((a) => JSON.stringify(a)), '</dev/null'].join(' ');
-  const r = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-    encoding: 'utf-8', input: typed, env: env(aws), ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { typed, env: env(aws) });
   const out = r.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out };
@@ -190,7 +187,7 @@ describe('kms-key-status.sh: the status read', () => {
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('kms-key-status.sh: --cancel-deletion', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('kms-key-status.sh: --cancel-deletion', () => {
   it('cancels a scheduled deletion, enables the key, and proves the alias resolves to it Enabled', () => {
     // Defect caught: a recovery that cancels the deletion and stops, leaving the
     // key Disabled while the run reports success.

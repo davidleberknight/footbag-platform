@@ -271,6 +271,29 @@ describe('the staging-first reminder', () => {
     expect(promptAt, `${file} prompts for APPLY`).toBeGreaterThan(-1);
     expect(lines[promptAt - 1], `${file}: the line above the prompt`).toMatch(call);
   });
+
+  // Defect caught: a line typed while the deploy was still busy, or pasted with
+  // the command, answering the production confirmation or the media question
+  // before the operator has read it. These prompts are asked only on a
+  // production run at a terminal, which a test cannot attach, so the discard is
+  // read from the shipped file: the shared helper loaded, then called just above
+  // the prompt with no read between them.
+  it.each([
+    { file: 'deploy_to_aws.sh', prompt: `printf "  Type 'APPLY' to confirm: " >&2` },
+    { file: 'deploy_to_aws.sh', prompt: `printf "  Skip the media upload, leaving the bucket exactly as it is? [y/N] " >&2` },
+    { file: 'scripts/deploy-migrate.sh', prompt: "printf 'Type APPLY to continue: ' > /dev/tty" },
+  ])('$file discards pending terminal input just before: $prompt', ({ file, prompt }) => {
+    const lines = readFileSync(join(REPO_ROOT, file), 'utf8').split('\n');
+    const promptAt = lines.findIndex((l) => l.trim() === prompt);
+    expect(promptAt, `${file} asks this`).toBeGreaterThan(-1);
+    let drainAt = -1;
+    for (let i = promptAt - 1; i >= 0 && drainAt === -1; i -= 1) if (/^\s*tty_discard_pending$/.test(lines[i])) drainAt = i;
+    expect(promptAt - drainAt, `${file}: the discard sits just above the prompt`).toBeLessThanOrEqual(2);
+    expect(lines.slice(drainAt + 1, promptAt).filter((l) => /\bread\b/.test(l)), 'no read between the discard and the prompt').toEqual([]);
+    const loadedAt = lines.findIndex((l) => /^\s*source "\$\{SCRIPT_DIR\}\/(scripts\/)?lib\/terminal\.sh"$/.test(l));
+    expect(loadedAt, `${file} loads the shared helper before calling it`).toBeGreaterThan(-1);
+    expect(loadedAt).toBeLessThan(drainAt);
+  });
 });
 
 describe('which version list the host is held to', () => {

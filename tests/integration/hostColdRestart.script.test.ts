@@ -18,12 +18,12 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const SCRIPT = join(process.cwd(), 'scripts/host-cold-restart.sh');
 /** A name a restore from snapshot gives the host, so a hard-coded original name is caught. */
 const INSTANCE = 'footbag-staging-web-r202610260728';
 
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 const HAS_SETSID = requireToolInCI('setsid', '--version');
 
 let work: string;
@@ -147,15 +147,13 @@ function runDetached(args: string[], extra: NodeJS.ProcessEnv = {}) {
 /** At a terminal, typing `typed`. */
 function runAtTerminal(args: string[], typed = 'APPLY\n', extra: NodeJS.ProcessEnv = {}) {
   const inner = ['bash', JSON.stringify(SCRIPT), ...args.map((a) => JSON.stringify(a)), '</dev/null'].join(' ');
-  const res = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-    encoding: 'utf8', input: typed, env: env(extra), ...SPAWN_GUARD,
-  });
+  const res = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { typed, env: env(extra) });
   const out = res.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
   return { status: m ? Number(m[1]) : -1, out };
 }
 
-describe.skipIf(!HAS_SETSID || !HAS_SCRIPT)('host-cold-restart.sh refusals, each beside a run the guard lets through', () => {
+describe.skipIf(!HAS_SETSID || !HAS_PTY_DRIVER)('host-cold-restart.sh refusals, each beside a run the guard lets through', () => {
   it('requires a target rather than defaulting to one, and takes a named one', () => {
     // Defect caught: a forgotten flag stopping whichever environment's host a
     // default named, or a bad name reaching Lightsail at all.
@@ -220,7 +218,7 @@ describe.skipIf(!HAS_SETSID || !HAS_SCRIPT)('host-cold-restart.sh refusals, each
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('host-cold-restart.sh, the stop and start end to end', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('host-cold-restart.sh, the stop and start end to end', () => {
   it('stops the instance Terraform names, starts it only once stopped, and proves the host after it runs', () => {
     const r = runAtTerminal(['--target', 'staging']);
     expect(r.status, r.out).toBe(0);

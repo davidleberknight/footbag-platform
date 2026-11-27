@@ -24,6 +24,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 
@@ -578,7 +579,7 @@ describe('provision-dev-tester-account.sh — when the cleanup is armed', () => 
  * file was never tried at all.
  *
  * The create path refuses to run without a terminal to confirm on, so it is
- * driven through `script`, with stdin still redirected from the credential file
+ * driven at a pseudo-terminal, with stdin still redirected from the credential file
  * as the documented invocation does. The stubbed host records the first line of
  * every privileged session it receives.
  */
@@ -614,11 +615,10 @@ describe('provision-dev-tester-account.sh — the sudo password reaches the host
       '<',
       JSON.stringify(cred),
     ].join(' ');
-    spawnSync('script', ['-qec', inner, '/dev/null'], {
+    spawnAtTerminal(inner, {
       cwd: process.cwd(),
-      encoding: 'utf-8',
       // An absent account needs no typed answer: the create runs through.
-      input: '',
+      typed: '',
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
@@ -628,7 +628,6 @@ describe('provision-dev-tester-account.sh — the sudo password reaches the host
         FOOTBAG_KNOWN_HOSTS: PIN,
         DTACC_SEALED_OUT: outFile(),
       },
-      ...SPAWN_GUARD,
     });
 
     expect(existsSync(record), 'no privileged session reached the host').toBe(true);
@@ -675,10 +674,9 @@ describe('provision-dev-tester-account.sh — the sudo password reaches the host
       '<',
       JSON.stringify(cred),
     ].join(' ');
-    spawnSync('script', ['-qec', inner, '/dev/null'], {
+    spawnAtTerminal(inner, {
       cwd: process.cwd(),
-      encoding: 'utf-8',
-      input: '',
+      typed: '',
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
@@ -688,7 +686,6 @@ describe('provision-dev-tester-account.sh — the sudo password reaches the host
         FOOTBAG_KNOWN_HOSTS: PIN,
         DTACC_SEALED_OUT: outFile(),
       },
-      ...SPAWN_GUARD,
     });
 
     expect(existsSync(stream), 'no privileged session reached the host').toBe(true);
@@ -720,9 +717,8 @@ describe('provision-dev-tester-account.sh — the sudo password reaches the host
     writeFileSync(cred, 'fixture-sudo-password\n');
     chmodSync(cred, 0o600);
     const inner = ['bash', JSON.stringify(SCRIPT), ...sealed().map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
-    const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      encoding: 'utf-8',
-      input: '',
+    const r = spawnAtTerminal(inner, {
+      typed: '',
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
@@ -732,7 +728,6 @@ describe('provision-dev-tester-account.sh — the sudo password reaches the host
         FOOTBAG_KNOWN_HOSTS: PIN,
         DTACC_SEALED_OUT: outFile(),
       },
-      ...SPAWN_GUARD,
     });
     expect(r.stdout).toMatch(/Account robin_fielder is ready/);
     expect(r.stdout).not.toMatch(/did not finish/);
@@ -1330,7 +1325,7 @@ describe('provision-dev-tester-account.sh — --sealed', () => {
     '--sealed',
   ];
 
-  /** Driven through `script`, which is the terminal the typed confirmations need. */
+  /** Driven at a pseudo-terminal, which is the terminal the typed confirmations need. */
   function runSealed(stub: string, out: string, terminal: string) {
     const cred = join(WORK_DIR, 'sealed-cred');
     writeFileSync(cred, 'fixture-sudo-password\n');
@@ -1342,9 +1337,8 @@ describe('provision-dev-tester-account.sh — --sealed', () => {
       '<',
       JSON.stringify(cred),
     ].join(' ');
-    return spawnSync('script', ['-qec', inner, '/dev/null'], {
-      encoding: 'utf-8',
-      input: terminal,
+    return spawnAtTerminal(inner, {
+      typed: terminal,
       env: {
         ...process.env,
         ...NO_AWS_CREDENTIALS,
@@ -1354,7 +1348,6 @@ describe('provision-dev-tester-account.sh — --sealed', () => {
         FOOTBAG_KNOWN_HOSTS: PIN,
         DTACC_SEALED_OUT: out,
       },
-      ...SPAWN_GUARD,
     });
   }
 

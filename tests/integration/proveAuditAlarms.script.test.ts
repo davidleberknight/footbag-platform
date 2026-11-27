@@ -16,9 +16,8 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const SCRIPT = join(process.cwd(), 'scripts/prove-audit-alarms.sh');
 const ALARMS = [
@@ -155,13 +154,12 @@ function run(args: string[], a: Account = {}, arn?: string, waitMinutes = '0') {
   return { status: r.status ?? -1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
 }
 
-/** At a terminal, typing APPLY (unless --yes is given) and then each answer in turn. */
+/** At a terminal, typing APPLY (unless --yes is given) and then each answer in turn; an answer of two lines leaves its second waiting ahead of the next question. */
 function runAtTerminal(answers: string[], a: Account = {}, args: string[] = []) {
   const inner = `bash ${JSON.stringify(SCRIPT)} ${args.join(' ')} </dev/null; echo "EXIT=$?"`;
   const typed = args.includes('--yes') ? answers : ['APPLY', ...answers];
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: typed.map((x) => `${x}\n`).join(''),
+  const r = spawnAtTerminal(inner, {
+    typed: typed.map((x) => `${x}\n`),
     env: {
       ...process.env,
       ...awsIdentityStubEnv(dir),
@@ -169,7 +167,6 @@ function runAtTerminal(answers: string[], a: Account = {}, args: string[] = []) 
       PROVE_AUDIT_ALARMS_POLL_SECONDS: '0',
       PROVE_AUDIT_ALARMS_WAIT_MINUTES: '0',
     },
-    ...SPAWN_GUARD,
   });
   const out = r.stdout ?? '';
   const m = out.match(/EXIT=(\d+)/);
@@ -342,7 +339,7 @@ describe('prove-audit-alarms.sh: judging the outcome', () => {
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('prove-audit-alarms.sh: the operator attests to each mailbox', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('prove-audit-alarms.sh: the operator attests to each mailbox', () => {
   // Both environments' alarm topics carry the finding rules, so each finding is
   // meant to reach both environments' mailboxes. A run that asks only about
   // staging can pass while production's route delivers nothing.
@@ -365,6 +362,17 @@ describe.skipIf(!HAS_SCRIPT)('prove-audit-alarms.sh: the operator attests to eac
     });
     expect(r.status, r.out).toBe(0);
     expect(r.questions).toHaveLength(3);
+  });
+
+  it('does not take a yes typed ahead of a question as its answer', () => {
+    // Defect caught: a second "yes" typed along with the first answer
+    // attesting that the next finding's email arrived before the operator has
+    // read which finding it is, and the "no" they type at it never being read.
+    const r = runAtTerminal(['yes\nyes', 'no', 'yes']);
+    expect(r.questions, r.out).toHaveLength(3);
+    const second = r.questions[1].match(/^Did an email for (.*?) reach the /)![1];
+    expect(r.status).not.toBe(0);
+    expect(r.out).toContain(`no email for ${second} reached`);
   });
 
   it('counts only "yes" as attested; any other answer fails the run', () => {

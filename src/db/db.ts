@@ -6620,22 +6620,24 @@ export const media = {
     ORDER BY m.is_system DESC, g.name
   `); },
 
-  // Member-owned named galleries (non-default, non-system) that hold at least
-  // one matching item, each with its item count and its newest matching item's
-  // upload instant, newest first, in one statement however many galleries
-  // exist. An item matches as on the gallery page: active, not an avatar,
+  // Named galleries of one owner kind that hold at least one matching item,
+  // each with its item count and its newest matching item's upload instant,
+  // newest first, in one statement however many galleries exist. The one
+  // parameter picks the kind: 0 for member-owned galleries (the member-galleries
+  // list), 1 for the system member's curated galleries (the curated-galleries
+  // list). An item matches as on the gallery page: active, not an avatar,
   // carrying every criteria tag and no exclude tag. A gallery with no matching
   // item, or no criteria tag at all, has no row. The per-member auto-default
   // Personal Gallery (is_default=1) is excluded so the list shows only
   // deliberately-named galleries; the gallery id breaks ties so every page
   // boundary is stable.
-  get listMemberOwnedNamedGallerySummaries() { return db.prepare(`
+  get listNamedGallerySummariesByOwnerKind() { return db.prepare(`
     WITH g AS (
       SELECT g.id, g.name, g.description, g.created_at,
              m.slug AS owner_slug, m.display_name AS owner_display_name
       FROM member_galleries g
       JOIN members_onboarded m ON m.id = g.owner_member_id
-      WHERE g.is_default = 0 AND m.is_system = 0
+      WHERE g.is_default = 0 AND m.is_system = ?
     ),
     criteria AS (
       SELECT mgt.gallery_id, COUNT(*) AS n

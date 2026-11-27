@@ -28,7 +28,7 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 import { REAL_PASSWORD_REFUSAL, refusalOffering } from '../fixtures/sshPasswordRefusal';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/harden-sshd-remote.sh');
@@ -843,22 +843,17 @@ describe('the operator-facing run', () => {
     expect(read(sessions)).not.toMatch(/^MODE=apply$/m);
   });
 
-  /** Through `script`, so the run has a terminal to confirm on; the sudo
+  /** At a pseudo-terminal, so the run has a terminal to confirm on; the sudo
    *  password is redirected in from a file, as the usage line documents. */
   function runOperatorInTerminal(args: string[], typed: string, env: NodeJS.ProcessEnv) {
     const cred = join(workDir, 'cred');
     writeFileSync(cred, 'fixture-sudo-password\n', { mode: 0o600 });
     const inner = ['bash', JSON.stringify(OPERATOR_SCRIPT), ...args.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
-    const res = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      encoding: 'utf8',
-      input: typed,
-      env,
-      ...SPAWN_GUARD,
-    });
+    const res = spawnAtTerminal(inner, { typed, env });
     return { status: res.status ?? -1, out: res.stdout ?? '' };
   }
 
-  describe.skipIf(!requireToolInCI('script', '--version'))('finishing an unconfirmed change at a terminal', () => {
+  describe.skipIf(!HAS_PTY_DRIVER)('finishing an unconfirmed change at a terminal', () => {
     it('reads the posture, proves both things, then confirms, and never applies again', () => {
       // Defect caught: --confirm re-running the change itself, which re-arms a
       // revert and reloads a host the operator only meant to finish; or the

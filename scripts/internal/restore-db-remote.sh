@@ -565,6 +565,22 @@ if ! cp -a "$DB_FILE" "$superseded"; then
 fi
 echo "    database in place copied to ${superseded}"
 
+# One last backup of the database being replaced, so its newest writes also
+# exist off this host. It is not a precondition: the restore stays available
+# for the database it exists to replace, a damaged one, whose backup is exactly
+# the one that fails, and the design accepts losing at most the writes since
+# the last completed backup. A failure is reported, naming the copy above as
+# the only place those writes remain.
+echo "== Taking a final backup of the database being replaced"
+final_start_rc=0
+systemctl start footbag-backup.service || final_start_rc=$?
+final_result="$(systemctl show -p Result --value footbag-backup.service 2>/dev/null)" || final_result="unreadable"
+if [[ "$final_result" == "success" && "$final_start_rc" == 0 ]]; then
+  echo "    final backup taken"
+else
+  crr_warn "the final backup of the database being replaced ended '${final_result:-unknown}' (start exited ${final_start_rc}): its writes since the last completed backup are only in ${superseded} on this host, kept seven days; see journalctl -u footbag-backup.service"
+fi
+
 # The pending window opens here, before the database is touched: from the next
 # line until the replay succeeds, what sits at the database path may hold
 # personal data members asked to have erased.

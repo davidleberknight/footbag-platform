@@ -528,6 +528,7 @@ if [[ "$MODE" == drill ]]; then
       cr_unproved "did ${question} (not asked: no terminal)"
       continue
     fi
+    tty_discard_pending
     printf 'Did %s? (yes/no): ' "$question" > /dev/tty
     answer=""; read -r answer < /dev/tty || answer=""
     if [[ "$answer" == "yes" ]]; then

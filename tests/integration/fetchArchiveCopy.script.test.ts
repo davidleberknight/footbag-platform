@@ -23,11 +23,10 @@ import { hostname } from 'node:os';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { createScratchDir } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 'fetch-archive-copy.sh');
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const ROLE_ARN = 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/jane_doe';
 const BUCKET = 'footbag-production-archive';
@@ -95,7 +94,7 @@ function newCase(opts: { attested?: false | 'here' | 'elsewhere' | 'not-encrypte
 
 interface RunOpts {
   arn?: string;
-  /** Run at a terminal through `script`, typing this. */
+  /** Run at a pseudo-terminal, typing this. */
   typed?: string;
   /** The listing fails with this message. */
   listFails?: string;
@@ -144,9 +143,7 @@ function run(c: Case, args: string[], opts: RunOpts = {}) {
   let out: string;
   if (opts.typed !== undefined) {
     const inner = ['bash', JSON.stringify(script), ...args.map((a) => JSON.stringify(a)), '</dev/null'].join(' ');
-    const r = spawnSync('script', ['-qec', `${inner}; echo "EXIT=$?"`, '/dev/null'], {
-      encoding: 'utf-8', input: opts.typed, env, ...SPAWN_GUARD,
-    });
+    const r = spawnAtTerminal(`${inner}; echo "EXIT=$?"`, { typed: opts.typed, env });
     out = r.stdout ?? '';
     const m = out.match(/EXIT=(\d+)/);
     status = m ? Number(m[1]) : -1;
@@ -330,7 +327,7 @@ describe('fetch-archive-copy.sh: the encrypted-disk attestation', () => {
     expect(res.awsCalls).toEqual([]);
   });
 
-  it.skipIf(!HAS_SCRIPT)('records a typed yes once, mode 600, and a later fetch with no terminal uses it', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('records a typed yes once, mode 600, and a later fetch with no terminal uses it', () => {
     const c = newCase({ attested: false });
     const first = run(c, [], { typed: 'yes\n' });
     expect(first.status, first.out).toBe(0);
@@ -342,7 +339,7 @@ describe('fetch-archive-copy.sh: the encrypted-disk attestation', () => {
     expect(copied(c)).toEqual([...FILE_KEYS].sort());
   });
 
-  it.skipIf(!HAS_SCRIPT)('records nothing and fetches nothing when the answer is not yes', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('records nothing and fetches nothing when the answer is not yes', () => {
     const c = newCase({ attested: false });
     const res = run(c, [], { typed: 'no\n' });
     expect(res.status).toBe(1);

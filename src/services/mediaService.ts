@@ -7,17 +7,21 @@
  *
  * Owns:
  *   - /media hub page read (collection cards; the Member galleries card links
- *     to the member-galleries list page). A member viewer also gets a Share
- *     Your Media card third: the upload form for a member holding Tier 1
+ *     to the member-galleries list page, the Curated galleries card to the
+ *     curated-galleries list page). A member viewer also gets a Share Your
+ *     Media card after those two: the upload form for a member holding Tier 1
  *     benefits, the Tier 1 benefit text and upgrade link otherwise; a visitor
  *     or a registrant still onboarding never sees it
- *   - /media/member-galleries list page read (member-owned named galleries
- *     with at least one matching item, newest matching upload first, paged
- *     with `?page=` at the shared page size, excluding the auto-default
- *     Personal Gallery; a page past the last is not found); the hub's Member
- *     galleries card appears on the same has-items rule. Every gallery's item
- *     count and newest matching upload are read in one statement
- *     (`listMemberOwnedNamedGallerySummaries`), never per gallery
+ *   - /media/member-galleries and /media/curated-galleries list page reads
+ *     (member-owned named galleries, and the system member's named galleries,
+ *     each with at least one matching item, newest matching upload first,
+ *     paged with `?page=` at the shared page size, excluding the auto-default
+ *     Personal Gallery; a page past the last is not found). Both are shaped by
+ *     one helper, so their order, paging and entries match; only the member
+ *     list carries an owner line. Each hub card appears on the same has-items
+ *     rule. Every gallery's item count and newest matching upload are read in
+ *     one statement per list (`listNamedGallerySummariesByOwnerKind`), never
+ *     per gallery
  *   - Profile Media section view-model (getMemberProfileMedia, consumed by
  *     memberService): the member's named galleries as link cards plus a view-all
  *     link, not an inline thumbnail grid
@@ -71,7 +75,7 @@
  *   - Named-gallery and browse page reads filter `moderation_status = 'active'` and
  *     `is_avatar = 0`; default ordering follows `member_galleries.sort_order`.
  *   - Every paged media surface (browse results, named gallery, member-galleries
- *     list) reads its page size from the `media_page_size` config key, shapes
+ *     and curated-galleries lists) reads its page size from the `media_page_size` config key, shapes
  *     one pagination block (numbered links with first, last and gaps, "Page X
  *     of Y") through `shapePagination`, and treats a page past the last as not
  *     found. Browse results and named galleries add the large-result notice
@@ -616,10 +620,6 @@ export interface MediaHubContent {
   cards: MediaHubCard[];
 }
 
-// One row on the /media/member-galleries list page: a member-owned named
-// gallery with its item count and owner attribution. `ownerHref` is the
-// owner's profile link, present only for authenticated viewers (member
-// profiles are not visitor-visible); the display name shows regardless.
 // One named-gallery link card in the profile Media section.
 export interface ProfileGalleryCard {
   name: string;
@@ -641,7 +641,13 @@ export interface ProfileMediaView {
   hasContent: boolean;
 }
 
-export interface MemberGalleryListItem {
+// One row on a gallery list page (/media/member-galleries or
+// /media/curated-galleries): a named gallery with its item count. On the
+// member list it carries owner attribution: the display name always, and
+// `ownerHref`, the owner's profile link, only for a member viewer (member
+// profiles are not visitor-visible). On the curated list every gallery is the
+// system member's, so both are null and no owner line renders.
+export interface NamedGalleryListItem {
   id: string;
   name: string;
   description: string;
@@ -650,13 +656,15 @@ export interface MemberGalleryListItem {
   itemCount: number;
   itemCountNoun: string;
   href: string;
-  ownerDisplayName: string;
+  ownerDisplayName: string | null;
   ownerHref: string | null;
 }
 
-export interface MemberGalleriesContent {
-  galleries: MemberGalleryListItem[];
+export interface NamedGalleryListContent {
+  galleries: NamedGalleryListItem[];
   hasGalleries: boolean;
+  /** Shown in place of the grid when no gallery of this kind has an item. */
+  emptyText: string;
   pagination: GalleryPagination;
 }
 
@@ -1113,12 +1121,13 @@ function galleryCoverThumbUrls(galleryIds: string[]): Map<string, string> {
   );
 }
 
-// The member-owned named galleries that hold at least one matching item, by
-// the same tag-AND match their pages render, newest matching upload first.
-// Membership is computed at request time, so a gallery can be empty at
-// creation and again later when its items are deleted or retagged; an empty
-// one is absent. One statement for every gallery, never one per gallery.
-interface MemberGallerySummaryRow {
+// The named galleries of one owner kind (member-owned, or the system member's
+// curated galleries) that hold at least one matching item, by the same
+// tag-AND match their pages render, newest matching upload first. Membership
+// is computed at request time, so a gallery can be empty at creation and again
+// later when its items are deleted or retagged; an empty one is absent. One
+// statement for every gallery, never one per gallery.
+interface NamedGallerySummaryRow {
   id: string;
   name: string;
   description: string;
@@ -1128,8 +1137,72 @@ interface MemberGallerySummaryRow {
   item_count: number;
   latest_uploaded_at: string;
 }
-function memberGallerySummaries(): MemberGallerySummaryRow[] {
-  return media.listMemberOwnedNamedGallerySummaries.all() as MemberGallerySummaryRow[];
+type GalleryOwnerKind = 'member' | 'curated';
+function namedGallerySummaries(kind: GalleryOwnerKind): NamedGallerySummaryRow[] {
+  return media.listNamedGallerySummariesByOwnerKind.all(kind === 'curated' ? 1 : 0) as NamedGallerySummaryRow[];
+}
+
+// One gallery list page, member or curated: the same order, paging, covers and
+// entry layout, so the two lists cannot drift apart. A gallery with no matching
+// items offers a visitor nothing, so it is left off the list; it stays
+// reachable at its own URL and reappears once an item matches. The rest order
+// by their newest matching upload, newest first, so a gallery that just gained
+// an item rises and an abandoned one sinks; the gallery id breaks ties so the
+// order, and so every page boundary, is stable. `owner` is null on the curated
+// list, whose galleries all belong to the system member and carry no owner line.
+function shapeGalleryListPage(opts: {
+  rows: NamedGallerySummaryRow[];
+  rawPage: unknown;
+  basePath: string;
+  title: string;
+  intro: string;
+  pageKey: string;
+  emptyText: string;
+  owner: { href: (row: NamedGallerySummaryRow) => string | null } | null;
+}): PageViewModel<NamedGalleryListContent> {
+  const total = opts.rows.length;
+  const pageSize = mediaPageSize();
+  const { page, totalPages } = resolvePage(opts.rawPage, total, pageSize);
+  // A list of galleries has no hashtag filter to narrow with, so it pages
+  // without the large-result notice.
+  const pageHref = (p: number) => (p === 1 ? opts.basePath : `${opts.basePath}?page=${p}`);
+  const pagination = shapePagination({
+    page,
+    totalPages,
+    pageSize,
+    total,
+    href: pageHref,
+    withLargeSetNotice: false,
+  });
+
+  const offset = (page - 1) * pageSize;
+  const pageRows = opts.rows.slice(offset, offset + pageSize);
+  // Covers only for the galleries this page shows.
+  const covers = galleryCoverThumbUrls(pageRows.map((g) => g.id));
+  const galleries: NamedGalleryListItem[] = pageRows.map((g) => {
+    const itemCount = g.item_count;
+    return {
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      coverThumbUrl: covers.get(g.id) ?? null,
+      itemCount,
+      itemCountNoun: itemCount === 1 ? 'item' : 'items',
+      href: `/media/${g.id}`,
+      ownerDisplayName: opts.owner == null ? null : g.owner_display_name,
+      ownerHref: opts.owner == null ? null : opts.owner.href(g),
+    };
+  });
+  return {
+    seo: { title: pagedTitle(opts.title, pagination), canonicalPath: pageHref(page) },
+    page: {
+      sectionKey: 'media',
+      pageKey: opts.pageKey,
+      title: opts.title,
+      intro: opts.intro,
+    },
+    content: { galleries, hasGalleries: galleries.length > 0, emptyText: opts.emptyText, pagination },
+  };
 }
 
 // Upper bound on resolved include/exclude tags carried into the standalone item
@@ -1486,17 +1559,21 @@ export const mediaService = {
 
       // The hub does not list each gallery inline: member-owned named
       // galleries live behind the Member galleries card and its list page, and
-      // FH-owned galleries are reached through the curated collection cards.
-      // Only two facts drive the cards here: whether any member gallery has at
-      // least one matching item (the card links to the list page when so; an
-      // empty gallery offers a visitor nothing, so it does not count) and
-      // whether the chinlone collection is seeded (the Related Sports link).
-      const hasMemberGalleries = memberGallerySummaries().length > 0;
+      // the system member's curated galleries behind the Curated galleries card
+      // and its list page; the curated collection cards still lead to the
+      // curated galleries they group. Three facts drive the cards here: whether
+      // any member gallery, and whether any curated gallery, has at least one
+      // matching item (each card links to its list page when so; an empty
+      // gallery offers a visitor nothing, so it does not count), and whether
+      // the chinlone collection is seeded (the Related Sports link).
+      const hasMemberGalleries = namedGallerySummaries('member').length > 0;
+      const hasCuratedGalleries = namedGallerySummaries('curated').length > 0;
       const relatedSportsHref = galleries.some((g) => g.id === 'gallery_chinlone')
         ? '/media/gallery_chinlone' : null;
 
       // The browse-by-hashtag card leads the grid with a distinct green treatment.
-      // The Member galleries card sits second. A single Freestyle card opens into
+      // The Member galleries card sits second and the Curated galleries card
+      // third. A single Freestyle card opens into
       // the shared Freestyle Media section (tutorials and demos, records, curated
       // trick videos, shred clips), so the hub and /freestyle/media present one
       // structure. Related Sports absorbs chinlone and (future) sepak takraw.
@@ -1513,6 +1590,12 @@ export const mediaService = {
           description: 'Photo and video galleries created by IFPA members.',
           href: hasMemberGalleries ? '/media/member-galleries' : null,
           cta: hasMemberGalleries ? 'Browse member galleries' : null,
+        },
+        {
+          title: 'Curated Galleries',
+          description: 'Photo and video galleries curated by IFPA.',
+          href: hasCuratedGalleries ? '/media/curated-galleries' : null,
+          cta: hasCuratedGalleries ? 'Browse Curated Galleries' : null,
         },
         ...shareMediaCard(viewer),
         {
@@ -1542,10 +1625,10 @@ export const mediaService = {
       ];
 
       // Only surface a category that has a live destination. Empty or not-yet-built
-      // categories (Net, Sideline, an empty Member galleries, or an unseeded Related
-      // Sports) are hidden until they have content, so the hub never reads as a
-      // list of placeholders. Each reappears the moment
-      // its href resolves (a member gallery gains its first item, the Net collection is seeded).
+      // categories (Net, Sideline, an empty Member or Curated galleries, or an
+      // unseeded Related Sports) are hidden until they have content, so the hub
+      // never reads as a list of placeholders. Each reappears the moment its
+      // href resolves (a gallery gains its first item, the Net collection is seeded).
       const liveCards = cards.filter((c) => c.href != null);
 
       return {
@@ -1564,63 +1647,36 @@ export const mediaService = {
   getMemberGalleriesPage(
     viewer: ViewerContext = { authenticated: false },
     rawPage?: unknown,
-  ): PageViewModel<MemberGalleriesContent> {
-    return runSqliteRead('mediaService.getMemberGalleriesPage', () => {
-      // A gallery with no matching items offers a visitor nothing, so it is
-      // left off the list; it stays reachable from its owner's management page
-      // and at its own URL, and reappears here once an item matches. The rest
-      // order by their newest matching upload, newest first, so a gallery that
-      // just gained an item rises and an abandoned one sinks; the gallery id
-      // breaks ties so the order, and so every page boundary, is stable.
-      const listed = memberGallerySummaries();
+  ): PageViewModel<NamedGalleryListContent> {
+    return runSqliteRead('mediaService.getMemberGalleriesPage', () => shapeGalleryListPage({
+      rows: namedGallerySummaries('member'),
+      rawPage,
+      basePath: '/media/member-galleries',
+      title: 'Member Galleries',
+      intro: 'Photo and video galleries created by IFPA members.',
+      pageKey: 'media_member_galleries',
+      emptyText: 'No member galleries yet.',
+      // Member profiles are visible to members only, so the owner link is
+      // present for a member viewer and omitted for everyone else, who still
+      // sees the owner's display name.
+      owner: { href: (g) => (viewer.authenticated ? `/members/${g.owner_slug}` : null) },
+    }));
+  },
 
-      const total = listed.length;
-      const pageSize = mediaPageSize();
-      const { page, totalPages } = resolvePage(rawPage, total, pageSize);
-      // A list of galleries has no hashtag filter to narrow with, so it pages
-      // without the large-result notice.
-      const pageHref = (p: number) => (p === 1 ? '/media/member-galleries' : `/media/member-galleries?page=${p}`);
-      const pagination = shapePagination({
-        page,
-        totalPages,
-        pageSize,
-        total,
-        href: pageHref,
-        withLargeSetNotice: false,
-      });
-
-      const offset = (page - 1) * pageSize;
-      const pageRows = listed.slice(offset, offset + pageSize);
-      // Covers only for the galleries this page shows.
-      const covers = galleryCoverThumbUrls(pageRows.map((g) => g.id));
-      const galleries: MemberGalleryListItem[] = pageRows.map((g) => {
-        const itemCount = g.item_count;
-        return {
-          id: g.id,
-          name: g.name,
-          description: g.description,
-          coverThumbUrl: covers.get(g.id) ?? null,
-          itemCount,
-          itemCountNoun: itemCount === 1 ? 'item' : 'items',
-          href: `/media/${g.id}`,
-          ownerDisplayName: g.owner_display_name,
-          // Member profiles are visible to members only, so the owner link is
-          // present for a member viewer and omitted for everyone else, who
-          // still sees the owner's display name.
-          ownerHref: viewer.authenticated ? `/members/${g.owner_slug}` : null,
-        };
-      });
-      return {
-        seo: { title: pagedTitle('Member Galleries', pagination), canonicalPath: pageHref(page) },
-        page: {
-          sectionKey: 'media',
-          pageKey: 'media_member_galleries',
-          title: 'Member Galleries',
-          intro: 'Photo and video galleries created by IFPA members.',
-        },
-        content: { galleries, hasGalleries: galleries.length > 0, pagination },
-      };
-    });
+  // The curated-galleries list: the system member's named galleries, shaped
+  // exactly as the member-galleries list but with no owner line, since every
+  // one is IFPA's. Takes no viewer, because nothing on it varies by viewer.
+  getCuratedGalleriesPage(rawPage?: unknown): PageViewModel<NamedGalleryListContent> {
+    return runSqliteRead('mediaService.getCuratedGalleriesPage', () => shapeGalleryListPage({
+      rows: namedGallerySummaries('curated'),
+      rawPage,
+      basePath: '/media/curated-galleries',
+      title: 'Curated Galleries',
+      intro: 'Photo and video galleries curated by IFPA.',
+      pageKey: 'media_curated_galleries',
+      emptyText: 'No curated galleries yet.',
+      owner: null,
+    }));
   },
 
   // The profile Media section: the member's named galleries shaped as link cards

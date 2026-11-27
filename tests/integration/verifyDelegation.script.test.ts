@@ -26,11 +26,10 @@
  * reached.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { spawnSync } from 'node:child_process';
 import { writeFileSync, readFileSync, mkdirSync, chmodSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
@@ -186,12 +185,7 @@ function run(w: World, args: string[], answers: string[] = []) {
   const expectArg = args.includes('legacy') ? 'legacy' : 'route53';
   const env = world(w, expectArg);
   const inner = ['bash', SCRIPT, ...args].map(shellWord).join(' ');
-  const res = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    env,
-    input: answers.map((a) => `${a}\n`).join(''),
-    encoding: 'utf-8',
-    ...SPAWN_GUARD,
-  });
+  const res = spawnAtTerminal(inner, { env, typed: answers.map((a) => `${a}\n`).join('') });
   return {
     status: res.status,
     out: `${res.stdout ?? ''}${res.stderr ?? ''}`.replace(/\r/g, ''),

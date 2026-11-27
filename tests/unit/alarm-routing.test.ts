@@ -46,13 +46,13 @@ const CONTAINER_ALARMS = [
 const CRITICAL: Record<Tree, string[]> = {
   staging: [
     'container_memory_critical', 'container_oom_kills', 'container_crashes', 'container_unhealthy',
-    'high_cpu', 'high_memory', 'high_disk', 'cloudfront_5xx', 'db_backup_age', 'db_backup_failures',
+    'high_cpu', 'high_memory', 'high_disk', 'cloudfront_5xx', 'db_backup_age', 'db_backup_failures', 'db_backup_promotion',
     'cf_function_validation_errors_media', 'cf_function_execution_errors_media',
     'cf_function_validation_errors_archive', 'cf_function_execution_errors_archive', 'site_unavailable',
   ],
   production: [
     'container_memory_critical', 'container_oom_kills', 'container_crashes', 'container_unhealthy',
-    'high_cpu', 'high_memory', 'high_disk', 'cloudfront_5xx', 'db_backup_age', 'db_backup_failures',
+    'high_cpu', 'high_memory', 'high_disk', 'cloudfront_5xx', 'db_backup_age', 'db_backup_failures', 'db_backup_promotion',
     'cf_function_validation_errors_apex', 'cf_function_execution_errors_apex',
     'cf_function_validation_errors_media', 'cf_function_execution_errors_media',
     'cf_function_validation_errors_archive', 'cf_function_execution_errors_archive',

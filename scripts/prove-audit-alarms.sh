@@ -438,6 +438,7 @@ ask_mailboxes() {
       cr_unproved "an email for ${what} reached the ${label} (not asked: no terminal)"
       continue
     fi
+    tty_discard_pending
     printf 'Did an email for %s reach the %s? (yes/no): ' "$what" "$label" > /dev/tty
     answer=""; read -r answer < /dev/tty || answer=""
     if [[ "$answer" == "yes" ]]; then

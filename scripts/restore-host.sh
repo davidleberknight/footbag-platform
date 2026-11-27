@@ -197,6 +197,8 @@ source "${SCRIPT_DIR}/lib/closing-report.sh"
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 # shellcheck source=lib/aws-profile.sh
 source "${SCRIPT_DIR}/lib/aws-profile.sh"
+# shellcheck source=lib/backup-key.sh
+source "${SCRIPT_DIR}/lib/backup-key.sh"
 # host_access_mint: the one place a host's keys are read from Lightsail.
 # shellcheck source=lib/host-access-mint.sh
 source "${SCRIPT_DIR}/lib/host-access-mint.sh"
@@ -260,9 +262,12 @@ if [[ -n "$INSTANCE_SNAPSHOT" ]]; then
   [[ "$MODE" == "restore" ]] || die "--instance-snapshot applies only when starting a restore"
   [[ -z "$RESTORE_DATE" ]] || die "--instance-snapshot and --restore-date name two different sources; give one"
 fi
+# The one shape a database backup key has. Every key this run hands to the
+# database restore is held to it, whether typed, read from a tag or listed.
+BACKUP_KEY_RE='^(routine|hourly|daily)/[0-9]{4}/[0-9]{2}/[0-9]{2}/footbag-[0-9]{8}T[0-9]{6}Z\.db\.gz$'
 if [[ -n "$DB_SNAPSHOT" ]]; then
   [[ "$MODE" == "restore" ]] || die "--db-snapshot applies only to a restore run"
-  [[ "$DB_SNAPSHOT" =~ ^(routine|hourly|daily)/[0-9]{4}/[0-9]{2}/[0-9]{2}/footbag-[0-9]{8}T[0-9]{6}Z\.db\.gz$ ]] \
+  [[ "$DB_SNAPSHOT" =~ $BACKUP_KEY_RE ]] \
     || die "--db-snapshot must be a backup key such as routine/YYYY/MM/DD/footbag-YYYYMMDDTHHMMSSZ.db.gz (got '${DB_SNAPSHOT}')"
 fi
 
@@ -464,6 +469,12 @@ find_record() {
   done <<< "$rows"
   [[ "$REC_BACKUP" == "None" ]] && REC_BACKUP=""
   [[ "$REC_DB" == "None" ]] && REC_DB=""
+  # A tag anyone with tagging rights could have written is checked before it
+  # becomes the key a restore puts in place.
+  [[ -z "$REC_BACKUP" || "$REC_BACKUP" =~ $BACKUP_KEY_RE ]] \
+    || die "the restore record ${REC_NAME} names a backup that is not a backup key ('${REC_BACKUP}'); fix or remove its ${TAG_BACKUP} tag"
+  [[ -z "$REC_DB" || "$REC_DB" =~ $BACKUP_KEY_RE ]] \
+    || die "the restore record ${REC_NAME} names a restored database that is not a backup key ('${REC_DB}'); fix or remove its ${TAG_DB} tag"
   (( found <= 1 )) || die "${found} open restores are recorded for ${TARGET}; resolve them in Lightsail before running this"
   (( found == 1 ))
 }
@@ -539,13 +550,6 @@ backup_alarm_minutes() {
     cr_warn "could not read the backup alarm's threshold from ${TF_DIR} state, so the backup's age is not judged: $(tail -n 1 "$err")"
   fi
   return 0
-}
-
-# The time a backup was taken, from its key's footbag-<UTC timestamp> name.
-backup_key_epoch() {
-  local base="${1##*/}"
-  [[ "$base" =~ ^footbag-([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z ]] || return 1
-  date -u -d "${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}" +%s
 }
 
 report_backup_age() {
@@ -757,6 +761,10 @@ on_api_pin() {
 
 host_answers_quietly() { require_host_is "$ALIAS" "$TARGET" >/dev/null 2>&1; }
 
+# A finished restore's host proving itself, through a pin built afresh from
+# the API each time, so one failed read does not decide it.
+finished_host_proves() { build_api_pin && on_api_pin host_proves; }
+
 # Stops the site and the backups on the restored host, and reports it only when
 # neither is running: until the real database is in place, the service would
 # serve and mail from the snapshot's, and a backup would upload it.
@@ -767,12 +775,19 @@ if systemctl is-active --quiet footbag-backup.timer || systemctl is-active --qui
   exit 1
 fi
 echo "---FOOTBAG-HELD---"'
+# HOST_STEP_WHY carries why a hold or release did not report done: the session's
+# own last line, or its exit status, so the failure text keeps its cause.
+HOST_STEP_WHY=""
 host_hold() {
-  local out
-  require_host_ssh_opts || return 1
+  local out rc=0
+  HOST_STEP_WHY=""
+  require_host_ssh_opts || { HOST_STEP_WHY="the pinned host key is not installed"; return 1; }
   out="$({ printf '%s\n' "$SUDO_PASS"; printf '%s\n' "$HOLD_BODY"; } \
-    | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-restore-hold')" || true
-  grep -qx -- '---FOOTBAG-HELD---' <<< "$out"
+    | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-restore-hold' 2>&1)" || rc=$?
+  grep -qx -- '---FOOTBAG-HELD---' <<< "$out" && return 0
+  HOST_STEP_WHY="$(grep -v '^[[:space:]]*$' <<< "$out" | tail -n 1)"
+  HOST_STEP_WHY="${HOST_STEP_WHY:-the session ended with exit ${rc} and no output}"
+  return 1
 }
 
 # Starts the backup timer again once the real database is in place, and
@@ -780,11 +795,15 @@ host_hold() {
 RELEASE_BODY='systemctl start footbag-backup.timer || true
 systemctl is-active --quiet footbag-backup.timer && echo "---FOOTBAG-RELEASED---"'
 host_release() {
-  local out
-  require_host_ssh_opts || return 1
+  local out rc=0
+  HOST_STEP_WHY=""
+  require_host_ssh_opts || { HOST_STEP_WHY="the pinned host key is not installed"; return 1; }
   out="$({ printf '%s\n' "$SUDO_PASS"; printf '%s\n' "$RELEASE_BODY"; } \
-    | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-restore-release')" || true
-  grep -qx -- '---FOOTBAG-RELEASED---' <<< "$out"
+    | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-restore-release' 2>&1)" || rc=$?
+  grep -qx -- '---FOOTBAG-RELEASED---' <<< "$out" && return 0
+  HOST_STEP_WHY="$(grep -v '^[[:space:]]*$' <<< "$out" | tail -n 1)"
+  HOST_STEP_WHY="${HOST_STEP_WHY:-the session ended with exit ${rc} and no output}"
+  return 1
 }
 
 # ── The restored host proves itself ──────────────────────────────────────────
@@ -1041,7 +1060,15 @@ if find_record; then
     # API, so a stale operator pin is not mistaken for a lost host.
     NEW="$REC_TO"
     echo "== The open restore ${REC_FROM} -> ${REC_TO} is complete; asking ${REC_TO} to prove itself"
-    if ! { build_api_pin && on_api_pin host_proves; }; then
+    # Asked six times, a poll interval apart, before the host is called lost, so
+    # a dropped session or a slow API answer on a re-run does not start a
+    # second restore of a host that is fine.
+    proves=0
+    for (( try = 1; try <= 6; try++ )); do
+      if finished_host_proves; then proves=1; break; fi
+      (( try < 6 )) && sleep "$POLL_SECS"
+    done
+    if (( ! proves )); then
       echo "    ${REC_TO} does not prove itself, so it is treated as lost and restored in its turn."
       SUPERSEDED_REC="$REC_NAME"
       SUPERSEDED_FROM="$REC_FROM"
@@ -1245,6 +1272,9 @@ if [[ -z "$REC_BACKUP" ]]; then
     done
     [[ -n "$key" ]] || cr_warn "no database backup from the last two days is in ${bucket}."
   fi
+  if [[ -n "$key" && ! "$key" =~ $BACKUP_KEY_RE ]]; then
+    die "the newest object listed in ${bucket} is not a backup key ('${key}'), so it is not restored"
+  fi
   if [[ -n "$key" ]]; then
     aws_ls tag-resource --resource-name "$REC_NAME" --tags "key=${TAG_BACKUP},value=${key}" >/dev/null \
       || die "could not record the last backup ${key} on ${REC_NAME}"
@@ -1287,7 +1317,7 @@ else
     --key-pair-name "$I_KEY" --ip-address-type "$I_IPTYPE" ${addons[@]+"${addons[@]}"} \
     --tags "key=Project,value=footbag-platform" "key=Environment,value=${TARGET}" \
            "key=ManagedBy,value=terraform" "key=Role,value=web" >/dev/null \
-    || { CREATED_NEW=0; die "the create of ${NEW} was refused; ${OLD} is stopped: start it with aws lightsail start-instance --instance-name ${OLD} to serve again"; }
+    || { CREATED_NEW=0; die "the create of ${NEW} was refused; ${OLD} is stopped: start it with bash scripts/host-cold-restart.sh --target ${TARGET} to serve again"; }
 fi
 
 # ── Step 5: the firewall, without the origin port ────────────────────────────
@@ -1359,7 +1389,7 @@ else
   if [[ -z "$REC_DB" ]]; then
     [[ -n "$REC_BACKUP" ]] || die "no last backup of ${OLD} is recorded, so the real database cannot be put back and ${NEW} stays off the public path (port ${ORIGIN_PORT} closed). Choose the backup to restore and run again with --db-snapshot <key>"
     on_api_pin host_hold \
-      || die "the service or the backup timer on ${NEW} did not stop, so the snapshot's database may still be serving or uploading. Nothing was restored and port ${ORIGIN_PORT} stays closed"
+      || die "the service or the backup timer on ${NEW} did not stop (${HOST_STEP_WHY}), so the snapshot's database may still be serving or uploading. Nothing was restored and port ${ORIGIN_PORT} stays closed"
     echo "    footbag.service and footbag-backup.timer stopped on ${NEW}"
     echo "== Restoring ${REC_BACKUP} onto ${NEW} through scripts/restore-db.sh (it asks for its own APPLY)"
     printf '%s\n' "$SUDO_PASS" \
@@ -1372,7 +1402,7 @@ else
     echo "    restored earlier: ${REC_DB}"
   fi
   on_api_pin host_release \
-    || die "the backup timer on ${NEW} did not start again, so backups are stopped. Run again to retry"
+    || die "the backup timer on ${NEW} did not start again (${HOST_STEP_WHY}), so backups are stopped. Run again to retry"
   echo "    footbag-backup.timer started again on ${NEW}"
 fi
 

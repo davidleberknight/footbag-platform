@@ -497,6 +497,9 @@ fi
 # Images built on another processor cannot start on the hosts, so refuse here,
 # before anything is sent.
 require_images_for_hosts || exit 1
+if [[ "$FOOTBAG_ENV" == "production" ]]; then
+  require_no_testkit_in_images || exit 1
+fi
 
 # Capture layer DiffIDs (RootFS.Layers) for end-to-end integrity verification:
 # the remote-half inspects the loaded images and exits non-zero if either layer
@@ -668,6 +671,7 @@ send_remote_half() {
   printf 'MIGRATION_CHECKSUM=%q\n'          "${MIGRATION_CHECKSUM:-}"
   printf 'DEPLOY_ACTOR=%q\n'                "$DEPLOY_ACTOR"
   printf 'FIRST_INSTALL=%q\n'               "$FIRST_INSTALL"
+  printf 'REBOOT_FOLLOWS=%q\n'              "${FOOTBAG_BOOTSTRAP_REBOOT_FOLLOWS:-0}"
   printf 'EXPECTED_SQLITE_VERSION=%q\n'     "$PIN_SQLITE_VERSION"
   printf 'EXPECTED_DOCKER_ENGINE=%q\n'      "$PIN_DOCKER_ENGINE"
   printf 'EXPECTED_COMPOSE_VERSION=%q\n'    "$PIN_COMPOSE_VERSION"

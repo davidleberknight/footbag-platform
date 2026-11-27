@@ -34,6 +34,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
@@ -376,13 +377,7 @@ describe('provision-url-screening-key.sh — an interrupt leaves nothing behind 
 
   function runPrompted(aws: ReturnType<typeof awsStub>, extra: string[] = []) {
     const inner = ['bash', SCRIPT, '--profile', 'fixture-profile', '--target', 'both', ...extra, 'store'].join(' ');
-    return spawnSync('script', ['-qec', inner, '/dev/null'], {
-      cwd: process.cwd(),
-      env: { ...process.env, ...aws.env },
-      input: `${KEY}\n`,
-      encoding: 'utf-8',
-      ...SPAWN_GUARD,
-    });
+    return spawnAtTerminal(inner, { cwd: process.cwd(), env: { ...process.env, ...aws.env }, typed: `${KEY}\n` });
   }
 
   it('shreds a file it created from the prompt when interrupted before the key reached any environment', () => {

@@ -21,12 +21,12 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 
 const SETSID = requireToolInCI('setsid', '--version');
-const SCRIPT_PTY = requireToolInCI('script', '--version');
 
 const SCRIPT = join(process.cwd(), 'scripts/link-stripe-test-clock.sh');
 const PASSWORD = 'stub-sudo-password';
@@ -151,9 +151,7 @@ function runScript(args: string[], opts: RunOptions = {}): RunResult {
   let result;
   if (opts.typed !== undefined) {
     const inner = `${['bash', SCRIPT, ...args].map((a) => `'${a}'`).join(' ')} < '${pass}'`;
-    result = spawnSync('script', ['-qec', inner, '/dev/null'], {
-      cwd: process.cwd(), env, input: `${opts.typed}\n`, encoding: 'utf-8', ...SPAWN_GUARD,
-    });
+    result = spawnAtTerminal(inner, { cwd: process.cwd(), env, typed: `${opts.typed}\n` });
   } else {
     const [command, argv] = opts.noTerminal
       ? ['setsid', ['--wait', 'bash', SCRIPT, ...args]]
@@ -259,7 +257,7 @@ describe('link-stripe-test-clock.sh: the host decides the member and the key mod
 });
 
 describe('link-stripe-test-clock.sh: --member-from-tty', () => {
-  it.skipIf(!SCRIPT_PTY)('asks for the member at the terminal and checks the one typed', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('asks for the member at the terminal and checks the one typed', () => {
     // The readiness sitting writes this command down before the member is chosen;
     // a typed slug that went unchecked, or was ignored, would link the wrong member.
     const r = runScript(['--target', 'production', '--member-from-tty'], { typed: MEMBER });
@@ -279,7 +277,7 @@ describe('link-stripe-test-clock.sh: --member-from-tty', () => {
 });
 
 describe('link-stripe-test-clock.sh: --apply', () => {
-  it.skipIf(!SCRIPT_PTY)('creates the clock and its customer, records the change, then links it', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('creates the clock and its customer, records the change, then links it', () => {
     const records = recordDir();
     const r = runScript([...DRY, '--apply', '--record-dir', records], { typed: 'APPLY' });
     expect(r.exitCode, r.output).toBe(0);
@@ -304,7 +302,7 @@ describe('link-stripe-test-clock.sh: --apply', () => {
     for (const c of r.configs) expect(existsSync(c)).toBe(false);
   });
 
-  it.skipIf(!SCRIPT_PTY)('deletes the clock it made when the link does not land', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('deletes the clock it made when the link does not land', () => {
     // Left behind, the clock and its customer would sit in the account with no
     // member pointing at them and nothing saying why they exist.
     const r = runScript([...DRY, '--apply', '--record-dir', recordDir()], {
@@ -316,7 +314,7 @@ describe('link-stripe-test-clock.sh: --apply', () => {
     expect(deletes).toEqual([expect.stringContaining(`/v1/test_helpers/test_clocks/${CLOCK}`)]);
   });
 
-  it.skipIf(!SCRIPT_PTY)('refuses a customer that is not on the clock, and deletes the clock', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('refuses a customer that is not on the clock, and deletes the clock', () => {
     const r = runScript([...DRY, '--apply', '--record-dir', recordDir()], {
       typed: 'APPLY', customer: { id: CUSTOMER, object: 'customer', livemode: false, test_clock: null },
     });

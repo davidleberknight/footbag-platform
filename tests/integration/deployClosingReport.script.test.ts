@@ -577,24 +577,51 @@ describe.each(HALVES)('%s reads optional Parameter Store values', (half) => {
   });
 });
 
-describe.each(HALVES)('%s lists the awslogs drop-in it installed', (half) => {
-  // Defect caught: a deploy that restarted the host's docker daemon saying so in
-  // one line among hundreds, so the restart is missing from the closing report.
-  it('marks the install and docker restart as a warning', () => {
-    const dir = world();
-    const r = runScript(dir, [
+describe.each(HALVES)('%s lists the awslogs drop-in it changed', (half) => {
+  // The drop-in path is fixed in the half; the case points it at its own file.
+  const drive = (dir: string, existing: string | null) => {
+    const live = join(dir, 'awslogs.conf');
+    if (existing !== null) writeFileSync(live, existing);
+    return runScript(dir, [
       'set -euo pipefail',
       `source ${JSON.stringify(REMOTE_REPORT_LIB)}`,
-      'install() { :; }',
+      `install() { cp "\${@: -2:1}" "\${@: -1}"; }`,
       'systemctl() { echo "systemctl $*"; }',
       `awslogs_dropin_tmp=${JSON.stringify(join(dir, 'dropin'))}`,
-      `printf 'fixture drop-in %s\\n' "${dir}" > "$awslogs_dropin_tmp"`,
-      stretch(half, 'if ! cmp -s "$awslogs_dropin_tmp"', 'rm -f "$awslogs_dropin_tmp"'),
+      `printf 'fixture drop-in\\n' > "$awslogs_dropin_tmp"`,
+      stretch(half, 'if ! cmp -s "$awslogs_dropin_tmp"', 'rm -f "$awslogs_dropin_tmp"')
+        .split('/etc/systemd/system/docker.service.d/awslogs.conf').join(live),
       'echo REACHED',
     ]);
+  };
+
+  // Defect caught: a fresh instance's first install, which is the outcome the
+  // step exists to make, reported as a warning, so a clean bootstrap is never
+  // clean.
+  it('installs a missing drop-in and restarts docker without a warning', () => {
+    const r = drive(world(), null);
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('systemctl restart docker');
-    expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- WARN installed the dockerd awslogs drop-in and restarted docker/m);
+    expect(r.stdout).toContain('Installed the dockerd awslogs drop-in');
+    expect(r.stderr).not.toContain('---FOOTBAG-PROBLEM---');
+  });
+
+  // Defect caught: a deploy that replaced a drop-in someone changed on a
+  // running host, and restarted its docker daemon, saying so in one line among
+  // hundreds, so the change is missing from the closing report.
+  it('marks the replacement of a differing drop-in and the docker restart as a warning', () => {
+    const r = drive(world(), 'a hand-edited drop-in\n');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('systemctl restart docker');
+    expect(r.stderr).toMatch(/^---FOOTBAG-PROBLEM--- WARN replaced a dockerd awslogs drop-in that differed from the committed one, and restarted docker/m);
+  });
+
+  // Defect caught: a deploy restarting docker on every run when nothing changed.
+  it('leaves a drop-in that already matches alone', () => {
+    const r = drive(world(), 'fixture drop-in\n');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain('systemctl restart docker');
+    expect(r.stderr).not.toContain('---FOOTBAG-PROBLEM---');
   });
 });
 

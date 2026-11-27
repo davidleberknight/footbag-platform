@@ -226,6 +226,7 @@ do_store() {
     esac
     echo "Nothing goes in the vault: the new value is generated here and kept only"
     echo "in Parameter Store, and a lost one is replaced by storing a fresh one."
+    tty_discard_pending
     printf "Type 'APPLY' to rotate it, anything else to abort: " > /dev/tty
     IFS= read -r typed < /dev/tty
     if [[ "$typed" != "APPLY" ]]; then

@@ -22,6 +22,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
@@ -177,11 +178,9 @@ describe('confirm-alarm-subscription: the walk at a terminal', () => {
 
   /** At a terminal, answering each prompt in turn. */
   function walk(answers: string[], pending: string[], extra: Record<string, string> = {}) {
-    const r = spawnSync('script', ['-qec', `bash ${JSON.stringify(SCRIPT)} --target staging; echo "EXIT=$?"`, '/dev/null'], {
-      encoding: 'utf8',
-      input: answers.map((a) => `${a}\n`).join(''),
+    const r = spawnAtTerminal(`bash ${JSON.stringify(SCRIPT)} --target staging; echo "EXIT=$?"`, {
+      typed: answers.map((a) => `${a}\n`).join(''),
       env: { ...process.env, ...awsIdentityStubEnv(dir), FOOTBAG_AWS_BIN: walkAws(pending), FAKE_AWS_LOG: awsLog, ...extra },
-      ...SPAWN_GUARD,
     });
     const out = r.stdout ?? '';
     return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };

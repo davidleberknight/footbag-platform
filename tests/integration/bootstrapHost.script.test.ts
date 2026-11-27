@@ -33,6 +33,7 @@ import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { spawnAtTerminal } from '../fixtures/ptySession';
 import { createScratchDir } from '../fixtures/scratchDir';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
@@ -540,43 +541,15 @@ function run(args: string[], extra: NodeJS.ProcessEnv = {}, input = 'stub-sudo-p
 
 /**
  * A run under a pseudo-terminal: standard output and error are the terminal,
- * whose input already holds `typed`, and standard input is the credential file.
+ * which types `typed` (spelled with `\n` escaped) when asked, and standard
+ * input is the credential file.
  */
 function runTty(args: string[], typed = '', extra: NodeJS.ProcessEnv = {}) {
-  const harness = join(work, 'pty.py');
-  writeFileSync(harness, [
-    'import fcntl, os, sys, termios',
-    'cred, typed = sys.argv[1], sys.argv[2]',
-    'argv = sys.argv[3:]',
-    'master, slave = os.openpty()',
-    'pid = os.fork()',
-    'if pid == 0:',
-    '    os.setsid()',
-    '    fcntl.ioctl(slave, termios.TIOCSCTTY, 0)',
-    '    fd = os.open(cred, os.O_RDONLY)',
-    '    os.dup2(fd, 0); os.dup2(slave, 1); os.dup2(slave, 2)',
-    '    os.close(master)',
-    "    os.execvp('bash', ['bash'] + argv)",
-    'os.close(slave)',
-    'if typed:',
-    "    os.write(master, typed.encode().decode('unicode_escape').encode())",
-    "out = b''",
-    'while True:',
-    '    try:',
-    '        chunk = os.read(master, 4096)',
-    '    except OSError:',
-    '        break',
-    '    if not chunk:',
-    '        break',
-    '    out += chunk',
-    '_, status = os.waitpid(pid, 0)',
-    'sys.stdout.buffer.write(out)',
-    'sys.exit(os.waitstatus_to_exitcode(status))',
-  ].join('\n'));
-  const r = spawnSync('python3', ['-I', harness, join(work, 'credential.txt'), typed, SCRIPT, ...args], {
-    cwd: process.cwd(), encoding: 'utf-8', env: { ...process.env, ...env(extra) }, ...SPAWN_GUARD,
+  const command = `${['bash', SCRIPT, ...args].map((a) => JSON.stringify(a)).join(' ')} < ${JSON.stringify(join(work, 'credential.txt'))}`;
+  const r = spawnAtTerminal(command, {
+    cwd: process.cwd(), typed: typed.replace(/\\n/g, '\n'), env: { ...process.env, ...env(extra) },
   });
-  return { status: r.status, out: (r.stdout ?? '') + (r.stderr ?? '') };
+  return { status: r.status, out: r.stdout + r.stderr };
 }
 
 /**
@@ -1444,6 +1417,23 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(sessions().filter((s) => s.args.includes('footbag-reboot'))).toHaveLength(1);
     expect(r.out).toMatch(/Type 'APPLY' to reboot footbag-staging/);
     expect(r.out).toMatch(/rebooted \(boot id new-boot\)/);
+    expect(r.out).toMatch(/swap after the reboot/);
+    expect(r.out).not.toMatch(/WARN.*swap/);
+    // Defect caught: a step that runs slow on a throttled host shows no time,
+    // so nobody can tell which step a long bootstrap spent its time in.
+    expect(r.out).toMatch(/^ {4}\(Rebooting footbag-staging once, .* took \d+m \d{2}s\)$/m);
+  });
+
+  it('fails when the reboot leaves compressed swap in use', () => {
+    // Defect caught: the deploys a bootstrap makes leave the swap report to its
+    // reboot step, so a reboot that did not retire it would be reported by
+    // nobody.
+    writeHost({ ...finishedHost('staging'), ZRAM_ACTIVE: 'yes' });
+    onEvent('reboot', { ZRAM_ACTIVE: 'yes' });
+    const r = runTty(['--target', 'staging'], 'APPLY\\n');
+    expect(r.status, r.out).toBe(1);
+    expect(r.out).toMatch(/rebooted \(boot id new-boot\)/);
+    expect(r.out).toMatch(/swap after the reboot/);
   });
 
   it('does not reboot staging without the typed APPLY', () => {
@@ -1700,6 +1690,22 @@ describe('bootstrap-host.sh --replace-instance', () => {
     expect(quiesce.stream).toMatch(/^MODE=stop$/m);
     expect(quiesce.stream.split('\n')[0]).toBe('stub-sudo-pass');
     expect(siblingCalls()[0]).toMatch(/^terraform-apply\.sh --target production --replace aws_lightsail_instance\.web/);
+  });
+
+  it('on a live production never reuses an earlier snapshot, taking a fresh one after the final backup', () => {
+    // Defect caught: a snapshot from an earlier attempt, taken while the live
+    // host still took writes, kept as the way back, so going back to it loses
+    // every write between it and the final backup.
+    writeHost(finishedHost('production'));
+    writeFileSync(join(state, 'marker'), 'true\n');
+    writeFileSync(join(state, 'backup-age'), '60');
+    const recent = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    writeFileSync(join(state, 'snapshots'), `footbag-production-web-pre-replace-20990101T000000Z\t${recent}\tavailable\n`);
+    const r = runTty(['--target', 'production', '--replace-instance'], 'APPLY\\n');
+    expect(r.status, r.out).toBe(0);
+    const log = readFileSync(join(state, 'calls.log'), 'utf-8');
+    expect(log.indexOf('lightsail create-instance-snapshot')).toBeGreaterThan(log.indexOf('footbag-bootstrap-quiesce'));
+    expect(siblingCalls()[0]).not.toContain('pre-replace-20990101T000000Z');
   });
 
   it('on a live production replaces nothing, and starts the service again, when no backup lands after the stop', () => {

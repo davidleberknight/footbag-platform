@@ -14,8 +14,8 @@
  * Hermetic: a stand-in AWS CLI, ssh and terraform, named through the script's
  * seams, log every call. The minted response carries a sentinel string in place
  * of a private key, so any place it surfaces is visible. Use mode needs a
- * terminal, so those cases run under `script`, which gives the run a pty and
- * types the answers.
+ * terminal, so those cases run at a pseudo-terminal that types each answer
+ * when it is asked for.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -24,10 +24,8 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
-import { requireToolInCI } from '../fixtures/toolAvailability';
+import { HAS_PTY_DRIVER, spawnAtTerminal } from '../fixtures/ptySession';
 import { mintEvent, lookupEventsOutput } from '../fixtures/hostAccessMintEvents';
-
-const HAS_SCRIPT = requireToolInCI('script', '--version');
 
 const SCRIPT = join(process.cwd(), 'scripts/host-break-glass.sh');
 const ADDRESS = '203.0.113.10';
@@ -197,15 +195,10 @@ function run(args: string[], a: Account = {}, h: Host = {}, env: Record<string, 
 const DRILL = ['--target', 'staging', '--drill', '--yes'];
 const drill = (a: Account = {}, h: Host = {}, env: Record<string, string> = {}) => run(DRILL, a, h, env);
 
-/** Use mode at a terminal, typing each answer in turn. */
+/** Use mode at a terminal, typing each answer in turn; an answer of two lines leaves its second waiting ahead of the next question. */
 function atTerminal(typed: string[], a: Account = {}, h: Host = {}, args = ['--target', 'staging', '--reason', 'lockout']) {
   const inner = `bash ${JSON.stringify(SCRIPT)} ${args.map((x) => JSON.stringify(x)).join(' ')} </dev/null; echo "EXIT=$?"`;
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
-    encoding: 'utf-8',
-    input: typed.map((x) => `${x}\n`).join(''),
-    env: { ...process.env, ...stubs(a, h) },
-    ...SPAWN_GUARD,
-  });
+  const r = spawnAtTerminal(inner, { typed: typed.map((x) => `${x}\n`), env: { ...process.env, ...stubs(a, h) } });
   const out = r.stdout ?? '';
   return { status: Number(out.match(/EXIT=(\d+)/)?.[1] ?? -1), out };
 }
@@ -254,7 +247,7 @@ describe('host-break-glass.sh: refused before anything is minted', () => {
     expect(awsCalls()).toEqual([]);
   });
 
-  it.skipIf(!HAS_SCRIPT)('mints nothing without a typed APPLY', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('mints nothing without a typed APPLY', () => {
     // Defect caught: a credential minted without consent.
     const r = atTerminal(['no']);
     expect(r.status, r.out).not.toBe(0);
@@ -318,7 +311,7 @@ describe('host-break-glass.sh: the credential on disk and in output', () => {
     expect(r.stderr).toMatch(/Record for the incident card[\s\S]*Closing report/);
   });
 
-  it.skipIf(!HAS_SCRIPT)('never prints the private key in use mode either', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('never prints the private key in use mode either', () => {
     const r = atTerminal(['APPLY']);
     expect(r.status, r.out).toBe(0);
     expect(r.out).not.toContain(SENTINEL_KEY);
@@ -406,7 +399,7 @@ describe('host-break-glass.sh: the connection', () => {
   });
 });
 
-describe.skipIf(!HAS_SCRIPT)('host-break-glass.sh: the routine route', () => {
+describe.skipIf(!HAS_PTY_DRIVER)('host-break-glass.sh: the routine route', () => {
   it('requires a second APPLY when the routine route connects, and mints nothing without it', () => {
     // Defect caught: convenience use passing silently.
     const refused = atTerminal(['APPLY', 'no'], {}, { probe: 0 });
@@ -508,12 +501,21 @@ describe('host-break-glass.sh: the drill is judged by the alarm\'s own history',
     expect(report).toMatch(/did production's admin dashboard/);
   });
 
-  it.skipIf(!HAS_SCRIPT)('asks both questions at a terminal and fails on a no', () => {
+  it.skipIf(!HAS_PTY_DRIVER)('asks both questions at a terminal and fails on a no', () => {
     const args = ['--target', 'staging', '--drill'];
     const yes = atTerminal(['APPLY', 'yes', 'yes'], {}, {}, args);
     expect(yes.status, yes.out).toBe(0);
     const no = atTerminal(['APPLY', 'yes', 'no'], {}, {}, args);
     expect(no.status, no.out).not.toBe(0);
     expect(closingReport(no.out)).toMatch(/did not confirm: did production's admin dashboard \(\/admin\/alarms\) raise/);
+  });
+
+  it.skipIf(!HAS_PTY_DRIVER)('does not take a yes typed ahead of a question as its answer', () => {
+    // Defect caught: a second "yes" typed along with the first answer
+    // attesting that the admin dashboard raised the alarm before the operator
+    // has read the question, and the "no" they type at it never being read.
+    const r = atTerminal(['APPLY', 'yes\nyes', 'no'], {}, {}, ['--target', 'staging', '--drill']);
+    expect(r.status, r.out).not.toBe(0);
+    expect(closingReport(r.out)).toMatch(/did not confirm: did production's admin dashboard \(\/admin\/alarms\) raise/);
   });
 });

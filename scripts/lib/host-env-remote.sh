@@ -751,6 +751,7 @@ confirm_from_tty() {
     echo "       flag to confirm without asking, its --help says so." >&2
     return 1
   fi
+  tty_discard_pending
   printf '%s' "$prompt" > /dev/tty
   read -r answer < /dev/tty || answer=""
   [[ "$answer" == "$expected" ]]
