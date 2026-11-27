@@ -168,6 +168,44 @@ resource "aws_cloudwatch_metric_alarm" "container_monitor_heartbeat" {
   insufficient_data_actions = local.warning_alarm_actions
 }
 
+# ── Origin certificate ──────────────────────────────────────────────────────
+# CloudFront answers every viewer with 502 once the origin's certificate has
+# expired, and the viewer-facing certificate alarm cannot see it: that one
+# watches the ACM certificate by its ARN, while this one lives on the host.
+# certbot renews it with about 30 days left, so the reading, which the container
+# monitor takes from the certificate file, falls below 14 only after about two
+# weeks of failed renewals, still before expiry at the 45-day lifetime Let's
+# Encrypt is moving to. A missing reading is breaching too: the certificate
+# file gone, or the monitor not reading it.
+
+variable "enable_origin_cert_alarm" {
+  description = <<-EOT
+    Set to true only once scripts/provision-origin-tls.sh has issued the
+    origin certificate and origin_cert_days_to_expiry shows datapoints in this
+    environment's agent namespace. The alarm treats missing data as breaching,
+    so enabling it earlier raises it on apply.
+  EOT
+  type        = bool
+  default     = false
+}
+
+resource "aws_cloudwatch_metric_alarm" "origin_cert_expiry" {
+  count                     = var.enable_origin_cert_alarm ? 1 : 0
+  alarm_name                = "${local.prefix}-origin-cert-expiry"
+  comparison_operator       = "LessThanThreshold"
+  evaluation_periods        = 1
+  metric_name               = "origin_cert_days_to_expiry"
+  namespace                 = local.cwagent_namespace
+  period                    = 3600
+  statistic                 = "Minimum"
+  threshold                 = 14
+  treat_missing_data        = "breaching"
+  alarm_description         = "The origin certificate expires in under 14 days, or its expiry is not being read: renewal has been failing, and CloudFront answers 502 to every visitor once it expires."
+  alarm_actions             = local.critical_alarm_actions
+  ok_actions                = local.critical_alarm_actions
+  insufficient_data_actions = local.critical_alarm_actions
+}
+
 # ── Host warning tier ───────────────────────────────────────────────────────
 # Beneath the 85%-for-3-minutes critical alarms: sustained load worth a look
 # before it becomes an outage. Same dimensions as the critical pair.

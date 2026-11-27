@@ -76,6 +76,9 @@ http {
     # ── Server ────────────────────────────────────────────────────────────────
     server {
         listen 80;
+        # The 443 listener and its certificate when the origin has one; empty
+        # otherwise. Written by the render script at container start.
+        include /etc/nginx/origin-tls-listen.conf;
         server_name _;
 
         # Direct-to-origin probes lack the CloudFront-injected secret header.

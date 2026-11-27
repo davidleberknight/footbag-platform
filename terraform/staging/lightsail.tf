@@ -268,6 +268,17 @@ resource "aws_lightsail_instance_public_ports" "web" {
     cidrs     = local.cloudfront_port_cidrs
   }
 
+  # No HTTPS port, and no origin certificate role or expiry alarm beside it,
+  # unlike production. An origin certificate needs a name of the origin's own
+  # in a zone this account controls, and staging has none: its CloudFront
+  # origin is the static address on nip.io, so its hop stays plaintext. The
+  # shared parts (the nginx listener rendered only when a certificate is
+  # present, the container monitor's expiry reading) run here unchanged and
+  # prove that a host with no certificate boots and serves on 80 alone.
+  # Production proves the rest itself, before members are loaded:
+  # scripts/provision-origin-tls.sh simulates the role and reads the
+  # certificate served on 443, and the switch to https-only follows.
+
   # SSH alternate port — the port every routine connection uses, since some
   # ISPs block outbound port 22 to AWS EC2 IP ranges. It admits the
   # administrators and the dev-and-testers, whose addresses are joined to the

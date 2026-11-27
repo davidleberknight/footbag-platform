@@ -264,3 +264,41 @@ describe('verify-cwagent-metrics.sh --containers', () => {
     expect(calls().some((c) => c.includes('cpu_usage_active'))).toBe(false);
   });
 });
+
+describe('verify-cwagent-metrics.sh --origin-cert', () => {
+  // Defect caught: the certificate expiry alarm, which treats missing data as
+  // breaching, armed while the reading never arrives or arrives under a
+  // dimension the alarm does not bind, so it pages at once or watches nothing.
+  it('passes once the reading arrives with no dimensions in production\'s namespace, naming the gate', () => {
+    const r = run(['--target', 'production', '--origin-cert'], { origin_cert_days_to_expiry: '3' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('--gate enable_origin_cert_alarm --state on');
+    const queries = calls().filter((c) => c.includes('get-metric-statistics'));
+    expect(queries).toHaveLength(1);
+    expect(queries[0]).toMatch(/--namespace CWAgent\/production --metric-name origin_cert_days_to_expiry --start-time/);
+    expect(queries[0]).not.toMatch(/--dimensions/);
+  });
+
+  it('refuses while the reading is missing, names no arming command, and reads none of the host rows', () => {
+    const r = run(['--target', 'production', '--origin-cert'], { ...ALL_PUBLISHING, container_monitor_heartbeat: '9' });
+    expect(r.status).toBe(1);
+    expect(r.stdout).not.toContain('enable_origin_cert_alarm');
+    expect(r.stderr).toMatch(/no recent datapoints in CWAgent\/production for: origin_cert_days_to_expiry/);
+    expect(calls().some((c) => c.includes('cpu_usage_active'))).toBe(false);
+  });
+
+  it('refuses staging before any read, because staging holds no origin certificate', () => {
+    // Defect caught: a staging check that can only ever fail, read as a broken
+    // monitor, or one pointed at a namespace the certificate never reaches.
+    const r = run(['--target', 'staging', '--origin-cert'], { origin_cert_days_to_expiry: '3' });
+    expect(r.status).toBe(2);
+    expect(calls()).toHaveLength(0);
+  });
+
+  it('refuses --containers with --origin-cert, rather than checking only one of them', () => {
+    // Defect caught: one of two requested proofs silently dropped.
+    const r = run(['--target', 'production', '--origin-cert', '--containers'], { origin_cert_days_to_expiry: '3' });
+    expect(r.status).toBe(2);
+    expect(calls()).toHaveLength(0);
+  });
+});

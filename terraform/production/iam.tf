@@ -345,11 +345,90 @@ resource "aws_iam_user_policy" "source_profile_assume_role" {
       Sid    = "AssumeRuntimeRole"
       Effect = "Allow"
       Action = "sts:AssumeRole"
-      Resource = [
-        aws_iam_role.app_runtime.arn,
-        aws_iam_role.logs_publisher.arn,
-      ]
+      Resource = concat(
+        [
+          aws_iam_role.app_runtime.arn,
+          aws_iam_role.logs_publisher.arn,
+        ],
+        aws_iam_role.origin_tls[*].arn,
+      )
     }]
+  })
+}
+
+# =============================================================================
+# Origin certificate role (DNS-01 for the origin's own name).
+# certbot on the host proves control of origin.<domain> by writing one TXT
+# record, _acme-challenge.origin.<domain>, and reads back whether the change has
+# propagated. This role can do that and nothing else in the zone: the record
+# name and type are pinned by Route 53's normalized-name and record-type
+# condition keys, so the apex, www and the mail records stay out of its reach.
+# certbot reaches it from the host's source-profile user, the same way the
+# runtime and logs roles are reached, so it adds no access key to vault or to
+# carry through a host rebuild. scripts/provision-origin-tls.sh simulates the
+# policy against the live role before it issues, allowed on the challenge name
+# and denied on the others.
+# =============================================================================
+
+locals {
+  origin_tls_challenge_name = "_acme-challenge.origin.${var.domain_name}"
+}
+
+resource "aws_iam_role" "origin_tls" {
+  count = var.enable_origin_record ? 1 : 0
+  name  = "${local.prefix}-origin-tls"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect    = "Allow"
+      Principal = { AWS = aws_iam_user.source_profile.arn }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "origin_tls_challenge" {
+  count = var.enable_origin_record ? 1 : 0
+  name  = "${local.prefix}-origin-tls-challenge"
+  role  = aws_iam_role.origin_tls[0].id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "WriteTheChallengeRecordOnly"
+        Effect   = "Allow"
+        Action   = "route53:ChangeResourceRecordSets"
+        Resource = "arn:aws:route53:::hostedzone/${local.zone_id}"
+        # ForAllValues alone is satisfied by a request that carries no value
+        # for the key, so the Null test requires both keys to be present.
+        Condition = {
+          "ForAllValues:StringEquals" = {
+            "route53:ChangeResourceRecordSetsNormalizedRecordNames" = [local.origin_tls_challenge_name]
+            "route53:ChangeResourceRecordSetsRecordTypes"           = ["TXT"]
+          }
+          "Null" = {
+            "route53:ChangeResourceRecordSetsNormalizedRecordNames" = "false"
+            "route53:ChangeResourceRecordSetsRecordTypes"           = "false"
+          }
+        }
+      },
+      {
+        # certbot finds the zone by listing; listing reveals no record.
+        Sid      = "FindTheZone"
+        Effect   = "Allow"
+        Action   = "route53:ListHostedZones"
+        Resource = "*"
+      },
+      {
+        # certbot polls its own change until Route 53 reports it in sync.
+        Sid      = "WaitForTheChange"
+        Effect   = "Allow"
+        Action   = "route53:GetChange"
+        Resource = "arn:aws:route53:::change/*"
+      },
+    ]
   })
 }
 

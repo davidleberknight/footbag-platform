@@ -25,7 +25,7 @@
 services:
 
   # ── nginx reverse proxy ───────────────────────────────────────────────────
-  # Uses the upstream nginx:1.25-alpine image directly (no custom build) so
+  # Uses the upstream nginx alpine image directly (no custom build) so
   # `docker compose build` does no work on the host for nginx — the staging
   # Lightsail bundle (nano_3_0, 512 MB RAM) cannot afford an extra build
   # target without OOM-killing sshd. The entrypoint script is bind-mounted

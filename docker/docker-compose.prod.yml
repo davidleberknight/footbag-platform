@@ -42,6 +42,19 @@ services:
     environment:
       X_ORIGIN_VERIFY_SECRET: ${X_ORIGIN_VERIFY_SECRET:?must be set in /srv/footbag/env}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?must be set in /srv/footbag/env}
+    # Origin TLS. The render script opens 443 only when the host holds a
+    # certificate for the origin's own name under /etc/letsencrypt, which
+    # certbot writes and renews on the host. Only the certificate directories
+    # are mounted, live and the archive its links point into; certbot's account
+    # key and renewal settings beside them stay on the host. A host with none
+    # (staging, which has no domain of its own, and production before
+    # issuance) mounts empty directories and serves on 80 alone. The Lightsail
+    # firewall, not this mapping, decides whether 443 is reachable.
+    ports:
+      - "443:443"
+    volumes:
+      - /etc/letsencrypt/live:/etc/letsencrypt/live:ro
+      - /etc/letsencrypt/archive:/etc/letsencrypt/archive:ro
     deploy:
       resources:
         limits:

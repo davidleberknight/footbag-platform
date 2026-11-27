@@ -380,12 +380,12 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog_us_west_2" {
   # minutes and waits about a minute to copy, so the highest count is 1 in
   # nearly every window on a healthy copy. Only a queue that never empties
   # keeps the lowest count above zero.
-  statistic           = "Minimum"
-  threshold           = 0
-  treat_missing_data  = "notBreaching"
-  alarm_description   = "S3 replication for ${each.key} has been backlogged for 45 minutes; the DR copy is behind"
-  alarm_actions       = [aws_sns_topic.alarms_us_west_2.arn]
-  ok_actions          = [aws_sns_topic.alarms_us_west_2.arn]
+  statistic          = "Minimum"
+  threshold          = 0
+  treat_missing_data = "notBreaching"
+  alarm_description  = "S3 replication for ${each.key} has been backlogged for 45 minutes; the DR copy is behind"
+  alarm_actions      = [aws_sns_topic.alarms_us_west_2.arn]
+  ok_actions         = [aws_sns_topic.alarms_us_west_2.arn]
 
   dimensions = {
     SourceBucket      = each.value.source

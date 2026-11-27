@@ -93,6 +93,11 @@ case "$1" in
     fi
     if [[ "$expr" == "jsonencode(local.host_keys)" ]]; then printf '%s\\n' "\${STUB_HOST_KEYS:-}"; exit 0; fi
     name="\${expr#var.}"
+    if [[ "$name" == domain_name ]]; then
+      if [[ -n "\${STUB_DOMAIN_RC:-}" ]]; then echo "Error: stub domain read failure" >&2; exit "$STUB_DOMAIN_RC"; fi
+      echo "\\"\${STUB_DOMAIN:-footbag.org}\\""
+      exit 0
+    fi
     if [[ "$name" == aws_region ]]; then
       if [[ -n "\${STUB_REGION_RC:-}" ]]; then echo "Error: stub region read failure" >&2; exit "$STUB_REGION_RC"; fi
       echo "\\"\${STUB_REGION:-us-east-1}\\""
@@ -162,6 +167,22 @@ fi
 if [[ "|\${STUB_PRESENT:-}|" == *"|$key|"* ]]; then echo 1; else echo 0; fi
 `;
 
+/** The stand-in for dig: records its arguments and prints STUB_NS, one
+ *  nameserver per line, as `dig +short ... NS` does (each name ends in a dot).
+ *  STUB_DIG_RC makes the lookup fail with dig's own kind of message. */
+const DIG_STUB = `#!/usr/bin/env bash
+echo "dig $*" >> "$STUB_CALLS"
+if [[ -n "\${STUB_DIG_RC:-}" ]]; then
+  echo ";; communications error to 1.1.1.1#53: timed out" >&2
+  exit "$STUB_DIG_RC"
+fi
+printf '%b' "\${STUB_NS:-}"
+`;
+
+/** What 1.1.1.1 answers once the zone move has converged: four Route 53
+ *  nameservers, in the shape Route 53 assigns them. */
+const ROUTE53_NS = 'ns-1.awsdns-01.org.\\nns-2.awsdns-02.co.uk.\\nns-3.awsdns-03.com.\\nns-4.awsdns-04.net.\\n';
+
 const HEARTBEAT_PATTERN = '{ $.msg = "jobs.heartbeat" }';
 /** Every metric and heartbeat each alarm reads, present where the trees put
  *  them: the environment's own namespace and log group in the primary region,
@@ -174,6 +195,7 @@ const PRESENT = [
   `us-east-1:/footbag/production/app:${HEARTBEAT_PATTERN}`,
   'us-east-1:CWAgent:container_monitor_heartbeat',
   'us-east-1:CWAgent/production:container_monitor_heartbeat',
+  'us-east-1:CWAgent/production:origin_cert_days_to_expiry',
 ].join('|');
 
 /** An operator address of the kind the real values file carries, from the
@@ -212,6 +234,7 @@ beforeEach(() => {
   writeFileSync(join(dir, 'terraform'), TERRAFORM_STUB, { mode: 0o755 });
   writeFileSync(join(dir, 'apply.sh'), APPLY_STUB, { mode: 0o755 });
   writeFileSync(join(dir, 'aws'), AWS_STUB, { mode: 0o755 });
+  writeFileSync(join(dir, 'dig'), DIG_STUB, { mode: 0o755 });
   calls = join(dir, 'calls.log');
   writeFileSync(calls, '', 'utf-8');
 });
@@ -951,6 +974,11 @@ describe('set-terraform-gate.sh checks the metric an alarm reads before arming i
       target: 'production',
       where: /^aws cloudwatch list-metrics .*--namespace CWAgent\/production --metric-name container_monitor_heartbeat .*--recently-active PT3H/m,
     },
+    {
+      gate: 'enable_origin_cert_alarm',
+      target: 'production',
+      where: /^aws cloudwatch list-metrics .*--namespace CWAgent\/production --metric-name origin_cert_days_to_expiry .*--recently-active PT3H/m,
+    },
   ];
   const arm = (a: { gate: string; target: string }, env: Record<string, string> = {}) =>
     run(['--target', a.target, '--gate', a.gate, '--state', 'on', '--yes'], env);
@@ -1235,5 +1263,94 @@ describe('set-terraform-gate.sh sets the legacy-mirror backup gate on, and never
     expect(values('production')).toBe(content);
     expect(callLog()).not.toMatch(/^terraform plan /m);
     expect(callLog()).not.toMatch(/^apply /m);
+  });
+});
+
+describe('set-terraform-gate.sh turns the origin record on only once the zone is on Route 53', () => {
+  const GATE = 'enable_origin_record';
+  const turn = (state: string, env: Record<string, string> = {}) =>
+    run(['--target', 'production', '--gate', GATE, '--state', state, '--yes'], {
+      SET_TERRAFORM_GATE_DIG_BIN: join(dir, 'dig'),
+      STUB_NS: ROUTE53_NS,
+      ...env,
+    });
+  const untouched = () => {
+    expect(values('production')).toBe(VALUES);
+    expect(callLog()).not.toMatch(/^terraform plan /m);
+    expect(callLog()).not.toMatch(/^apply /m);
+  };
+
+  it('turns it on when every nameserver a public resolver returns is Route 53\'s, asking about the tree\'s own domain', () => {
+    // Defect caught: the delegation read from the local resolver, which may
+    // cache the old one, or for a domain other than the one the record is
+    // written under.
+    const r = turn('on', { STUB_DOMAIN: 'example.org' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).toMatch(/^dig \+short .*@1\.1\.1\.1 example\.org NS$/m);
+    expect(callLog()).not.toMatch(/^aws /m);
+    expect(values('production')).toMatch(new RegExp(`^${GATE} = true$`, 'm'));
+    expect(callLog()).toMatch(/^apply --target production$/m);
+  });
+
+  it('refuses while any one nameserver is not Route 53\'s, before any plan, write or apply', () => {
+    // Defect caught: the record written to a zone the world does not read yet,
+    // or a half-converged delegation taken as done because the first answer
+    // was Route 53's.
+    const mixed = 'ns-1.awsdns-01.org.\\nns1.legacy-host.example.\\n';
+    const r = turn('on', { STUB_NS: mixed });
+    expect(r.status).toBe(1);
+    expect(r.report).toMatch(/Errors \(1\):/);
+    expect(r.report).toContain('ns1.legacy-host.example.');
+    untouched();
+  });
+
+  it('refuses when the resolver returns no nameservers at all', () => {
+    // Defect caught: an empty answer passing a check that only looks at the
+    // lines it is given.
+    const r = turn('on', { STUB_NS: '' });
+    expect(r.status).toBe(1);
+    expect(r.report).toMatch(/Errors \(1\):/);
+    untouched();
+  });
+
+  it('treats a failed lookup as an error carrying dig\'s message, never as delegated', () => {
+    const r = turn('on', { STUB_DIG_RC: '9' });
+    expect(r.status).toBe(1);
+    expect(r.report).toContain('communications error');
+    untouched();
+  });
+
+  it('refuses when the tree\'s domain cannot be read, asking no resolver', () => {
+    // Defect caught: a failed read falling back to a guessed domain and
+    // checking a delegation the record does not live under.
+    const r = turn('on', { STUB_DOMAIN_RC: '1' });
+    expect(r.status).toBe(1);
+    expect(r.report).toContain('stub domain read failure');
+    expect(callLog()).not.toMatch(/^dig /m);
+    untouched();
+  });
+
+  it('turns it off asking no resolver, so a record can always be withdrawn', () => {
+    // Defect caught: the record stuck on because its withdrawal is refused for
+    // the same delegation it needed to go on.
+    writeFileSync(join(dir, 'private', 'production.tfvars'), `${VALUES}${GATE} = true\n`, 'utf-8');
+    const r = turn('off', { STUB_DIG_RC: '9' });
+    expect(r.status, r.stderr).toBe(0);
+    expect(callLog()).not.toMatch(/^dig /m);
+    expect(callLog()).toMatch(/^apply --target production$/m);
+  });
+});
+
+describe('set-terraform-gate.sh keeps both origin gates production only', () => {
+  it('refuses each on staging, whose hop stays plaintext, before any call', () => {
+    // Defect caught: a staging values file gaining a gate its tree lacks, which
+    // terraform only warns about, so the apply succeeds changing nothing.
+    for (const gate of ['enable_origin_record', 'enable_origin_cert_alarm']) {
+      const r = run(['--target', 'staging', '--gate', gate, '--state', 'on', '--yes']);
+      expect(r.status, gate).toBe(2);
+      expect(r.report, gate).toContain('not declared in terraform/staging');
+    }
+    expect(callLog()).toBe('');
+    expect(values('staging')).toBe(VALUES);
   });
 });

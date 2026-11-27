@@ -60,6 +60,13 @@
 #                                and container_memory_percent for container=web.
 #                                The deploy installs the monitor, so on a host
 #                                that has not been deployed these are absent.
+#   --origin-cert               Check the origin certificate's reading instead,
+#                                the binding the certificate expiry alarm needs:
+#                                origin_cert_days_to_expiry with no dimensions.
+#                                Production only: staging's hop stays plaintext
+#                                and holds no certificate. The container monitor
+#                                sends it only once scripts/provision-origin-tls.sh
+#                                has issued one, so before issuance it is absent.
 #
 # Test seam (CI only; operators never set this): CWAGENT_VERIFY_AWS_BIN replaces
 # the aws CLI. A run using it says so on stderr, because this script exists to be
@@ -73,6 +80,7 @@ PROFILE=""
 WINDOW_MINUTES=15
 SINCE=""
 CONTAINERS=0
+ORIGIN_CERT=0
 
 # Both environments' stacks are us-east-1, and metrics are region-scoped, so an
 # operator whose ambient default region is elsewhere would otherwise get three
@@ -107,6 +115,7 @@ while [[ $# -gt 0 ]]; do
       shift 2 || { echo "ERROR: --since requires an argument" >&2; exit 2; }
       ;;
     --containers) CONTAINERS=1; shift ;;
+    --origin-cert) ORIGIN_CERT=1; shift ;;
     --help|-h) usage ;;
     *) echo "ERROR: unknown argument '$1'" >&2; usage ;;
   esac
@@ -118,6 +127,15 @@ done
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
 require_target "$TARGET" staging production || exit 2
+
+if (( CONTAINERS && ORIGIN_CERT )); then
+  echo "ERROR: --containers and --origin-cert check different readings; pass one" >&2
+  exit 2
+fi
+if (( ORIGIN_CERT )) && [[ "$TARGET" != production ]]; then
+  echo "ERROR: --origin-cert is production only: staging's CloudFront-to-origin hop stays plaintext and holds no origin certificate" >&2
+  exit 2
+fi
 
 if [[ ! "$WINDOW_MINUTES" =~ ^[0-9]+$ ]] || (( WINDOW_MINUTES < 1 )); then
   echo "ERROR: --window-minutes must be a positive whole number (got '$WINDOW_MINUTES')" >&2
@@ -198,6 +216,25 @@ check_metric() {
 
 if [[ -n "${CWAGENT_VERIFY_AWS_BIN:-}" ]]; then
   echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the estate." >&2
+fi
+
+if (( ORIGIN_CERT )); then
+  echo "Checking ${TARGET} origin certificate reading in namespace ${NAMESPACE}, from ${START}:"
+  check_metric origin_cert_days_to_expiry "no dimensions"
+  echo
+  if (( FAILED == 0 )); then
+    echo "The origin certificate's reading is arriving. Arm its expiry alarm with:"
+    echo "  bash scripts/set-terraform-gate.sh --target ${TARGET} --gate enable_origin_cert_alarm --state on"
+    cr_proved "origin_cert_days_to_expiry is arriving in ${NAMESPACE}"
+    cr_finish
+  fi
+  echo "Missing: origin_cert_days_to_expiry. The container monitor sends it only" >&2
+  echo "while /etc/letsencrypt/live/origin/fullchain.pem exists on the host:" >&2
+  echo "  < <operator credential file> bash scripts/provision-origin-tls.sh \\" >&2
+  echo "      --target production --status" >&2
+  echo "Do not arm the certificate expiry alarm until this passes." >&2
+  cr_error "no recent datapoints in ${NAMESPACE} for: origin_cert_days_to_expiry"
+  cr_finish
 fi
 
 if (( CONTAINERS )); then

@@ -89,8 +89,22 @@ describe('the origin certificate-authorisation record', () => {
   });
 
   it('names its own authority and refuses wildcards explicitly', () => {
+    // Defect caught: an origin certificate refused at renewal, about sixty
+    // days after issuance, because the record no longer names its authority.
     const block = resourceBlock('origin_caa');
-    expect(block).toContain('0 issue \\"letsencrypt.org\\"');
-    expect(block).toContain('0 issuewild \\";\\"');
+    expect(block).toMatch(/\n\s+records = local\.origin_caa_records\n/);
+    const local = /\n\s+origin_caa_records = \[([\s\S]*?)\]/.exec(ROUTE53)?.[1] ?? '';
+    expect(local).toContain('"0 issue \\"letsencrypt.org\\""');
+    expect(local).toContain('"0 issuewild \\";\\""');
+  });
+
+  it('refuses at plan a record that drops Let\'s Encrypt', () => {
+    // Defect caught: an edit to the records that drops the authority line
+    // reaching an apply, rather than stopping there, because the check reads
+    // something other than the list the record publishes.
+    const block = resourceBlock('origin_caa');
+    expect(block).toMatch(
+      /precondition \{\s*condition\s*=\s*contains\(local\.origin_caa_records, "0 issue \\"letsencrypt\.org\\""\)/,
+    );
   });
 });

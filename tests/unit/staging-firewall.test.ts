@@ -103,6 +103,27 @@ describe('port 80 admits CloudFront within the instance address cap, in both tre
   }
 });
 
+describe('production opens port 443 to CloudFront only once the origin has its own name', () => {
+  const tf = readFileSync(resolve(__dirname, '../../terraform/production/lightsail.tf'), 'utf-8');
+  const dynamic = /\n\s+dynamic "port_info" \{([\s\S]*?)\n\s{2}\}/.exec(tf)?.[1] ?? '';
+  const cap = /condition\s+=\s+(.*?) <= 60\n/.exec(tf)?.[1] ?? '';
+
+  it('admits the same collapsed CloudFront list as port 80, gated on the origin record', () => {
+    // Defect caught: 443 open before any certificate can exist, to addresses
+    // beyond CloudFront's, or never opened, so CloudFront's switch to
+    // https-only meets a closed port and every visitor gets 502.
+    expect(dynamic, 'no dynamic port_info block').not.toBe('');
+    expect(dynamic).toMatch(/for_each\s+=\s+var\.enable_origin_record \? \[443\] : \[\]/);
+    expect(dynamic).toMatch(/\n\s+cidrs\s+=\s+local\.cloudfront_port_cidrs\s*(\n|$)/);
+  });
+
+  it('counts the CloudFront list twice in the 60-entry cap while 443 is open', () => {
+    // Defect caught: the second copy of the CloudFront list overruns
+    // Lightsail's cap and the apply that opens 443 is refused part way.
+    expect(cap).toMatch(/\(var\.enable_origin_record \? 2 : 1\) \* length\(local\.cloudfront_port_cidrs\)/);
+  });
+});
+
 describe('a replaced instance keeps its address and its firewall, in both trees', () => {
   // A replacement keeps the instance's name, so neither the static address's
   // attachment nor the firewall plans a change from instance_name alone, while

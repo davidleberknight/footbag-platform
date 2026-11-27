@@ -1,8 +1,12 @@
 #!/bin/sh
 set -eu
 
-template=/etc/nginx/nginx.conf.template
-output=/etc/nginx/nginx.conf
+# The paths default to where the container keeps them. The overrides exist so
+# the render can be run outside a container, against files a test controls.
+template="${NGINX_TEMPLATE_PATH:-/etc/nginx/nginx.conf.template}"
+output="${NGINX_CONF_PATH:-/etc/nginx/nginx.conf}"
+tls_listen="${ORIGIN_TLS_LISTEN_PATH:-/etc/nginx/origin-tls-listen.conf}"
+tls_dir="${ORIGIN_TLS_CERT_DIR:-/etc/letsencrypt/live/origin}"
 
 [ -f "$template" ] || exit 0
 
@@ -61,3 +65,29 @@ sed -e "s|\${X_ORIGIN_VERIFY_SECRET}|${X_ORIGIN_VERIFY_SECRET}|g" \
     -e "s|\${PUBLIC_HOST}|${PUBLIC_HOST}|g" \
     "$template" > "$output"
 [ -s "$output" ] || { echo "rendered $output is empty" >&2; exit 1; }
+
+# Origin TLS: the CloudFront-to-origin hop is encrypted once a certificate for
+# the origin's own name is on the host. The server block includes this file, so
+# the 443 listener shares the one body that carries the origin-verify gate and
+# the upstream Host pin, and no second copy of either exists to drift. With no
+# certificate the file is empty and nginx listens on 80 alone, which is how
+# every environment without one (development, staging, production before
+# issuance) boots. Half a pair stops the container rather than serving a
+# listener that cannot complete a handshake.
+cert="$tls_dir/fullchain.pem"
+key="$tls_dir/privkey.pem"
+if [ -f "$cert" ] && [ -f "$key" ]; then
+  cat > "$tls_listen" <<EOF
+listen 443 ssl;
+ssl_certificate $cert;
+ssl_certificate_key $key;
+ssl_protocols TLSv1.2 TLSv1.3;
+ssl_session_cache shared:origin_tls:1m;
+ssl_session_timeout 1h;
+EOF
+elif [ -e "$cert" ] || [ -e "$key" ]; then
+  echo "origin TLS needs both $cert and $key; only one is present" >&2
+  exit 1
+else
+  : > "$tls_listen"
+fi

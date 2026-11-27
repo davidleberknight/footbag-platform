@@ -206,6 +206,20 @@ resource "aws_lightsail_instance_public_ports" "web" {
     cidrs     = local.cloudfront_port_cidrs
   }
 
+  # HTTPS — CloudFront only, the same list as port 80, once the origin has its
+  # own name to hold a certificate for. nginx renders its 443 listener only
+  # when that certificate is on the host, so the port opens with the record and
+  # serves once scripts/provision-origin-tls.sh has issued.
+  dynamic "port_info" {
+    for_each = var.enable_origin_record ? [443] : []
+    content {
+      protocol  = "tcp"
+      from_port = port_info.value
+      to_port   = port_info.value
+      cidrs     = local.cloudfront_port_cidrs
+    }
+  }
+
   lifecycle {
     precondition {
       condition     = length(local.cloudfront_origin_facing_cidrs) > 0
@@ -223,8 +237,8 @@ resource "aws_lightsail_instance_public_ports" "web" {
     # otherwise arrives mid-apply. Every port_info's cidrs are counted here, so a
     # port added above must be added to this sum.
     precondition {
-      condition     = 2 * length(var.operator_cidrs) + length(local.cloudfront_port_cidrs) <= 60
-      error_message = "The firewall would hold ${2 * length(var.operator_cidrs) + length(local.cloudfront_port_cidrs)} address entries (ports 22 and 2222: ${length(var.operator_cidrs)} each, port 80: ${length(local.cloudfront_port_cidrs)}); a Lightsail instance allows at most 60. Remove a stale SSH address first."
+      condition     = 2 * length(var.operator_cidrs) + (var.enable_origin_record ? 2 : 1) * length(local.cloudfront_port_cidrs) <= 60
+      error_message = "The firewall would hold ${2 * length(var.operator_cidrs) + (var.enable_origin_record ? 2 : 1) * length(local.cloudfront_port_cidrs)} address entries (ports 22 and 2222: ${length(var.operator_cidrs)} each, port 80${var.enable_origin_record ? " and port 443" : ""}: ${length(local.cloudfront_port_cidrs)} each); a Lightsail instance allows at most 60. Remove a stale SSH address first; if the CloudFront list itself has grown, the room comes back when port 80 closes after the switch to https-only."
     }
 
     # A new instance starts on Lightsail's default firewall, SSH and HTTP open to

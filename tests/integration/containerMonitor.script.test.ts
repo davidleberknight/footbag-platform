@@ -24,6 +24,15 @@ let stateDir: string;
 let cgroupRoot: string;
 let sink: string;
 let calls: string;
+let originCert: string;
+
+// Stands in for `openssl x509 -noout -enddate -dateopt iso_8601`, whose output
+// OpenSSL 3 documents as notAfter= followed by the ISO 8601 time. NOT_AFTER
+// sets the answer; OPENSSL_FAIL makes the read fail as an unreadable file does.
+const OPENSSL_STUB = `#!/usr/bin/env bash
+[[ -n "\${OPENSSL_FAIL:-}" ]] && { echo "Could not open file or uri for loading certificate" >&2; exit 1; }
+printf 'notAfter=%s\\n' "\${NOT_AFTER:?}"
+`;
 
 const DOCKER_STUB = `#!/usr/bin/env bash
 echo "docker $*" >> "$CALLS"
@@ -71,6 +80,8 @@ function run(env: NodeJS.ProcessEnv = {}) {
       FOOTBAG_MONITOR_CGROUP_ROOT: cgroupRoot,
       FOOTBAG_MONITOR_STATSD_SINK: sink,
       FOOTBAG_MONITOR_NOW: String(NOW),
+      FOOTBAG_MONITOR_OPENSSL_BIN: join(dir, 'openssl'),
+      FOOTBAG_MONITOR_ORIGIN_CERT: originCert,
       ...env,
     },
     ...SPAWN_GUARD,
@@ -87,6 +98,9 @@ beforeEach(() => {
   cgroupRoot = join(dir, 'cgroup');
   sink = join(dir, 'statsd.txt');
   calls = join(dir, 'calls.log');
+  originCert = join(dir, 'origin-chain');
+  writeFileSync(join(dir, 'openssl'), OPENSSL_STUB);
+  chmodSync(join(dir, 'openssl'), 0o755);
   mkdirSync(stateDir);
   writeFileSync(join(dir, 'docker'), DOCKER_STUB);
   writeFileSync(join(dir, 'systemctl'), SYSTEMCTL_STUB);
@@ -111,6 +125,40 @@ describe('container-monitor.sh', () => {
     }
     expect(res.lines.at(-1)).toBe('container_monitor_heartbeat:1|g');
     expect(cursor()).toBe(String(NOW));
+  });
+
+  it('sends the origin certificate\'s whole days to expiry on a host that holds one', () => {
+    // Defect caught: an origin certificate whose renewal is failing goes
+    // unwatched, and CloudFront answers every visitor with 502 the day it
+    // expires; or a part day counted up, so the alarm clears a day late.
+    writeFileSync(originCert, 'chain\n');
+    // 20 days and 23 hours after NOW reads as 20 whole days.
+    const notAfter = new Date((NOW + 20 * 86400 + 23 * 3600) * 1000).toISOString().replace('T', ' ').replace(/\.\d+Z$/, 'Z');
+    const res = run({ NOT_AFTER: notAfter });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.lines).toContain('origin_cert_days_to_expiry:20|g');
+    expect(res.lines.at(-1)).toBe('container_monitor_heartbeat:1|g');
+  });
+
+  it('sends no origin certificate reading on a host without one', () => {
+    // Defect caught: staging, or production before issuance, publishing a
+    // made-up expiry that hides the real one's absence, or failing its run
+    // over a certificate it was never meant to hold.
+    const res = run({ NOT_AFTER: '2030-01-01 00:00:00Z' });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.lines.some((l) => l.startsWith('origin_cert_days_to_expiry'))).toBe(false);
+    expect(res.stderr).not.toMatch(/origin certificate/);
+  });
+
+  it('warns, and still sends the heartbeat, when the origin certificate cannot be read', () => {
+    // Defect caught: an unreadable certificate silencing the whole monitor,
+    // so every container alarm goes blind, or the failure passing unreported.
+    writeFileSync(originCert, 'chain\n');
+    const res = run({ OPENSSL_FAIL: '1' });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.lines.some((l) => l.startsWith('origin_cert_days_to_expiry'))).toBe(false);
+    expect(res.stderr).toMatch(/origin certificate's expiry could not be read/);
+    expect(res.lines.at(-1)).toBe('container_monitor_heartbeat:1|g');
   });
 
   it('leaves the reclaimable file cache out of the memory reading', () => {

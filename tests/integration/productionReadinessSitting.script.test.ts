@@ -1331,8 +1331,8 @@ describe('passes 2 and 3', () => {
   // done, because only its last-named need is kept.
   it('skips a step while any one of the steps it needs is not done', () => {
     sit(['--target', 'production', '--pass', '2', '--from-step', 'p2-1', '--to-step', 'p2-1']);
-    // Origin TLS recorded done, as it will be once its script exists; the
-    // cookie publisher still is not.
+    // Origin TLS recorded done, as it will be once it runs after the zone
+    // move; the cookie publisher still is not built.
     writeFileSync(logReal, `${log().trimEnd()}\n| 2026-11-24T00:00:00Z | 2026-11-24T01:00:00Z | production | p2-5 | scripts/provision-origin-tls.sh --target production | ok |  |\n`);
     const r = sit(['--target', 'production', '--pass', '2', '--from-step', 'p2-8a', '--to-step', 'p2-8b']);
     expect(r.status, r.out).toBe(3);
@@ -1341,7 +1341,7 @@ describe('passes 2 and 3', () => {
   });
 
   // Defect caught: the window and the rehearsal run before the origin hop is
-  // encrypted, because the step that encrypts it is not built.
+  // encrypted, because the step that encrypts it waits on the zone move.
   it('skips everything that stands on origin TLS while it is blocked, and ends pending', () => {
     const r = sit(['--target', 'production', '--pass', '2', '--from-step', 'p2-5', '--to-step', 'p2-6b']);
     expect(r.status, r.out).toBe(3);

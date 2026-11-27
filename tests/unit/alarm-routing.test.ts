@@ -57,6 +57,9 @@ const CRITICAL: Record<Tree, string[]> = {
     'cf_function_validation_errors_media', 'cf_function_execution_errors_media',
     'cf_function_validation_errors_archive', 'cf_function_execution_errors_archive',
     'site_unavailable', 'acm_cert_expiry', 'acm_archive_cert_expiry', 'host_key_off_host',
+    // An expired origin certificate is a 502 for every visitor once the hop is
+    // https-only, the same consequence as an expired viewer certificate.
+    'origin_cert_expiry',
     // A wake-up alarm for the 48 hours after launch, so the whole watch must
     // hear it, not only the account mailbox.
     'cutover_zero_logins',

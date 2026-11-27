@@ -22,6 +22,10 @@
 #                              forced stop (137) (counter)
 #   container_unhealthy        1 while the container is not running or its
 #                              healthcheck reports unhealthy, else 0 (gauge)
+# and, untagged:
+#   origin_cert_days_to_expiry whole days until the origin's TLS certificate
+#                              expires, read from the certificate file, sent
+#                              only on a host that holds one (gauge)
 # and, untagged and last, container_monitor_heartbeat (gauge), so a monitor
 # that stops running, or a run that fails part way, is itself an alarm.
 #
@@ -49,6 +53,8 @@
 #   FOOTBAG_MONITOR_STATSD_SINK    a file the StatsD lines are appended to
 #                                  instead of the agent's UDP port
 #   FOOTBAG_MONITOR_NOW            the current time, in epoch seconds
+#   FOOTBAG_MONITOR_OPENSSL_BIN    openssl
+#   FOOTBAG_MONITOR_ORIGIN_CERT    the origin certificate's chain file
 # STATE_DIRECTORY is set by systemd from the unit's StateDirectory=.
 set -euo pipefail
 
@@ -69,12 +75,16 @@ seam FOOTBAG_MONITOR_SYSTEMCTL_BIN "${FOOTBAG_MONITOR_SYSTEMCTL_BIN:-}"
 seam FOOTBAG_MONITOR_CGROUP_ROOT "${FOOTBAG_MONITOR_CGROUP_ROOT:-}"
 seam FOOTBAG_MONITOR_STATSD_SINK "${FOOTBAG_MONITOR_STATSD_SINK:-}"
 seam FOOTBAG_MONITOR_NOW "${FOOTBAG_MONITOR_NOW:-}"
+seam FOOTBAG_MONITOR_OPENSSL_BIN "${FOOTBAG_MONITOR_OPENSSL_BIN:-}"
+seam FOOTBAG_MONITOR_ORIGIN_CERT "${FOOTBAG_MONITOR_ORIGIN_CERT:-}"
 
 DOCKER_BIN="${FOOTBAG_MONITOR_DOCKER_BIN:-docker}"
 SYSTEMCTL_BIN="${FOOTBAG_MONITOR_SYSTEMCTL_BIN:-systemctl}"
 CGROUP_ROOT="${FOOTBAG_MONITOR_CGROUP_ROOT:-/sys/fs/cgroup}"
 STATSD_SINK="${FOOTBAG_MONITOR_STATSD_SINK:-}"
 NOW="${FOOTBAG_MONITOR_NOW:-$(date +%s)}"
+OPENSSL_BIN="${FOOTBAG_MONITOR_OPENSSL_BIN:-openssl}"
+ORIGIN_CERT="${FOOTBAG_MONITOR_ORIGIN_CERT:-/etc/letsencrypt/live/origin/fullchain.pem}"
 STATE_DIR="${STATE_DIRECTORY:-/var/lib/footbag-container-monitor}"
 CURSOR_FILE="${STATE_DIR}/events-until"
 
@@ -185,6 +195,25 @@ for svc in "${SERVICES[@]}"; do
   gauge container_unhealthy "$unhealthy" "$svc"
   echo "${svc}: memory=${pct:-unread} oom=${oom} crashes=${crashes} unhealthy=${unhealthy}"
 done
+
+# The origin certificate's days left. Only a host that holds one reads it, so
+# staging and a production host before issuance send nothing here. A
+# certificate that cannot be read is a warning, not an error: the containers'
+# readings and the heartbeat still go, and the expiry alarm reports the
+# missing reading itself.
+if [[ -e "$ORIGIN_CERT" ]]; then
+  end=""
+  end_epoch=""
+  if end="$("$OPENSSL_BIN" x509 -noout -enddate -dateopt iso_8601 -in "$ORIGIN_CERT" 2>&1)" \
+       && [[ "$end" == notAfter=* ]] \
+       && end_epoch="$(date -u -d "${end#notAfter=}" +%s 2>&1)"; then
+    days=$(( (end_epoch - NOW) / 86400 ))
+    gauge origin_cert_days_to_expiry "$days"
+    echo "origin certificate: ${days} days to expiry"
+  else
+    cr_warn "the origin certificate's expiry could not be read from ${ORIGIN_CERT}: ${end_epoch:-${end##*$'\n'}}"
+  fi
+fi
 
 send_lines "${LINES[@]}"
 

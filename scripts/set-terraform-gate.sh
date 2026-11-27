@@ -16,11 +16,14 @@
 # script owns the whole operation, so a runbook step names it rather than
 # saying "set the variable and apply".
 #
-# It sets alarm gates, and one gate that is not an alarm:
+# It sets alarm gates, and two gates that are not alarms:
 # enable_legacy_mirror_backup, which creates the legacy-mirror backup bucket
-# and is turned on only. No DNS record and no mail setting changes through
-# it: each of those belongs to an apply that changes several values together,
-# and every one of them is refused by name below.
+# and is turned on only; and enable_origin_record, which creates the origin's
+# own name, the certificate-authority record scoped to it, the 443 firewall
+# rule and the role certbot uses, all on that one flag. That is the one DNS
+# record it sets, because nothing else changes with it. Every other DNS record
+# and every mail setting belongs to an apply that changes several values
+# together, and each of those is refused by name below.
 #
 # WHAT IT REFUSES.
 #
@@ -85,10 +88,18 @@
 #     for the backup alarms, a jobs.heartbeat line in the app log group in the
 #     last fifteen minutes for the missed-run alarm (its JobsOverdue metric
 #     comes from a log filter the same gate creates, so the metric cannot exist
-#     before the gate is on), and AWS/Billing EstimatedCharges in us-east-1 for
-#     the billing alarm. The first two treat missing data as breaching and
-#     would page at once. A failed AWS call is an error carrying AWS's message,
-#     never "absent".
+#     before the gate is on), AWS/Billing EstimatedCharges in us-east-1 for
+#     the billing alarm, and origin_cert_days_to_expiry in the last three hours
+#     for enable_origin_cert_alarm (production only: staging holds no origin
+#     certificate). The backup, missed-run and certificate alarms treat missing
+#     data as breaching and would page at once. A failed AWS call is an error
+#     carrying AWS's message, never "absent".
+#   - enable_origin_record turned on before the zone is on Route 53: every
+#     nameserver a public resolver (1.1.1.1) returns for var.domain_name must
+#     be *.awsdns-*. Until then the record would be written to a zone nobody
+#     reads, and Let's Encrypt, which reads the public delegation, could not
+#     see the challenge. A failed lookup is an error, never "delegated".
+#     Turning it off checks nothing.
 #   - Any other change pending in the tree. The apply applies the whole tree,
 #     so before the values file is touched the tree is planned read-only at its
 #     current values, and anything pending there is refused: apply it first
@@ -132,6 +143,8 @@
 #   bash scripts/set-terraform-gate.sh --target production --gate enable_billing_alarm --state on --dry-run
 #   bash scripts/set-terraform-gate.sh --target staging --gate enable_container_alarms --state on
 #   bash scripts/set-terraform-gate.sh --target production --gate enable_host_key_alarm --state on
+#   bash scripts/set-terraform-gate.sh --target production --gate enable_origin_record --state on
+#   bash scripts/set-terraform-gate.sh --target production --gate enable_origin_cert_alarm --state on
 #
 # Before arming, enable_container_alarms needs the container monitor's
 # heartbeat flowing, and enable_host_key_alarm (production only, where the
@@ -161,6 +174,7 @@
 #                                     the region read and the read-back
 #   SET_TERRAFORM_GATE_APPLY_CMD      replaces scripts/terraform-apply.sh
 #   SET_TERRAFORM_GATE_AWS_BIN        replaces the aws CLI for the metric checks
+#   SET_TERRAFORM_GATE_DIG_BIN        replaces dig for the delegation check
 #
 # Exit: 0 at the requested state (set now or already), 1 refused or failed,
 # 2 usage error.
@@ -182,6 +196,8 @@ ALLOWED_GATES=(
   enable_container_alarms
   enable_host_key_alarm
   enable_legacy_mirror_backup
+  enable_origin_record
+  enable_origin_cert_alarm
 )
 
 TARGET=""
@@ -325,6 +341,10 @@ AWS_BIN="${SET_TERRAFORM_GATE_AWS_BIN:-aws}"
 if [[ -n "${SET_TERRAFORM_GATE_AWS_BIN:-}" ]]; then
   echo "SYNTHETIC: aws='${AWS_BIN}' -- this run proves nothing about the estate." >&2
 fi
+DIG_BIN="${SET_TERRAFORM_GATE_DIG_BIN:-dig}"
+if [[ -n "${SET_TERRAFORM_GATE_DIG_BIN:-}" ]]; then
+  echo "SYNTHETIC: dig='${DIG_BIN}' -- this run proves nothing about the estate." >&2
+fi
 
 # The values file. A missing file or a dangling link means the private
 # operations checkout is not on this machine, and no environment can be
@@ -424,7 +444,8 @@ if (( DRY_RUN )); then
   if (( FILE_AT_STATE )); then
     echo "The values file already holds ${GATE} = ${EFFECTIVE}; it would not be changed."
     echo ""
-    [[ "$WANTED" == true && "$GATE" != enable_cutover_login_alarm ]] && echo "Would check, first, that what the alarm reads is present in AWS."
+    [[ "$WANTED" == true && "$GATE" != enable_cutover_login_alarm && "$GATE" != enable_origin_record ]] && echo "Would check, first, that what the alarm reads is present in AWS."
+    [[ "$WANTED" == true && "$GATE" == enable_origin_record ]] && echo "Would check, first, that the domain is delegated to Route 53."
     [[ "$GATE" == enable_cutover_login_alarm && "$WANTED" == true ]] && echo "Would check, first, that this is pass 1 (the notice and the alias records both read false)."
     [[ "$GATE" == enable_cutover_login_alarm && "$WANTED" == false ]] && echo "Would check, first, that the freeze window is not on (the notice and the alias records both on)."
     echo "Would run: terraform -chdir=terraform/${TARGET} plan -detailed-exitcode (read-only),"
@@ -434,7 +455,8 @@ if (( DRY_RUN )); then
     build_new_content
     show_change
     echo "Would run, in order:"
-    [[ "$WANTED" == true && "$GATE" != enable_cutover_login_alarm ]] && echo "  0. check that what the alarm reads is present in AWS"
+    [[ "$WANTED" == true && "$GATE" != enable_cutover_login_alarm && "$GATE" != enable_origin_record ]] && echo "  0. check that what the alarm reads is present in AWS"
+    [[ "$WANTED" == true && "$GATE" == enable_origin_record ]] && echo "  0. check that the domain is delegated to Route 53"
     [[ "$GATE" == enable_cutover_login_alarm && "$WANTED" == true ]] && echo "  0. check that this is pass 1 (the notice and the alias records both read false)"
     [[ "$GATE" == enable_cutover_login_alarm && "$WANTED" == false ]] && echo "  0. check that the freeze window is not on (the notice and the alias records both on)"
     echo "  1. terraform plan at the current values (read-only; anything pending stops here)"
@@ -677,6 +699,45 @@ host_key_precheck() {
   done <<<"$keys"
 }
 
+# The origin's record is written into the Route 53 zone, and certbot's DNS-01
+# challenge is read by Let's Encrypt through the public delegation, so both
+# mean something only once every nameserver the world is given for the domain
+# is Route 53's. Asked of a public resolver, not the local one, which may cache
+# the old delegation or answer from a split view. The domain is read from the
+# tree, so the check and the record cannot name different zones.
+DELEGATION_RESOLVER="1.1.1.1"
+delegation_precheck() {
+  local out rc=0 domain ns server
+  out="$(printf 'var.domain_name\n' | "$TF_BIN" -chdir="$TF_DIR" console 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    cr_error "the read of var.domain_name failed (exit ${rc}): $(error_titles <<<"$out")"
+    return 1
+  fi
+  domain="$(console_value <<<"$out" | tr -d '[:space:]"')"
+  if [[ ! "$domain" =~ ^[a-z0-9-]+(\.[a-z0-9-]+)+$ ]]; then
+    cr_error "var.domain_name in terraform/${TARGET} did not read back as a domain name"
+    return 1
+  fi
+  rc=0
+  ns="$("$DIG_BIN" +short +time=5 +tries=2 "@${DELEGATION_RESOLVER}" "$domain" NS 2>&1)" || rc=$?
+  if [[ "$rc" != 0 ]]; then
+    cr_error "asking ${DELEGATION_RESOLVER} for the nameservers of ${domain} failed (exit ${rc}): $(tail -n 1 <<<"$ns")"
+    return 1
+  fi
+  if [[ -z "$ns" ]]; then
+    cr_error "refusing to turn ${GATE} on: ${DELEGATION_RESOLVER} returns no nameservers for ${domain}"
+    return 1
+  fi
+  while IFS= read -r server; do
+    [[ -n "$server" ]] || continue
+    if [[ "$server" != *.awsdns-* ]]; then
+      cr_error "refusing to turn ${GATE} on: ${domain} is still delegated to ${server}, not Route 53, so the origin record would sit in a zone nobody reads and Let's Encrypt could not see the challenge. Turn it on once the zone move has converged."
+      return 1
+    fi
+  done <<<"$ns"
+  echo "delegation check: every nameserver ${DELEGATION_RESOLVER} returns for ${domain} is Route 53's."
+}
+
 # Before an alarm is armed, what it reads must be there: the backup and
 # missed-run alarms treat missing data as breaching, so arming them over
 # nothing pages at once, and the billing alarm over no metric watches nothing.
@@ -741,6 +802,19 @@ metric_precheck() {
       ;;
     enable_host_key_alarm)
       host_key_precheck || return 1
+      return 0
+      ;;
+    enable_origin_cert_alarm)
+      read_region || return 1
+      # The container monitor sends it only from a host holding the origin
+      # certificate, so its presence also proves the certificate was issued.
+      aws_count "listing origin_cert_days_to_expiry in CWAgent/production (${REGION})" \
+        cloudwatch list-metrics --region "$REGION" --namespace CWAgent/production \
+        --metric-name origin_cert_days_to_expiry --recently-active PT3H --query 'length(Metrics)' || return 1
+      present_msg="origin_cert_days_to_expiry has had no data in CWAgent/production (${REGION}) in the last three hours: the expiry alarm treats missing data as breaching and would page at once. Issue the certificate with scripts/provision-origin-tls.sh --target production, then check the reading with scripts/verify-cwagent-metrics.sh --target production --origin-cert."
+      ;;
+    enable_origin_record)
+      delegation_precheck || return 1
       return 0
       ;;
     *)
@@ -859,6 +933,8 @@ fi
 not_proved_by_readback() {
   if [[ "$GATE" == enable_legacy_mirror_backup ]]; then
     cr_unproved "that the backup bucket exists in AWS: the read-back proves var.${GATE} = true and the apply ran, not the resource"
+  elif [[ "$GATE" == enable_origin_record ]]; then
+    cr_unproved "that the origin's records resolve publicly: the read-back proves var.${GATE} = ${WANTED} and the apply ran; scripts/provision-origin-tls.sh --target production reads the A and CAA records through a public resolver before it issues"
   elif [[ "$WANTED" == "true" ]]; then
     cr_unproved "that the alarm pages: the read-back proves var.${GATE} = true and the apply ran, not that the alarm fires"
   else

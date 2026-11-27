@@ -7,6 +7,16 @@ output "lightsail_static_ip" {
   value       = aws_lightsail_static_ip.web.ip_address
 }
 
+output "origin_hostname" {
+  description = "The origin's own name, which holds the CloudFront-to-origin certificate; empty until enable_origin_record creates it. scripts/provision-origin-tls.sh reads it."
+  value       = var.enable_origin_record ? aws_route53_record.origin_a[0].fqdn : ""
+}
+
+output "origin_tls_role_arn" {
+  description = "The role certbot assumes to write the origin's DNS-01 challenge record; empty until enable_origin_record creates it. scripts/provision-origin-tls.sh reads it."
+  value       = var.enable_origin_record ? aws_iam_role.origin_tls[0].arn : ""
+}
+
 output "cloudfront_domain" {
   description = "CloudFront distribution domain name"
   value       = var.enable_cloudfront ? aws_cloudfront_distribution.main[0].domain_name : null

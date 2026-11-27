@@ -455,7 +455,7 @@ PRODUCTION_PASS2_STEPS=(
   'p2-3g|once|tty|log|scripts/mail-domain-cutover.sh --target production --stage ifpa-move'
   'p2-3h|ask|-|log|IFPA list domain: has scripts/mail-domain-cutover.sh --target production --stage ifpa-verify --token google-site-verification=<token> --resolver 8.8.8.8 run with the token Julie read in the Workspace console, and has Julie verified ifpa.footbag.org as a secondary domain?'
   'p2-4a|ask|-|log|Google signing: has scripts/verify-mail-records.sh --stage signing --nameserver <route53-ns> --resolver 8.8.8.8 --tfvars <values-file> passed against Route 53, and does a message from an IFPA account to a personal Gmail show dkim=pass header.d=footbag.org under Show original?'
-  'p2-5|blocked|-|-|Origin TLS, then the origin-verify secret rotation: scripts/provision-origin-tls.sh is not built'
+  'p2-5|blocked|-|-|Origin TLS waits on the zone move: then scripts/provision-origin-tls.sh --target production, the CloudFront https-only switch and the origin-verify secret rotation'
   'p2-6a|once|tty|log|scripts/production-cutover.sh --target production --stage window'
   'p2-6b|once|tty|log|deploy_to_aws.sh --target production'
   'p2-6c|read|cred|-|scripts/verify-host-env.sh --target production'

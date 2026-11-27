@@ -644,7 +644,23 @@ resource "aws_route53_record" "origin_caa" {
   # get wrong, because the record looks narrower than it is.
   #
   # This name takes a single-name certificate by DNS-01, so nothing is lost.
-  records = [
+  records = local.origin_caa_records
+
+  # The origin certificate comes from Let's Encrypt and renews every sixty
+  # days or so. Without this line the apex record's Amazon-only authority
+  # governs the name, and the next renewal is refused while the current
+  # certificate keeps serving, so an edit dropping it would surface weeks
+  # later as a 502 to every visitor. Refused at plan instead.
+  lifecycle {
+    precondition {
+      condition     = contains(local.origin_caa_records, "0 issue \"letsencrypt.org\"")
+      error_message = "The origin's CAA record must carry 0 issue \"letsencrypt.org\": the origin certificate is issued and renewed by Let's Encrypt, and without it the apex's Amazon-only record refuses the next renewal."
+    }
+  }
+}
+
+locals {
+  origin_caa_records = [
     "0 issue \"letsencrypt.org\"",
     "0 issuewild \";\"",
   ]
