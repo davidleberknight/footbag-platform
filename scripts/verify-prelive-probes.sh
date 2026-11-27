@@ -25,6 +25,8 @@
 #   B. Image strip. In the running web container, dist/dev-bootstrap and
 #      dist/testkit hold exactly the stub files docker/web/Dockerfile writes,
 #      with exactly its contents. The /dev/* answers are smoke-security.sh's.
+#      Production only: staging's image bundles the testkit by design, so on
+#      staging the probe reports the strip as not proven and checks nothing.
 #   C. Error-line alarm. One deliberate error line, written to the web
 #      container's own output, reaches the app log group and moves the
 #      footbag-<target>-app-errors alarm to ALARM. It refuses to start while
@@ -179,7 +181,13 @@ while IFS= read -r stub_line; do
 done < <(grep -E "printf '[^']*' > dist/" "$DOCKERFILE")
 expected_digests="$(printf '%s' "$expected_digests" | sort -k2 | awk 'NR > 1 { printf " ; " } { printf "%s", $0 }')"
 have_digests="$(fact "$READS" dev_digests)"
-if [[ -z "$expected_digests" ]]; then
+# The strip is production's alone: staging's image is built with the dev
+# shortcuts on purpose, because testers use the testkit there. Only an exact
+# staging target skips it, so any other target is still held to the stubs.
+if [[ "$TARGET" == staging ]]; then
+  echo "  B  skipped: staging's image bundles the testkit by design"
+  cr_unproved "B: the image strip, on staging, whose image bundles the testkit by design; production is held to the Dockerfile's stubs"
+elif [[ -z "$expected_digests" ]]; then
   cr_error "B: no stub file could be read out of ${DOCKERFILE}, so there is nothing to compare the image with"
 elif [[ "$have_digests" == "$expected_digests" ]]; then
   echo "  B  the dev-only folders hold exactly the Dockerfile's stubs"

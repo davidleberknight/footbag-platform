@@ -164,6 +164,20 @@ describe.each(TREES)('%s alarms', (tree) => {
     for (const b of progress) expect(onProvider(b, 'aws.us_west_2'), b.name).toBe(true);
   });
 
+  it('fires the replication backlog alarm only when the queue never empties', () => {
+    // Defect caught: a backlog alarm on the highest pending count in each
+    // window. A backup lands every few minutes and waits about a minute to
+    // copy, so the highest count is 1 in nearly every window while every copy
+    // completes, and the alarm stays in ALARM on a healthy copy. The lowest
+    // count stays above zero only when the queue never empties.
+    const backlog = alarm(tree, 'replication_backlog_us_west_2');
+    expect(backlog, 'no replication backlog alarm').toBeDefined();
+    expect(attr(backlog!, 'metric_name')).toBe('"OperationsPendingReplication"');
+    expect(attr(backlog!, 'statistic')).toBe('"Minimum"');
+    expect(attr(backlog!, 'comparison_operator')).toBe('"GreaterThanThreshold"');
+    expect(attr(backlog!, 'threshold')).toBe('0');
+  });
+
   it('sends each alarm in the backup region to that region\'s topic', () => {
     // Defect caught: an alarm notifying a topic in another region, or none,
     // so its state change reaches neither the mailbox nor the admin feed.

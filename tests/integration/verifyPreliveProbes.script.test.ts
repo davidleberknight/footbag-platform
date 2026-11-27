@@ -176,6 +176,20 @@ describe('probe B: the image strip', () => {
     expect(errors(r.stderr)).toMatch(/- B: /);
     expect(errors(r.stderr)).not.toMatch(/- [ACD]: /);
   });
+
+  // Defect caught: staging, whose image bundles the testkit by design, failing
+  // the production image strip on every run however healthy it is, or the
+  // strip being waved through on production along with staging.
+  it('leaves staging\'s bundled testkit unproved rather than failed, and still fails it on production', () => {
+    const bundled = `${dockerfileStubs()} ; ${'0'.repeat(64)}  testkit/personaRoutes.js`;
+    const staging = probes(estate({ recorded: 'staging', reads: readsOutput({ digests: bundled }) }).env, ['--target', 'staging']);
+    expect(staging.status, staging.stderr).toBe(0);
+    expect(staging.stderr).toMatch(/Not proven:[\s\S]*- B: [^\n]*staging/);
+    expect(staging.stderr.match(/\nProven:\n([\s\S]*?)\nNot proven:/)?.[1] ?? '').not.toMatch(/- B: /);
+    const production = probes(estate({ reads: readsOutput({ digests: bundled }) }).env);
+    expect(production.status).toBe(1);
+    expect(errors(production.stderr)).toMatch(/- B: /);
+  });
 });
 
 describe('probe D: the URL screening', () => {
@@ -301,12 +315,14 @@ describe('the root-side half', () => {
   });
 
   // Defect caught: the line written where the logging driver never reads it,
-  // or as a user that cannot open that descriptor.
-  it('writes the error line to the web container\'s own output, as root', () => {
+  // or as a user that cannot open that descriptor. Root cannot: the web
+  // container drops every capability, and opening another user's
+  // /proc/<pid>/fd needs one, so only the user PID 1 runs as can write there.
+  it('writes the error line to the web container\'s own output, as the user PID 1 runs as', () => {
     const r = half('error-line', { PROBE_LINE: '{"level":"error","probe":"p1"}' });
     expect(r.status, r.stderr).toBe(0);
     expect(factOf(r.stdout, 'error_line')).toBe('written');
-    expect(r.calls).toMatch(/exec -T -u root web sh -c printf "%s\\n" "\$1" > \/proc\/1\/fd\/1 probe \{"level":"error","probe":"p1"\}/);
+    expect(r.calls).toMatch(/exec -T -u node web sh -c printf "%s\\n" "\$1" > \/proc\/1\/fd\/1 probe \{"level":"error","probe":"p1"\}/);
   });
 
   it('reports a failed read as an error rather than a fact', () => {

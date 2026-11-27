@@ -98,8 +98,9 @@ case "$PROBE_MODE" in
     : "${PROBE_LINE:?error-line mode requires PROBE_LINE}"
     # PID 1's standard output is what the logging driver ships; a line written
     # anywhere else would never reach the log group, so the probe would prove
-    # nothing about the path. Root, because that descriptor belongs to it.
-    if compose exec -T -u root web sh -c 'printf "%s\n" "$1" > /proc/1/fd/1' probe "$PROBE_LINE"; then
+    # nothing about the path. As node, the user PID 1 runs as: the container
+    # drops every capability, so root cannot open another user's descriptor.
+    if compose exec -T -u node web sh -c 'printf "%s\n" "$1" > /proc/1/fd/1' probe "$PROBE_LINE"; then
       fact error_line written
     else
       crr_error "the deliberate error line could not be written to the web container's output"

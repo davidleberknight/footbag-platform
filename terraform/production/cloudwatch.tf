@@ -398,7 +398,11 @@ resource "aws_cloudwatch_metric_alarm" "replication_backlog_us_west_2" {
   metric_name         = "OperationsPendingReplication"
   namespace           = "AWS/S3"
   period              = 900
-  statistic           = "Maximum"
+  # The lowest count in each window, not the highest: a backup lands every few
+  # minutes and waits about a minute to copy, so the highest count is 1 in
+  # nearly every window on a healthy copy. Only a queue that never empties
+  # keeps the lowest count above zero.
+  statistic           = "Minimum"
   threshold           = 0
   treat_missing_data  = "notBreaching"
   alarm_description   = "S3 replication for ${each.key} has been backlogged for 45 minutes; the DR copy is behind"
