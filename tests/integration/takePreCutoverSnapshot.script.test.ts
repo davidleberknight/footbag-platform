@@ -207,15 +207,33 @@ describe('take-pre-cutover-snapshot.sh produces a restorable artifact', () => {
 describe('take-pre-cutover-snapshot.sh uploads only from the host its bucket belongs to', () => {
   // Defect caught: one environment's database lands in the other's locked,
   // one-object pre-flip slot, because nothing checked which host ran the upload.
-  function upload(bucket: string, recorded: string | null) {
+  // The bucket stands in as a directory: `s3 cp` stores the file there (or, for
+  // a case, exits 0 and stores nothing), and the size read-back answers from it
+  // with the real CLI's 404 for a key it does not hold.
+  function upload(bucket: string, recorded: string | null, storesNothing = false) {
     buildDb(path.join(workDir, 'footbag.db'));
     const envFile = path.join(workDir, 'host.env');
     if (recorded !== null) fs.writeFileSync(envFile, `FOOTBAG_ENV=${recorded}\n`);
     const binDir = path.join(workDir, 'bin');
+    const s3 = path.join(workDir, 's3');
     fs.mkdirSync(binDir, { recursive: true });
     fs.writeFileSync(
       path.join(binDir, 'aws'),
-      `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(path.join(workDir, 'aws-calls.log'))}\nexit 0\n`,
+      [
+        '#!/usr/bin/env bash',
+        `printf '%s\\n' "$*" >> ${JSON.stringify(path.join(workDir, 'aws-calls.log'))}`,
+        `S3=${JSON.stringify(s3)}`,
+        'if [[ "$1 $2" == "s3 cp" ]]; then',
+        storesNothing ? '  exit 0' : '  src="${@: -2:1}"; dst="${@: -1}"; out="$S3/${dst#s3://}"; mkdir -p "$(dirname "$out")"; cp "$src" "$out"; exit $?',
+        'fi',
+        'if [[ "$1 $2" == "s3api head-object" ]]; then',
+        '  b=""; k=""; shift 2',
+        '  while (( $# )); do case "$1" in --bucket) b="$2"; shift 2 ;; --key) k="$2"; shift 2 ;; *) shift ;; esac; done',
+        '  [[ -f "$S3/$b/$k" ]] || { echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2; exit 254; }',
+        '  stat -c %s "$S3/$b/$k"; exit 0',
+        'fi',
+        'exit 0',
+      ].join('\n') + '\n',
       { mode: 0o755 },
     );
     return run({
@@ -233,6 +251,17 @@ describe('take-pre-cutover-snapshot.sh uploads only from the host its bucket bel
     expect(res.status, res.stderr).toBe(0);
     expect(res.stderr).toContain('FOOTBAG_ENV_FILE');
     expect(uploaded()).toBe(true);
+    expect(res.stdout + res.stderr).toContain('the archive and its manifest were uploaded');
+  });
+
+  it('fails, claiming no upload, when the CLI reports the archive copied but stored nothing', () => {
+    // Defect caught: the rollback artifact was reported uploaded on the CLI's
+    // exit status alone, so a copy that stored nothing left the cutover
+    // without its way back while the run said it had one.
+    const res = upload('footbag-production-db-snapshots-dr', 'production', true);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/the archive upload reported success, but s3:\/\/footbag-production-db-snapshots-dr\/pre-flip\/.*reads back as absent/);
+    expect(res.stdout + res.stderr).not.toContain('the archive and its manifest were uploaded');
   });
 
   it('refuses a host recording the other environment, before anything is written', () => {

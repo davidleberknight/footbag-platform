@@ -114,6 +114,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+# shellcheck source=lib/vendor-secret.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/vendor-secret.sh"
 
 # Validated by the shared check, then mapped. `both` is an accepted value here
 # because one key currently serves both environments, which makes it the
@@ -361,9 +363,19 @@ do_store() {
       echo "       once every environment is keyed." >&2
       exit 1
     fi
+    # The outcome, not the invocation: the parameter must now hold this key.
+    # The key file stays in place on a failure, as for a failed write.
+    if ! ssm_secret_reads_back "$param" "$(< "$KEY_FILE")" "${AWS_ARGS[@]}"; then
+      echo "ERROR: ${VENDOR_SECRET_ERROR}." >&2
+      if (( ${#written[@]} > 0 )); then
+        echo "       Already written: ${written[*]}. Those are keyed; this one is not." >&2
+      fi
+      echo "       The key file is left in place so you can re-run." >&2
+      exit 1
+    fi
     written+=("$param")
     KEY_REACHED_DESTINATION=1
-    echo "Stored the key in ${param} (SecureString, ${kms})."
+    echo "Stored the key in ${param} (SecureString, ${kms}), read back and confirmed."
   done
 
   # Every destination took it, so the local copy has no remaining purpose. A file

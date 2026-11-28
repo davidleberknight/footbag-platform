@@ -123,7 +123,22 @@ vendor_secret_put() {
     return 1
   fi
 
-  # The outcome, not the invocation.
+  ssm_secret_reads_back "$param" "$value" "$@"
+}
+
+# ssm_secret_reads_back <parameter-name> <expected-value> [aws-args...]
+#
+# The outcome of any SecureString write, for every script that writes one: a
+# successful put is not a stored value. Reads the parameter back decrypted and
+# returns 0 only when it equals what was meant to be written, and is not the
+# Terraform placeholder unless the placeholder is what was written (a reset).
+# On a failure VENDOR_SECRET_ERROR says which, and never carries the value.
+# Compared as the shell reads both, so a trailing newline in a key file and
+# the CLI's text output agree.
+ssm_secret_reads_back() {
+  local param="$1" expected="$2"
+  shift 2
+  VENDOR_SECRET_ERROR=""
   local stored
   if ! stored="$("$VENDOR_SECRET_AWS_BIN" ssm get-parameter \
     --name "$param" --with-decryption \
@@ -131,12 +146,11 @@ vendor_secret_put() {
     VENDOR_SECRET_ERROR="wrote ${param} but could not read it back to confirm"
     return 1
   fi
-
-  if [[ "$stored" == "${VENDOR_SECRET_PLACEHOLDER_PREFIX}"* ]]; then
+  if [[ "$expected" != "${VENDOR_SECRET_PLACEHOLDER_PREFIX}"* && "$stored" == "${VENDOR_SECRET_PLACEHOLDER_PREFIX}"* ]]; then
     VENDOR_SECRET_ERROR="${param} still holds the Terraform placeholder after the write"
     return 1
   fi
-  if [[ "$stored" != "$value" ]]; then
+  if [[ "$stored" != "$expected" ]]; then
     VENDOR_SECRET_ERROR="${param} reads back as something other than what was written"
     return 1
   fi

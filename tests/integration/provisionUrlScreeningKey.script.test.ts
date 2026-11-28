@@ -227,8 +227,10 @@ interface AwsStubBehaviour {
   failPut?: string;
   /** Send the calling script a signal (INT unless named) on the first call of this kind to a parameter containing this. */
   interruptOn?: { call: 'get-parameter' | 'put-parameter'; param: string; signal?: 'INT' | 'TERM' };
-  /** The decrypted value `get-parameter --with-decryption` returns. */
+  /** The decrypted value `get-parameter --with-decryption` returns before any write. */
   value?: string;
+  /** A put that exits 0 and stores nothing, on a parameter whose name contains this. */
+  putStoresNothing?: string;
 }
 
 function awsStub(behaviour: AwsStubBehaviour = {}): { log: string; env: NodeJS.ProcessEnv } {
@@ -240,11 +242,15 @@ function awsStub(behaviour: AwsStubBehaviour = {}): { log: string; env: NodeJS.P
   writeFileSync(join(bin, 'aws'), [
     '#!/usr/bin/env bash',
     `printf '%s\\n' "$*" >> ${JSON.stringify(log)}`,
-    'name=""; decrypt=0; call="$2"',
+    'name=""; decrypt=0; value=""; call="$2"',
     'while (( $# )); do',
-    '  case "$1" in --name) name="$2"; shift ;; --with-decryption) decrypt=1 ;; esac',
+    '  case "$1" in --name) name="$2"; shift ;; --value) value="$2"; shift ;; --with-decryption) decrypt=1 ;; esac',
     '  shift',
     'done',
+    // Each parameter remembers what a put stored, so the write's read-back
+    // reads what was written; a put the case says stores nothing leaves it.
+    `store=${JSON.stringify(join(dir, 'store'))}/$(printf '%s' "$name" | tr '/' '_')`,
+    `mkdir -p ${JSON.stringify(join(dir, 'store'))}`,
     interruptOn
       ? `if [[ "$call" == ${JSON.stringify(interruptOn.call)} && "$name" == *${JSON.stringify(interruptOn.param)}* ]]; then kill -${interruptOn.signal ?? 'INT'} "$PPID"; exit 1; fi`
       : '',
@@ -254,6 +260,11 @@ function awsStub(behaviour: AwsStubBehaviour = {}): { log: string; env: NodeJS.P
     behaviour.failPut !== undefined
       ? `if [[ "$call" == put-parameter && "$name" == *${JSON.stringify(behaviour.failPut)}* ]]; then echo "AccessDeniedException" >&2; exit 254; fi`
       : '',
+    behaviour.putStoresNothing !== undefined
+      ? `if [[ "$call" == put-parameter && "$name" == *${JSON.stringify(behaviour.putStoresNothing)}* ]]; then exit 0; fi`
+      : '',
+    'if [[ "$call" == put-parameter && "$value" == file://* ]]; then cp "${value#file://}" "$store"; exit 0; fi',
+    'if [[ "$call" == get-parameter && $decrypt == 1 && -f "$store" ]]; then cat "$store"; printf "\\n"; exit 0; fi',
     `if [[ "$call" == get-parameter && $decrypt == 1 ]]; then printf '%s\\n' ${JSON.stringify(behaviour.value ?? 'TODO-set-via-cli-after-apply')}; exit 0; fi`,
     'if [[ "$call" == get-parameter ]]; then printf "%s\\n" "armed"; exit 0; fi',
     'exit 0',
@@ -299,10 +310,15 @@ describe('provision-url-screening-key.sh — the write path against a stand-in',
 
     const made = calls(aws.log);
     const puts = made.filter((c) => c.startsWith('ssm put-parameter'));
-    const gets = made.filter((c) => c.startsWith('ssm get-parameter'));
+    // Every destination is checked before the first write; each write is
+    // then read back decrypted, after it.
+    const checks = made.filter((c) => c.startsWith('ssm get-parameter') && !c.includes('--with-decryption'));
+    const readBacks = made.filter((c) => c.startsWith('ssm get-parameter') && c.includes('--with-decryption'));
     expect(puts).toHaveLength(2);
-    expect(gets).toHaveLength(2);
-    expect(Math.max(...gets.map((g) => made.indexOf(g)))).toBeLessThan(made.indexOf(puts[0]));
+    expect(checks).toHaveLength(2);
+    expect(readBacks).toHaveLength(2);
+    expect(Math.max(...checks.map((g) => made.indexOf(g)))).toBeLessThan(made.indexOf(puts[0]));
+    expect(made.indexOf(readBacks[0])).toBeGreaterThan(made.indexOf(puts[0]));
     expect(puts[0]).toContain('--name /footbag/staging/secrets/safe_browsing_api_key');
     expect(puts[0]).toContain('--key-id alias/footbag-staging');
     expect(puts[1]).toContain('--name /footbag/production/secrets/safe_browsing_api_key');
@@ -352,6 +368,19 @@ describe('provision-url-screening-key.sh — the write path against a stand-in',
     expect(result.stderr).toMatch(/The key file is left in place so you can re-run/);
     // Staging's write and production's refused attempt; nothing after the refusal.
     expect(calls(aws.log).filter((c) => c.startsWith('ssm put-parameter'))).toHaveLength(2);
+    expect(existsSync(path)).toBe(true);
+  });
+
+  it('fails, keeping the key file, when a write the CLI reported done stored nothing', () => {
+    // Defect caught: "Stored the key" was reported on the put's exit status
+    // alone, so a write that stored nothing left the environment on its
+    // placeholder, and the key file was shredded as though it had landed.
+    const path = keyFile(KEY);
+    const aws = awsStub({ putStoresNothing: 'production' });
+    const result = runStore(['--target', 'both', '--key-file', path, 'store'], aws.env);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/\/footbag\/production\/secrets\/safe_browsing_api_key still holds the Terraform placeholder after the write/);
+    expect(result.stderr).toMatch(/Already written: \/footbag\/staging\/secrets\/safe_browsing_api_key/);
     expect(existsSync(path)).toBe(true);
   });
 

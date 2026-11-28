@@ -138,6 +138,12 @@ beforeEach(() => {
     '      exit 1',
     '    fi',
     '  fi',
+    // An upload that exits 0 and stores nothing, or stores a short object:
+    // the CLI reporting success is not the object being there.
+    '  if [[ "$dst" == s3://* && -n "${AWS_STUB_UPLOAD_STORES_NOTHING:-}" ]]; then exit 0; fi',
+    '  if [[ "$dst" == s3://* && -n "${AWS_STUB_UPLOAD_SHORT:-}" ]]; then',
+    '    out="$S3/${dst#s3://}"; mkdir -p "$(dirname "$out")"; head -c 10 "$src" > "$out"; exit 0',
+    '  fi',
     '  if [[ "$dst" == s3://* ]]; then',
     '    out="$S3/${dst#s3://}"; mkdir -p "$(dirname "$out")"; cp "$src" "$out"; exit $?',
     '  fi',
@@ -181,6 +187,14 @@ beforeEach(() => {
     'fi',
     // A query over three metadata fields prints them tab-separated on one line,
     // None for each the object does not carry.
+    // The upload's read-back asks for the stored object's size alone; a key the
+    // bucket does not hold answers as the real CLI does, a 404 and exit 254.
+    'if [[ "$svc" == "s3api" && "$1" == "head-object" && "$*" == *"--query ContentLength"* ]]; then',
+    '  b=""; k=""; set -- "${@:2}"',
+    '  while (( $# )); do case "$1" in --bucket) b="$2"; shift 2 ;; --key) k="$2"; shift 2 ;; *) shift ;; esac; done',
+    '  [[ -f "$S3/$b/$k" ]] || { echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2; exit 254; }',
+    '  stat -c %s "$S3/$b/$k"; exit 0',
+    'fi',
     'if [[ "$svc" == "s3api" && "$1" == "head-object" ]]; then',
     '  [[ -n "${AWS_STUB_HEAD_FAILS:-}" ]] && { echo "aws-stub: head refused for this case" >&2; exit 254; }',
     '  shift; bucket=""; key=""',
@@ -1064,6 +1078,33 @@ describe('retrying a failed upload', () => {
     expect(first).toBeLessThanOrEqual(1);
     expect(second).toBeGreaterThanOrEqual(1);
     expect(second).toBeLessThanOrEqual(2);
+  });
+});
+
+describe('an upload the CLI reports done that did not land', () => {
+  // Defect caught: the upload was judged by the CLI's exit status alone, so a
+  // copy that exits 0 and stores nothing, or a short object, reset the failure
+  // counter and published a fresh backup age: the alarms read healthy while no
+  // usable backup existed.
+  const sleepless = (): NodeJS.ProcessEnv => {
+    const sleepBin = join(workDir, 'sleep-bin');
+    mkdirSync(sleepBin, { recursive: true });
+    writeFileSync(join(sleepBin, 'sleep'), '#!/usr/bin/env bash\nexit 0\n');
+    chmodSync(join(sleepBin, 'sleep'), 0o755);
+    return { PATH: `${sleepBin}:${binDir}:${process.env.PATH ?? ''}` };
+  };
+
+  it.each([
+    ['stores nothing', { AWS_STUB_UPLOAD_STORES_NOTHING: '1' }, /reads back as absent/],
+    ['stores a short object', { AWS_STUB_UPLOAD_SHORT: '1' }, /reads back as 10, not \d+ bytes/],
+  ])('counts a run whose upload %s as a failure', (_label, env, said) => {
+    const res = runBackup({ ...env, ...sleepless() });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(said);
+    expect(res.stderr).toContain('S3 upload failed after');
+    expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
+    expect(calls()).not.toContain('--metric-name BackupConsecutiveFailures --value 0');
+    expect(readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim()).toBe('1');
   });
 });
 

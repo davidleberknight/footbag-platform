@@ -306,8 +306,15 @@ case "$MODE" in
       if (( distro_sqlite )); then
         echo "== Removing the distribution sqlite package; the pinned build replaces it"
         CHANGED+=("ran dnf remove sqlite")
+        # The exclusion above applies to removal too: without lifting it for
+        # this one command, dnf removes nothing and still exits 0. So the
+        # outcome is read from rpm, never from dnf's exit status.
         crr_run --errors "$DNF_ERRORS" --warnings "$DNF_WARNINGS" "dnf remove" -- \
-          dnf remove -y sqlite || refuse "removing the distribution sqlite package failed"
+          dnf remove -y --disableexcludes=main sqlite || refuse "removing the distribution sqlite package failed"
+        if rpm -q sqlite >/dev/null 2>&1; then
+          refuse "the distribution sqlite package is still installed after dnf remove; it holds sqlite-libs off the pinned release"
+        fi
+        echo "    the distribution sqlite package is removed"
       fi
       install -m 755 -o root -g root "${sqlite_work}/sqlite3" "$sqlite_target"
       CHANGED+=("installed sqlite3 ${SQLITE_VERSION} at ${sqlite_target}")

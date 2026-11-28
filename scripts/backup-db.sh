@@ -320,18 +320,29 @@ META_JSON="$(printf '{"audit-newest-id":"%s","audit-newest-at":"%s","lineage-sin
   "${LOCAL_ID}" "${LOCAL_AT}" "${LINEAGE_SINCE}" "${LOCAL_JOBS_ID}")"
 
 gzip -9 "${SNAP}" || record_failure "gzip failed"
+gzip -t "${SNAP}.gz" || record_failure "the compressed snapshot does not test intact, so it was not uploaded"
+LOCAL_SIZE="$(stat -c '%s' "${SNAP}.gz")" || record_failure "could not read the compressed snapshot's size"
 KEY="routine/${DAY_PREFIX}/footbag-${TS}.db.gz"
 
 # 3. Upload with bounded retry and exponential backoff (1s, 2s between tries),
 #    each wait keeping its first half and randomising its second (equal jitter)
 #    so a retry never lines up with another caller that failed at the same time.
+#    An attempt counts only once the stored object reads back at the local
+#    file's size: a copy that exits 0 and stores nothing, or stores a short
+#    object, would otherwise reset the failure alarm with no usable backup.
 uploaded=0
 for attempt in $(seq 1 "${UPLOAD_MAX_ATTEMPTS}"); do
   if aws s3 cp --only-show-errors --metadata "${META_JSON}" "${SNAP}.gz" "s3://${BACKUP_S3_BUCKET}/${KEY}"; then
-    uploaded=1
-    break
+    stored_size="$(aws s3api head-object --bucket "${BACKUP_S3_BUCKET}" --key "${KEY}" \
+      --query ContentLength --output text 2>&1)" || stored_size=""
+    if [[ "${stored_size}" == "${LOCAL_SIZE}" ]]; then
+      uploaded=1
+      break
+    fi
+    echo "backup-db: upload attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS} reported success, but s3://${BACKUP_S3_BUCKET}/${KEY} reads back as ${stored_size:-absent}, not ${LOCAL_SIZE} bytes" >&2
+  else
+    echo "backup-db: upload attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS} failed" >&2
   fi
-  echo "backup-db: upload attempt ${attempt}/${UPLOAD_MAX_ATTEMPTS} failed" >&2
   if (( attempt < UPLOAD_MAX_ATTEMPTS )); then
     step_ms=$(( 1000 * 2 ** (attempt - 1) ))
     wait_ms=$(( step_ms / 2 + RANDOM % (step_ms / 2 + 1) ))

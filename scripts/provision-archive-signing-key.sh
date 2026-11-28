@@ -47,6 +47,8 @@ set -euo pipefail
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+# shellcheck source=lib/vendor-secret.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/vendor-secret.sh"
 
 TARGET_ENV=""
 AWS_PROFILE_ARG=""
@@ -183,7 +185,12 @@ do_store() {
     --value "file://${PRIVATE_KEY}" \
     --overwrite \
     "${AWS_ARGS[@]}" >/dev/null
-  echo "Stored the private key in ${PARAM_NAME} (SecureString, ${KMS_ALIAS})."
+  # The outcome, not the invocation: the parameter must now hold this key.
+  if ! ssm_secret_reads_back "$PARAM_NAME" "$(< "$PRIVATE_KEY")" "${AWS_ARGS[@]}"; then
+    echo "ERROR: ${VENDOR_SECRET_ERROR}. The key file is left in place; re-run the store action." >&2
+    exit 1
+  fi
+  echo "Stored the private key in ${PARAM_NAME} (SecureString, ${KMS_ALIAS}), read back and confirmed."
   echo "The application reads it at boot through the secrets adapter, so a"
   echo "running app needs a restart to pick up a replaced value."
 }

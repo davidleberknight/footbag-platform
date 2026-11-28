@@ -81,7 +81,22 @@ beforeEach(() => {
   // The stand-in records each call on one line and succeeds: the subject here
   // is what the half does with the snapshot, not the upload itself.
   const aws = join(binDir, 'aws');
-  writeFileSync(aws, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(callLog)}\nexit 0\n`);
+  // A stand-in bucket: `s3 cp` stores the file, and the snapshot's size
+  // read-back answers from what was stored.
+  const s3 = join(work, 's3');
+  writeFileSync(aws, [
+    '#!/usr/bin/env bash',
+    `printf '%s\\n' "$*" >> ${JSON.stringify(callLog)}`,
+    `S3=${JSON.stringify(s3)}`,
+    'if [[ "$1 $2" == "s3 cp" ]]; then src="${@: -2:1}"; dst="${@: -1}"; out="$S3/${dst#s3://}"; mkdir -p "$(dirname "$out")"; cp "$src" "$out"; exit $?; fi',
+    'if [[ "$1 $2" == "s3api head-object" ]]; then',
+    '  b=""; k=""; shift 2',
+    '  while (( $# )); do case "$1" in --bucket) b="$2"; shift 2 ;; --key) k="$2"; shift 2 ;; *) shift ;; esac; done',
+    '  [[ -f "$S3/$b/$k" ]] || { echo "An error occurred (404) when calling the HeadObject operation: Not Found" >&2; exit 254; }',
+    '  stat -c %s "$S3/$b/$k"; exit 0',
+    'fi',
+    'exit 0',
+  ].join('\n') + '\n');
   chmodSync(aws, 0o755);
   // The stand-in host records itself as the environment the bucket names, so the
   // snapshot script's host check passes; the check itself is pinned in its own suite.

@@ -2711,7 +2711,8 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       tool('rpm', [
         `if [[ "$*" == *--qf*docker* ]]; then ${dockerRpm ? `echo -n ${dockerVer}; exit 0` : 'echo "package docker is not installed"; exit 1'}; fi`,
         `[[ "$*" == "-q docker" ]] && exit ${dockerRpm ? 0 : 1}`,
-        `[[ "$*" == "-q sqlite" ]] && exit ${h.distroSqlite ? 0 : 1}`,
+        // Installed until a removal that dnf actually carried out clears it.
+        '[[ "$*" == "-q sqlite" ]] && { [[ -e "$LOG.distro-sqlite" ]] && exit 0; exit 1; }',
         '[[ "$*" == *docker-* ]] && exit 1',
         'exit 0',
       ]);
@@ -2729,7 +2730,15 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       // the pin when the lock holds, another release when it does not. The
       // query and the upgrade read the same repositories, as the real ones do.
       const serves = h.reposServe ?? AL_PIN;
+      rmSync(`${log}.distro-sqlite`, { force: true });
+      if (h.distroSqlite) writeFileSync(`${log}.distro-sqlite`, '');
       tool('dnf', [
+        // dnf applies excludepkgs to removal too: asked to remove an excluded
+        // package it removes nothing and still exits 0 (captured 2026-11-28
+        // from the production host: "All matches were filtered out by exclude
+        // filtering for argument: sqlite ... Nothing to do."). Only
+        // --disableexcludes lifts it.
+        `if [[ "$1" == remove ]]; then if grep -qE '^[[:space:]]*excludepkgs[[:space:]]*=.*sqlite' ${JSON.stringify(dnfConf)} && [[ "$*" != *--disableexcludes* ]]; then echo "All matches were filtered out by exclude filtering for argument: sqlite"; echo "No packages marked for removal."; echo "Nothing to do."; exit 0; fi; rm -f "$LOG.distro-sqlite"; exit 0; fi`,
         '[[ "$1" =~ ^(upgrade|repoquery)$ && ! -e "$LOG.swap-on" ]] && { echo "Amazon Linux 2023 repository  76 MB/s |  90 MB  00:01"; exit 137; }',
         `[[ "$1" == repoquery && "$*" == *"--qf %{version}\\n system-release"* ]] && { echo ${serves}; exit 0; }`,
         // dnf upgrade only moves forward: a host already past the release the
@@ -2852,7 +2861,21 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       const log = logged();
       expect(log).toMatch(new RegExp(`^dnf upgrade -y --releasever=${AL_PIN.replace(/[.]/g, '\\.')}$`, 'm'));
       expect(log).toMatch(new RegExp(`^dnf install -y docker-${DOCKER_PIN.replace(/[.]/g, '\\.')}$`, 'm'));
-      expect(log).toMatch(/^dnf remove -y sqlite$/m);
+      expect(log).toMatch(/^dnf remove -y --disableexcludes=main sqlite$/m);
+      expect(existsSync(`${log}.distro-sqlite`), 'the distribution sqlite package is still installed').toBe(false);
+      expect(readFileSync(sqliteTarget, 'utf-8')).toContain(`${SQLITE_PIN} 2026-01-09 shipped`);
+    });
+
+    it('removes the distribution sqlite on a host whose dnf already excludes it, and proves it gone', () => {
+      // Defect caught: on the production host the exclusion was already in
+      // place, so `dnf remove sqlite` removed nothing and exited 0; the run
+      // reported the pinned sqlite3 installed while the package stayed and held
+      // sqlite-libs off the pinned release.
+      const conf = '[main]\ngpgcheck=1\nexcludepkgs=sqlite\n';
+      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: true, installedSqlite: SQLITE_PIN, dnfConf: conf });
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status, r.out).toBe(0);
+      expect(existsSync(`${log}.distro-sqlite`), 'the distribution sqlite package is still installed').toBe(false);
       expect(readFileSync(sqliteTarget, 'utf-8')).toContain(`${SQLITE_PIN} 2026-01-09 shipped`);
     });
 

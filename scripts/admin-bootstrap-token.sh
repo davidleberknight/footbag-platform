@@ -55,6 +55,8 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
 # confirm_from_tty: the shared typed confirmation, read from the terminal.
 # shellcheck source=lib/host-env-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+# shellcheck source=lib/vendor-secret.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/vendor-secret.sh"
 
 TARGET=""
 AWS_PROFILE_ARG=""
@@ -171,7 +173,14 @@ case "$ACTION" in
     printf '{"Name":"%s","Type":"SecureString","Value":"%s"}\n' \
       "$PARAM_NAME" "$TOKEN" > "$TMP_JSON"
     "$AWS_BIN" ssm put-parameter --cli-input-json "file://${TMP_JSON}" "${AWS_ARGS[@]}" >/dev/null
-    echo "Provisioned ${PARAM_NAME} on ${TARGET}."
+    # Read back before the token is shown: a token shown for a parameter that
+    # does not hold it is one nobody can ever redeem.
+    VENDOR_SECRET_AWS_BIN="$AWS_BIN"
+    if ! ssm_secret_reads_back "$PARAM_NAME" "$TOKEN" "${AWS_ARGS[@]}"; then
+      echo "ERROR: ${VENDOR_SECRET_ERROR}. No token is shown; re-run to provision one." >&2
+      exit 1
+    fi
+    echo "Provisioned ${PARAM_NAME} on ${TARGET}, read back and confirmed."
     echo
     echo "Hand this token to the intended first admin OUT OF BAND (it is"
     echo "shown only this once; it is not retrievable from this script):"

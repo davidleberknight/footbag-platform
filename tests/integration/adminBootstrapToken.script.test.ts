@@ -101,6 +101,13 @@ function run(
       'printf "%s\\x1f" "$@" >> "$STUB_LOG"; printf "\\n" >> "$STUB_LOG"',
       'case "$1 $2" in',
       '  "ssm get-parameter")',
+      // The write's read-back: the decrypted value is whatever the last put
+      // stored, or not-found when a put stored nothing. Not counted as one of
+      // the status reads below.
+      '    if [[ " $* " == *" --with-decryption "* ]]; then',
+      '      [[ -f "$STUB_CAPTURE" ]] && { sed -n \'s/.*"Value":"\\([^"]*\\)".*/\\1/p\' "$STUB_CAPTURE"; exit 0; }',
+      `      printf '%s\\n' ${JSON.stringify(NOT_FOUND_STDERR)} >&2; exit 254`,
+      '    fi',
       // Any failure but not-found, in the CLI's own shape.
       '    if [[ -n "${STUB_READ_FAILS:-}" ]]; then echo "aws: [ERROR]: An error occurred (AccessDeniedException) when calling the GetParameter operation:" >&2; exit 254; fi',
       // The claim spends the token: the parameter goes away on the given read.
@@ -110,6 +117,8 @@ function run(
       // NOT_FOUND_STDERR, captured from the real CLI.
       `    printf '%s\\n' ${JSON.stringify(NOT_FOUND_STDERR)} >&2; exit 254 ;;`,
       '  "ssm put-parameter")',
+      // A put the CLI reports done that stored nothing.
+      '    [[ -n "${STUB_PUT_STORES_NOTHING:-}" ]] && exit 0',
       '    for a in "$@"; do',
       '      if [[ "$a" == file://* ]]; then',
       '        cp "${a#file://}" "$STUB_CAPTURE"; printf "%s" "${a#file://}" > "$STUB_CAPTURED_PATH"',
@@ -240,6 +249,18 @@ describe('admin-bootstrap-token.sh guards the first-admin credential', () => {
     // The request file does not outlive the run.
     expect(r.requestPath).not.toBeNull();
     expect(existsSync(r.requestPath as string)).toBe(false);
+  });
+
+  it('shows no token when the write the CLI reported done stored nothing', () => {
+    // Defect caught: the token was shown on the put's exit status alone, so a
+    // put that stored nothing handed the first admin a token no parameter
+    // holds, which can never be redeemed.
+    const r = run(['--target', 'staging', '--print-to-stdout', 'provision'], {
+      extraEnv: { STUB_PUT_STORES_NOTHING: '1' },
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/could not read it back to confirm.*No token is shown/);
+    expect(r.stdout).not.toMatch(/^ {2}[0-9a-f]{64}$/m);
   });
 
   it('says on stderr that its AWS CLI is a stand-in', () => {

@@ -148,10 +148,23 @@ SNAPSHOT_ARCHIVE="${SNAPSHOT_PATH}.gz"
 archive_byte_size=$(stat -c%s "${SNAPSHOT_ARCHIVE}" 2>/dev/null || stat -f%z "${SNAPSHOT_ARCHIVE}")
 archive_sha256=$(sha256sum "${SNAPSHOT_ARCHIVE}" | awk '{print $1}')
 
+# An upload counts only once the stored object reads back at the local file's
+# size: the CLI exiting 0 is not the rollback artifact being in the bucket.
+dr_object_landed() { # <key> <local file> <what>
+  local want got
+  want=$(stat -c%s "$2" 2>/dev/null || stat -f%z "$2")
+  got="$(aws s3api head-object --bucket "${FOOTBAG_DR_BUCKET}" --key "$1" \
+    --query ContentLength --output text 2>&1)" || got=""
+  [[ "${got}" == "${want}" ]] \
+    || cr_die "the ${3} upload reported success, but s3://${FOOTBAG_DR_BUCKET}/${1} reads back as ${got:-absent}, not ${want} bytes; nothing is assumed uploaded"
+}
+
 dr_uri_json="null"
 if [[ "${LOCAL_ONLY}" != "1" ]]; then
-  DR_URI="s3://${FOOTBAG_DR_BUCKET}/pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.db.gz"
+  DR_KEY="pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.db.gz"
+  DR_URI="s3://${FOOTBAG_DR_BUCKET}/${DR_KEY}"
   aws s3 cp --only-show-errors "${SNAPSHOT_ARCHIVE}" "${DR_URI}"
+  dr_object_landed "${DR_KEY}" "${SNAPSHOT_ARCHIVE}" "archive"
   dr_uri_json="\"${DR_URI}\""
 fi
 
@@ -186,6 +199,7 @@ EOF
 if [[ "${LOCAL_ONLY}" != "1" ]]; then
   aws s3 cp --only-show-errors "${MANIFEST_PATH}" \
     "s3://${FOOTBAG_DR_BUCKET}/pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.manifest.json"
+  dr_object_landed "pre-flip/${SNAPSHOT_ID}/${SNAPSHOT_ID}.manifest.json" "${MANIFEST_PATH}" "manifest"
 fi
 
 cat "${MANIFEST_PATH}"

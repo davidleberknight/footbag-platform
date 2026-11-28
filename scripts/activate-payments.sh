@@ -128,6 +128,8 @@ set -euo pipefail
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+# shellcheck source=lib/vendor-secret.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/vendor-secret.sh"
 
 TARGET=""
 AWS_PROFILE_ARG=""
@@ -369,7 +371,13 @@ put_ssm_secret() {
     return 1
   fi
   shred_key_tmp
-  echo "  stored $param_name"
+  # The outcome, not the invocation: the parameter must now hold this value,
+  # the placeholder included when the write is a reset.
+  if ! ssm_secret_reads_back "$param_name" "$param_value" --profile "$AWS_PROFILE_ARG"; then
+    cr_error "${VENDOR_SECRET_ERROR}."
+    return 1
+  fi
+  echo "  stored $param_name, read back and confirmed"
 }
 
 # A plaintext secret left in /tmp is listed in the closing report rather than
