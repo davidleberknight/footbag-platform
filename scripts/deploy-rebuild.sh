@@ -106,6 +106,8 @@ HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
 # changes anything: the host's sqlite3, docker, Compose plugin and Amazon Linux
 # release against the pins sent below. Mirrors deploy-code.sh.
 HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"
+# The dnf listing parser the host check's package check reads with.
+DNF_PARSER_LIB="${SCRIPT_DIR}/internal/dnf-check-update-remote.sh"
 # shellcheck source=lib/tool-versions.sh
 source "${REPO_ROOT}/scripts/lib/tool-versions.sh"
 # shellcheck source=lib/image-transfer.sh
@@ -274,6 +276,7 @@ fi
 [[ -r "$REMOTE_HALF" ]] || cr_die "missing remote-half: $REMOTE_HALF"
 [[ -r "$CUTOVER_GUARD" ]] || cr_die "missing cutover guard: $CUTOVER_GUARD"
 [[ -r "$HOST_TOOL_VERSIONS_LIB" ]] || cr_die "missing host tool-version check: $HOST_TOOL_VERSIONS_LIB"
+[[ -r "$DNF_PARSER_LIB" ]] || cr_die "missing dnf listing parser: $DNF_PARSER_LIB"
 [[ -r "$PROD_LIVE_GUARD" ]] || cr_die "missing production-live guard: $PROD_LIVE_GUARD"
 [[ -r "$REMOTE_REPORT_LIB" ]] || cr_die "missing remote-half report library: $REMOTE_REPORT_LIB"
 command -v docker >/dev/null || cr_die "docker required locally for image build"
@@ -714,7 +717,7 @@ send_remote_half() {
   # they exit non-zero before the remote half, so nothing live is touched. The
   # tool-version helper defines one function and runs nothing. The report
   # library goes ahead of them all, because the guards report through it.
-  cat "$REMOTE_REPORT_LIB" "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
+  cat "$REMOTE_REPORT_LIB" "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$DNF_PARSER_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 }
 # From here the host can be changed, so the verdict can no longer say that

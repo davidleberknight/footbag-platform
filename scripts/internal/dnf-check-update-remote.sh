@@ -31,6 +31,16 @@ dnf_check_update_rows() {
     || [[ $? == 1 ]]
 }
 
+# dnf_check_update_names <listing-file>
+# Prints the package of each update row the saved listing holds, one per line,
+# by the same row rule as the count above.
+dnf_check_update_names() {
+  sed '/^Obsoleting/,$d' "$1" \
+    | grep -E '^[^[:space:]]+\.[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]*$' \
+    | cut -d' ' -f1 \
+    || [[ $? == 1 ]]
+}
+
 # dnf_check_update <releasever> [<context>]
 # Runs `dnf check-update` against the release and sets DNF_UPDATE_COUNT and
 # DNF_UPDATE_LISTING. On a failed run, or exit 100 with nothing countable, marks

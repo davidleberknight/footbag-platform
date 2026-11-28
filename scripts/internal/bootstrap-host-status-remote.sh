@@ -105,6 +105,11 @@ emit COMPOSE_VERSION "$(docker compose version --short 2>/dev/null || echo none)
 # the backup and deploy call, the distribution docker package, and the Amazon
 # Linux release the package repositories are locked to.
 emit SQLITE_VERSION "$(sqlite3 --version 2>/dev/null | cut -d' ' -f1)"
+# Whether the distribution's sqlite package is still installed. The pinned
+# sqlite3 replaces it, and while it stays installed, excluded from upgrades, it
+# requires its own exact sqlite-libs, so a release step cannot bring that
+# library to the pinned release and the host falls off its pin.
+emit DISTRO_SQLITE "$(yes_if rpm -q sqlite)"
 emit DOCKER_RPM "$(rpm -q --qf '%{VERSION}-%{RELEASE}' docker 2>/dev/null | grep -v 'not installed' || true)"
 emit AL_RELEASE "$(sed -n 's/^Amazon Linux release \([0-9][0-9.]*\).*/\1/p' /etc/amazon-linux-release 2>/dev/null || true)"
 emit RSYNC "$(yes_if command -v rsync)"

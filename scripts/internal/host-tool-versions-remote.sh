@@ -15,8 +15,9 @@
 # (a hand-run package update, a release step half done), and a deploy onto a
 # drifted host runs code that was tested against other versions. So a deploy
 # refuses a host whose sqlite3, docker package, Compose plugin or Amazon Linux
-# release differs from the pins it was sent, naming every difference at once,
-# and changes nothing. Staging refuses exactly as production does.
+# release differs from the pins it was sent, or any of whose packages is not at
+# that release, naming every difference at once, and changes nothing. Staging
+# refuses exactly as production does.
 #
 # What it refuses to do: decide the pins itself. The workstation reads them
 # from a version list (on production the one at the tip of main, on staging the
@@ -33,10 +34,35 @@
 #   HOST_DOCKER_BIN   the docker client to ask for its Compose plugin's version
 #                     (default docker)
 #   AL_RELEASE_FILE   the release file to read (default /etc/amazon-linux-release)
+#   HOST_DNF_CONF     the dnf configuration whose exclusions are read (default
+#                     /etc/dnf/dnf.conf)
+# The package check runs `dnf check-update` from PATH, which the suite stands in.
+
+# host_excluded_installed
+# Prints the names of packages the host's dnf configuration excludes from
+# upgrades that are installed all the same, space-separated, or nothing. Such a
+# package cannot follow the pinned release, and it holds what it requires at its
+# own versions: the distribution's sqlite package, left under the pinned
+# sqlite3, kept sqlite-libs off the pin. Returns 1 when the configuration cannot
+# be read, which is never an empty answer.
+host_excluded_installed() {
+  local conf="${HOST_DNF_CONF:-/etc/dnf/dnf.conf}" rpm_bin="${HOST_RPM_BIN:-rpm}" names name found=""
+  [[ -n "${HOST_DNF_CONF:-}" ]] && echo "SYNTHETIC: HOST_DNF_CONF is set -- this check proves nothing about the host." >&2
+  [[ -r "$conf" ]] || { echo "cannot read ${conf}" >&2; return 1; }
+  names="$(sed -n 's/^[[:space:]]*\(excludepkgs\|exclude\)[[:space:]]*=//p' "$conf" | tr ',' ' ')"
+  for name in $names; do
+    "$rpm_bin" -q "$name" >/dev/null 2>&1 && found+="${name} "
+  done
+  printf '%s' "${found% }"
+}
 
 # host_tool_versions_match
-# Returns 0 when all four match their pins; otherwise prints one line per
-# difference on stderr and returns 1.
+# Returns 0 when the four tools match their pins and every package is at the
+# pinned release; otherwise prints one line per difference on stderr and
+# returns 1. The release pin fixes the exact version of every distribution
+# package, so a package dnf still lists at that release, or an excluded package
+# that cannot move to it, is a host off its pins however its tools read.
+# Needs dnf-check-update-remote.sh sent ahead of it.
 host_tool_versions_match() {
   local seam bad=0 sqlite_bin rpm_bin docker_bin release_file
   local have_sqlite have_docker have_compose have_release
@@ -75,6 +101,25 @@ host_tool_versions_match() {
     || diffs+=("the host's Compose plugin is ${have_compose:-missing}; the version list pins ${EXPECTED_COMPOSE_VERSION}.")
   [[ "$have_release" == "$EXPECTED_AMAZON_LINUX_RELEASE" ]] \
     || diffs+=("the host runs Amazon Linux ${have_release:-of an unknown release}; the version list pins ${EXPECTED_AMAZON_LINUX_RELEASE}.")
+
+  local excluded
+  if excluded="$(host_excluded_installed)"; then
+    [[ -z "$excluded" ]] \
+      || diffs+=("${excluded} installed while dnf excludes it from upgrades, so it and what it requires cannot follow the pinned release ${EXPECTED_AMAZON_LINUX_RELEASE}; re-run scripts/bootstrap-host.sh for this target, which removes it.")
+  else
+    diffs+=("the excluded-package check could not read the host's dnf configuration.")
+  fi
+  if ! declare -F dnf_check_update >/dev/null; then
+    diffs+=("dnf-check-update-remote.sh was not sent ahead of this check.")
+  elif dnf_check_update "$EXPECTED_AMAZON_LINUX_RELEASE" "the package check"; then
+    if [[ "$DNF_UPDATE_COUNT" != 0 ]]; then
+      local behind
+      behind="$(dnf_check_update_names <(printf '%s\n' "$DNF_UPDATE_LISTING") | tr '\n' ' ')"
+      diffs+=("${DNF_UPDATE_COUNT} package(s) are not at the pinned release ${EXPECTED_AMAZON_LINUX_RELEASE}: ${behind% }; step the host with scripts/step-amazon-linux.sh.")
+    fi
+  else
+    diffs+=("whether every package is at the pinned release could not be read: ${DNF_UPDATE_LISTING##*$'\n'}.")
+  fi
 
   # Every environment refuses a host off its pins, staging as production, so
   # staging proves a release on the versions production will run.

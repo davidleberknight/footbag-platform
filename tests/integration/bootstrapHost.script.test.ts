@@ -104,6 +104,7 @@ function finishedHost(target: 'staging' | 'production'): Record<string, string> 
     DOCKER_ENABLED: 'enabled',
     COMPOSE_VERSION: COMPOSE.slice(1),
     SQLITE_VERSION: SQLITE_PIN,
+    DISTRO_SQLITE: 'no',
     DOCKER_RPM: DOCKER_PIN,
     AL_RELEASE: AL_PIN,
     RSYNC: 'yes',
@@ -1146,8 +1147,12 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     // Defect caught: a host on the distribution's older sqlite3, or an engine or
     // release other than the pinned one, reads as done because the tool exists,
     // so the bootstrap never brings it to its pin.
+    // The distribution's sqlite package left installed under a pinned sqlite3
+    // is the production host's state: sqlite3 reads at its pin while the
+    // package holds sqlite-libs off the release, so a release step cannot land.
     const offPins: Array<Record<string, string>> = [
       { SQLITE_VERSION: '3.40.0' }, { DOCKER_RPM: '25.0.14-1.amzn2023.0.1' }, { AL_RELEASE: '2023.11.20260901' },
+      { DISTRO_SQLITE: 'yes' }, { DISTRO_SQLITE: '' },
     ];
     for (const off of offPins) {
       writeHost({ ...finishedHost('staging'), ...off });

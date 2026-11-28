@@ -32,6 +32,7 @@ import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/step-amazon-linux-remote.sh');
 const REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
 const DNF_PARSER = join(process.cwd(), 'scripts/internal/dnf-check-update-remote.sh');
+const VERSIONS_HALF = join(process.cwd(), 'scripts/internal/host-tool-versions-remote.sh');
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/step-amazon-linux.sh');
 const PINS = readFileSync(join(process.cwd(), 'ops/tool-versions.env'), 'utf8');
 const pin = (k: string): string => {
@@ -136,14 +137,23 @@ function writeHostTools(): void {
     'exit 0',
   ]);
   exe(join(hostBin, 'sqlite3'), [`echo "${pin('SQLITE_VERSION')} 2026-01-01 00:00:00 fixture"`]);
-  exe(join(hostBin, 'rpm'), [`printf '%s' "$(cat ${st}/docker-version 2>/dev/null || echo ${pin('DOCKER_ENGINE_HOST')})"`]);
+  // `rpm -q sqlite` answers installed only when a case plants the distribution
+  // package; every other query is the docker version the tool check reads.
+  exe(join(hostBin, 'rpm'), [
+    `if [[ "$*" == "-q sqlite" ]]; then [[ -e ${st}/distro-sqlite ]] && { echo sqlite-3.40.0-1.amzn2023.0.8.x86_64; exit 0; }; echo "package sqlite is not installed"; exit 1; fi`,
+    `printf '%s' "$(cat ${st}/docker-version 2>/dev/null || echo ${pin('DOCKER_ENGINE_HOST')})"`,
+  ]);
 }
 
 function hostEnv(): NodeJS.ProcessEnv {
   const envFile = join(dir, 'host-env');
   writeFileSync(envFile, 'FOOTBAG_ENV=staging\n');
+  // As bootstrap leaves every host: the distribution sqlite excluded.
+  const dnfConf = join(dir, 'dnf.conf');
+  writeFileSync(dnfConf, '[main]\ngpgcheck=1\nexcludepkgs=sqlite\n');
   return {
     PATH: `${hostBin}:${process.env.PATH ?? ''}`,
+    DNF_CONF: dnfConf,
     AL_RELEASE_FILE: releaseFile,
     REBOOT_HINT_MARKER: join(state, 'reboot-hint-marker'),
     MIN_FREE_MB: '1024',
@@ -157,7 +167,7 @@ function hostEnv(): NodeJS.ProcessEnv {
 function runRemote(mode: string, extra: string[] = []) {
   const stream = [`MODE=${mode}`, `AMAZON_LINUX_RELEASE=${PIN}`, ...extra].join('\n') + '\n'
     + readFileSync(REPORT_LIB, 'utf-8') + '\n' + readFileSync(DNF_PARSER, 'utf-8') + '\n'
-    + readFileSync(REMOTE_HALF, 'utf-8');
+    + readFileSync(VERSIONS_HALF, 'utf-8') + '\n' + readFileSync(REMOTE_HALF, 'utf-8');
   const r = spawnSync('bash', ['-s'], {
     input: stream, encoding: 'utf-8', env: { ...process.env, ...hostEnv() }, ...SPAWN_GUARD,
   });
@@ -203,6 +213,30 @@ describe('the root-side step', () => {
     expect(step.status).toBe(1);
     expect(calls()).not.toMatch(/systemctl stop|dnf upgrade/);
     expect(readFileSync(releaseFile, 'utf-8')).toContain(PAST);
+  });
+
+  it('refuses before anything stops while a package dnf excludes from upgrades is still installed', () => {
+    // Defect caught: the production host kept the distribution sqlite package
+    // under the pinned sqlite3; excluded from upgrades, it held sqlite-libs at
+    // its own version, so the step stopped the site, upgraded everything else
+    // and then failed with the host off its pin.
+    flag('distro-sqlite');
+    const preview = runRemote('preview');
+    expect(preview.status).toBe(1);
+    expect(preview.out).not.toContain('---FOOTBAG-PREVIEW---');
+    expect(preview.out).toMatch(/^---FOOTBAG-PROBLEM--- ERROR sqlite installed while .* excludes it from upgrades.*re-run scripts\/bootstrap-host\.sh/m);
+    const step = runRemote('step');
+    expect(step.status).toBe(1);
+    expect(calls()).not.toMatch(/systemctl stop|dnf upgrade/);
+  });
+
+  it('refuses at the pin too, since the excluded package still holds what it requires off the release', () => {
+    writeFileSync(releaseFile, `Amazon Linux release ${PIN} (Amazon Linux)\n`);
+    flag('distro-sqlite');
+    const step = runRemote('step');
+    expect(step.status).toBe(1);
+    expect(step.out).toMatch(/^---FOOTBAG-PROBLEM--- ERROR sqlite installed while/m);
+    expect(calls()).not.toMatch(/systemctl stop|dnf upgrade/);
   });
 
   it('refuses before anything stops when the repositories for the pin would carry the host past it', () => {
@@ -302,7 +336,7 @@ describe('the root-side step', () => {
   it('reports the host against the pins, each difference an error', () => {
     // Defect caught: a step reported done on a host whose docker is not the
     // version the pins name.
-    const helper = readFileSync(join(process.cwd(), 'scripts/internal/host-tool-versions-remote.sh'), 'utf8');
+    const helper = readFileSync(VERSIONS_HALF, 'utf8');
     const expected = [
       `EXPECTED_SQLITE_VERSION=${pin('SQLITE_VERSION')}`,
       `EXPECTED_DOCKER_ENGINE=${pin('DOCKER_ENGINE_HOST')}`,

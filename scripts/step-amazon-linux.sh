@@ -133,7 +133,9 @@ send() {
     for kv in "$@"; do printf '%s=%q\n' "${kv%%=*}" "${kv#*=}"; done
     cat "$REPORT_LIB"
     cat "$DNF_PARSER"
-    [[ "$mode" == prove ]] && cat "$VERSIONS_HALF"
+    # Every mode: the preview and the step refuse an excluded package still
+    # installed through it, and the proof compares the host with every pin.
+    cat "$VERSIONS_HALF"
     cat "$REMOTE_HALF"
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash'
 }

@@ -643,6 +643,11 @@ bh_verdict() {
       pin_check "sqlite3" "$pin_sqlite" "${P[SQLITE_VERSION]:-}"
       pin_check "docker" "$pin_docker" "${P[DOCKER_RPM]:-}"
       pin_check "Amazon Linux" "$pin_al" "$al_have"
+      # The pinned sqlite3 replaces the distribution's package. Left installed,
+      # it holds sqlite-libs at its own version, off the pinned release, even
+      # where sqlite3 itself reads at its pin; an unread value is not an answer.
+      [[ "${P[DISTRO_SQLITE]:-}" == "no" ]] \
+        || missing+="the distribution sqlite package removed (it holds sqlite-libs off the pinned release; host reads ${P[DISTRO_SQLITE]:-unread}); "
       [[ "${P[RSYNC]:-}" == "yes" ]] || missing+="rsync; "
       [[ "${P[AWSCLI]:-}" == "yes" ]] || missing+="the aws CLI; "
       if [[ -z "$missing" ]]; then

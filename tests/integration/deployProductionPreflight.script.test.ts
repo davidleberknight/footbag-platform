@@ -34,6 +34,7 @@ import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 const REPO_ROOT = process.cwd();
 const GATE_LIB = join(REPO_ROOT, 'scripts/lib/production-release-gate.sh');
 const HOST_CHECK = join(REPO_ROOT, 'scripts/internal/host-tool-versions-remote.sh');
+const DNF_PARSER = join(REPO_ROOT, 'scripts/internal/dnf-check-update-remote.sh');
 const scratch = createScratchDir('deploy-production-preflight');
 afterAll(() => removeScratch(scratch));
 let seq = 0;
@@ -95,12 +96,16 @@ function git(cwd: string, args: string[]): void {
 function hostAt(dir: string, p: Pins): Record<string, string> {
   mkdirSync(dir, { recursive: true });
   exe(join(dir, 'sqlite3'), [`echo "${p.sqlite} 2026-01-09 00:00:00 abc"`]);
-  exe(join(dir, 'rpm'), [`printf '%s' "${p.docker}"`]);
+  // A host whose every package is at its release: no excluded package
+  // installed, and dnf listing nothing at the pinned release.
+  exe(join(dir, 'rpm'), ['[[ "$*" == "-q sqlite" ]] && exit 1', `printf '%s' "${p.docker}"`]);
   exe(join(dir, 'docker'), ['[[ "$*" == "compose version --short" ]] || exit 1', `echo "${p.compose.replace(/^v/, '')}"`]);
   writeFileSync(join(dir, 'release'), `Amazon Linux release ${p.release} (Amazon Linux)\n`);
+  writeFileSync(join(dir, 'dnf.conf'), '[main]\nexcludepkgs=sqlite\n');
   return {
     HOST_SQLITE3_BIN: join(dir, 'sqlite3'), HOST_RPM_BIN: join(dir, 'rpm'),
     HOST_DOCKER_BIN: join(dir, 'docker'), AL_RELEASE_FILE: join(dir, 'release'),
+    HOST_DNF_CONF: join(dir, 'dnf.conf'),
   };
 }
 
@@ -148,6 +153,7 @@ function drivePreflight({ leaf, last, remote, host, mainOmits = [], mainExtra = 
     'echo /home/footbag',
   ]);
   exe(join(bin, 'docker'), ['exit 0']);
+  exe(join(bin, 'dnf'), ['exit 0']);
   writeFileSync(join(lib, 'host-env-remote.sh'), [
     `require_host_is() { ${record('"require_host_is $1 $2"')}; return 0; }`,
     `host_address_for() { ${record('"host_address_for $1"')}; HOST_ADDRESS="https://$1.example.invalid"; return 0; }`,
@@ -182,7 +188,7 @@ function drivePreflight({ leaf, last, remote, host, mainOmits = [], mainExtra = 
     'KEEP_MEDIA=yes; FOOTBAG_PROD_DB_REPLACE_ACK=1',
     `REMOTE_HALF=${JSON.stringify(join(world, 'remote-half.sh'))}; PRUNE_LIB=${JSON.stringify(join(world, 'prune.sh'))}`,
     `CUTOVER_GUARD=${JSON.stringify(join(world, 'cutover-guard.sh'))}; PROD_LIVE_GUARD=${JSON.stringify(join(world, 'live-guard.sh'))}`,
-    `HOST_TOOL_VERSIONS_LIB=${JSON.stringify(HOST_CHECK)}`,
+    `HOST_TOOL_VERSIONS_LIB=${JSON.stringify(HOST_CHECK)}; DNF_PARSER_LIB=${JSON.stringify(DNF_PARSER)}`,
     // What the leaf sourced before its preflight, standing in for the libraries.
     'source "$REPO_ROOT/scripts/lib/tool-versions.sh"',
     'require_pinned_known_hosts() { FOOTBAG_SSH_PIN_OPTS=(); return 0; }',
@@ -193,7 +199,7 @@ function drivePreflight({ leaf, last, remote, host, mainOmits = [], mainExtra = 
     'echo REACHED-FIRST-SHIPPING-STEP',
     ...(host ? [
       // The pins the stretch chose, sent as the code deploy sends them.
-      `source ${JSON.stringify(HOST_CHECK)}`,
+      `source ${JSON.stringify(DNF_PARSER)}; source ${JSON.stringify(HOST_CHECK)}`,
       'EXPECTED_SQLITE_VERSION="$PIN_SQLITE_VERSION" EXPECTED_DOCKER_ENGINE="$PIN_DOCKER_ENGINE" \\',
       '  EXPECTED_COMPOSE_VERSION="$PIN_COMPOSE_VERSION" EXPECTED_AMAZON_LINUX_RELEASE="$PIN_AMAZON_LINUX_RELEASE" \\',
       '  host_tool_versions_match && echo HOST-CHECK-PASSED || echo HOST-CHECK-REFUSED',

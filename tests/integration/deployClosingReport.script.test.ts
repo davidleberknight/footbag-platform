@@ -399,7 +399,7 @@ describe('scripts/deploy-code.sh records whether a migration really ran', () => 
       'set -eo pipefail',
       `source ${JSON.stringify(REPORT_LIB)}`,
       'REMOTE=footbag-staging; SSH_OPTS=()',
-      'REMOTE_REPORT_LIB=/dev/null; PRUNE_LIB=/dev/null; HOST_TOOL_VERSIONS_LIB=/dev/null; HOST_VALUES_LIB=/dev/null; REMOTE_HALF=/dev/null',
+      'REMOTE_REPORT_LIB=/dev/null; PRUNE_LIB=/dev/null; DNF_PARSER_LIB=/dev/null; HOST_TOOL_VERSIONS_LIB=/dev/null; HOST_VALUES_LIB=/dev/null; REMOTE_HALF=/dev/null',
       `ssh() { cat >/dev/null; printf '%b' ${JSON.stringify(hostOut)}; return ${code}; }`,
       stretch('scripts/deploy-code.sh', "REMOTE_HALF_ERRORS='", '  cr_fact migration-skipped'),
       'fi',

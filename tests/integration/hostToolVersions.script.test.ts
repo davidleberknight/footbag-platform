@@ -12,12 +12,14 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync, writeFileSync, chmodSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync, chmodSync, mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScratchDir } from '../fixtures/scratchDir';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const LIB = join(process.cwd(), 'scripts/internal/host-tool-versions-remote.sh');
+const REPORT_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
+const DNF_PARSER = join(process.cwd(), 'scripts/internal/dnf-check-update-remote.sh');
 
 const PINS = {
   EXPECTED_SQLITE_VERSION: '3.51.2',
@@ -37,13 +39,38 @@ afterEach(() => {
 });
 
 /** Stand-ins answering as a host at the given versions. */
-function host(versions: { sqlite?: string; docker?: string; compose?: string; release?: string }): NodeJS.ProcessEnv {
+function host(versions: {
+  sqlite?: string; docker?: string; compose?: string; release?: string;
+  distroSqlite?: boolean; behind?: string; dnfFails?: boolean;
+}): NodeJS.ProcessEnv {
   const sqlite = join(dir, 'sqlite3');
   writeFileSync(sqlite, `#!/usr/bin/env bash\necho "${versions.sqlite ?? PINS.EXPECTED_SQLITE_VERSION} 2026-01-09 00:00:00 abc"\n`);
   chmodSync(sqlite, 0o755);
+  // `rpm -q sqlite` answers installed only for a host left with the
+  // distribution package; every other query is the docker version.
   const rpm = join(dir, 'rpm');
-  writeFileSync(rpm, `#!/usr/bin/env bash\nprintf '%s' "${versions.docker ?? PINS.EXPECTED_DOCKER_ENGINE}"\n`);
+  writeFileSync(rpm, [
+    '#!/usr/bin/env bash',
+    `if [[ "$*" == "-q sqlite" ]]; then ${versions.distroSqlite ? 'echo sqlite-3.40.0-1.amzn2023.0.8.x86_64; exit 0' : 'echo "package sqlite is not installed"; exit 1'}; fi`,
+    `printf '%s' "${versions.docker ?? PINS.EXPECTED_DOCKER_ENGINE}"`,
+  ].join('\n'));
   chmodSync(rpm, 0o755);
+  // As bootstrap leaves every host: the distribution sqlite excluded.
+  const dnfConf = join(dir, 'dnf.conf');
+  writeFileSync(dnfConf, '[main]\ngpgcheck=1\nexcludepkgs=sqlite\n');
+  // `dnf check-update` in the layout AL2023's dnf prints, captured 2026-11-28
+  // from the production host: one row per package not at the release,
+  // then security notes the row rule skips. Exit 100 lists, 0 lists none.
+  const bin = join(dir, 'bin');
+  mkdirSync(bin, { recursive: true });
+  writeFileSync(join(bin, 'dnf'), [
+    '#!/usr/bin/env bash',
+    versions.dnfFails ? 'echo "Error: Failed to download metadata for repo amazonlinux" >&2; exit 1' : '',
+    versions.behind
+      ? `printf '\\n%-33s%-36s%s\\n' "${versions.behind}" "3.40.0-1.amzn2023.0.9" "amazonlinux"; echo "Security: kernel-1:6.1.190-237.442.amzn2023.x86_64 is an installed security update"; exit 100`
+      : 'exit 0',
+  ].join('\n'));
+  chmodSync(join(bin, 'dnf'), 0o755);
   // Answers only `docker compose version --short`, as the plugin does: the bare
   // number, without the tag's leading v. Asked anything else it fails, so a
   // check asking the wrong question reads nothing.
@@ -53,11 +80,16 @@ function host(versions: { sqlite?: string; docker?: string; compose?: string; re
   chmodSync(docker, 0o755);
   const release = join(dir, 'amazon-linux-release');
   writeFileSync(release, `Amazon Linux release ${versions.release ?? PINS.EXPECTED_AMAZON_LINUX_RELEASE} (Amazon Linux)\n`);
-  return { HOST_SQLITE3_BIN: sqlite, HOST_RPM_BIN: rpm, HOST_DOCKER_BIN: docker, AL_RELEASE_FILE: release };
+  return {
+    HOST_SQLITE3_BIN: sqlite, HOST_RPM_BIN: rpm, HOST_DOCKER_BIN: docker, AL_RELEASE_FILE: release,
+    HOST_DNF_CONF: dnfConf, PATH: `${bin}:${process.env.PATH ?? ''}`,
+  };
 }
 
+// Sent as the deploys send them: the report library and the dnf listing parser
+// ahead of the comparison.
 function check(env: NodeJS.ProcessEnv, pins: Partial<typeof PINS> = PINS) {
-  const res = spawnSync('bash', ['-c', `source "${LIB}"; host_tool_versions_match`], {
+  const res = spawnSync('bash', ['-c', `source "${REPORT_LIB}"; source "${DNF_PARSER}"; source "${LIB}"; host_tool_versions_match`], {
     env: { PATH: process.env.PATH ?? '', ...pins, ...env },
     encoding: 'utf8',
     ...SPAWN_GUARD,
@@ -133,6 +165,32 @@ describe('comparing the host\'s tools with the pins the deploy sent', () => {
     }
   });
 
+  // Defect caught: a host whose tools all read at their pins while
+  // sqlite-libs sat off the pinned release took every deploy,
+  // so the host drifted from the pin list with nothing refusing it.
+  it('refuses a host with a package not at the pinned release, naming it', () => {
+    const res = check(host({ behind: 'sqlite-libs.x86_64' }));
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/ERROR: 1 package\(s\) are not at the pinned release 2023\.12\.20261021: sqlite-libs\.x86_64; step the host/);
+  });
+
+  // Defect caught: the distribution sqlite package, excluded from upgrades and
+  // still installed, holds sqlite-libs off every later release, yet reads as a
+  // host at its pins.
+  it('refuses a host with an excluded package still installed', () => {
+    const res = check(host({ distroSqlite: true }));
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/ERROR: sqlite installed while dnf excludes it from upgrades.*re-run scripts\/bootstrap-host\.sh/);
+  });
+
+  // Defect caught: a package listing that could not be read taken as "every
+  // package at the release".
+  it('refuses when whether every package is at the release cannot be read', () => {
+    const res = check(host({ dnfFails: true }));
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/ERROR: whether every package is at the pinned release could not be read/);
+  });
+
   // Defect caught: an operator fixing differences one deploy at a time, because
   // the check stopped at the first one it found.
   it('names every difference in one run', () => {
@@ -167,12 +225,12 @@ const DEPLOYS = [
   {
     sender: 'scripts/deploy-code.sh', remote: 'scripts/internal/deploy-code-remote.sh',
     steps: ['SRV_AVAIL_KB=', '\nseed_committed_host_config apply', '\nsystemctl ', 'rsync '],
-    ships: /cat "\$REMOTE_REPORT_LIB" "\$PRUNE_LIB" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
+    ships: /cat "\$REMOTE_REPORT_LIB" "\$PRUNE_LIB" "\$DNF_PARSER_LIB" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
   },
   {
     sender: 'scripts/deploy-rebuild.sh', remote: 'scripts/internal/deploy-rebuild-remote.sh',
     steps: ['SRV_AVAIL_KB=', '\nseed_committed_host_config apply', 'rsync '],
-    ships: /cat "\$REMOTE_REPORT_LIB" "\$CUTOVER_GUARD" "\$PROD_LIVE_GUARD" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
+    ships: /cat "\$REMOTE_REPORT_LIB" "\$CUTOVER_GUARD" "\$PROD_LIVE_GUARD" "\$DNF_PARSER_LIB" "\$HOST_TOOL_VERSIONS_LIB" "\$HOST_VALUES_LIB" "\$REMOTE_HALF"/,
   },
 ];
 
@@ -202,5 +260,6 @@ describe('the deploy runs the comparison before it changes anything', () => {
     }
     expect(text).toMatch(ships);
     expect(text).toContain('HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"');
+    expect(text).toContain('DNF_PARSER_LIB="${SCRIPT_DIR}/internal/dnf-check-update-remote.sh"');
   });
 });

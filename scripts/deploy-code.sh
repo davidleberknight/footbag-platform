@@ -170,8 +170,10 @@ PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
 HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
 # Travels the same way and defines the comparison the remote half runs before it
 # changes anything: the host's sqlite3, docker, Compose plugin and Amazon Linux
-# release against the pins sent below.
+# release against the pins sent below, and every package at that release. The
+# dnf listing parser travels ahead of it, since the package check reads one.
 HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"
+DNF_PARSER_LIB="${SCRIPT_DIR}/internal/dnf-check-update-remote.sh"
 # Travels first of all and defines how the remote half reports its problems, so
 # they land in this run's closing report.
 REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
@@ -683,7 +685,7 @@ send_remote_half() {
   # data and functions and run nothing, so the remote half can call them: the
   # report functions throughout, the pruner once the new release reports ready,
   # the catalogue's sync where the parameters land.
-  cat "$REMOTE_REPORT_LIB" "$PRUNE_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
+  cat "$REMOTE_REPORT_LIB" "$PRUNE_LIB" "$DNF_PARSER_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' | cr_keep_marked "$HALF_MARKS"
 }
 # From here the host can be changed, so the verdict can no longer say that

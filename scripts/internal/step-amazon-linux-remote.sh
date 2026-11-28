@@ -43,7 +43,8 @@
 #   EXPECTED_AMAZON_LINUX_RELEASE, EXPECTED_COMPOSE_VERSION.
 # Optional, set only by the suite: AL_RELEASE_FILE (default
 # /etc/amazon-linux-release), REBOOT_HINT_MARKER (default
-# /run/smart-restart/reboot-hint-marker), MIN_FREE_MB (default 1024).
+# /run/smart-restart/reboot-hint-marker), MIN_FREE_MB (default 1024), DNF_CONF
+# (default /etc/dnf/dnf.conf).
 
 set -uo pipefail
 
@@ -54,6 +55,9 @@ release_file="${AL_RELEASE_FILE:-/etc/amazon-linux-release}"
 # operating system updates in AL2023").
 reboot_marker="${REBOOT_HINT_MARKER:-/run/smart-restart/reboot-hint-marker}"
 min_free_mb="${MIN_FREE_MB:-1024}"
+dnf_conf="${DNF_CONF:-/etc/dnf/dnf.conf}"
+# The shared host check reads the same configuration, in every mode.
+[[ -n "${DNF_CONF:-}" ]] && export HOST_DNF_CONF="$DNF_CONF"
 [[ -n "${MIN_FREE_MB:-}" ]] && echo "SYNTHETIC: MIN_FREE_MB=${MIN_FREE_MB} -- the disk check's floor is not the real one." >&2
 
 # The package manager's own failure and warning lines. Error first: a scriptlet
@@ -86,8 +90,31 @@ count_updates() {
 # the pin would read as "already at the pin". And repositories that resolve to
 # another release would carry the host past it. Each is a marked error; the
 # return is 1 when the step cannot land.
+#
+# A package dnf excludes from upgrades that is still installed cannot follow the
+# release, and it holds what it requires at its own versions: the distribution's
+# sqlite package, left under the pinned sqlite3, kept sqlite-libs off the pin, so
+# a step stopped the site and upgraded everything else, then failed. Refused here
+# instead, whatever the release, naming the bootstrap re-run that removes it.
+excluded_but_installed() {
+  local found=""
+  if ! declare -F host_excluded_installed >/dev/null; then
+    crr_error "host-tool-versions-remote.sh was not sent ahead of this body"
+    return 1
+  fi
+  if ! found="$(HOST_DNF_CONF="${DNF_CONF:-}" host_excluded_installed)"; then
+    crr_error "the excluded-package check could not read ${dnf_conf}; nothing was stepped"
+    return 1
+  fi
+  if [[ -n "$found" ]]; then
+    crr_error "${found} installed while ${dnf_conf} excludes it from upgrades, so it and what it requires cannot follow the pinned release ${AMAZON_LINUX_RELEASE}; the pinned sqlite3 replaces the distribution package: re-run scripts/bootstrap-host.sh for this target, which removes it. Nothing was stepped"
+    return 1
+  fi
+}
+
 step_can_land() {
   local rel newest
+  excluded_but_installed || return 1
   rel="$(release_now)" || return 1
   [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]] && return 0
   newest="$(printf '%s\n%s\n' "$AMAZON_LINUX_RELEASE" "${rel:-0}" | sort -V | tail -n 1)"
