@@ -45,6 +45,7 @@ case "$1" in
     for arg in "$@"; do [[ "$arg" == label=com.docker.compose.service=* ]] && svc="\${arg#label=com.docker.compose.service=}"; done
     case " \${PRESENT:-nginx web worker image} " in *" $svc "*) echo "id-$svc" ;; esac ;;
   inspect)
+    [[ -n "\${INSPECT_FAIL:-}" ]] && { echo "Error: No such object" >&2; exit 1; }
     last="\${!#}"
     svc="\${last#id-}"
     var="STATE_$svc"
@@ -252,6 +253,49 @@ describe('container-monitor.sh', () => {
     }
     expect(res.lines).toContain('container_crashes:2|c|#container:web');
     expect(res.lines.at(-1)).toBe('container_monitor_heartbeat:1|g');
+  });
+
+  it('records each container\'s failures for the crash-loop breaker, only on a run that met no error', () => {
+    // Defect caught: the breaker never seeing the failures it must count, so a
+    // loop is never stopped; or a failed run's window, read again by the next
+    // run, counted twice and tripping a container early.
+    const exitsFile = join(stateDir, 'exits');
+    run({ EVENTS: 'oom image \\ndie image 137\\ndie worker 1\\ndie worker 139\\ndie web 0' });
+    expect(readFileSync(exitsFile, 'utf8')).toBe(`${NOW} worker 2\n${NOW} image 1\n`);
+
+    // A run that read failures and then met an error records none of them:
+    // the next run reads the same window again and records them then.
+    const failed = run({ EVENTS: 'die worker 1', INSPECT_FAIL: '1' });
+    expect(failed.status).not.toBe(0);
+    expect(readFileSync(exitsFile, 'utf8')).toBe(`${NOW} worker 2\n${NOW} image 1\n`);
+  });
+
+  it('reads a container the crash-loop breaker stopped as unhealthy, even while the site is stopped', () => {
+    // Defect caught: the breaker's stop of footbag.service read as a planned
+    // stop, so only the heartbeat goes out and the site sits on the
+    // maintenance page with no alarm.
+    writeFileSync(join(stateDir, 'crash-loop-tripped'), 'container=web\ntripped_at=1\nfailures=5\n');
+    // A space, not empty: the stand-in reads an empty value as the full stack.
+    const res = run({ STACK_ACTIVE: '0', PRESENT: ' ' });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.lines).toContain('container_unhealthy:1|g|#container:web');
+    expect(res.lines.at(-1)).toBe('container_monitor_heartbeat:1|g');
+  });
+
+  it('reads only the tripped worker unhealthy while the rest of the site runs', () => {
+    writeFileSync(join(stateDir, 'crash-loop-tripped'), 'container=worker\ntripped_at=1\nfailures=5\n');
+    const res = run();
+    expect(res.lines).toContain('container_unhealthy:1|g|#container:worker');
+    expect(res.lines).toContain('container_unhealthy:0|g|#container:web');
+  });
+
+  it('reads every container unhealthy for a trip marker that names none', () => {
+    // Defect caught: a damaged marker silencing the alarm for a stopped site.
+    writeFileSync(join(stateDir, 'crash-loop-tripped'), 'garbled\n');
+    const res = run();
+    for (const svc of ['nginx', 'web', 'worker', 'image']) {
+      expect(res.lines).toContain(`container_unhealthy:1|g|#container:${svc}`);
+    }
   });
 
   it('omits the memory reading for a container with no limit rather than dividing by it', () => {

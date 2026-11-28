@@ -5,8 +5,10 @@
 #   docker compose -f docker/docker-compose.yml -f docker/docker-compose.prod.yml up -d
 #
 # Key differences from local dev:
-#   - restart: unless-stopped on all four services, with no retry cap, so a
-#     crash or OOM kill always comes back and a deliberate stop stays stopped
+#   - restart: unless-stopped on all four services, so a crash or OOM kill
+#     comes back and a deliberate stop stays stopped; a container that keeps
+#     failing after it has started is stopped by the host's crash-loop breaker
+#     (scripts/crash-loop-breaker.sh) and stays down until it is cleared
 #   - Explicit memory limits to prevent OOM runaway
 #   - DB volume path from env (not a hardcoded local path)
 #   - No host port binding for web — traffic flows through nginx only
@@ -390,7 +392,8 @@ services:
   # Defenses:
   #   - IMAGE_MAX_CONCURRENT=1 caps in-flight Sharp ops to one
   #   - `restart: unless-stopped` brings the container back automatically on
-  #     OOM-kill, however many times it happens
+  #     an OOM kill; one that keeps being killed is stopped by the host's
+  #     crash-loop breaker while the rest of the site stays up
   #   - healthcheck flips unhealthy on kill, back to healthy in ~30s
   #   - in-flight web requests see ECONNRESET, mapped to ImageProcessingError
   #     and a 5xx user-facing response by the HTTP adapter

@@ -4802,7 +4802,7 @@ Impact:
 
 Health Checks and Restart Policies:
 
-All containers configured with health checks (30-60s intervals, 3 retries) and restart policies. All four containers use restart: unless-stopped with no retry cap, so a container comes back after any number of crashes or out-of-memory kills and stays down only when an operator stops it, or a start of the service fails, or a deploy or restore never reports ready. A failed start takes the whole stack down, and a deploy or restore whose stack does not come up stops it, so a container that cannot start fails fast to the maintenance page and its alarm rather than restarting indefinitely. CloudWatch monitors container health status, crashes and out-of-memory kills and alerts on each, so a restart loop after a successful start is seen rather than capped.
+All containers configured with health checks (30-60s intervals, 3 retries) and restart policies. All four containers use restart: unless-stopped, so a container comes back after an occasional crash or out-of-memory kill, and stays down when an operator stops it, a start of the service fails, a deploy or restore never reports ready, or the crash-loop breaker trips it. A failed start takes the whole stack down, and a deploy or restore whose stack does not come up stops it, so a container that cannot start fails fast to the maintenance page and its alarm rather than restarting indefinitely. CloudWatch monitors container health status, crashes and out-of-memory kills and alerts on each. A restart loop after a successful start is bounded, never left to cycle: a container with five crashes or out-of-memory kills within thirty minutes is tripped by the host's crash-loop breaker, which takes the whole site to the maintenance page for the web app or nginx and stops only that container for the worker or the image processor, keeps it down through deploys and reboots, and keeps its unhealthy alarm firing until an operator clears the trip. Docker's own retry cap is not used, because it counts over a container's whole life and does not bring a container back after a daemon restart.
 
 ## 7.4 GitHub
 
@@ -5438,7 +5438,7 @@ Container memory limits: Docker memory limits are explicitly set for each contai
 
 Health check integration: The /health/ready endpoint returns 503 when the container's working-set memory, its charge less the reclaimable file cache, exceeds 90 percent of its limit. During this condition, the origin responds with 503 and CloudFront serves the configured maintenance/error experience; alerts fire so operators can intervene or restart containers. (CloudFront does not perform active health checks.)
 
-Monitoring and alerts: Alert if memory usage remains above 80 percent for five consecutive minutes indicating sustained pressure requiring investigation. Every container restarts automatically after any number of crashes or out-of-memory kills, and each crash or kill raises an alarm, so a restart loop is seen rather than capped.
+Monitoring and alerts: Alert if memory usage remains above 80 percent for five consecutive minutes indicating sustained pressure requiring investigation. Every container restarts automatically after a crash or an out-of-memory kill, and each crash or kill raises an alarm, and one that fails five times within thirty minutes is stopped by the crash-loop breaker and stays down, still alarming, until an operator clears it.
 
 ## 9.6 Infrastructure as Code
 

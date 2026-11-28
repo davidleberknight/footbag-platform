@@ -478,6 +478,7 @@ RSYNC_INCLUDES=(
   --include='/scripts/take-pre-cutover-snapshot.sh'
   --include='/scripts/assert-no-erasure-replay-pending.sh'
   --include='/scripts/container-monitor.sh'
+  --include='/scripts/crash-loop-breaker.sh'
   --include='/scripts/lib/'
   --include='/scripts/lib/closing-report.sh'
   --include='/scripts/lib/closing-report-remote.sh'

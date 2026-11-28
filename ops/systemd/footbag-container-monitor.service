@@ -18,14 +18,23 @@ Type=oneshot
 WorkingDirectory=/srv/footbag
 ExecStart=/usr/bin/env bash scripts/container-monitor.sh
 
-# The one piece of state it keeps, the moment its last run read Docker's events
-# up to, lives in a directory systemd creates and owns for it.
+# Then the crash-loop breaker, which counts the failures the reading just
+# recorded over its window and stops a container that keeps crashing after it
+# has started: the whole site for web or nginx, that container alone for the
+# worker or the image processor. It stops footbag.service without waiting, so
+# this run never blocks on the stack's stop and final backup.
+ExecStart=/usr/bin/env bash scripts/crash-loop-breaker.sh --check
+
+# Its state lives in a directory systemd creates and owns for it: the moment its
+# last run read Docker's events up to, the failures inside the breaker's window,
+# and the breaker's trip marker, which the main unit reads before every start.
 StateDirectory=footbag-container-monitor
 
-# Sandboxing. The script reads Docker's socket, the cgroup files and its own
-# state, and sends readings to the agent on the loopback address; nothing else
-# on the host is written to. It holds no AWS credential, so root's home is not
-# reached at all.
+# Sandboxing. The monitor reads Docker's socket, the cgroup files and its own
+# state, and sends readings to the agent on the loopback address. The breaker
+# acts only through Docker's socket and systemd's bus, both on AF_UNIX. Nothing
+# on the host is written to but the state directory. Neither holds an AWS
+# credential, so root's home is not reached at all.
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes

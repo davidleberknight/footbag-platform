@@ -406,7 +406,9 @@ echo "== Rsyncing source to host (code only, no database)..."
 # relative path before every start, so a host without it cannot start the site.
 # container-monitor.sh is the fifth: its timer runs it every minute, and it
 # reports through the closing-report library, so the three library files it
-# sources ship with it. The CloudWatch agent's installer half is the sixth: the
+# sources ship with it. The crash-loop breaker runs beside it in the monitor's
+# unit and before and after every start of the main unit, so it ships with them.
+# The CloudWatch agent's installer half is the sixth: the
 # deploy re-applies the agent from it whenever its pin or configuration changed.
 # The rest of scripts/ is operator tooling that has no business on a host, so the
 # directory is included only far enough for rsync to descend into it.
@@ -422,6 +424,7 @@ rsync -av --delete -e "ssh ${SSH_OPTS[*]}" \
   --include='/scripts/take-pre-cutover-snapshot.sh' \
   --include='/scripts/assert-no-erasure-replay-pending.sh' \
   --include='/scripts/container-monitor.sh' \
+  --include='/scripts/crash-loop-breaker.sh' \
   --include='/scripts/lib/' \
   --include='/scripts/lib/closing-report.sh' \
   --include='/scripts/lib/closing-report-remote.sh' \

@@ -54,6 +54,12 @@ EnvironmentFile=/srv/footbag/env
 # the replay and clears the marker.
 ExecStartPre=/usr/bin/env bash scripts/assert-no-erasure-replay-pending.sh
 
+# Refuse to start while the crash-loop breaker holds web or nginx down for
+# crashing over and over after starting: a deploy's restart or a reboot would
+# otherwise start the loop again. It prints the one command that clears the
+# trip once the cause is fixed.
+ExecStartPre=/usr/bin/env bash scripts/crash-loop-breaker.sh --start-guard
+
 # The app runs as uid 1000 and must open the database and its write-ahead log
 # and shared-memory files for writing. A root process that opened the database
 # while the stack was down (the final backup, a restore, a migration) can leave
@@ -70,6 +76,11 @@ ExecStart=/usr/bin/docker compose \
     -f docker/docker-compose.yml \
     -f docker/docker-compose.prod.yml \
     up --detach --remove-orphans --no-build
+
+# A worker or image processor the crash-loop breaker tripped stays down while
+# the rest of the site runs: the start above brings every container up, so the
+# tripped one is stopped again here until the trip is cleared.
+ExecStartPost=/usr/bin/env bash scripts/crash-loop-breaker.sh --start-hold
 
 # Graceful stop: waits up to 30s for in-flight requests to complete. On
 # SIGTERM each container checkpoints the WAL and closes its DB connection, so
@@ -107,13 +118,15 @@ ExecReload=/usr/bin/docker compose \
     up --detach --remove-orphans --no-build
 
 # Container self-healing is handled inside Docker Compose: every service
-# carries `restart: unless-stopped`, with no retry cap. ExecStart above runs
-# `docker compose up --detach` which exits 0 immediately after spawning
-# containers; systemd has no post-startup visibility into individual container
-# failures (OOM, crash-loop, healthcheck flip). A systemd-level Restart=
-# directive on this Type=oneshot unit would never fire on container failure
-# because ExecStart already succeeded, so the unit carries no Restart= or
-# RestartSec=. This unit only owns start/stop of the stack.
+# carries `restart: unless-stopped`, so a crash or an out-of-memory kill comes
+# back on its own. A container that keeps failing after it has started is
+# bounded by the crash-loop breaker, which the container monitor's timer runs
+# every minute. ExecStart above runs `docker compose up --detach`, which exits
+# 0 immediately after spawning containers; systemd has no post-startup
+# visibility into individual container failures, so a systemd-level Restart=
+# directive on this Type=oneshot unit would never fire on one, and the unit
+# carries no Restart= or RestartSec=. This unit only owns start/stop of the
+# stack.
 TimeoutStartSec=120s
 # The stop limit bounds the whole stop phase, the post-stop take-down and the
 # final backup included. On a small host whose CPU burst allowance is spent, a

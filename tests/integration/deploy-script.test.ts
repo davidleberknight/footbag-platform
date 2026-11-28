@@ -2518,7 +2518,9 @@ describe('both deploy paths start from an empty upload directory', () => {
       // The container monitor's timer runs it every minute, and it sources the
       // report library, so a host missing any of these runs a monitor that
       // fails every minute and watches nothing.
-      for (const f of ['container-monitor.sh', 'lib/closing-report.sh', 'lib/closing-report-remote.sh', 'lib/verdict-banner.sh']) {
+      // The crash-loop breaker runs in the monitor's unit and before every start
+      // of the main unit, so a host missing it cannot start the site.
+      for (const f of ['container-monitor.sh', 'crash-loop-breaker.sh', 'lib/closing-report.sh', 'lib/closing-report-remote.sh', 'lib/verdict-banner.sh']) {
         expect(source, f).toContain(`--include='/scripts/${f}'`);
       }
       expect(source).toContain("--include='/scripts/lib/'");

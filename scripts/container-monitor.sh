@@ -33,7 +33,10 @@
 # point means the monitor did not run. While footbag.service is deliberately
 # stopped (a maintenance window, a restore) only the heartbeat is published,
 # so a planned stop raises nothing. A failed footbag.service is not a planned
-# stop: every container then reads unhealthy, so a failed start alarms.
+# stop: every container then reads unhealthy, so a failed start alarms. Nor is
+# a stop the crash-loop breaker made: the container it tripped reads unhealthy
+# until the trip is cleared. Each run's failures are also appended to the state
+# directory's exits file, which the breaker counts over its window.
 #
 # Events are read from `docker events` between the moment the last run read up
 # to and now, both fixed timestamps, so consecutive runs neither overlap nor
@@ -43,8 +46,8 @@
 #
 # Invoked by ops/systemd/footbag-container-monitor.timer every minute. The
 # standard deploy ships this script, installs both units and enables the timer.
-# Refuses nothing: it is a reader, and every problem it meets is in its closing
-# report on the journal.
+# Refuses nothing and changes nothing outside its own state directory: it is a
+# reader, and every problem it meets is in its closing report on the journal.
 #
 # Test seams (each says on stderr when in use):
 #   FOOTBAG_MONITOR_DOCKER_BIN     docker client
@@ -87,8 +90,28 @@ OPENSSL_BIN="${FOOTBAG_MONITOR_OPENSSL_BIN:-openssl}"
 ORIGIN_CERT="${FOOTBAG_MONITOR_ORIGIN_CERT:-/etc/letsencrypt/live/origin/fullchain.pem}"
 STATE_DIR="${STATE_DIRECTORY:-/var/lib/footbag-container-monitor}"
 CURSOR_FILE="${STATE_DIR}/events-until"
+# The crash-loop breaker (scripts/crash-loop-breaker.sh) runs after this script
+# in the same unit. This script records each run's failures for it to count over
+# its window, and reads its trip marker: a container the breaker stopped is down
+# because it kept crashing, never a planned stop, so it reads unhealthy and its
+# alarm fires until the operator clears the trip.
+EXITS_FILE="${STATE_DIR}/exits"
+TRIP_MARKER="${STATE_DIR}/crash-loop-tripped"
 
 [[ -d "$STATE_DIR" && -w "$STATE_DIR" ]] || cr_die "state directory ${STATE_DIR} is missing or not writable"
+
+# The tripped container, or "unknown" for a marker that names none: a trip
+# nobody can name reads every container unhealthy.
+TRIPPED=""
+if [[ -e "$TRIP_MARKER" ]]; then
+  TRIPPED=unknown
+  if [[ -r "$TRIP_MARKER" ]]; then
+    named="$(sed -n 's/^container=//p' "$TRIP_MARKER" | tail -n 1)"
+    case " ${SERVICES[*]} " in
+      *" ${named} "*) [[ -n "$named" ]] && TRIPPED="$named" ;;
+    esac
+  fi
+fi
 
 LINES=()
 gauge()   { LINES+=("$1:$2|g${3:+|#container:$3}"); }
@@ -114,8 +137,9 @@ send_lines() {
 SERVICE_FAILED=0
 "$SYSTEMCTL_BIN" is-failed --quiet footbag.service && SERVICE_FAILED=1
 
-# A planned stop raises nothing: the heartbeat alone says the monitor ran.
-if (( ! SERVICE_FAILED )) && ! "$SYSTEMCTL_BIN" is-active --quiet footbag.service; then
+# A planned stop raises nothing: the heartbeat alone says the monitor ran. A
+# stop the crash-loop breaker made is not planned, so it reads in full.
+if (( ! SERVICE_FAILED )) && [[ -z "$TRIPPED" ]] && ! "$SYSTEMCTL_BIN" is-active --quiet footbag.service; then
   echo "footbag.service is not active; publishing the heartbeat only"
   send_lines "container_monitor_heartbeat:1|g"
   printf '%s\n' "$NOW" > "$CURSOR_FILE"
@@ -141,6 +165,7 @@ if ! events="$("$DOCKER_BIN" events --since "$since" --until "$NOW" \
   events=""
 fi
 
+EXIT_LINES=()
 for svc in "${SERVICES[@]}"; do
   oom=0
   crashes=0
@@ -189,6 +214,8 @@ for svc in "${SERVICES[@]}"; do
   fi
 
   (( SERVICE_FAILED )) && unhealthy=1
+  [[ "$TRIPPED" == "$svc" || "$TRIPPED" == unknown ]] && unhealthy=1
+  (( oom + crashes > 0 )) && EXIT_LINES+=("${NOW} ${svc} $(( oom + crashes ))")
   [[ -n "$pct" ]] && gauge container_memory_percent "$pct" "$svc"
   counter container_oom_kills "$oom" "$svc"
   counter container_crashes "$crashes" "$svc"
@@ -220,7 +247,10 @@ send_lines "${LINES[@]}"
 # Last, and only for a run that met no error: a monitor that cannot see Docker
 # is not a monitor that is running. The cursor moves only then too, so the
 # events a failed run could not read are read again in full by the next one.
+# The failures for the crash-loop breaker are recorded in the same breath, so a
+# window read twice is never counted twice.
 if (( ${#CR_ERRORS[@]} == 0 )); then
+  (( ${#EXIT_LINES[@]} )) && printf '%s\n' "${EXIT_LINES[@]}" >> "$EXITS_FILE"
   printf '%s\n' "$NOW" > "$CURSOR_FILE"
   send_lines "container_monitor_heartbeat:1|g"
   cr_proved "readings sent for ${SERVICES[*]} and the heartbeat after them"
