@@ -54,17 +54,27 @@ require_images_for_hosts() {
 # A production build sets INCLUDE_DEV_SHORTCUTS=0 so the images carry no test
 # kit, the persona harness that can sign in as any test member. The setting only
 # reaches the build through an exported variable, so the built images are read
-# back: a production image holding dist/testkit is refused before anything is
-# sent. DEPLOY_DOCKER_BIN is the test seam for the docker client.
+# back: a production image holding the real test kit is refused before anything
+# is sent. DEPLOY_DOCKER_BIN is the test seam for the docker client.
+#
+# The web image's production strip deletes the kit and then recreates
+# dist/testkit holding exactly two no-op stubs, so the app's static imports
+# still resolve; the worker and image processor carry no dist/testkit at all.
+# So a stripped image's dist/testkit is absent, or holds those two files and
+# nothing else, with the stub router. Anything more is the real kit.
+# TESTKIT_STRIPPED_TEST takes the directory as its one argument, so the same
+# test runs inside an image and, under the suite, against a folder on disk.
+# shellcheck disable=SC2016
+TESTKIT_STRIPPED_TEST='d="$1"; [ ! -e "$d" ] && exit 0; [ "$(ls -A "$d" | tr "\n" " ")" = "devOutboxCaptureClient.js devRoutes.js " ] && grep -q "devRouter: null" "$d/devRoutes.js"'
 require_no_testkit_in_images() {
   local image docker_bin="${DEPLOY_DOCKER_BIN:-docker}" rc
   [[ -n "${DEPLOY_DOCKER_BIN:-}" ]] && echo "NOTE: DEPLOY_DOCKER_BIN is set; the image check reads a stand-in, not the real images." >&2
   for image in docker-web docker-worker docker-image; do
     rc=0
-    "$docker_bin" run --rm --network none --entrypoint sh "$image" -c 'test ! -e /app/dist/testkit' </dev/null || rc=$?
+    "$docker_bin" run --rm --network none --entrypoint sh "$image" -c "$TESTKIT_STRIPPED_TEST" sh /app/dist/testkit </dev/null || rc=$?
     case "$rc" in
       0) ;;
-      1) echo "ERROR: ${image} holds /app/dist/testkit, which a production image must not; nothing was sent to the host." >&2; return 1 ;;
+      1) echo "ERROR: ${image} holds the test kit in /app/dist/testkit (more than the production build's two no-op stubs), which a production image must not; nothing was sent to the host." >&2; return 1 ;;
       *) echo "ERROR: could not read ${image} to check it holds no test kit (docker exited ${rc}); nothing was sent to the host." >&2; return 1 ;;
     esac
   done
